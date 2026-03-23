@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: provisioner
+      POSTGRES_USER: provisioner
+      POSTGRES_PASSWORD: provisioner
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U provisioner -d provisioner"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: golang:1.26.1
+    working_dir: /workspace
+    command: sleep infinity
+    env_file:
+      - .env.example
+    volumes:
+      - .:/workspace
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    image: golang:1.26.1
+    working_dir: /workspace
+    command: sleep infinity
+    env_file:
+      - .env.example
+    volumes:
+      - .:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
