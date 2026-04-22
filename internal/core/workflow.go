@@ -12,6 +12,10 @@ const (
 	WorkflowTypeRoomCoverage           WorkflowType = "room_coverage"
 	WorkflowTypeDirectoryPublish       WorkflowType = "directory_publish"
 	WorkflowTypeContextRefresh         WorkflowType = "context_refresh"
+	WorkflowTypeStaffSyncDryRun        WorkflowType = "staff_sync_dry_run"
+	WorkflowTypeStudentSyncDryRun      WorkflowType = "student_sync_dry_run"
+	WorkflowTypeSyncRecheck            WorkflowType = "sync_recheck"
+	WorkflowTypeAnnualResetArchive     WorkflowType = "annual_reset_archive"
 )
 
 type WorkflowRunState string
@@ -45,6 +49,8 @@ const (
 	ProviderKindZoom         ProviderKind = "zoom"
 	ProviderKindGoogleSheets ProviderKind = "google_sheets"
 	ProviderKindInternal     ProviderKind = "internal"
+	ProviderKindIncidentIQ   ProviderKind = "incident_iq"
+	ProviderKindPhoto        ProviderKind = "photo"
 )
 
 type SubjectKind string
@@ -73,7 +79,11 @@ func (v WorkflowType) Valid() bool {
 		WorkflowTypePersonTerminate,
 		WorkflowTypeRoomCoverage,
 		WorkflowTypeDirectoryPublish,
-		WorkflowTypeContextRefresh:
+		WorkflowTypeContextRefresh,
+		WorkflowTypeStaffSyncDryRun,
+		WorkflowTypeStudentSyncDryRun,
+		WorkflowTypeSyncRecheck,
+		WorkflowTypeAnnualResetArchive:
 		return true
 	default:
 		return false
@@ -115,7 +125,9 @@ func (v ProviderKind) Valid() bool {
 		ProviderKindAeries,
 		ProviderKindZoom,
 		ProviderKindGoogleSheets,
-		ProviderKindInternal:
+		ProviderKindInternal,
+		ProviderKindIncidentIQ,
+		ProviderKindPhoto:
 		return true
 	default:
 		return false

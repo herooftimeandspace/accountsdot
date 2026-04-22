@@ -12,6 +12,10 @@ func TestWorkflowTypesValidate(t *testing.T) {
 		core.WorkflowTypePersonSiteTransfer,
 		core.WorkflowTypeRoomCoverage,
 		core.WorkflowTypeDirectoryPublish,
+		core.WorkflowTypeStaffSyncDryRun,
+		core.WorkflowTypeStudentSyncDryRun,
+		core.WorkflowTypeSyncRecheck,
+		core.WorkflowTypeAnnualResetArchive,
 	}
 	for _, value := range valid {
 		if !value.Valid() {
@@ -64,6 +68,8 @@ func TestProviderKindsValidate(t *testing.T) {
 		core.ProviderKindZoom,
 		core.ProviderKindGoogleSheets,
 		core.ProviderKindInternal,
+		core.ProviderKindIncidentIQ,
+		core.ProviderKindPhoto,
 	}
 	for _, value := range valid {
 		if !value.Valid() {

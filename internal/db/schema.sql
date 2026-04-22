@@ -47,6 +47,38 @@ create table if not exists known_identifiers (
 create unique index if not exists known_identifiers_source_unique
     on known_identifiers (source_system, source_id);
 
+create table if not exists user_sync_status (
+    user_id text not null,
+    user_type text not null,
+    school_year text not null,
+    people_uuid uuid references people(uuid) on delete set null,
+    display_name text not null,
+    site_code text,
+    current_phase text not null,
+    overall_status text not null,
+    queued_at timestamptz not null default now(),
+    last_job_date timestamptz,
+    completion_date timestamptz,
+    completion_summary text,
+    errors_warnings jsonb not null default '[]'::jsonb,
+    is_archived boolean not null default false,
+    archived_at timestamptz,
+    primary key (user_type, user_id, school_year)
+);
+
+create table if not exists room_mapping_overrides (
+    id bigserial primary key,
+    school_year text not null,
+    source_room text not null,
+    normalized_room text not null,
+    incident_iq_room_id text not null,
+    incident_iq_room_name text,
+    actor_id text not null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (school_year, source_room)
+);
+
 create table if not exists import_batches (
     id bigserial primary key,
     source_system text not null,
@@ -108,7 +140,10 @@ create table if not exists approval_requests (
 
 create table if not exists manual_overrides (
     id bigserial primary key,
-    people_uuid uuid not null references people(uuid) on delete cascade,
+    people_uuid uuid references people(uuid) on delete cascade,
+    target_user_type text,
+    target_user_id text,
+    school_year text,
     actor_id text not null,
     reason text not null,
     diff jsonb not null default '{}'::jsonb,

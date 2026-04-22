@@ -29,6 +29,12 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 		"create table if not exists import_batches",
 		"create table if not exists approval_requests",
 		"create table if not exists provider_circuit_breakers",
+		"create table if not exists user_sync_status",
+		"primary key (user_type, user_id, school_year)",
+		"people_uuid uuid references people(uuid)",
+		"completion_summary text",
+		"errors_warnings jsonb not null default '[]'::jsonb",
+		"create table if not exists room_mapping_overrides",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(strings.ToLower(text), strings.ToLower(snippet)) {

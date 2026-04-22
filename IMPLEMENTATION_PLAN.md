@@ -157,6 +157,77 @@
     - `ValidateSentinel(ctx, stageRef) -> ValidationResult`
     - `ApplyPointers(ctx, pointerSpec) -> ApplyResult`
 
+## Sync Transparency Dashboard
+- Data sync is a first-class subsystem inside the workflow engine, not a sidecar report.
+- Sync-specific types:
+  - `SyncSubjectType`: `staff`, `student`
+  - `SyncPhase`: `ingested`, `photo_processed`, `iiq_matched`, `room_mapped`, `zoom_provisioned`
+  - `SyncOverallStatus`: `pending`, `in_progress`, `manual_action`, `completed`
+  - `SyncIssueCode`: `room_mapping_required`, `licensing_error`, `primary_conflict`, `missing_asset`, `rollover_wait`
+- `WorkflowType` additions:
+  - `staff_sync_dry_run`
+  - `student_sync_dry_run`
+  - `sync_recheck`
+  - `annual_reset_archive`
+- `ProviderKind` additions:
+  - `incident_iq`
+  - `photo`
+- `user_sync_status` is the sync dashboard projection table and must include:
+  - `user_id`, `user_type`, `current_phase`, `overall_status`, `last_job_date`, `errors_warnings`, `is_archived`
+  - `people_uuid nullable`, `school_year`, `display_name`, `site_code`, `queued_at`, `completion_date`, `completion_summary`, `archived_at`
+  - primary key `(user_type, user_id, school_year)`
+- `room_mapping_overrides` stores local room normalization and Incident IQ mapping decisions.
+- Existing system-of-record tables remain authoritative:
+  - `workflow_runs`
+  - `jobs`
+  - `manual_overrides`
+  - `audit_log`
+  - `event_outbox`
+- Sync workflow rules:
+  - Aeries/HR changes create sync workflows first
+  - provisioning workflows consume sync readiness, rather than treating sync as an external precondition
+  - on first Aeries sighting, create `user_sync_status` immediately with `current_phase=ingested`, `overall_status=pending`, and `queued_at=now`
+  - required sync workflows:
+    - `staff_sync_dry_run`
+    - `student_sync_dry_run`
+    - `sync_recheck`
+    - `annual_reset_archive`
+- Staff completion requires:
+  - photo dry-run check complete
+  - room mapped to Incident IQ
+  - Zoom SLG membership dry-run validated
+  - if primary, phone assignment dry-run validated
+- Student completion requires:
+  - photo dry-run check complete
+  - Incident IQ person-record match validated
+- Manual-action issue codes:
+  - `room_mapping_required`
+  - `licensing_error`
+  - `primary_conflict`
+  - `missing_asset`
+- `rollover_wait` is an in-progress warning, not a manual-action block.
+- Dashboard routes:
+  - HTML:
+    - `/sync-dashboard`
+    - `/sync-dashboard/mappings`
+  - JSON:
+    - `/api/v1/sync-status/pending`
+    - `/api/v1/sync-status/in-progress`
+    - `/api/v1/sync-status/completed`
+    - `/api/v1/sync-status/history`
+    - `/api/v1/sync-status/{user_type}/{user_id}/override`
+    - `/api/v1/room-mappings`
+    - `/api/v1/annual-reset`
+- Dashboard UI rules:
+  - tabs: `Pending`, `In Progress / Manual Actions`, `Completed`, `History`
+  - columns: `User`, `Current Step`, `Issue/Action`, `Date`
+  - auto-poll every `15s`
+  - Completed and History support filtering by `site_code` and `user_type`
+- Local-only dashboard actions:
+  - `Open Mapping Tool` persists local room mapping overrides
+  - `Ignore/Override Exception` persists local manual overrides, updates sync issues, and enqueues `sync_recheck`
+- Annual Reset archives completed rows, preserves room-mapping configuration, and clears per-user exception overrides.
+
 ## Test Plan
 - Unit tests:
   - UUIDv7 generation and parsing
@@ -170,6 +241,10 @@
   - workflow graph creation for each `WorkflowType`
   - approval-required vs auto-run step classification
   - provider error classification
+  - sync enum validation
+  - mapping from sync evaluation results into `current_phase` and `overall_status`
+  - staff vs student completion rules
+  - annual reset archive and override-retention behavior
 - Contract tests:
   - JSON API payload shapes
   - Zoom provider request/response mappings
@@ -178,6 +253,7 @@
   - README disclaimer presence
   - dependency allowlist enforcement
   - workflow and approval API payloads
+  - sync dashboard HTML and JSON payloads
 - Integration tests:
   - `SERIALIZABLE` contention with retry success
   - advisory-lock room mutation
@@ -190,6 +266,9 @@
   - `/health/ready` dependency checks
   - single-run advisory locks for HR import and Aeries sync
   - worker lease expiry moving jobs to `recovering`
+  - first Aeries sighting creates `user_sync_status`
+  - room-mapping overrides resolve `room_mapping_required` on reevaluation
+  - Annual Reset archives completed sync rows while preserving history
 - Scenario tests:
   - new hire
   - same-site transfer
@@ -202,6 +281,9 @@
   - CAP-to-human cutover failure with janitor restoration
   - blocked `ZOOM_SLG_FULL`
   - directory publish recovery from staged-but-not-pointed state
+  - staff sync dry run fully completes
+  - student sync dry run fully completes
+  - sync dashboard shows room mapping required, licensing error, primary conflict, missing asset, and rollover wait
 
 ## Assumptions and Defaults
 - The visible Google Sheet tabs can be converted into formula-backed views controlled by `Sync_Config`.
@@ -212,3 +294,4 @@
   - replay backfill = `100 events / 10 minutes`
   - context watcher cadence = `5 minutes + jitter`
   - `SERIALIZABLE` retry attempts = `5`
+  - sync dashboard poll interval = `15s`
