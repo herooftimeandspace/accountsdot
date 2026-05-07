@@ -264,7 +264,9 @@
   - during the pre-phase 0 DEV pilot, `Sign Out` should use a dedicated DEV sign-out flow that returns the browser to a signed-out DEV state representing the configured SAML/SSO exit path rather than just flipping the persona selector or clearing only local component state
   - the implemented header scope selector must become a real site-list dropdown and stay wide enough to keep the current selected site label on one line
   - implemented pages should not duplicate page-scope badges beside the title when the shell scope selector already communicates the same scope context
+  - implemented pages using the current shared shell should render a white page background inside the app frame rather than the neutral canvas gray
   - fields such as `Last refreshed` may stack onto multiple lines when that avoids collisions with neighboring controls while preserving clear label/date/time grouping
+  - when a page exposes the shared-header `Refresh` control, the `Last refreshed` cluster should sit immediately to the left of the button, preserve a `5px` blank gap, and stay no taller than the button by collapsing to two lines when needed
   - the `Data Quality` refresh control should remain a real re-fetch action, render as a Vegas Gold primary action, and re-collect the current queue payload rather than applying a cosmetic-only reload
   - the top-right shared-header `Refresh` control should use the same Vegas Gold primary-action treatment with readable black text across every implemented page that carries that shared shell pattern, even when a static page is not yet wired to page-specific runtime refresh behavior
   - shared-header `Refresh` styling drift should be corrected in the authoritative `.pen` sources for the repeated header pattern rather than through page-specific CSS or runtime overrides
@@ -1986,6 +1988,8 @@
 - preserve only the shared query parameter `q` when switching directory modes and reset all mode-specific filters on every mode change
 - keep the shared header search routing unchanged so it still lands on `Phone Directory / By Person`, while the local in-page phone-directory search field searches the currently active directory mode
 - never show person and room directories side by side in the same main view
+- treat the phone-directory detail surface as a closed-by-default overlay drawer in all three modes so no permanent right-side blank rail remains in the base page layout
+- open the directory drawer only after a row is selected, give it a visible `X` close control, and clear the current selection whenever the user switches directory modes
 - `By Person` should show only:
   - individual people
   - common area phones

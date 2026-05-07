@@ -815,11 +815,6 @@ func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode str
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	results := searchPhoneDirectory(config, query, mode)
-	var selectedResult *phoneDirectorySearchResult
-	if len(results) > 0 {
-		first := results[0]
-		selectedResult = &first
-	}
 
 	writeJSON(w, http.StatusOK, phoneDirectoryPagePayload{
 		PageID:      "phone-directory-by-" + mode,
@@ -835,7 +830,6 @@ func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode str
 			CurrentSiteID:   config.CurrentSite.ID,
 			CurrentSiteName: config.CurrentSite.Name,
 			Results:         results,
-			SelectedResult:  selectedResult,
 		},
 	})
 }

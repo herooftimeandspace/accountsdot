@@ -39,6 +39,23 @@ const NAV_LABELS = {
   admin: "Admin",
 };
 
+const DEFAULT_STATIC_REFRESH_METADATA = "Last refreshed\nMay 3, 2026 9:00 AM PT";
+const STATIC_PAGE_REFRESH_METADATA = {
+  "dashboard-it-admin": DEFAULT_STATIC_REFRESH_METADATA,
+  "dashboard-hr-lifecycle": DEFAULT_STATIC_REFRESH_METADATA,
+  "dashboard-site-admin": DEFAULT_STATIC_REFRESH_METADATA,
+  onboarding: DEFAULT_STATIC_REFRESH_METADATA,
+  offboarding: DEFAULT_STATIC_REFRESH_METADATA,
+  "room-moves": DEFAULT_STATIC_REFRESH_METADATA,
+  "frequent-fliers": DEFAULT_STATIC_REFRESH_METADATA,
+  "student-data-cleanup": DEFAULT_STATIC_REFRESH_METADATA,
+  reports: DEFAULT_STATIC_REFRESH_METADATA,
+  "reports-sync-transparency": DEFAULT_STATIC_REFRESH_METADATA,
+  "reports-ticketing-human-work": DEFAULT_STATIC_REFRESH_METADATA,
+  admin: DEFAULT_STATIC_REFRESH_METADATA,
+  "my-profile": DEFAULT_STATIC_REFRESH_METADATA,
+};
+
 function estimateTextHeight(node, textOverrides) {
   const content = String(textOverrides?.[node.id] ?? node.content ?? "");
   const fontSize = node.fontSize ?? 14;
@@ -80,6 +97,128 @@ function mergeBounds(current, next) {
     right: Math.max(current.right, next.right),
     bottom: Math.max(current.bottom, next.bottom),
   };
+}
+
+function textContent(node, textOverrides = {}) {
+  if (!node) {
+    return "";
+  }
+  return String(textOverrides?.[node.id] ?? node.content ?? "");
+}
+
+function containsBounds(outer, inner) {
+  if (!outer || !inner) {
+    return false;
+  }
+  return (
+    inner.left >= outer.left &&
+    inner.right <= outer.right &&
+    inner.top >= outer.top &&
+    inner.bottom <= outer.bottom
+  );
+}
+
+function findTopRightRefreshButtonBounds(nodeIndex, textOverrides = {}) {
+  const nodes = Array.from(nodeIndex.values());
+  const refreshTextNode = nodes
+    .filter((node) => node.type === "text" && textContent(node, textOverrides).trim() === "Refresh")
+    .sort((left, right) => {
+      if ((left.y ?? 0) !== (right.y ?? 0)) {
+        return (left.y ?? 0) - (right.y ?? 0);
+      }
+      return (right.x ?? 0) - (left.x ?? 0);
+    })[0];
+
+  if (!refreshTextNode) {
+    return null;
+  }
+
+  const refreshTextBounds = nodeBounds(refreshTextNode, textOverrides);
+  const refreshFrame = nodes
+    .filter(
+      (node) =>
+        node.type === "frame" &&
+        typeof node.fill === "string" &&
+        node.fill.toUpperCase() === "#CEB770"
+    )
+    .filter((node) => {
+      const bounds = nodeBounds(node, textOverrides);
+      return containsBounds(
+        {
+          left: bounds.left - 4,
+          top: bounds.top - 4,
+          right: bounds.right + 4,
+          bottom: bounds.bottom + 4,
+        },
+        refreshTextBounds
+      );
+    })
+    .sort((left, right) => {
+      const leftBounds = nodeBounds(left, textOverrides);
+      const rightBounds = nodeBounds(right, textOverrides);
+      const leftArea = (leftBounds.right - leftBounds.left) * (leftBounds.bottom - leftBounds.top);
+      const rightArea = (rightBounds.right - rightBounds.left) * (rightBounds.bottom - rightBounds.top);
+      return leftArea - rightArea;
+    })[0];
+
+  if (!refreshFrame) {
+    return {
+      left: refreshTextBounds.left - 28,
+      top: refreshTextBounds.top - 11,
+      right: refreshTextBounds.right + 28,
+      bottom: refreshTextBounds.bottom + 11,
+      width: refreshTextBounds.right - refreshTextBounds.left + 56,
+      height: refreshTextBounds.bottom - refreshTextBounds.top + 22,
+    };
+  }
+
+  return nodeBounds(refreshFrame, textOverrides);
+}
+
+function parseRefreshMetadata(value) {
+  const normalized = String(value ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const firstLine = normalized[0];
+  const remainder = firstLine.replace(/^Last refreshed:?/i, "").trim();
+  const detail = [remainder, ...normalized.slice(1)].filter(Boolean).join(" ");
+
+  return {
+    label: "Last refreshed",
+    value: detail || "Recently updated",
+  };
+}
+
+function SharedShellRefreshMetadataOverlay({ buttonBounds, refreshMetadata }) {
+  const parsed = parseRefreshMetadata(refreshMetadata);
+  if (!buttonBounds || !parsed) {
+    return null;
+  }
+
+  const width = 156;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="shared-shell-refresh-meta"
+      style={{
+        position: "absolute",
+        left: buttonBounds.left - width - 5,
+        top: buttonBounds.top,
+        width,
+        height: buttonBounds.height,
+        zIndex: 2,
+      }}
+    >
+      <span className="shared-shell-refresh-meta__label">{parsed.label}</span>
+      <span className="shared-shell-refresh-meta__value">{parsed.value}</span>
+    </div>
+  );
 }
 
 export function deriveInitials(persona) {
@@ -130,6 +269,10 @@ export function buildSharedShellImageOverrides(session) {
   return {
     [sharedShellSpec.sharedShellIds.avatar]: profilePhotoUrl,
   };
+}
+
+export function staticRefreshMetadataForArtboard(artboardKey) {
+  return STATIC_PAGE_REFRESH_METADATA[artboardKey] ?? null;
 }
 
 export function buildSharedShellHiddenNodeIds(session, options = {}) {
@@ -324,6 +467,7 @@ export function createSharedShellRenderOverlay({
   activeNavKey = null,
   onSearch = null,
   searchQuery = "",
+  refreshMetadata = null,
 }) {
   if (
     !session?.authenticated ||
@@ -341,8 +485,14 @@ export function createSharedShellRenderOverlay({
       nodeIndex.get(sharedShellSpec.sharedShellIds.searchIcon),
       textOverrides
     );
+    const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
 
     return [
+      <SharedShellRefreshMetadataOverlay
+        key="shared-shell-refresh-meta"
+        buttonBounds={refreshButtonBounds}
+        refreshMetadata={refreshMetadata}
+      />,
       <SharedShellSearchOverlay
         key="shared-shell-search"
         bounds={searchBounds}

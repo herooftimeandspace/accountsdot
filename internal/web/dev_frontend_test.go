@@ -49,6 +49,9 @@ type phoneDirectoryResponse struct {
 		Query           string `json:"query"`
 		CurrentSiteID   string `json:"current_site_id"`
 		CurrentSiteName string `json:"current_site_name"`
+		SelectedResult  *struct {
+			ID string `json:"id"`
+		} `json:"selected_result,omitempty"`
 		Results         []struct {
 			ID              string `json:"id"`
 			Type            string `json:"type"`
@@ -228,6 +231,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if payload.Page.CurrentSiteName != "Clover High School" {
 			t.Fatalf("current site name = %q, want Clover High School", payload.Page.CurrentSiteName)
 		}
+		if payload.Page.SelectedResult != nil {
+			t.Fatalf("selected result = %#v, want nil on initial load", payload.Page.SelectedResult)
+		}
 		if len(payload.Page.Results) < 4 {
 			t.Fatalf("expected at least 4 person-mode results, got %d", len(payload.Page.Results))
 		}
@@ -274,6 +280,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if payload.Page.Mode != "room" {
 			t.Fatalf("mode = %q, want room", payload.Page.Mode)
 		}
+		if payload.Page.SelectedResult != nil {
+			t.Fatalf("selected result = %#v, want nil on initial load", payload.Page.SelectedResult)
+		}
 		if len(payload.Page.Results) < 4 {
 			t.Fatalf("expected at least 4 room-mode results, got %d", len(payload.Page.Results))
 		}
@@ -313,6 +322,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if payload.Page.Mode != "department" {
 			t.Fatalf("mode = %q, want department", payload.Page.Mode)
+		}
+		if payload.Page.SelectedResult != nil {
+			t.Fatalf("selected result = %#v, want nil on initial load", payload.Page.SelectedResult)
 		}
 		if len(payload.Page.Results) < 4 {
 			t.Fatalf("expected at least 4 department-mode results, got %d", len(payload.Page.Results))

@@ -369,12 +369,14 @@ export function DataQualityPage({
     [session]
   );
   const hiddenNodeIds = useMemo(
-    () =>
-      buildSharedShellHiddenNodeIds(session, {
+    () => [
+      ...buildSharedShellHiddenNodeIds(session, {
         hideNavHighlight: true,
         hideSearchPlaceholder: true,
         hideAllNavGroups: true,
       }),
+      dataQualityDesign.slots.page.lastRefreshed,
+    ],
     [session]
   );
   const renderOverlay = useMemo(
@@ -385,8 +387,9 @@ export function DataQualityPage({
         onSearch,
         searchQuery,
         activeNavKey: "dataQuality",
+        refreshMetadata: viewPayload?.page?.last_refreshed ?? null,
       }),
-    [onNavigate, onSearch, searchQuery, session]
+    [onNavigate, onSearch, searchQuery, session, viewPayload?.page?.last_refreshed]
   );
 
   const overlay = (() => {

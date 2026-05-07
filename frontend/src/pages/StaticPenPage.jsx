@@ -6,6 +6,7 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
+  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const STATIC_PAGE_TITLES = {
@@ -41,6 +42,7 @@ export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, sear
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
+    refreshMetadata: staticRefreshMetadataForArtboard(artboardKey),
   });
   const pageTitle = STATIC_PAGE_TITLES[artboardKey] || "Dashboard Page";
   const semanticTitleId = `static-page-${artboardKey}-title`;

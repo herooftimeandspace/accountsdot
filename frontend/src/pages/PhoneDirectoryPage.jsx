@@ -519,26 +519,34 @@ function PhoneDirectoryResultsOverlay({
   );
 }
 
-function PhoneDirectoryDetailOverlay({ bounds, mode, result, session }) {
-  if (!bounds) {
+function PhoneDirectoryDetailOverlay({ bounds, mode, result, session, onClose }) {
+  if (!bounds || !result) {
     return null;
   }
 
   return (
     <aside
-      className="phone-directory-runtime__detail"
+      className="phone-directory-runtime__drawer"
       style={{
         position: "absolute",
-        left: bounds.left + 18,
-        top: bounds.top + 14,
-        width: Math.max(0, bounds.width - 36),
-        height: Math.max(0, bounds.height - 28),
-        zIndex: 2,
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height,
+        zIndex: 4,
       }}
       aria-live="polite"
     >
-      {result ? (
-        <>
+      <div className="phone-directory-runtime__drawer-card">
+        <button
+          type="button"
+          className="phone-directory-runtime__drawer-close"
+          aria-label="Close directory details"
+          onClick={onClose}
+        >
+          ×
+        </button>
+        <div className="phone-directory-runtime__detail">
           <h2>{result.title}</h2>
           <p>{result.site_name}</p>
           <div className="phone-directory-runtime__detail-card">
@@ -553,13 +561,8 @@ function PhoneDirectoryDetailOverlay({ bounds, mode, result, session }) {
               {canViewEmployeeId(session) ? detailField("ID", result.identifier) : null}
             </dl>
           </div>
-        </>
-      ) : (
-        <>
-          <h2>No Result Selected</h2>
-          <p>Run a directory search to view details for the current phone-directory mode.</p>
-        </>
-      )}
+        </div>
+      </div>
     </aside>
   );
 }
@@ -672,6 +675,8 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
     nodeIndex,
     resolvePaneId(nodeIndex, config, config.searchPlaceholderId)
   );
+  pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.lastRefreshedId));
+  pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.detailRailId));
 
   const resultsFrame = nodeIndex.get(resolvePaneId(nodeIndex, config, config.resultsFrameId));
   const detailRail = nodeIndex.get(resolvePaneId(nodeIndex, config, config.detailRailId));
@@ -687,10 +692,7 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
   const resultsBounds = nodeBounds(resultsFrame);
   const detailBounds = nodeBounds(detailRail);
   const searchBounds = nodeBounds(searchField);
-  const preservedRootIds = new Set([
-    resolvePaneId(nodeIndex, config, config.resultsFrameId),
-    resolvePaneId(nodeIndex, config, config.detailRailId),
-  ]);
+  const preservedRootIds = new Set([resolvePaneId(nodeIndex, config, config.resultsFrameId)]);
   for (const child of artboard.children || []) {
     if (preservedRootIds.has(child.id)) {
       continue;
@@ -711,10 +713,10 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
 
 function selectedResultForPayload(payload, selectedResultId) {
   const results = payload?.page?.results ?? [];
-  if (!results.length) {
+  if (!results.length || !selectedResultId) {
     return null;
   }
-  return results.find((result) => result.id === selectedResultId) ?? results[0];
+  return results.find((result) => result.id === selectedResultId) ?? null;
 }
 
 export function PhoneDirectoryPage({
@@ -732,6 +734,10 @@ export function PhoneDirectoryPage({
   const [payload, setPayload] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedResultId, setSelectedResultId] = useState("");
+
+  useEffect(() => {
+    setSelectedResultId("");
+  }, [mode]);
 
   const artboard = useMemo(
     () => uniquifyNodeIds(clone(generatedArtboards[artboardKey])),
@@ -773,7 +779,23 @@ export function PhoneDirectoryPage({
         }
         const nextPayload = await response.json();
         setPayload(nextPayload);
-        setSelectedResultId(nextPayload?.page?.selected_result?.id ?? nextPayload?.page?.results?.[0]?.id ?? "");
+        setSelectedResultId((current) => {
+          const results = nextPayload?.page?.results ?? [];
+          if (!results.length) {
+            return "";
+          }
+
+          if (current && results.some((result) => result.id === current)) {
+            return current;
+          }
+
+          const preferredResultId = nextPayload?.page?.selected_result?.id ?? "";
+          if (preferredResultId && results.some((result) => result.id === preferredResultId)) {
+            return preferredResultId;
+          }
+
+          return "";
+        });
         setPageState("ready");
       } catch (error) {
         if (controller.signal.aborted) {
@@ -808,8 +830,9 @@ export function PhoneDirectoryPage({
         onSearch,
         searchQuery,
         activeNavKey: "phoneDirectory",
+        refreshMetadata: payload?.page?.last_refreshed ?? null,
       }),
-    [onNavigate, onSearch, searchQuery, session]
+    [onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
   );
 
   const renderOverlay = useMemo(() => {
@@ -863,6 +886,7 @@ export function PhoneDirectoryPage({
           mode={mode}
           result={selected}
           session={session}
+          onClose={() => setSelectedResultId("")}
         />,
       ];
     };

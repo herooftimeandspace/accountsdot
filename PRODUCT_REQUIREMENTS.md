@@ -556,6 +556,11 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Switching between phone-directory modes must preserve only the current query parameter `q` and must reset all mode-specific filters on every mode change.
 - The shared header search should continue to route to `Phone Directory / By Person`, while the in-page local search field should search the currently active phone-directory mode.
 - The dashboard must never render person and room directories side by side in the same main view.
+- The right-side phone-directory detail surface should be a closed-by-default overlay drawer in all three modes:
+  - it stays hidden until a row is selected
+  - it opens from the right edge of the page pane without reserving permanent table width
+  - it includes a visible `X` close control in the upper-right corner
+  - switching directory modes clears the active selection and closes the drawer
 - `By Person` should show only:
   - individual people
   - common area phones
@@ -605,10 +610,12 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Undocumented keyboard-hint pills or other non-feature shortcut badges should not appear in the live shell.
 - When the header scope selector already conveys the page scope, do not duplicate that scope as a separate badge beside the page title.
 - The header scope selector should be a real dropdown that can list all visible sites, and the field should be wide enough to keep the selected site label on one line.
+- Implemented pages using the current shared shell should render a white page background inside the app frame rather than the neutral canvas gray.
 - When persona-based route filtering removes sidebar rows, the remaining allowed rows must reflow upward in canonical order with no blank gaps left behind by hidden items.
 - In the shared sidebar, the active-row label and icon must render above the selected highlight so the current destination remains readable while selected.
 - When a card or rail is conveying one logical paragraph of helper text, it should render as one wrapping text block rather than several stacked fragment boxes.
 - Fields such as `Last refreshed` may stack onto multiple lines when needed to avoid collisions with adjacent controls while preserving readable grouping of label, date, and time.
+- When a page exposes the shared-header `Refresh` control, the `Last refreshed` cluster must render immediately to the left of the button, separated by `5px` of blank space, and the cluster must not exceed the button height; use at most two lines if needed to preserve that height.
 - Table rows should maintain a visible gap of at least `5px` between row text and horizontal dividers.
 - Bordered cards, rails, tables, notices, and controls should keep a visible `5px` buffer from neighboring bordered elements by default.
 - Exception:
