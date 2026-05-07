@@ -552,11 +552,20 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Switching between phone-directory modes must preserve only the current query parameter `q` and must reset all mode-specific filters on every mode change.
 - The shared header search should continue to route to `Phone Directory / By Person`, while the in-page local search field should search the currently active phone-directory mode.
 - The dashboard must never render person and room directories side by side in the same main view.
+- `By Person` should show only:
+  - individual people
+  - common area phones
+- `By Room` should show only:
+  - common area phones
+  - classroom shared line groups in the `[sitecode]+30000` range
+- `By Department` should show only:
+  - department shared line groups in the `[sitecode]+50000` range
+  - Zoom call queues retrieved from `GET /phones/call_queues`
+- `By Person` must exclude shared line groups and call queues.
+- `By Room` must exclude people and department shared line groups.
+- `By Department` must exclude people, common area phones, classroom shared line groups, and auto attendants.
 - Authorized site staff should be able to start a one-person room-move correction from directory details when a displayed room or phone assignment is wrong.
 - The `By Department` view should surface department and shared-service extensions for the current site.
-- Initial `By Department` inclusion rules are:
-  - extensions in the `{site code}+50+{extension}` range
-  - Zoom call queues retrieved from `GET /phones/call_queues`
 - In the `Assigned To / Destination` column for `By Department`:
   - shared line groups and call queues should show all current members
   - auto attendants should not show a person assignment
@@ -653,6 +662,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Extension values shown anywhere in the phone directory must be numeric-only.
 - Do not render letters inside extension values.
 - If a provider export includes whitespace or formatting artifacts around an extension, normalize the displayed value to digits only while preserving the canonical numeric extension.
+- Extensions with 4, 5, or 6 digits are valid for the phone directory.
+- When mock-first examples are seeded for DEV phone-directory views, prefer 6-digit extensions by default while still allowing representative 4- and 5-digit legacy variations where the reference patterns support them.
 - Department-view classification labels should group the most common shared-service line types.
 - Initial classification labels are:
   - `Department`
@@ -661,6 +672,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Main Office`
   - `Room`
   - `Quad`
+- `By Person` should use the type labels `Person` and `Common Area`.
+- `By Room` should use the type labels `Common Area` and `Classroom Shared Line`.
 - Phone-directory assignment state must use explicit human-readable labels rather than undefined abbreviations.
 - Initial allowed assignment state labels are:
   - `Assigned`

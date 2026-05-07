@@ -897,6 +897,7 @@
 - 2026-05-01: If the same implemented-page slice output repeats more than twice without a material state change, that is a hard loop condition. The active slice must terminate immediately, assistant-started slice-specific processes must be stopped, no new feature work may continue in that pass, and the required report-back format must capture the frozen ledger state, stopped processes, blocked layer, last material change, and the one safe next action.
 - 2026-05-01: The shared implemented-page foundation now standardizes auth and route gating around authoritative `.pen` pages. `/login` is the only pre-auth visible route, logged-in pages share the `wireframe-data-quality-dashboard.pen` shell, the reusable error surface comes from `wireframe-http-error.pen`, `Student Data Cleanup` is the canonical user-facing rename for the former invalid-name cleanup page, and role-based sidebar filtering plus direct-link `403` enforcement follow the explicit route map and landing rules recorded in this plan and the PRD.
 - 2026-05-04: The implemented phone-directory slice promotes `By Person`, `By Room`, and `By Department` to live runtime-backed routes. Mode switching preserves only `q`, resets mode-local filters, keeps shared-header search routed to `By Person`, and uses a shared dynamic sidebar overlay that compacts visible rows upward with no gaps while rendering the active label and icon above the selected highlight.
+- 2026-05-07: The DEV phone-directory slice now uses strict mode-separated result sets rather than one mixed ranked pool. `By Person` is limited to people plus common area phones, `By Room` is limited to common area phones plus classroom shared line groups in the `[sitecode]+30000` range, and `By Department` is limited to department shared line groups in the `[sitecode]+50000` range plus Zoom call queues. DEV seed data should reuse real extension values and type families from the read-only directory HTML while replacing real names and emails with deterministic synthetic values.
 - 2026-04-24: The entire site must be WCAG-compliant. District accent fonts are `Reset.ttf` and `varsity_regular.ttf`, but they should be used only as accent/display fonts. `Atkinson Hyperlegible` is the primary UI/body font for readability and accessibility.
 - 2026-04-24: The entire application should use Pacific time by default for date/time display and computation. The effective application timezone must be configurable from the IT Admin UI, and date math, schedule boundaries, audit windows, and displayed timestamps should all use the configured app timezone rather than host-local time. When the configured timezone changes, existing scheduled jobs and saved effective dates must be reinterpreted into the new timezone; if the resulting scheduled time is already in the past, move it to the next configured cadence window. Store timestamps internally in UTC and render them in the configured app timezone. End users do not get per-user local timezone preferences.
 - 2026-04-24: Add the Frequent Fliers logic from `docs/reference-inputs/vendor-code/incidentiq/app/frequent_fliers.py` as a first-class dashboard page for student device-accountability reporting. The current product requirement is a live dashboard showing students with 2 or more device assignments within the last 90 days, with student, device, and all related student-device ticket context in one view for site admins and Device Wranglers. The 90-day window is a librarian-driven feature request intended to surface longer patterns of device abuse that were not visible at 45 days.
@@ -1981,6 +1982,18 @@
 - preserve only the shared query parameter `q` when switching directory modes and reset all mode-specific filters on every mode change
 - keep the shared header search routing unchanged so it still lands on `Phone Directory / By Person`, while the local in-page phone-directory search field searches the currently active directory mode
 - never show person and room directories side by side in the same main view
+- `By Person` should show only:
+  - individual people
+  - common area phones
+- `By Room` should show only:
+  - common area phones
+  - classroom shared line groups in the `[sitecode]+30000` range
+- `By Department` should show only:
+  - department shared line groups in the `[sitecode]+50000` range
+  - Zoom call queues retrieved from `GET /phones/call_queues`
+- `By Person` must exclude shared line groups and call queues.
+- `By Room` must exclude people and department shared line groups.
+- `By Department` must exclude people, common area phones, classroom shared line groups, and auto attendants.
 - expose an authorized one-person corrective room-move action from person-detail and room-detail contexts when the current room or phone assignment is wrong
 - Current legacy phone-directory data points that should inform the first dashboard pass include:
   - by person:
@@ -2060,10 +2073,15 @@
   - `Main Office`
   - `Room`
   - `Quad`
+- `By Person` should use the type labels `Person` and `Common Area`.
+- `By Room` should use the type labels `Common Area` and `Classroom Shared Line`.
 - Use the label `Call Queue` when retrieving and displaying call-queue extensions sourced from `GET /phones/call_queues`.
 - Seed the first-pass department classification rules from the vendored reference file `docs/reference-inputs/data/Catchall Spreadsheet - Zoom Classifications.csv`.
 - Undefined abbreviations such as `NV` must not appear in the product UI.
 - Legacy Google Sheet publishing and CSV steps should be treated as migration-era compatibility or reference tooling, not the authoritative runtime data plane for the dashboard.
+- Extension values shown anywhere in the phone directory must be numeric-only strings.
+- Extensions with 4, 5, or 6 digits are valid for the phone directory.
+- When DEV phone-directory seed data is built from the read-only directory HTML reference set, prefer 6-digit extensions as the default visible mock shape while still keeping representative 4- and 5-digit legacy variations where the reference patterns support them.
 
 ## Sync Timing and Refresh Controls
 - Dashboard projections must refresh immediately after local automation pushes a successful change.
