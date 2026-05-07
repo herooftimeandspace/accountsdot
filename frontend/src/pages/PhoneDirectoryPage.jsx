@@ -11,7 +11,6 @@ import {
 
 const MODE_CONFIG = {
   person: {
-    routePath: "/phone-directory/by-person",
     endpoint: "/api/v1/dev/pages/phone-directory/by-person",
     artboardKey: "phone-directory-by-person",
     descriptionId: "t84",
@@ -95,7 +94,6 @@ const MODE_CONFIG = {
     ],
   },
   room: {
-    routePath: "/phone-directory/by-room",
     endpoint: "/api/v1/dev/pages/phone-directory/by-room",
     artboardKey: "phone-directory-by-room",
     descriptionId: "t84",
@@ -172,7 +170,6 @@ const MODE_CONFIG = {
     ],
   },
   department: {
-    routePath: "/phone-directory/by-department",
     endpoint: "/api/v1/dev/pages/phone-directory/by-department",
     artboardKey: "phone-directory-by-department",
     descriptionId: "t84",
@@ -279,6 +276,13 @@ const MODE_PAGE_TITLES = {
   room: "Phone Directory by Room",
   department: "Phone Directory by Department",
 };
+const SHARED_LINE_RESULT_COLUMNS = [
+  { key: "subtitle", label: "Details", render: (result) => result.subtitle || "—" },
+  { key: "phone", label: "Phone", render: (result) => result.phone || "—" },
+  { key: "extension", label: "Extension", render: (result) => result.extension || "—" },
+  { key: "site", label: "Site", render: (result) => result.site_name || "—" },
+  { key: "type", label: "Type", pill: true, render: (result) => result.type_label },
+];
 
 function paneNodeId(artboardKey, baseId) {
   return `${artboardKey}__${baseId}`;
@@ -386,26 +390,19 @@ function canViewEmployeeId(session) {
   );
 }
 
+function sharedLineColumns(titleLabel) {
+  return [
+    { key: "title", label: titleLabel, render: (result) => result.title, primary: true },
+    ...SHARED_LINE_RESULT_COLUMNS,
+  ];
+}
+
 function resultsColumnsForMode(mode) {
   switch (mode) {
     case "room":
-      return [
-        { key: "title", label: "Room or Line", render: (result) => result.title, primary: true },
-        { key: "subtitle", label: "Details", render: (result) => result.subtitle || "—" },
-        { key: "phone", label: "Phone", render: (result) => result.phone || "—" },
-        { key: "extension", label: "Extension", render: (result) => result.extension || "—" },
-        { key: "site", label: "Site", render: (result) => result.site_name || "—" },
-        { key: "type", label: "Type", pill: true, render: (result) => result.type_label },
-      ];
+      return sharedLineColumns("Room or Line");
     case "department":
-      return [
-        { key: "title", label: "Department or Line", render: (result) => result.title, primary: true },
-        { key: "subtitle", label: "Details", render: (result) => result.subtitle || "—" },
-        { key: "phone", label: "Phone", render: (result) => result.phone || "—" },
-        { key: "extension", label: "Extension", render: (result) => result.extension || "—" },
-        { key: "site", label: "Site", render: (result) => result.site_name || "—" },
-        { key: "type", label: "Type", pill: true, render: (result) => result.type_label },
-      ];
+      return sharedLineColumns("Department or Line");
     default:
       return [
         { key: "title", label: "Name or Line", render: (result) => result.title, primary: true },
