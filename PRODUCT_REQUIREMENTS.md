@@ -138,7 +138,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the DEV persona switcher should replace the active mock session immediately so demo users can move between persona views without restarting the app shell
   - if the active route is `/dashboard`, switching personas should resolve `/dashboard` through the new persona's landing route
   - if the active route remains allowed for the new persona, the application should stay on that route and rerender it with the new persona's shell, route visibility, and data scope
-  - if the active route is no longer allowed for the new persona, the application should return `403 Forbidden`
+  - if the active route is no longer allowed for the new persona during a DEV persona-switch action, the application should route to the new persona's landing route so demos do not strand users on an unauthorized page
+  - direct navigation to a route outside the active persona's allowed route set should still return `403 Forbidden`
 - Role-based page visibility for the current foundation slice:
   - `IT Admin`
     - all routes

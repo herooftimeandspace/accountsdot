@@ -109,6 +109,22 @@ async function readJSON(response) {
   return payload;
 }
 
+function resolvePersonaSwitchTarget(payload, pathname) {
+  const currentPath = normalizePath(pathname);
+  const currentRoute = resolveRoute(currentPath);
+
+  if (currentPath === "/dashboard" || currentPath === "/error/403") {
+    return payload?.landing_path || "/dashboard";
+  }
+
+  if (!currentRoute || currentRoute.kind === "login" || currentRoute.kind === "error") {
+    return null;
+  }
+
+  const allowedRoutes = payload?.allowed_routes ?? [];
+  return allowedRoutes.includes(currentRoute.path) ? null : payload?.landing_path || "/dashboard";
+}
+
 export function App() {
   const [currentLocation, setCurrentLocation] = useState(readLocationState);
   const [session, setSession] = useState(null);
@@ -192,12 +208,16 @@ export function App() {
         setPreferredPersonaId(personaId);
         storePersona(personaId);
         setSessionState("ready");
+        const switchTarget = resolvePersonaSwitchTarget(payload, window.location.pathname);
+        if (switchTarget) {
+          navigate(switchTarget, { replace: true });
+        }
       } catch (error) {
         setSessionError(error);
         setSessionState("error");
       }
     },
-    []
+    [navigate]
   );
 
   const logout = useCallback(async () => {

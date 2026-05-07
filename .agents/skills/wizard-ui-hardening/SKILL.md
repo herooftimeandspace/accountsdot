@@ -36,6 +36,34 @@ Default order is pipeline contract, `.pen layout`, docs for new behavior, runtim
 5. Never hand-edit generated artboards, generated presentational components, or generated review exports.
 6. Run `npm run pen:check`, `npm run pen:lint`, `npm run build:web`, and `npm run a11y:check` after relevant UI changes.
 
+## Primitive-First Feedback Intake
+
+Before editing, convert every Codex annotate item into a ledger row in `docs/mocks/wireframes/annotation-ledgers/implemented-pages.md` or a page-specific ledger.
+
+Each row must identify:
+
+- Layer: `pipeline`, `.pen layout`, `docs/new behavior`, `runtime behavior`, or `review artifact`.
+- Primitive: `shared shell`, `refresh`, `table`, `wrapper/card/rail`, `helper paragraph`, `status badge`, `action link`, or `page-local`.
+- Durable guard: lint rule, shared primitive rule, docs update, generated manifest entry, runtime test, accessibility check, or accepted one-time exception.
+
+Do not close a feedback item as merely "fixed." Closed items must name the durable guard that prevents regression.
+
+## Primitive Escalation
+
+- If the same feedback appears on two or more pages, treat it as shared primitive work.
+- Header, sidebar, profile, search, scope, nav, support, notification, help, and platform-status feedback is always `shared shell`.
+- Row spacing, baseline alignment, dividers, wrapper borders, overflow, and fragmented text are primitive work first; make them page-local only after the primitive rule is clarified.
+- New behavior requests are `docs/new behavior`: stop and update `PRODUCT_REQUIREMENTS.md` plus `IMPLEMENTATION_PLAN.md` before runtime implementation.
+
+## Primitive Cleanup Order
+
+1. Shared shell/header/sidebar.
+2. Standard refresh and action controls.
+3. Wrapper/card/rail spacing.
+4. Tables and row-baseline behavior.
+5. Helper paragraph and text wrapping.
+6. Badges, links, and page-local polish.
+
 ## Durable UI Rules
 
 - Shared header/sidebar are canonical logged-in shell surfaces; role filtering must reflow remaining nav items without blank gaps.
@@ -48,3 +76,7 @@ Default order is pipeline contract, `.pen layout`, docs for new behavior, runtim
 ## Loop Guard
 
 If the same annotation set or generated result repeats more than twice without material progress, stop the slice and report the active layer, ledger status, last successful change, stopped processes, and one next action needed to resume safely.
+
+## Feedback Thread Handoff
+
+When reporting progress in a UI feedback thread, include the active page, active primitive, ledger rows touched, layer classification, files expected to change, checks to run, and whether any item was reclassified as behavior.

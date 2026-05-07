@@ -10,6 +10,7 @@ This ledger is the default landing place for annotation-driven hardening work ac
 | UIH-003 | All implemented table pages | Design/UI hardening plan | `.pen layout` | authoritative `.pen` table layouts | open | Warning-only table baseline and divider-gap lint diagnostics |
 | UIH-004 | All implemented pages | Design/UI hardening plan | `.pen layout` | authoritative `.pen` helper text/card/table text nodes | open | Warning-only fragmented-paragraph lint diagnostics |
 | UIH-005 | All implemented pages | Design/UI hardening plan | review artifact | runtime screenshot/accessibility evidence | open | `npm run build:web`, `npm run a11y:check`, page screenshots when requested |
+| UIH-006 | All logged-in implemented pages | User feedback: persona switcher feels broken after role change | docs/new behavior, runtime behavior | `PRODUCT_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`, `frontend/src/app.jsx` | open | Docs update plus in-app browser verification of DEV persona-switch routing and strict direct-link `403` behavior |
 
 ## Page Index
 
