@@ -417,6 +417,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - The operator-facing product display name is `The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard`.
 - UI shells, mocks, and generated visual assets should use the exact vendored `Firefly.png` mascot logo at `docs/reference-inputs/branding/Firefly.png` and keep all branding content inside the sidebar bounds.
 - The branding tagline is `Have you checked with The WIZARD?`.
+- The shared-shell branding tagline should render in Vegas Gold `#CEB770` on the white sidebar background. This is an explicit brand override accepted for the pre-phase 0 DEV shell even though automated WCAG contrast math flags Vegas Gold on white as below the normal text-contrast threshold.
 
 ## Core Product Areas
 

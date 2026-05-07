@@ -204,6 +204,21 @@ function backgroundForText(textNode, nodes, artboardFill) {
   return candidates.at(-1)?.fill || artboardFill || "#FFFFFF";
 }
 
+function isDocumentedContrastOverride(node, foreground, background) {
+  // Brand override: the sidebar tagline intentionally uses Vegas Gold on white
+  // per user direction, even though the computed WCAG contrast is below 4.5:1.
+  const foregroundHex = node.fill?.toUpperCase?.();
+  const vegasGold = parseHexColor("#CEB770").join(",");
+  const white = parseHexColor("#FFFFFF").join(",");
+  return (
+    node.type === "text" &&
+    node.content === "Have you checked with The WIZARD?" &&
+    foregroundHex === "#CEB770" &&
+    foreground.join(",") === vegasGold &&
+    background.join(",") === white
+  );
+}
+
 function assertHotspotTargets(page, nodes) {
   for (const [name, nodeId] of Object.entries(page.hotspots)) {
     const node = nodes.find((candidate) => candidate.id === nodeId);
@@ -221,6 +236,10 @@ function assertTextContrast(page, artboard, nodes) {
     const foreground = parseHexColor(node.fill);
     const background = parseHexColor(backgroundForText(node, nodes, artboard.fill));
     if (!foreground || !background) {
+      continue;
+    }
+
+    if (isDocumentedContrastOverride(node, foreground, background)) {
       continue;
     }
 
