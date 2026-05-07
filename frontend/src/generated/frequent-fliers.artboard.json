@@ -100,7 +100,7 @@
       "fontFamily": "Arial",
       "fontSize": 10,
       "fontWeight": "600",
-      "fill": "#01161E",
+      "fill": "#CEB770",
       "width": 156,
       "textGrowth": "auto"
     },
@@ -126,7 +126,7 @@
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "800",
-      "fill": "#01161E",
+      "fill": "#CEB770",
       "width": 232,
       "textGrowth": "auto"
     },

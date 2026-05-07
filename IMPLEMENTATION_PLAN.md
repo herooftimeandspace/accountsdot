@@ -272,7 +272,9 @@
   - the login authority for this slice is `docs/mocks/wireframes/wireframe-login.pen`; it renders only the centered `Firefly.png` logo at `25%` opacity, the centered `The WIZARD` title in Vegas Gold Varsity with black stroke outline, and a centered `Log in with Google` button using the Google mark, with no sidebar or header before login succeeds
   - the reusable error-page authority for this slice is `docs/mocks/wireframes/wireframe-http-error.pen`; logged-out errors render without shell, while logged-in errors merge that page pane into the shared shell from `wireframe-data-quality-dashboard.pen`
   - HTTP error pages must include one recovery CTA; authenticated users return through `/dashboard` so the router resolves their role-based landing path, while signed-out users return to `/login`
-  - stroked display text on HTTP error pages must use proportional stroke widths clamped between `1px` and `3px` rather than a single fixed heavy outline
+  - the login page display title must use a fixed `1px` outer stroke
+  - stroked display text on HTTP error pages must use a fixed `1px` outer stroke
+  - DEV-only mock auth, session, and page routes must require `APP_ENV=development` explicitly so missing `APP_ENV` fails closed outside development
   - the DEV login flow is mock-only in this slice: clicking `Log in with Google` establishes a signed-in DEV session and redirects to `/dashboard`, while a user who is already authenticated and authorized skips `/login` and goes directly to `/dashboard`
   - logout must return the browser to `/login`
   - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/onboarding`, `/offboarding`, `/room-moves`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/sync-transparency`, `/reports/ticketing-human-work`, `/admin`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`

@@ -923,9 +923,6 @@ func clearDevSessionCookie(w http.ResponseWriter) {
 
 func devModeEnabled() bool {
 	mode := strings.TrimSpace(os.Getenv("APP_ENV"))
-	if mode == "" {
-		mode = "development"
-	}
 	return strings.EqualFold(mode, "development")
 }
 

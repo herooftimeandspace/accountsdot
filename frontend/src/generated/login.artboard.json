@@ -49,12 +49,12 @@
       "fontFamily": "Varsity",
       "fontSize": 88,
       "fontWeight": "700",
-      "fill": "#01161E",
+      "fill": "#CEB770",
       "width": 1000,
       "textAlign": "center",
       "textGrowth": "auto",
       "stroke": {
-        "thickness": 4,
+        "thickness": 1,
         "fill": "#01161E",
         "align": "outside"
       }

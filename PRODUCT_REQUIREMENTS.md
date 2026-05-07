@@ -212,8 +212,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - logged-out error pages should render without sidebar or header
   - logged-in error pages should retain the shared shell
   - both logged-in and logged-out error pages should center `Firefly.png` at `25%` opacity and render the error code plus explanation in Vegas Gold Varsity with a black stroke outline
-  - all stroked display text on HTTP error pages should use a stroke width proportional to font size, clamped to a minimum of `1px` and a maximum of `3px`
+  - the login page display title should use a fixed `1px` outer stroke
+  - all stroked display text on HTTP error pages should use a fixed `1px` outer stroke
   - all HTTP error pages should include a recovery button; authenticated users should return through `/dashboard` so the app resolves their role-based default landing page, while signed-out users should return to `/login`
+  - DEV-only mock auth, session, and page routes should be available only when `APP_ENV` is explicitly `development`; missing `APP_ENV` should fail closed and behave as non-development
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Outcome:

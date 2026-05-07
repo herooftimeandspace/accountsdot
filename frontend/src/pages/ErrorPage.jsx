@@ -38,10 +38,6 @@ const ERROR_CODE_IDS = new Set(["t4", "error__t4"]);
 const ERROR_TITLE_IDS = new Set(["t5", "error__t5"]);
 const ERROR_BODY_IDS = new Set(["t6", "error__t6"]);
 
-function clampStrokeThickness(fontSize) {
-  return Math.max(1, Math.min(3, Math.round((fontSize ?? 14) / 24)));
-}
-
 function errorCopyFor(code, details) {
   const fallback = {
     title: "Unexpected Error",
@@ -89,7 +85,7 @@ function updateErrorArtboard(baseArtboard, copy) {
         node.content = copy.body;
       }
       if (node.stroke?.fill) {
-        node.stroke.thickness = clampStrokeThickness(node.fontSize);
+        node.stroke.thickness = 1;
       }
     }
 
@@ -105,6 +101,7 @@ function updateErrorArtboard(baseArtboard, copy) {
 export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "", details = "" }) {
   const copy = errorCopyFor(code, details);
   const loggedIn = Boolean(session?.authenticated && session?.authorized);
+  const hideVisibleBody = loggedIn && Number(code) === 403;
   const artboard = updateErrorArtboard(
     generatedArtboards[loggedIn ? "error-logged-in" : "error-logged-out"],
     copy
@@ -125,6 +122,9 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
         hideAllNavGroups: true,
       })
     : [];
+  if (hideVisibleBody) {
+    hiddenNodeIds.push("error__t6");
+  }
   const imageNodeOverrides = loggedIn ? buildSharedShellImageOverrides(session) : {};
   const sharedShellOverlay = loggedIn
     ? createSharedShellRenderOverlay({
@@ -143,21 +143,23 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
       ? sharedShellOverlay({ nodeIndex, textOverrides: overlayTextOverrides })
       : sharedShellOverlay;
     const bodyNode = nodeIndex.get(loggedIn ? "error__t6" : "t6");
+    const titleNode = nodeIndex.get(loggedIn ? "error__t5" : "t5");
+    const anchorNode = hideVisibleBody ? titleNode ?? bodyNode : bodyNode ?? titleNode;
 
-    if (!bodyNode) {
+    if (!anchorNode) {
       return sharedShell;
     }
 
-    const bodyContent = overlayTextOverrides[bodyNode.id] ?? bodyNode.content ?? "";
-    const bodyHeight = estimateWrappedTextHeight(
-      bodyContent,
-      bodyNode.width ?? 780,
-      bodyNode.fontSize ?? 24
+    const anchorContent = overlayTextOverrides[anchorNode.id] ?? anchorNode.content ?? "";
+    const anchorHeight = estimateWrappedTextHeight(
+      anchorContent,
+      anchorNode.width ?? 780,
+      anchorNode.fontSize ?? 24
     );
     const buttonWidth = loggedIn ? 260 : 220;
     const buttonHeight = 48;
-    const buttonLeft = (bodyNode.x ?? 0) + ((bodyNode.width ?? buttonWidth) - buttonWidth) / 2;
-    const buttonTop = (bodyNode.y ?? 0) + bodyHeight + 28;
+    const buttonLeft = (anchorNode.x ?? 0) + ((anchorNode.width ?? buttonWidth) - buttonWidth) / 2;
+    const buttonTop = (anchorNode.y ?? 0) + anchorHeight + (hideVisibleBody ? 42 : 28);
 
     return (
       <>

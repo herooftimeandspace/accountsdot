@@ -447,3 +447,26 @@ func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
 		}
 	}
 }
+
+func TestDevFrontendRoutesDisabledWhenAppEnvUnset(t *testing.T) {
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	for _, path := range []string{
+		"/api/v1/dev/session",
+		"/api/v1/dev/login",
+		"/api/v1/dev/logout",
+		"/api/v1/dev/pages/data-quality",
+		"/api/v1/dev/pages/phone-directory/by-person",
+	} {
+		method := http.MethodGet
+		if path == "/api/v1/dev/login" || path == "/api/v1/dev/logout" {
+			method = http.MethodPost
+		}
+		req := httptest.NewRequest(method, path, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s returned %d, want 404", path, rec.Code)
+		}
+	}
+}

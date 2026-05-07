@@ -100,7 +100,7 @@
       "fontFamily": "Arial",
       "fontSize": 10,
       "fontWeight": "600",
-      "fill": "#01161E",
+      "fill": "#CEB770",
       "width": 156,
       "textGrowth": "auto"
     },
@@ -126,7 +126,7 @@
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "800",
-      "fill": "#01161E",
+      "fill": "#CEB770",
       "width": 232,
       "textGrowth": "auto"
     },
@@ -1844,12 +1844,12 @@
       "fontFamily": "Varsity",
       "fontSize": 160,
       "fontWeight": "700",
-      "fill": "#01161E",
+      "fill": "#CEB770",
       "width": 800,
       "textAlign": "center",
       "textGrowth": "auto",
       "stroke": {
-        "thickness": 5,
+        "thickness": 1,
         "fill": "#01161E",
         "align": "outside"
       }
@@ -1863,12 +1863,12 @@
       "fontFamily": "Varsity",
       "fontSize": 52,
       "fontWeight": "700",
-      "fill": "#01161E",
+      "fill": "#CEB770",
       "width": 900,
       "textAlign": "center",
       "textGrowth": "auto",
       "stroke": {
-        "thickness": 2,
+        "thickness": 1,
         "fill": "#01161E",
         "align": "outside"
       }
