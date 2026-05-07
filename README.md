@@ -72,6 +72,10 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `make vulncheck-container`
 - `make security`
 - `make security-container`
+- `npm run pen:check`
+- `npm run pen:lint`
+- `npm run build:web`
+- `npm run a11y:check`
 
 `make vulncheck` uses a local `govulncheck` binary when available, otherwise it runs `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`. If the host does not have Go installed, it falls back to `make vulncheck-container`, which runs the same scan inside the repo's configured Go Docker image.
 

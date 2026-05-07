@@ -229,8 +229,11 @@ function assertTextContrast(page, artboard, nodes) {
     const fontWeight = Number.parseInt(String(node.fontWeight ?? 400), 10);
     const isLargeText = fontSize >= 24 || (fontSize >= 18.66 && fontWeight >= 700);
     const minimum = isLargeText ? 3 : 4.5;
+    const strokeColor = parseHexColor(node.stroke?.fill);
+    const strokeRatio = strokeColor ? contrastRatio(strokeColor, background) : 0;
+    const hasReadableStroke = (node.stroke?.thickness ?? 0) >= 1 && strokeRatio >= minimum;
 
-    if (ratio < minimum) {
+    if (ratio < minimum && !hasReadableStroke) {
       fail(
         `${page.name} text node ${node.id} contrast ${ratio.toFixed(2)} is below WCAG 1.4.3 minimum ${minimum}`
       );

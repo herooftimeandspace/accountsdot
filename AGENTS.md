@@ -89,15 +89,22 @@ This file applies to the whole repository. It condenses durable repo-specific in
 
 - For implemented pages, `.pen` files own geometry, spacing, typography, text blocks, and static shell/page layout.
 - React runtime owns documented interaction, routing, data loading, access rules, and behavior.
+- Before UI/design work, read the implemented-page UI sections of `IMPLEMENTATION_PLAN.md` and `PRODUCT_REQUIREMENTS.md`, then use `docs/mocks/wireframes/implemented-page-design-contract.md` as the compact working contract.
+- Classify every UI issue before editing as exactly one of `pipeline`, `.pen layout`, `docs/new behavior`, `runtime behavior`, or `review artifact`.
 - Do not add new shell/page behavior until `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md` define it.
 - For implemented pages, update the `.pen` source first, then run `npm run pen:sync`. Do not hand-edit generated artboards, generated presentational components, or generated review artifacts.
+- For annotation-driven work, freeze Codex annotate feedback into the relevant checked-in ledger before implementation. Do not start from loose annotation memory.
 - Export SVG/PNG review artifacts only when human review, signoff, archival comparison, or an explicit request needs them.
 - Shared shell issues must be fixed at the shared pattern level, not one page at a time.
+- Standard controls such as the shared-header `Refresh` action must be treated as reusable primitives with shared geometry and styling, not page-local copies.
 - Live implemented pages must not surface shortcut pills, governance labels, validation-process text, mock-policy labels, or other shell adornments unless they are documented operator-facing product behavior.
+- When a card, rail, helper block, or table cell expresses one logical paragraph, use one wrapping text node in the authoritative `.pen`; do not split it into stacked fragments unless a documented semantic reason requires separate nodes.
 - Preserve table layout rules: shared top baseline across row cells, rows grow downward to the tallest cell, and text must not collide with dividers.
 - Preserve at least a `5px` visual gap between row text and horizontal dividers unless a documented shared-border join is intentional.
+- Preserve at least a `5px` buffer between bordered wrapper elements unless the design contract documents an intentional shared-border join.
 - Generated dashboard assets must keep borders, icons, text, badges, and controls from visually colliding or overflowing.
 - Use Pencil local-app or interactive workflows when a task requires Pencil-authored `.pen` work. Validate one pilot screen before batch exporting a wireframe set.
+- After relevant UI/design changes, run `npm run pen:check`, `npm run pen:lint`, `npm run build:web`, and `npm run a11y:check` unless a narrower check is justified and stated.
 
 ## Visual System
 
@@ -140,8 +147,8 @@ This file applies to the whole repository. It condenses durable repo-specific in
 
 ## Custom Skill Extraction Guidance
 
-- A future Codex skill for this repo should use this `AGENTS.md` as the compact operating core.
-- Keep the skill body lean. Point to repo docs as references instead of copying large sections into `SKILL.md`.
+- The repo-local Codex UI hardening skill lives at `.agents/skills/wizard-ui-hardening/SKILL.md`.
+- Keep repo skill bodies lean. Point to repo docs as references instead of copying large sections into `SKILL.md`.
 - Recommended trigger: use the skill for work on The WIZARD, accountsdot, district account lifecycle, `.pen`-derived dashboard pages, provider sync/orchestration, or dev/staging/main promotion safety.
 - Put long reference detail into skill `references/` files only when it is needed outside the repo or cannot be reliably discovered from the checked-out docs.
 - Preserve the source-of-truth hierarchy: `IMPLEMENTATION_PLAN.md` for implementation decisions, `PRODUCT_REQUIREMENTS.md` for product scope, `TEST_MATRIX.md` for scenario coverage, `ENVIRONMENT_DATA_PLAYBOOK.md` for environment safety, and `README.md` for project overview and commands.

@@ -9,6 +9,8 @@
     "a11y:check": "node scripts/check_frontend_accessibility.mjs",
     "pen:sync": "node scripts/sync_implemented_pages.mjs",
     "pen:check": "node scripts/sync_implemented_pages.mjs --check",
+    "pen:lint": "node scripts/lint_implemented_pages.mjs",
+    "pen:lint:test": "node scripts/lint_implemented_pages.mjs --self-test",
     "pen:export": "node docs/mocks/export_pen_assets.mjs",
     "vendor:lucide": "node docs/mocks/vendor_lucide.mjs",
     "render:wireframes": "node docs/mocks/render_wireframes.mjs",

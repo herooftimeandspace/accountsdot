@@ -93,6 +93,7 @@
   - update the `.pen` first
   - generalize shared-shell and shared-component fixes rather than patching one page locally
   - regenerate derived code and artboard outputs
+  - run the generated design manifest and `npm run pen:lint` contract checks before review
   - refresh the DEV page for the next review pass
   - export SVG/PNG review artifacts only on demand
 - Implemented-page recovery work must proceed in this order:

@@ -30,3 +30,4 @@ This ledger freezes the current Data Quality recovery cycle so the implemented p
 - Do not mix layout, docs, and runtime behavior changes in one validation pass.
 - Close layout-only items against the live DEV page first.
 - If a behavior request is still undefined after layout is stable, stop and update `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md` before touching runtime code.
+- Use `docs/mocks/wireframes/implemented-page-design-contract.md` and `docs/mocks/wireframes/annotation-ledgers/implemented-pages.md` for future annotation passes so closed feedback remains tied to a durable lint rule, shared primitive rule, docs update, or accepted one-time fix note.

@@ -244,6 +244,29 @@ const shellSpec = {
   },
 };
 
+const standardPrimitiveSpec = {
+  refresh: {
+    label: "Refresh",
+    role: "standard-header-action",
+    frame: {
+      x: 1540,
+      y: 90,
+      width: 112,
+      height: 38,
+      fill: "#CEB770",
+      stroke: "#CEB770",
+      cornerRadius: 8,
+    },
+    text: {
+      y: 101,
+      fontSize: 13,
+      fontWeight: "700",
+      fill: "#01161E",
+      textAlign: "center",
+    },
+  },
+};
+
 const activeNavByArtboardKey = {
   "dashboard-it-admin": "dashboard",
   "dashboard-hr-lifecycle": "dashboard",
@@ -262,6 +285,57 @@ const activeNavByArtboardKey = {
   "reports-ticketing-human-work": "reports",
   admin: "admin",
 };
+
+const loggedInArtboardKeys = artboardSpecs
+  .filter((spec) => !["login", "error-logged-out"].includes(spec.key))
+  .map((spec) => spec.key);
+
+function generatedManifest() {
+  return {
+    schemaVersion: 1,
+    sourceOfTruth: [
+      "README.md",
+      "IMPLEMENTATION_PLAN.md",
+      "PRODUCT_REQUIREMENTS.md",
+      "TEST_MATRIX.md",
+      "AGENTS.md",
+      "docs/mocks/wireframes/implemented-page-design-contract.md",
+    ],
+    generatedBy: "scripts/sync_implemented_pages.mjs",
+    generatedFileGlobs: [
+      "frontend/src/generated/*.artboard.json",
+      "frontend/src/generated/artboards.generated.js",
+      "frontend/src/generated/data-quality.generated.jsx",
+      "frontend/src/generated/implemented-page-design-manifest.generated.json",
+    ],
+    artboards: artboardSpecs.map((spec) => ({
+      key: spec.key,
+      sourcePen: spec.source,
+      mode: spec.mode,
+      activeNav: activeNavByArtboardKey[spec.key] ?? null,
+      loggedInShell: loggedInArtboardKeys.includes(spec.key),
+      standardPrimitives:
+        loggedInArtboardKeys.includes(spec.key) && !spec.key.startsWith("error-")
+          ? ["refresh"]
+          : [],
+    })),
+    sharedShell: {
+      sourcePen: "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
+      loggedInPane: {
+        x: LOGGED_IN_PANE_X,
+        y: LOGGED_IN_PANE_Y,
+      },
+      ...shellSpec,
+    },
+    standardPrimitives: standardPrimitiveSpec,
+    lintPolicy: {
+      initialPosture: "warn broadly, fail high-confidence regressions",
+      warningPromotion: "Promote stable warning checks to failures after false positives are resolved.",
+      minimumVisualGapPx: 5,
+      recoveryLayers: ["pipeline", ".pen layout", "docs/new behavior", "runtime behavior", "review artifact"],
+    },
+  };
+}
 
 const assetCache = new Map();
 
@@ -449,6 +523,8 @@ ${metadata}
 };
 
 export const sharedShellSpec = ${JSON.stringify(shellSpec, null, 2)};
+
+export const implementedPageDesignManifest = ${JSON.stringify(generatedManifest(), null, 2)};
 `;
 }
 
@@ -548,6 +624,10 @@ async function main() {
   filesToWrite.push({
     path: path.join(generatedDir, "data-quality.generated.jsx"),
     content: `${generateDataQualityViewModule()}\n`,
+  });
+  filesToWrite.push({
+    path: path.join(generatedDir, "implemented-page-design-manifest.generated.json"),
+    content: `${JSON.stringify(generatedManifest(), null, 2)}\n`,
   });
 
   let changed = false;

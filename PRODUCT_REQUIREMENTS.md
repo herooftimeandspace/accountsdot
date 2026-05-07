@@ -625,6 +625,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - freeze the active annotation set into one recovery ledger before layout work starts so layout, docs, and runtime changes do not interleave endlessly
   - generalize shared-shell or shared-component fixes instead of patching one page in isolation
   - regenerate derived code/artboard outputs
+  - run `npm run pen:lint` so shared-shell, standard-control, spacing, wrapper, and text-fragment regressions are retained as contract checks or warnings
   - refresh the DEV page for review
   - export SVG/PNG review artifacts only when needed
 - For all future implemented-page recovery cycles, the standing defaults are:
