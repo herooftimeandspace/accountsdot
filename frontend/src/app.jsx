@@ -204,20 +204,24 @@ export function App() {
             body: JSON.stringify({ persona_id: personaId }),
           })
         );
+        const switchTarget = resolvePersonaSwitchTarget(payload, window.location.pathname);
+        if (switchTarget) {
+          const url = new URL(switchTarget, window.location.origin);
+          const targetPathname = normalizePath(url.pathname);
+          const targetSearch = url.search || "";
+          window.history.replaceState({}, "", `${targetPathname}${targetSearch}`);
+          setCurrentLocation({ pathname: targetPathname, search: targetSearch });
+        }
         setSession(payload);
         setPreferredPersonaId(personaId);
         storePersona(personaId);
         setSessionState("ready");
-        const switchTarget = resolvePersonaSwitchTarget(payload, window.location.pathname);
-        if (switchTarget) {
-          navigate(switchTarget, { replace: true });
-        }
       } catch (error) {
         setSessionError(error);
         setSessionState("error");
       }
     },
-    [navigate]
+    []
   );
 
   const logout = useCallback(async () => {
