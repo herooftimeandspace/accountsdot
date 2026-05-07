@@ -99,7 +99,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - in the DEV pilot, `Log in with Google` is a mock action that completes login and redirects to `/dashboard`
   - if a user is already authenticated with an authorized Google session, `/login` should redirect directly to `/dashboard`
   - after logout, the browser should return to `/login`
-  - all logged-in implemented pages should reuse the shared shell from `docs/mocks/wireframes/wireframe-data-quality-dashboard.pen` as the canonical sidebar/header base
+  - all logged-in implemented pages should reuse the shared shell from `docs/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header base
   - all existing implemented `.pen` pages should have stable frontend routes even when richer page behavior is not yet complete
   - the reusable logged-in shell should filter sidebar visibility by the user's allowed routes
   - if a user cannot access a page, that page must not appear in the sidebar

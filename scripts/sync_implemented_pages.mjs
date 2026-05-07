@@ -11,12 +11,14 @@ const STANDALONE_WIDTH = 1672;
 const STANDALONE_HEIGHT = 1080;
 const LOGGED_IN_PANE_X = 264;
 const LOGGED_IN_PANE_Y = 76;
+const SHARED_SHELL_SOURCE = "docs/mocks/wireframes/wireframe-shared-shell.pen";
 
 const artboardSpecs = [
   {
     key: "data-quality",
     source: "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
-    mode: "passthrough",
+    mode: "merge-shell",
+    paneIdPrefix: "",
   },
   {
     key: "dashboard-it-admin",
@@ -320,7 +322,7 @@ function generatedManifest() {
           : [],
     })),
     sharedShell: {
-      sourcePen: "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
+      sourcePen: SHARED_SHELL_SOURCE,
       loggedInPane: {
         x: LOGGED_IN_PANE_X,
         y: LOGGED_IN_PANE_Y,
@@ -417,7 +419,7 @@ async function buildArtboard(spec, shellRoot) {
 
   if (spec.mode === "merge-shell") {
     const children = [];
-    const panePrefix = `${spec.key}__`;
+    const panePrefix = spec.paneIdPrefix ?? `${spec.key}__`;
     for (const child of shellRoot.children.filter(isShellNode)) {
       children.push(await normalizeNode(child, 0, 0));
     }
@@ -601,7 +603,7 @@ async function syncBinaryAsset(sourcePath, checkOnly) {
 async function main() {
   const checkOnly = process.argv.includes("--check");
   const thisFile = fileURLToPath(import.meta.url);
-  const shellRoot = await readPenRoot("docs/mocks/wireframes/wireframe-data-quality-dashboard.pen");
+  const shellRoot = await readPenRoot(SHARED_SHELL_SOURCE);
   const artboards = new Map();
 
   for (const spec of artboardSpecs) {

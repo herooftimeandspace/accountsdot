@@ -11,7 +11,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 
 ## Shared Logged-In Shell
 
-- The logged-in shell uses the Data Quality `.pen` shell as the canonical source until a more specific shared-shell source is documented.
+- The logged-in shell uses `docs/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header source.
 - Sidebar/header shell defects must be fixed at the shared-shell pattern level, not by patching individual pages.
 - Role-based navigation filtering remains runtime behavior. Hidden nav groups must reflow upward in canonical order with no blank gaps.
 - The active nav highlight must sit behind the active icon and label so the destination remains readable.

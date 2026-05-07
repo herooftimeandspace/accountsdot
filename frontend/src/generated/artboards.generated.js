@@ -195,7 +195,7 @@ export const implementedPageDesignManifest = {
     {
       "key": "data-quality",
       "sourcePen": "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
-      "mode": "passthrough",
+      "mode": "merge-shell",
       "activeNav": "dataQuality",
       "loggedInShell": true,
       "standardPrimitives": [
@@ -388,7 +388,7 @@ export const implementedPageDesignManifest = {
     }
   ],
   "sharedShell": {
-    "sourcePen": "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
+    "sourcePen": "docs/mocks/wireframes/wireframe-shared-shell.pen",
     "loggedInPane": {
       "x": 264,
       "y": 76
