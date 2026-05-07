@@ -359,6 +359,11 @@ input {
   color: var(--color-accent-deep-navy);
 }
 
+.phone-directory-runtime__table-header > div,
+.phone-directory-runtime__row > div {
+  min-width: 0;
+}
+
 .phone-directory-runtime__row {
   border: 0;
   border-top: 1px solid var(--color-canvas);
@@ -395,12 +400,17 @@ input {
   align-items: center;
   justify-content: center;
   min-height: 22px;
-  padding: 0 10px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 4px 10px;
   border-radius: 999px;
   background: rgba(206, 183, 112, 0.2);
   color: var(--color-accent-deep-navy);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
 }
 
 .phone-directory-runtime__detail-card {
@@ -437,6 +447,7 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   border: 1px solid var(--color-canvas);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.92);

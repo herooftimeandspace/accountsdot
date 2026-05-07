@@ -412,7 +412,7 @@ function resultsColumnsForMode(mode) {
         {
           key: "details",
           label: "Details",
-          render: (result) => result.email || result.department || "—",
+          render: (result) => result.email || result.location || result.department || "—",
           secondary: (result) => result.role || "",
         },
         { key: "room", label: "Room", render: (result) => result.location || "—" },
@@ -560,7 +560,7 @@ function PhoneDirectoryDetailOverlay({ bounds, mode, result, session }) {
       ) : (
         <>
           <h2>No Result Selected</h2>
-          <p>Run a directory search to view person, room, and shared-line details here.</p>
+          <p>Run a directory search to view details for the current phone-directory mode.</p>
         </>
       )}
     </aside>

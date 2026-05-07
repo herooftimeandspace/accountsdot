@@ -50,11 +50,14 @@ type phoneDirectoryResponse struct {
 		CurrentSiteID   string `json:"current_site_id"`
 		CurrentSiteName string `json:"current_site_name"`
 		Results         []struct {
-			ID        string `json:"id"`
-			Type      string `json:"type"`
-			SiteID    string `json:"site_id"`
-			Title     string `json:"title"`
-			Extension string `json:"extension"`
+			ID              string `json:"id"`
+			Type            string `json:"type"`
+			TypeLabel       string `json:"type_label"`
+			SiteID          string `json:"site_id"`
+			Title           string `json:"title"`
+			Extension       string `json:"extension"`
+			ExtensionLength int    `json:"extension_length"`
+			ExtensionValid  bool   `json:"extension_valid"`
 		} `json:"results"`
 	} `json:"page"`
 }
@@ -198,10 +201,10 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
-	t.Run("phone directory person search ranks current site first and preserves mixed types", func(t *testing.T) {
+	t.Run("phone directory person search shows only people and common area rows", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "site_admin")
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-person?q=350", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-person", nil)
 		req.AddCookie(cookie)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -216,8 +219,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if payload.Page.Mode != "person" {
 			t.Fatalf("mode = %q, want person", payload.Page.Mode)
 		}
-		if payload.Page.Query != "350" {
-			t.Fatalf("query = %q, want 350", payload.Page.Query)
+		if payload.Page.Query != "" {
+			t.Fatalf("query = %q, want empty query", payload.Page.Query)
 		}
 		if payload.Page.CurrentSiteID != "clover-hs" {
 			t.Fatalf("current site id = %q, want clover-hs", payload.Page.CurrentSiteID)
@@ -226,31 +229,37 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("current site name = %q, want Clover High School", payload.Page.CurrentSiteName)
 		}
 		if len(payload.Page.Results) < 4 {
-			t.Fatalf("expected at least 4 ranked results, got %d", len(payload.Page.Results))
+			t.Fatalf("expected at least 4 person-mode results, got %d", len(payload.Page.Results))
 		}
 
-		first := payload.Page.Results[0]
-		second := payload.Page.Results[1]
-		third := payload.Page.Results[2]
-		fourth := payload.Page.Results[3]
-		if first.SiteID != "clover-hs" || first.Type != "person" || first.Title != "Alex Lee" {
-			t.Fatalf("unexpected first result: %#v", first)
+		hasCommonArea := false
+		for _, result := range payload.Page.Results {
+			switch result.Type {
+			case "person":
+			case "common_area":
+				hasCommonArea = hasCommonArea || result.Type == "common_area"
+			default:
+				t.Fatalf("person mode returned disallowed result type %q for %#v", result.Type, result)
+			}
 		}
-		if second.SiteID != "clover-hs" || second.Type != "person" {
-			t.Fatalf("unexpected second result: %#v", second)
+		if !hasCommonArea {
+			t.Fatal("expected at least one common area result in person mode")
 		}
-		if third.SiteID != "clover-hs" || third.Type != "room" {
-			t.Fatalf("unexpected third result: %#v", third)
+		if payload.Page.Results[0].SiteID != "clover-hs" || payload.Page.Results[0].Type != "person" {
+			t.Fatalf("unexpected first person result: %#v", payload.Page.Results[0])
 		}
-		if fourth.SiteID != "clover-hs" || fourth.Type != "department" {
-			t.Fatalf("unexpected fourth result: %#v", fourth)
+		if payload.Page.Results[1].SiteID != "clover-hs" || payload.Page.Results[1].Type != "person" {
+			t.Fatalf("unexpected second person result: %#v", payload.Page.Results[1])
+		}
+		if payload.Page.Results[2].SiteID != "clover-hs" || payload.Page.Results[2].Type != "common_area" {
+			t.Fatalf("unexpected third person result: %#v", payload.Page.Results[2])
 		}
 	})
 
-	t.Run("phone directory room search ranks room entries first", func(t *testing.T) {
+	t.Run("phone directory room search shows only common area and classroom shared line rows", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "site_secretary")
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-room?q=350", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-room", nil)
 		req.AddCookie(cookie)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -265,18 +274,32 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if payload.Page.Mode != "room" {
 			t.Fatalf("mode = %q, want room", payload.Page.Mode)
 		}
-		if len(payload.Page.Results) < 3 {
-			t.Fatalf("expected at least 3 ranked room results, got %d", len(payload.Page.Results))
+		if len(payload.Page.Results) < 4 {
+			t.Fatalf("expected at least 4 room-mode results, got %d", len(payload.Page.Results))
 		}
-		if payload.Page.Results[0].Type != "room" || payload.Page.Results[0].SiteID != "clover-hs" {
+
+		hasClassroomSharedLine := false
+		for _, result := range payload.Page.Results {
+			switch result.Type {
+			case "common_area":
+			case "classroom_slg":
+				hasClassroomSharedLine = hasClassroomSharedLine || result.Type == "classroom_slg"
+			default:
+				t.Fatalf("room mode returned disallowed result type %q for %#v", result.Type, result)
+			}
+		}
+		if !hasClassroomSharedLine {
+			t.Fatal("expected at least one classroom shared line result in room mode")
+		}
+		if payload.Page.Results[0].Type != "common_area" || payload.Page.Results[0].SiteID != "clover-hs" {
 			t.Fatalf("unexpected first room result: %#v", payload.Page.Results[0])
 		}
 	})
 
-	t.Run("phone directory department search ranks department entries first", func(t *testing.T) {
+	t.Run("phone directory department search shows only department shared lines and call queues", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "human_resources")
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-department?q=350", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-department", nil)
 		req.AddCookie(cookie)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -292,10 +315,70 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("mode = %q, want department", payload.Page.Mode)
 		}
 		if len(payload.Page.Results) < 4 {
-			t.Fatalf("expected at least 4 ranked department results, got %d", len(payload.Page.Results))
+			t.Fatalf("expected at least 4 department-mode results, got %d", len(payload.Page.Results))
 		}
-		if payload.Page.Results[0].Type != "department" || payload.Page.Results[0].SiteID != "clover-hs" {
+
+		hasCallQueue := false
+		for _, result := range payload.Page.Results {
+			switch result.Type {
+			case "department_slg":
+				if result.TypeLabel == "Department / Shared Line" {
+					t.Fatalf("department mode returned deprecated generic label for %#v", result)
+				}
+			case "call_queue":
+				hasCallQueue = true
+				if result.TypeLabel != "Call Queue" {
+					t.Fatalf("call queue type label = %q, want Call Queue", result.TypeLabel)
+				}
+			default:
+				t.Fatalf("department mode returned disallowed result type %q for %#v", result.Type, result)
+			}
+		}
+		if !hasCallQueue {
+			t.Fatal("expected at least one call queue result in department mode")
+		}
+		if payload.Page.Results[0].Type != "department_slg" || payload.Page.Results[0].SiteID != "district-office" {
 			t.Fatalf("unexpected first department result: %#v", payload.Page.Results[0])
+		}
+	})
+
+	t.Run("phone directory extensions between four and six digits remain valid with six-digit mocks preferred", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+
+		extensionLengths := map[int]int{}
+		for _, path := range []string{
+			"/api/v1/dev/pages/phone-directory/by-person",
+			"/api/v1/dev/pages/phone-directory/by-room",
+			"/api/v1/dev/pages/phone-directory/by-department",
+		} {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.AddCookie(cookie)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s returned %d, want 200", path, rec.Code)
+			}
+
+			payload := decodeJSON[phoneDirectoryResponse](t, rec)
+			for _, result := range payload.Page.Results {
+				if result.ExtensionLength < 4 || result.ExtensionLength > 6 {
+					t.Fatalf("extension length = %d for %#v, want between 4 and 6", result.ExtensionLength, result)
+				}
+				if !result.ExtensionValid {
+					t.Fatalf("expected extension %q to remain valid in DEV data", result.Extension)
+				}
+				extensionLengths[result.ExtensionLength]++
+			}
+		}
+
+		if extensionLengths[5] == 0 {
+			t.Fatalf("expected at least one representative 5-digit extension, got %#v", extensionLengths)
+		}
+		if extensionLengths[6] == 0 {
+			t.Fatalf("expected at least one 6-digit extension, got %#v", extensionLengths)
+		}
+		if extensionLengths[6] <= extensionLengths[5] {
+			t.Fatalf("expected 6-digit extensions to remain the default majority, got %#v", extensionLengths)
 		}
 	})
 

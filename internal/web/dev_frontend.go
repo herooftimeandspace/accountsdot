@@ -13,11 +13,11 @@ import (
 const devSessionCookieName = "wizard_dev_session"
 
 const (
-	phoneDirectoryTypePerson       = "person"
-	phoneDirectoryTypeCommonArea   = "common_area"
-	phoneDirectoryTypeClassroomSLG = "classroom_slg"
+	phoneDirectoryTypePerson        = "person"
+	phoneDirectoryTypeCommonArea    = "common_area"
+	phoneDirectoryTypeClassroomSLG  = "classroom_slg"
 	phoneDirectoryTypeDepartmentSLG = "department_slg"
-	phoneDirectoryTypeCallQueue    = "call_queue"
+	phoneDirectoryTypeCallQueue     = "call_queue"
 	phoneDirectoryTypeAutoAttendant = "auto_attendant"
 )
 
@@ -428,17 +428,205 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 }
 
 var devPhoneDirectoryEntries = []devPhoneDirectoryEntry{
-	personDirectoryEntry("person-clover-alex-lee", siteByID("clover-hs"), "Alex Lee", "Math Teacher", "Mathematics", "alex.lee@wusd.org", "(707) 555-3500", "3500", "EMP-1001"),
-	personDirectoryEntry("person-clover-maria-torres", siteByID("clover-hs"), "Maria Torres", "Site Admin", "Administration", "maria.torres@wusd.org", "(707) 555-1000", "350001", "EMP-1022"),
-	roomDirectoryEntry("room-clover-attendance", siteByID("clover-hs"), "Attendance Office", "Main Building", "(707) 555-3501", "3501", "ROOM-CLA-ATT"),
-	departmentDirectoryEntry("dept-clover-main-office", siteByID("clover-hs"), "Main Office Shared Line", "Administration", "(707) 555-3502", "3502", "LINE-CLA-MAIN"),
-	personDirectoryEntry("person-desert-rebecca-lee", siteByID("desert-view"), "Rebecca Lee", "Library Assistant", "Library", "rebecca.lee@wusd.org", "(707) 555-3503", "3503", "EMP-1088"),
-	personDirectoryEntry("person-highland-jordan-lee", siteByID("highland-es"), "Jordan Lee", "School Counselor", "Student Services", "jordan.lee@wusd.org", "(707) 555-3504", "3504", "EMP-1104"),
-	roomDirectoryEntry("room-desert-counseling", siteByID("desert-view"), "Counseling Office", "Student Services", "(707) 555-3601", "3601", "ROOM-DVE-COUN"),
-	departmentDirectoryEntry("dept-business-transportation", siteByID("business-office"), "Transportation Shared Line", "Transportation", "(707) 555-4700", "4700", "LINE-BO-TRANS"),
-	personDirectoryEntry("person-district-hannah-price", siteByID("district-office"), "Hannah Price", "HR Specialist", "Human Resources", "hannah.price@wusd.org", "(707) 555-4800", "4800", "EMP-2004"),
-	personDirectoryEntry("person-franklin-darius-cole", siteByID("franklin-ms"), "Darius Cole", "Device Wrangler", "Technology", "darius.cole@wusd.org", "(707) 555-4900", "4900", "EMP-3009"),
-	roomDirectoryEntry("room-highland-front-office", siteByID("highland-es"), "Front Office", "Administration", "(707) 555-4901", "4901", "ROOM-HES-FO"),
+	// Derived from the read-only directory reference HTML. Extension values and type
+	// families are preserved from the source exports; names, emails, phone numbers,
+	// and identifiers are deterministic synthetic DEV-only placeholders.
+	personDirectoryEntry(
+		"person-clover-morgan-slate",
+		siteByID("clover-hs"),
+		"Morgan Slate",
+		"Mathematics Teacher",
+		"Mathematics",
+		"morgan.slate",
+		"360017",
+		"EMP-MOCK-1001",
+	),
+	personDirectoryEntry(
+		"person-clover-riley-vale",
+		siteByID("clover-hs"),
+		"Riley Vale",
+		"School Counselor",
+		"Student Services",
+		"riley.vale",
+		"34017",
+		"EMP-MOCK-1002",
+	),
+	personDirectoryEntry(
+		"person-desert-taylor-quinn",
+		siteByID("desert-view"),
+		"Taylor Quinn",
+		"Library Media Specialist",
+		"Library",
+		"taylor.quinn",
+		"610053",
+		"EMP-MOCK-2001",
+	),
+	personDirectoryEntry(
+		"person-district-jules-rowan",
+		siteByID("district-office"),
+		"Jules Rowan",
+		"HR Specialist",
+		"Human Resources",
+		"jules.rowan",
+		"110013",
+		"EMP-MOCK-3001",
+	),
+	personDirectoryEntry(
+		"person-franklin-sage-reed",
+		siteByID("franklin-ms"),
+		"Sage Reed",
+		"Student Support Coach",
+		"Student Services",
+		"sage.reed",
+		"410009",
+		"EMP-MOCK-4001",
+	),
+	commonAreaDirectoryEntry(
+		"common-clover-fusion-dialcast",
+		siteByID("clover-hs"),
+		"Fusion DialCast",
+		"Campus Broadcast",
+		"40099",
+		"CA-MOCK-40099",
+	),
+	commonAreaDirectoryEntry(
+		"common-clover-fusion-intercom",
+		siteByID("clover-hs"),
+		"Fusion Intercom",
+		"Campus Broadcast",
+		"40098",
+		"CA-MOCK-40098",
+	),
+	commonAreaDirectoryEntry(
+		"common-desert-front-desk",
+		siteByID("desert-view"),
+		"Front Desk Common Area",
+		"Front Office",
+		"70099",
+		"CA-MOCK-70099",
+	),
+	commonAreaDirectoryEntry(
+		"common-district-food-service",
+		siteByID("district-office"),
+		"Food Service Common Area",
+		"Nutrition Services",
+		"22171",
+		"CA-MOCK-22171",
+	),
+	classroomSLGDirectoryEntry(
+		"classroom-clover-rm01",
+		siteByID("clover-hs"),
+		"CLA-RM01",
+		"Room 01",
+		"330155",
+		"SLG-MOCK-330155",
+	),
+	classroomSLGDirectoryEntry(
+		"classroom-clover-rm04",
+		siteByID("clover-hs"),
+		"CLA-RM04",
+		"Room 04",
+		"330171",
+		"SLG-MOCK-330171",
+	),
+	classroomSLGDirectoryEntry(
+		"classroom-desert-rm01",
+		siteByID("desert-view"),
+		"MWE-RM01",
+		"Room 01",
+		"630025",
+		"SLG-MOCK-630025",
+	),
+	classroomSLGDirectoryEntry(
+		"classroom-franklin-a101",
+		siteByID("franklin-ms"),
+		"WMS-A101",
+		"Room A101",
+		"430002",
+		"SLG-MOCK-430002",
+	),
+	departmentSLGDirectoryEntry(
+		"department-clover-main-office",
+		siteByID("clover-hs"),
+		"CLA - Main Office",
+		"Main Office",
+		"Administration",
+		"350003",
+		"LINE-MOCK-350003",
+	),
+	departmentSLGDirectoryEntry(
+		"department-clover-counseling",
+		siteByID("clover-hs"),
+		"CLA - Counseling",
+		"Department",
+		"Student Services",
+		"350021",
+		"LINE-MOCK-350021",
+	),
+	departmentSLGDirectoryEntry(
+		"department-desert-athletics",
+		siteByID("desert-view"),
+		"MWE - Athletics",
+		"Department",
+		"Athletics",
+		"650010",
+		"LINE-MOCK-650010",
+	),
+	departmentSLGDirectoryEntry(
+		"department-district-business",
+		siteByID("district-office"),
+		"DO - Business Department",
+		"Department",
+		"Business Services",
+		"150009",
+		"LINE-MOCK-150009",
+	),
+	callQueueDirectoryEntry(
+		"queue-clover-2fa",
+		siteByID("clover-hs"),
+		"CLA - 2FA",
+		"Security",
+		"350022",
+		"QUEUE-MOCK-350022",
+	),
+	callQueueDirectoryEntry(
+		"queue-clover-attendance",
+		siteByID("clover-hs"),
+		"CLA - Attendance",
+		"Attendance",
+		"350004",
+		"QUEUE-MOCK-350004",
+	),
+	callQueueDirectoryEntry(
+		"queue-district-2fa",
+		siteByID("district-office"),
+		"DO - 2FA",
+		"Security",
+		"150022",
+		"QUEUE-MOCK-150022",
+	),
+	callQueueDirectoryEntry(
+		"queue-desert-attendance",
+		siteByID("desert-view"),
+		"MWE - Attendance",
+		"Attendance",
+		"650004",
+		"QUEUE-MOCK-650004",
+	),
+	autoAttendantDirectoryEntry(
+		"auto-desert-main",
+		siteByID("desert-view"),
+		"Mattie Washburn Main Auto Receptionist",
+		"650000",
+		"AUTO-MOCK-650000",
+	),
+	autoAttendantDirectoryEntry(
+		"auto-district-main",
+		siteByID("district-office"),
+		"District Office Main Auto Receptionist",
+		"150000",
+		"AUTO-MOCK-150000",
+	),
 }
 
 var devPersonaOrder = []string{
@@ -753,10 +941,12 @@ func sitesByID(ids ...string) []devSiteContext {
 	return sites
 }
 
-func personDirectoryEntry(id string, site devSiteContext, name string, role string, department string, email string, phone string, extension string, identifier string) devPhoneDirectoryEntry {
-	return devPhoneDirectoryEntry{
+func personDirectoryEntry(id string, site devSiteContext, name string, role string, department string, emailLocalPart string, extension string, identifier string) devPhoneDirectoryEntry {
+	email := syntheticEmail(emailLocalPart)
+	phone := syntheticPhoneNumber(extension)
+	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
 		ID:         id,
-		Type:       "person",
+		Type:       phoneDirectoryTypePerson,
 		TypeLabel:  "Person",
 		Title:      name,
 		Subtitle:   role + " • " + department,
@@ -768,52 +958,161 @@ func personDirectoryEntry(id string, site devSiteContext, name string, role stri
 		Phone:      phone,
 		Extension:  extension,
 		Identifier: identifier,
-		Searchable: []string{name, role, department, email, phone, extension, identifier, site.Name},
-	}
+		Searchable: buildSearchableValues(name, role, department, email, phone, extension, identifier, site.Name),
+	})
 }
 
-func roomDirectoryEntry(id string, site devSiteContext, room string, location string, phone string, extension string, identifier string) devPhoneDirectoryEntry {
-	return devPhoneDirectoryEntry{
+func commonAreaDirectoryEntry(id string, site devSiteContext, title string, location string, extension string, identifier string) devPhoneDirectoryEntry {
+	phone := syntheticPhoneNumber(extension)
+	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
 		ID:         id,
-		Type:       "room",
-		TypeLabel:  "Room Extension",
-		Title:      room,
-		Subtitle:   "Room extension • " + location,
+		Type:       phoneDirectoryTypeCommonArea,
+		TypeLabel:  "Common Area",
+		Title:      title,
+		Subtitle:   "Common area phone • " + location,
 		SiteID:     site.ID,
 		SiteName:   site.Name,
 		Location:   location,
 		Phone:      phone,
 		Extension:  extension,
 		Identifier: identifier,
-		Searchable: []string{room, location, phone, extension, identifier, site.Name},
-	}
+		Searchable: buildSearchableValues(title, location, phone, extension, identifier, site.Name, "common area"),
+	})
 }
 
-func departmentDirectoryEntry(id string, site devSiteContext, name string, department string, phone string, extension string, identifier string) devPhoneDirectoryEntry {
-	return devPhoneDirectoryEntry{
+func classroomSLGDirectoryEntry(id string, site devSiteContext, title string, location string, extension string, identifier string) devPhoneDirectoryEntry {
+	phone := syntheticPhoneNumber(extension)
+	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
 		ID:         id,
-		Type:       "department",
-		TypeLabel:  "Department / Shared Line",
-		Title:      name,
-		Subtitle:   "Shared line • " + department,
+		Type:       phoneDirectoryTypeClassroomSLG,
+		TypeLabel:  "Classroom Shared Line",
+		Title:      title,
+		Subtitle:   "Classroom shared line • " + location,
+		SiteID:     site.ID,
+		SiteName:   site.Name,
+		Location:   location,
+		Phone:      phone,
+		Extension:  extension,
+		Identifier: identifier,
+		Searchable: buildSearchableValues(title, location, phone, extension, identifier, site.Name, "classroom shared line"),
+	})
+}
+
+func departmentSLGDirectoryEntry(id string, site devSiteContext, title string, classification string, department string, extension string, identifier string) devPhoneDirectoryEntry {
+	phone := syntheticPhoneNumber(extension)
+	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
+		ID:         id,
+		Type:       phoneDirectoryTypeDepartmentSLG,
+		TypeLabel:  classification,
+		Title:      title,
+		Subtitle:   classification + " • " + department,
 		SiteID:     site.ID,
 		SiteName:   site.Name,
 		Department: department,
 		Phone:      phone,
 		Extension:  extension,
 		Identifier: identifier,
-		Searchable: []string{name, department, phone, extension, identifier, site.Name},
+		Searchable: buildSearchableValues(title, classification, department, phone, extension, identifier, site.Name),
+	})
+}
+
+func callQueueDirectoryEntry(id string, site devSiteContext, title string, department string, extension string, identifier string) devPhoneDirectoryEntry {
+	phone := syntheticPhoneNumber(extension)
+	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
+		ID:         id,
+		Type:       phoneDirectoryTypeCallQueue,
+		TypeLabel:  "Call Queue",
+		Title:      title,
+		Subtitle:   "Call queue • " + department,
+		SiteID:     site.ID,
+		SiteName:   site.Name,
+		Department: department,
+		Phone:      phone,
+		Extension:  extension,
+		Identifier: identifier,
+		Searchable: buildSearchableValues(title, department, phone, extension, identifier, site.Name, "call queue"),
+	})
+}
+
+func autoAttendantDirectoryEntry(id string, site devSiteContext, title string, extension string, identifier string) devPhoneDirectoryEntry {
+	phone := syntheticPhoneNumber(extension)
+	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
+		ID:         id,
+		Type:       phoneDirectoryTypeAutoAttendant,
+		TypeLabel:  "Auto Attendant",
+		Title:      title,
+		Subtitle:   "Auto attendant • " + site.Name,
+		SiteID:     site.ID,
+		SiteName:   site.Name,
+		Phone:      phone,
+		Extension:  extension,
+		Identifier: identifier,
+		Searchable: buildSearchableValues(title, phone, extension, identifier, site.Name, "auto attendant"),
+	})
+}
+
+func newPhoneDirectoryEntry(entry devPhoneDirectoryEntry) devPhoneDirectoryEntry {
+	length, valid := extensionMetadata(entry.Extension)
+	entry.ExtensionLength = length
+	entry.ExtensionValid = valid
+	return entry
+}
+
+func buildSearchableValues(values ...string) []string {
+	searchable := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		searchable = append(searchable, trimmed)
 	}
+	return searchable
+}
+
+func extensionMetadata(extension string) (int, bool) {
+	digits := extensionDigits(extension)
+	length := len(digits)
+	return length, length >= 4 && length <= 6
+}
+
+func extensionDigits(value string) string {
+	var builder strings.Builder
+	builder.Grow(len(value))
+	for _, r := range value {
+		if r >= '0' && r <= '9' {
+			builder.WriteRune(r)
+		}
+	}
+	return builder.String()
+}
+
+func syntheticPhoneNumber(extension string) string {
+	suffix := extensionDigits(extension)
+	if suffix == "" {
+		return ""
+	}
+	if len(suffix) > 4 {
+		suffix = suffix[len(suffix)-4:]
+	}
+	if len(suffix) < 4 {
+		suffix = strings.Repeat("0", 4-len(suffix)) + suffix
+	}
+	return "(707) 555-" + suffix
+}
+
+func syntheticEmail(localPart string) string {
+	return localPart + "@mock.wusd.invalid"
 }
 
 func phoneDirectoryDescription(mode string) string {
 	switch mode {
 	case "room":
-		return "Search room extensions first, then people and shared lines. Results from your current site appear first."
+		return "Search common area phones and classroom shared lines. Results from your current site appear first."
 	case "department":
-		return "Search departments and shared lines first, then room extensions and people. Results from your current site appear first."
+		return "Search department shared lines and call queues. Results from your current site appear first."
 	default:
-		return "Search people first, then room extensions and shared lines. Results from your current site appear first."
+		return "Search people and common area phones. Results from your current site appear first."
 	}
 }
 
@@ -828,6 +1127,9 @@ func searchPhoneDirectory(config devPersonaConfig, query string, mode string) []
 	for _, entry := range devPhoneDirectoryEntries {
 		siteOrder, visible := visibleSiteOrder[entry.SiteID]
 		if !visible {
+			continue
+		}
+		if !phoneDirectoryModeAllows(mode, entry.Type) {
 			continue
 		}
 
@@ -848,20 +1150,22 @@ func searchPhoneDirectory(config devPersonaConfig, query string, mode string) []
 
 		ranked = append(ranked, rankedPhoneDirectoryResult{
 			Result: phoneDirectorySearchResult{
-				ID:         entry.ID,
-				Type:       entry.Type,
-				TypeLabel:  entry.TypeLabel,
-				Title:      entry.Title,
-				Subtitle:   entry.Subtitle,
-				SiteID:     entry.SiteID,
-				SiteName:   entry.SiteName,
-				Role:       entry.Role,
-				Department: entry.Department,
-				Location:   entry.Location,
-				Email:      entry.Email,
-				Phone:      entry.Phone,
-				Extension:  entry.Extension,
-				Identifier: entry.Identifier,
+				ID:              entry.ID,
+				Type:            entry.Type,
+				TypeLabel:       entry.TypeLabel,
+				Title:           entry.Title,
+				Subtitle:        entry.Subtitle,
+				SiteID:          entry.SiteID,
+				SiteName:        entry.SiteName,
+				Role:            entry.Role,
+				Department:      entry.Department,
+				Location:        entry.Location,
+				Email:           entry.Email,
+				Phone:           entry.Phone,
+				Extension:       entry.Extension,
+				ExtensionLength: entry.ExtensionLength,
+				ExtensionValid:  entry.ExtensionValid,
+				Identifier:      entry.Identifier,
 			},
 			SiteRank:      siteRank,
 			SiteOrder:     siteOrder,
@@ -898,6 +1202,17 @@ func searchPhoneDirectory(config devPersonaConfig, query string, mode string) []
 		results = append(results, entry.Result)
 	}
 	return results
+}
+
+func phoneDirectoryModeAllows(mode string, entryType string) bool {
+	switch mode {
+	case "room":
+		return entryType == phoneDirectoryTypeCommonArea || entryType == phoneDirectoryTypeClassroomSLG
+	case "department":
+		return entryType == phoneDirectoryTypeDepartmentSLG || entryType == phoneDirectoryTypeCallQueue
+	default:
+		return entryType == phoneDirectoryTypePerson || entryType == phoneDirectoryTypeCommonArea
+	}
 }
 
 func bestPhoneDirectoryMatch(entry devPhoneDirectoryEntry, normalizedQuery string) *phoneDirectorySearchMatch {
@@ -937,33 +1252,37 @@ func phoneDirectoryTypeRank(mode string, resultType string) int {
 	switch mode {
 	case "room":
 		switch resultType {
-		case "room":
+		case phoneDirectoryTypeCommonArea:
 			return 0
-		case "person":
+		case phoneDirectoryTypeClassroomSLG:
 			return 1
-		case "department":
+		case phoneDirectoryTypePerson:
 			return 2
-		default:
+		case phoneDirectoryTypeDepartmentSLG, phoneDirectoryTypeCallQueue:
 			return 3
+		default:
+			return 4
 		}
 	case "department":
 		switch resultType {
-		case "department":
+		case phoneDirectoryTypeDepartmentSLG:
 			return 0
-		case "room":
+		case phoneDirectoryTypeCallQueue:
 			return 1
-		case "person":
+		case phoneDirectoryTypeCommonArea, phoneDirectoryTypeClassroomSLG:
 			return 2
-		default:
+		case phoneDirectoryTypePerson:
 			return 3
+		default:
+			return 4
 		}
 	default:
 		switch resultType {
-		case "person":
+		case phoneDirectoryTypePerson:
 			return 0
-		case "room":
+		case phoneDirectoryTypeCommonArea:
 			return 1
-		case "department":
+		case phoneDirectoryTypeClassroomSLG, phoneDirectoryTypeDepartmentSLG, phoneDirectoryTypeCallQueue:
 			return 2
 		default:
 			return 3
