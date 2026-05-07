@@ -1575,12 +1575,12 @@
           "y": 90,
           "width": 106,
           "height": 38,
-          "fill": "#FFFFFF",
+          "fill": "#CEB770",
           "cornerRadius": 8,
           "layout": "none",
           "stroke": {
             "thickness": 1,
-            "fill": "#DDE2E3",
+            "fill": "#CEB770",
             "align": "inside"
           }
         },

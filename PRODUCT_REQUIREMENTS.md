@@ -216,6 +216,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - all stroked display text on HTTP error pages should use a fixed `1px` outer stroke
   - all HTTP error pages should include a recovery button; authenticated users should return through `/dashboard` so the app resolves their role-based default landing page, while signed-out users should return to `/login`
   - DEV-only mock auth, session, and page routes should be available only when `APP_ENV` is explicitly `development`; missing `APP_ENV` should fail closed and behave as non-development
+  - the shared-header `Refresh` control should render as a Vegas Gold primary action with readable black text everywhere that implemented pages expose that shared shell control
+  - shared-header `Refresh` regressions should be fixed in the authoritative shared `.pen` sources rather than through page-specific runtime styling overrides
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Outcome:
