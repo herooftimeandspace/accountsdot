@@ -1,0 +1,366 @@
+package web_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"testing"
+
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
+)
+
+type devSessionResponse struct {
+	Authenticated   bool   `json:"authenticated"`
+	Authorized      bool   `json:"authorized"`
+	DefaultSiteID   string `json:"default_site_id"`
+	DefaultSiteName string `json:"default_site_name"`
+	CurrentSiteID   string `json:"current_site_id"`
+	CurrentSiteName string `json:"current_site_name"`
+	CurrentPersona  *struct {
+		ID string `json:"id"`
+	} `json:"current_persona,omitempty"`
+	LandingPath   string   `json:"landing_path"`
+	AllowedRoutes []string `json:"allowed_routes"`
+	Personas      []struct {
+		ID string `json:"id"`
+	} `json:"personas"`
+}
+
+type dataQualityResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		Title string `json:"title"`
+	} `json:"page"`
+	Hotspots map[string]struct {
+		NodeID string `json:"node_id"`
+	} `json:"hotspots"`
+}
+
+type errorResponse struct {
+	Code string `json:"code"`
+}
+
+type phoneDirectoryResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		Mode            string `json:"mode"`
+		Query           string `json:"query"`
+		CurrentSiteID   string `json:"current_site_id"`
+		CurrentSiteName string `json:"current_site_name"`
+		Results         []struct {
+			ID        string `json:"id"`
+			Type      string `json:"type"`
+			SiteID    string `json:"site_id"`
+			Title     string `json:"title"`
+			Extension string `json:"extension"`
+		} `json:"results"`
+	} `json:"page"`
+}
+
+func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
+	t.Helper()
+	var payload T
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode json: %v", err)
+	}
+	return payload
+}
+
+func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
+	for _, cookie := range cookies {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	return nil
+}
+
+func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.Cookie {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"persona_id": personaID})
+	if err != nil {
+		t.Fatalf("marshal login request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login %s returned %d", personaID, rec.Code)
+	}
+	cookie := findCookie(rec.Result().Cookies(), "wizard_dev_session")
+	if cookie == nil {
+		t.Fatalf("login %s did not set session cookie", personaID)
+	}
+	return cookie
+}
+
+func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	t.Run("session is anonymous before login", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("session returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[devSessionResponse](t, rec)
+		if payload.Authenticated || payload.Authorized {
+			t.Fatalf("expected anonymous session, got authenticated=%v authorized=%v", payload.Authenticated, payload.Authorized)
+		}
+		if len(payload.Personas) == 0 {
+			t.Fatal("expected ordered personas in anonymous session response")
+		}
+	})
+
+	t.Run("it admin login sets session and can load data quality", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+
+		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		sessionReq.AddCookie(cookie)
+		sessionRec := httptest.NewRecorder()
+		handler.ServeHTTP(sessionRec, sessionReq)
+		if sessionRec.Code != http.StatusOK {
+			t.Fatalf("session returned %d", sessionRec.Code)
+		}
+
+		sessionPayload := decodeJSON[devSessionResponse](t, sessionRec)
+		if !sessionPayload.Authenticated || !sessionPayload.Authorized {
+			t.Fatalf("expected authenticated authorized session, got authenticated=%v authorized=%v", sessionPayload.Authenticated, sessionPayload.Authorized)
+		}
+		if sessionPayload.CurrentPersona == nil || sessionPayload.CurrentPersona.ID != "it_admin" {
+			t.Fatalf("expected it_admin persona, got %#v", sessionPayload.CurrentPersona)
+		}
+		if sessionPayload.LandingPath != "/dashboard/it-admin" {
+			t.Fatalf("landing path = %q, want /dashboard/it-admin", sessionPayload.LandingPath)
+		}
+		if sessionPayload.DefaultSiteID != "clover-hs" || sessionPayload.CurrentSiteID != "clover-hs" {
+			t.Fatalf("expected clover-hs site context, got default=%q current=%q", sessionPayload.DefaultSiteID, sessionPayload.CurrentSiteID)
+		}
+		if !slices.Contains(sessionPayload.AllowedRoutes, "/data-quality") {
+			t.Fatalf("expected /data-quality in allowed routes: %#v", sessionPayload.AllowedRoutes)
+		}
+
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
+		pageReq.AddCookie(cookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("data quality returned %d", pageRec.Code)
+		}
+
+		pagePayload := decodeJSON[dataQualityResponse](t, pageRec)
+		if pagePayload.PageID != "data-quality" {
+			t.Fatalf("page id = %q, want data-quality", pagePayload.PageID)
+		}
+		if pagePayload.Page.Title != "Data Quality" {
+			t.Fatalf("page title = %q, want Data Quality", pagePayload.Page.Title)
+		}
+		if pagePayload.Hotspots["refresh"].NodeID != "f104" {
+			t.Fatalf("refresh hotspot node = %q, want f104", pagePayload.Hotspots["refresh"].NodeID)
+		}
+	})
+
+	t.Run("unauthenticated data quality is 401", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("data quality returned %d, want 401", rec.Code)
+		}
+
+		payload := decodeJSON[errorResponse](t, rec)
+		if payload.Code != "not_authorized" {
+			t.Fatalf("error code = %q, want not_authorized", payload.Code)
+		}
+	})
+
+	t.Run("human resources data quality is 403", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "human_resources")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("data quality returned %d, want 403", rec.Code)
+		}
+
+		payload := decodeJSON[errorResponse](t, rec)
+		if payload.Code != "forbidden" {
+			t.Fatalf("error code = %q, want forbidden", payload.Code)
+		}
+	})
+
+	t.Run("phone directory person search ranks current site first and preserves mixed types", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "site_admin")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-person?q=350", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("phone directory search returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[phoneDirectoryResponse](t, rec)
+		if payload.PageID != "phone-directory-by-person" {
+			t.Fatalf("page id = %q, want phone-directory-by-person", payload.PageID)
+		}
+		if payload.Page.Mode != "person" {
+			t.Fatalf("mode = %q, want person", payload.Page.Mode)
+		}
+		if payload.Page.Query != "350" {
+			t.Fatalf("query = %q, want 350", payload.Page.Query)
+		}
+		if payload.Page.CurrentSiteID != "clover-hs" {
+			t.Fatalf("current site id = %q, want clover-hs", payload.Page.CurrentSiteID)
+		}
+		if payload.Page.CurrentSiteName != "Clover High School" {
+			t.Fatalf("current site name = %q, want Clover High School", payload.Page.CurrentSiteName)
+		}
+		if len(payload.Page.Results) < 4 {
+			t.Fatalf("expected at least 4 ranked results, got %d", len(payload.Page.Results))
+		}
+
+		first := payload.Page.Results[0]
+		second := payload.Page.Results[1]
+		third := payload.Page.Results[2]
+		fourth := payload.Page.Results[3]
+		if first.SiteID != "clover-hs" || first.Type != "person" || first.Title != "Alex Lee" {
+			t.Fatalf("unexpected first result: %#v", first)
+		}
+		if second.SiteID != "clover-hs" || second.Type != "person" {
+			t.Fatalf("unexpected second result: %#v", second)
+		}
+		if third.SiteID != "clover-hs" || third.Type != "room" {
+			t.Fatalf("unexpected third result: %#v", third)
+		}
+		if fourth.SiteID != "clover-hs" || fourth.Type != "department" {
+			t.Fatalf("unexpected fourth result: %#v", fourth)
+		}
+	})
+
+	t.Run("phone directory room search ranks room entries first", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "site_secretary")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-room?q=350", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("phone directory room search returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[phoneDirectoryResponse](t, rec)
+		if payload.PageID != "phone-directory-by-room" {
+			t.Fatalf("page id = %q, want phone-directory-by-room", payload.PageID)
+		}
+		if payload.Page.Mode != "room" {
+			t.Fatalf("mode = %q, want room", payload.Page.Mode)
+		}
+		if len(payload.Page.Results) < 3 {
+			t.Fatalf("expected at least 3 ranked room results, got %d", len(payload.Page.Results))
+		}
+		if payload.Page.Results[0].Type != "room" || payload.Page.Results[0].SiteID != "clover-hs" {
+			t.Fatalf("unexpected first room result: %#v", payload.Page.Results[0])
+		}
+	})
+
+	t.Run("phone directory department search ranks department entries first", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "human_resources")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-department?q=350", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("phone directory department search returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[phoneDirectoryResponse](t, rec)
+		if payload.PageID != "phone-directory-by-department" {
+			t.Fatalf("page id = %q, want phone-directory-by-department", payload.PageID)
+		}
+		if payload.Page.Mode != "department" {
+			t.Fatalf("mode = %q, want department", payload.Page.Mode)
+		}
+		if len(payload.Page.Results) < 4 {
+			t.Fatalf("expected at least 4 ranked department results, got %d", len(payload.Page.Results))
+		}
+		if payload.Page.Results[0].Type != "department" || payload.Page.Results[0].SiteID != "clover-hs" {
+			t.Fatalf("unexpected first department result: %#v", payload.Page.Results[0])
+		}
+	})
+
+	t.Run("it admin can access all phone directory modes", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+
+		for _, path := range []string{
+			"/api/v1/dev/pages/phone-directory/by-person?q=alex",
+			"/api/v1/dev/pages/phone-directory/by-room?q=350",
+			"/api/v1/dev/pages/phone-directory/by-department?q=350",
+		} {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.AddCookie(cookie)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s returned %d, want 200", path, rec.Code)
+			}
+		}
+	})
+
+	t.Run("logout clears dev session", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "site_admin")
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/logout", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("logout returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[devSessionResponse](t, rec)
+		if payload.Authenticated || payload.Authorized {
+			t.Fatalf("expected signed-out response, got authenticated=%v authorized=%v", payload.Authenticated, payload.Authorized)
+		}
+
+		clearCookie := findCookie(rec.Result().Cookies(), "wizard_dev_session")
+		if clearCookie == nil || clearCookie.MaxAge != -1 {
+			t.Fatalf("expected cleared session cookie, got %#v", clearCookie)
+		}
+	})
+}
+
+func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	for _, path := range []string{
+		"/api/v1/dev/session",
+		"/api/v1/dev/login",
+		"/api/v1/dev/logout",
+		"/api/v1/dev/pages/data-quality",
+		"/api/v1/dev/pages/phone-directory/by-person",
+	} {
+		method := http.MethodGet
+		if path == "/api/v1/dev/login" || path == "/api/v1/dev/logout" {
+			method = http.MethodPost
+		}
+		req := httptest.NewRequest(method, path, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s returned %d, want 404", path, rec.Code)
+		}
+	}
+}

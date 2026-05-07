@@ -22,6 +22,13 @@ func NewAppHandler(deps HealthDependencies) http.Handler {
 	mux.Handle("/api/v1/sync-status/", http.HandlerFunc(handleSyncStatusRoutes))
 	mux.Handle("/api/v1/room-mappings", http.HandlerFunc(handleRoomMappings))
 	mux.Handle("/api/v1/annual-reset", http.HandlerFunc(handleAnnualReset))
+	mux.Handle("/api/v1/dev/session", http.HandlerFunc(handleDevSession))
+	mux.Handle("/api/v1/dev/login", http.HandlerFunc(handleDevLogin))
+	mux.Handle("/api/v1/dev/logout", http.HandlerFunc(handleDevLogout))
+	mux.Handle("/api/v1/dev/pages/data-quality", http.HandlerFunc(handleDevDataQualityPage))
+	mux.Handle("/api/v1/dev/pages/phone-directory/by-person", http.HandlerFunc(handleDevPhoneDirectoryByPersonPage))
+	mux.Handle("/api/v1/dev/pages/phone-directory/by-room", http.HandlerFunc(handleDevPhoneDirectoryByRoomPage))
+	mux.Handle("/api/v1/dev/pages/phone-directory/by-department", http.HandlerFunc(handleDevPhoneDirectoryByDepartmentPage))
 
 	health := NewHealthHandler(deps)
 	mux.Handle("/health", health)

@@ -137,6 +137,7 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
     : null;
   const recoveryTarget = loggedIn ? "/dashboard" : "/login";
   const recoveryLabel = loggedIn ? "Return to Dashboard" : "Go to Login";
+  const semanticTitleId = `error-page-${code}-title`;
   const renderOverlay = ({ nodeIndex, textOverrides: overlayTextOverrides }) => {
     const sharedShell = typeof sharedShellOverlay === "function"
       ? sharedShellOverlay({ nodeIndex, textOverrides: overlayTextOverrides })
@@ -180,7 +181,16 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
   };
 
   return (
-    <main className={`page-canvas ${loggedIn ? "page-canvas--error-shell" : "page-canvas--error"}`}>
+    <main
+      id="main-content"
+      className={`page-canvas ${loggedIn ? "page-canvas--error-shell" : "page-canvas--error"}`}
+      aria-labelledby={semanticTitleId}
+    >
+      {/* WCAG 1.3.1/2.4.2: error artboards are visual-only, so expose the status copy semantically. */}
+      <section className="sr-only" aria-labelledby={semanticTitleId}>
+        <h1 id={semanticTitleId}>{copy.title}</h1>
+        <p>{copy.body}</p>
+      </section>
       <div className="page-canvas__frame">
         <PenArtboard
           artboard={artboard}
