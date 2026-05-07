@@ -1,6 +1,31 @@
-# Go Employee Provisioner
+# The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 
-Go Employee Provisioner is a self-hosted, mission-critical employee provisioning service designed around PostgreSQL-backed orchestration, resilient provider integrations, and real-time operational visibility.
+The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard is a self-hosted, mission-critical employee provisioning service designed around PostgreSQL-backed orchestration, resilient provider integrations, and real-time operational visibility.
+
+## Project Goals
+1. Integrate and reconcile data from at least 8 separate source systems.
+2. Provide reliable workflow-driven provisioning, update, transfer, leave, and deprovisioning operations.
+3. Support multiple user types with different access levels, visibility rules, and technical skill levels.
+4. Replace spreadsheet-driven onboarding, offboarding, room-move, and phone-directory workflows with a staff-facing dashboard.
+5. Surface bad or incomplete data as early as possible to the non-IT parties who can correct it upstream.
+6. Automate as much routine IT work as possible while keeping exceptions visible and recoverable.
+7. Keep policy decisions and business mappings configurable through the dashboard so IT does not need to change code for ordinary policy updates.
+8. Preserve operational safety through auditability, approvals, idempotency, recoverable background workflows, and non-production test environments.
+9. Keep documentation as a first-class part of delivery so product goals, implementation constraints, business-rule decisions, and environment-safety procedures remain explicit.
+10. Follow DRY design principles and prefer shared canonical records over duplicating the same business data in multiple places.
+11. Use inclusive, precise terminology in code and UI. Prefer terms like `allowlist`, `denylist`, `deactivated`, and `deprovisioned`; avoid legacy terms like `whitelist`, `blacklist`, or vague lifecycle wording when a more specific state exists.
+12. Keep the product English-only. Localization and translation are permanently out of scope and should not be introduced into the UI, workflow text, or operator-facing configuration surface.
+13. Preserve source-system truth in displayed data. Operator-facing labels and controls stay in English, but imported source values should be shown exactly as stored rather than translated or normalized for language.
+
+## Documentation Policy
+- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) is the authoritative execution plan and decision log for implementation-affecting behavior.
+- [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) captures the business-facing product requirements and scope boundaries.
+- [ENVIRONMENT_DATA_PLAYBOOK.md](ENVIRONMENT_DATA_PLAYBOOK.md) defines the safe process for creating and refreshing mock and staging environments.
+- [TEST_MATRIX.md](TEST_MATRIX.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
+- [docs/reference-inputs/VENDORED_INVENTORY.md](docs/reference-inputs/VENDORED_INVENTORY.md) is the authoritative provenance and refresh ledger for the repo-local reference corpus under `docs/reference-inputs/`.
+- The promotion runbook/process also lives outside the repo. It must capture one implementation-signoff entry per workflow bucket, reference the external IncidentIQ testing-ticket evidence, and use the corresponding documented rollback path and rollback trigger conditions for write-capable buckets. Each bucket entry must include exact metadata for release, ticket, phase, bucket, environment, revisions, timestamps, signoff, evidence links, and rollback references as applicable. Each bucket entry must also include a final disposition plus explicit yes/no attestations for scenario cleanliness, evidence review, and write-safety checks. A bucket that was previously `rolled back` may later be updated to `ready` after a new clean pass, and `superseded` means an older attempt was replaced by a newer one in the same release; the replacement current entry must explicitly link back to the superseded one. A `no` attestation does not require a separate explanation field beyond the disposition and any required closure note. If a rollback trigger blocks a bucket in `dev`, the runbook must carry an explicit closure note with links to the replacement evidence before `staging` can begin for that bucket. The external IncidentIQ testing ticket should use one parent ticket per release with evidence organized in `phase -> bucket -> dev/staging -> scenario` order, with `dev` listed before `staging` in every bucket.
+- This README must continue to enumerate the product goals at a high level.
+- Code should document business decisions where those decisions materially affect implementation, operator behavior, or user-visible outcomes.
 
 ## LLM Usage Disclaimer
 This repository is an LLM-driven project and was written with heavy use of LLMs. This disclaimer is required project policy and must remain present in the repository.
@@ -10,15 +35,20 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 
 ### Docker Compose
 1. Copy `.env.example` to `.env` and adjust values if needed.
-2. Start the local stack:
+2. Fill the local-only secrets in `.env`; do not commit `.env`.
+   ```bash
+   openssl rand -hex 32
+   ```
+   Use one generated value for `POSTGRES_PASSWORD`, set `SESSION_SECRET` to a different generated value, set `ENCRYPTION_KEY` to a key-id plus generated value such as `k1:<generated-value>`, and set `DATABASE_URL` to the local Compose database URL using the same Postgres password. `sslmode=disable` is only acceptable for the local Compose network.
+3. Start the local stack:
    ```bash
    make up
    ```
-3. Run tests inside the app container:
+4. Run tests inside the app container:
    ```bash
    make test
    ```
-4. Stop the stack:
+5. Stop the stack:
    ```bash
    make down
    ```
@@ -37,6 +67,17 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `make test-contract`
 - `make test-integration`
 - `make test`
+- `make test-container`
+- `make vulncheck`
+- `make vulncheck-container`
+- `make security`
+- `make security-container`
+
+`make vulncheck` uses a local `govulncheck` binary when available, otherwise it runs `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`. If the host does not have Go installed, it falls back to `make vulncheck-container`, which runs the same scan inside the repo's configured Go Docker image.
+
+Use `make test-container` or `make security-container` when the host Go toolchain is missing or unhealthy. These targets bootstrap through the configured `golang` Docker image and do not require Go to be installed on the host.
+
+Inside the devcontainer, `govulncheck` is installed during `postCreateCommand`.
 
 ## Environment Variables
 Required or commonly used local variables:
@@ -75,3 +116,4 @@ Required or commonly used local variables:
 - Local mode defaults all `USE_MOCK_*` flags to `true`.
 - Real third-party integrations are opt-in and should remain disabled for normal local TDD work.
 - The local stack is intentionally lean: app, worker, and postgres are enough for baseline development.
+- Compose binds Postgres to `127.0.0.1` only and reads secrets from `.env`, not from committed example values.

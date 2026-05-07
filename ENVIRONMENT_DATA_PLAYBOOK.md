@@ -1,0 +1,177 @@
+# Environment Data Playbook
+
+## Purpose
+This document defines the required process for creating and refreshing safe development and staging environments from production-derived data. The goal is to replace the current high-risk production-first workflow with a repeatable, testable environment strategy.
+
+## Environment Roles
+- `dev`: freely breakable developer environment, mock-heavy by default.
+- `staging`: long-lived test environment for realistic end-to-end validation before promotion.
+- `main`: production.
+- Aeries exception: because no sandbox/staging tenant exists, realistic Aeries integration in non-production uses masked production-backed read-only data, ideally from previous school years.
+- Aeries staging should determine the current school year from Aeries School Info and default to `current school year - 1`.
+- Example: if Aeries School Info reports `2025-2026`, staging should default to `DatabaseYear=2024`.
+- If Aeries School Info disagrees across schools, use the earliest start date and latest end date across all schools to define the district school year before subtracting one year for staging.
+
+## Principles
+1. Production is never the first place a new write path is tested.
+2. Dev and staging must use separate datasets.
+3. Staging should prefer real sandbox tenants when providers offer them.
+4. When sandbox tenants do not exist, staging must use masked production-derived data.
+5. Sensitive data is masked or omitted before landing in non-production.
+6. Refresh steps must be documented, repeatable, and auditable.
+7. Provider credentials, tokens, private keys, passwords, and auth headers are never copied into non-production datasets or retained in refresh artifacts.
+
+## Data Classes
+- `Safe synthetic`: entirely fake or mocked data for dev.
+- `Masked production-derived`: production structure and relationships preserved, but sensitive values transformed.
+- `Sandbox provider data`: real third-party sandbox tenants with test identities and resources.
+- `Excluded`: fields too sensitive or unnecessary to copy into non-production.
+
+## Required Output Documents and Assets
+- updated `docs/reference-inputs/VENDORED_INVENTORY.md` when a refresh changes vendored code or other reference inputs
+- documented masking rules per source system
+- repeatable export scripts or jobs
+- repeatable masking transform scripts
+- repeatable load steps for app database
+- per-provider environment configuration
+- validation checklist after each refresh
+- rollback instructions if the refresh is bad
+
+## Required Steps To Build Staging From Production-Safe Data
+
+### Step 1. Freeze the Refresh Window
+- Announce a staging refresh window.
+- Confirm no active destructive staging tests are running.
+- Record the source snapshot date and time.
+
+### Step 2. Export Production Inputs
+- Export the minimum source data needed for realistic staging behavior:
+  - application database snapshot
+  - provider reference exports required for synchronization behavior
+  - directory, room, phone, and group reference data
+  - job-title and entitlement mapping tables
+- Do not export unnecessary provider fields just because they exist.
+
+### Step 3. Apply Masking and Omission Rules
+- Replace or remove direct identifiers and sensitive fields before loading into staging.
+- Remove or replace all reusable credential material before data leaves the source environment, including auth headers, bearer tokens, refresh tokens, private keys, client secrets, passwords, and raw service-account JSON.
+- Preserve referential integrity and deterministic joins.
+- Preserve enough structural truth that:
+  - room conflicts still exist
+  - title mismatches can still be exercised
+  - phone-assignment logic still sees realistic shapes
+  - lifecycle state transitions can still be tested
+- Use deterministic transforms where repeated refreshes must preserve cross-table linkage.
+
+### Step 4. Build the Staging Database
+- Load the masked dataset into a clean staging database.
+- Rebuild any derived tables, hashes, projections, and indexes.
+- Seed required environment-specific control tables.
+- Mark the dataset with:
+  - source snapshot timestamp
+  - masking rules version
+  - refresh operator
+
+### Step 5. Configure Third-Party Integrations
+- Prefer true sandbox tenants for:
+  - Zoom
+  - Google
+  - Incident IQ
+  - other write-capable providers
+- If a sandbox is unavailable:
+  - use masked data
+  - disable writes until the provider path has a safe non-production strategy
+- Record which providers are:
+  - real sandbox
+  - masked read-only
+  - mocked
+- Aeries-specific environment rule:
+  - use read-only `base URL + certificate`
+  - no dedicated sandbox/staging tenant is available
+  - prefer previous-year API reads via `DatabaseYear=YYYY` so non-production uses valid but stale records
+  - determine current school year from Aeries School Info, then default staging to `current school year - 1`
+  - if schools disagree, use the earliest start and latest end dates across schools to define the school year
+  - preserve masking and omission rules before any non-production persistence
+
+### Step 6. Validate the Staging Refresh
+- Validate record counts and key relationship counts.
+- Validate masked data coverage.
+- Validate core workflow smoke tests:
+  - onboarding
+  - offboarding
+  - room move
+  - name change
+  - ticket-safe-to-create detection
+- Validate that dangerous writes are pointed only at sandbox or explicitly approved masked endpoints.
+
+### Step 7. Open Staging For Test Use
+- Publish the refresh summary.
+- Record known gaps.
+- Mark staging ready only after validation passes.
+
+## Required Steps To Build Dev
+
+### Default Dev Mode
+- Start from mocks by default.
+- Seed lightweight synthetic datasets that reflect:
+  - multiple sites
+  - multiple user roles
+  - valid and invalid room assignments
+  - common failure states
+
+### Optional Realism Mode
+- If a developer needs higher realism:
+  - derive dev from a staging-safe masked dataset, not from raw production
+  - reduce row counts where possible
+  - keep all external writes mocked unless the developer has an explicit sandbox need
+
+## Refresh Playbook
+
+### Staging Refresh Cadence
+- Refresh on a documented schedule.
+- Refresh additionally before major release testing or when reference data becomes too stale.
+
+### Dev Refresh Cadence
+- Refresh on demand or on a lightweight schedule when developer test data no longer reflects current workflows.
+
+### Every Refresh Must Record
+- vendored inventory manifest update when repo-local reference inputs changed
+- who ran it
+- when it ran
+- source snapshot used
+- masking version used
+- validation outcome
+- known follow-up actions
+
+## Promotion Safety Gates
+- No new provider write path may promote to `main` unless it has been exercised in:
+  - local or mocked tests
+  - staging with representative data
+- Promotion requires proof that:
+  - masking or sandbox strategy exists
+  - failure handling is understood
+  - rollback behavior is documented
+  - ticket fallback behavior is verified where automation cannot complete
+
+## Provider-Specific Expectations
+- Zoom: test assignment, SLG changes, CAP handling, and limited-license reclamation without relying on production users or production devices.
+- Incident IQ: verify parent ticket creation first; add subticket and subtask support before declaring the workflow surface complete.
+- Google and AD chain: confirm ticket-safe-to-create timing after propagation.
+- Aeries: validate read-only integration against the mandatory v1 endpoint families (`staff`, `students`, `schools`, `teachers`, `scheduling`) using masked previous-year data where possible.
+- Aeries: verify that staff-related and teacher-related API paths both resolve and can be converged into one internal entity view together with scheduling context.
+- Verkada: verify ticket generation timing rather than direct account provisioning.
+
+## Required Tooling TODOs
+- export tooling for production-safe source snapshots
+- deterministic masking tooling
+- environment bootstrap scripts
+- validation scripts for refresh correctness
+- documentation of provider-by-provider sandbox availability and fallbacks
+
+## Definition Of Done For Environment Safety
+The environment strategy is not done until:
+- mock, staging, and production roles are clearly separated
+- refresh steps are documented and repeatable
+- masked or sandbox data paths exist for all critical write workflows
+- staging is the required proving ground before production promotion
+- the team can refresh staging without improvising from memory
