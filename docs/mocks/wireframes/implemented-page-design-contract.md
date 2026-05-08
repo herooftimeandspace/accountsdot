@@ -24,9 +24,26 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 - `Table`: tables use a shared top baseline across row cells. Multi-line cells grow the row downward; sparse cells and badges remain top-aligned.
 - `Wrapper/Card/Rail`: bordered containers keep clean separation from neighboring bordered elements and reserve space for titles, badges, icons, and actions.
 - `Helper Paragraph`: a card, rail, notice, or table cell that conveys one logical paragraph uses one wrapping text node.
-- `Status Badge`: badges must fit their text without colliding with card headers, table content, or action controls.
+- `Status Badge`: badges must fit their text without colliding with card headers, table content, or action controls. Reused status bubbles/buttons must use the canonical severity palette below rather than page-local colors.
 - `Drawer`: row-selected detail/context surfaces use the shared right-hand runtime drawer. The drawer is closed by default, opens only after an explicit row selection, updates in place when another row is selected, and closes through its upper-right `X`.
 - `Action Link`: links that lead to external systems must be defined by product behavior, not created solely because a mock contains link-like text.
+
+## Status Badge And Button Color Inventory
+
+This inventory records the currently defined status bubbles/buttons and the proposed canonical color treatment for review. The goal is to make repeated badge states a shared primitive instead of page-local styling. Text colors are chosen from the existing brand palette for readable contrast.
+
+| Labels / states | Primitive role | Current implementation notes | Canonical background | Canonical text | Severity intent |
+| --- | --- | --- | --- | --- | --- |
+| `Blocked`, `Invalid`, `Failed`, `Error` | Critical status badge / destructive state | Static `.pen` badges already use brand red for some `Blocked` states; onboarding runtime currently groups `Blocked` into the warning class. | Brand red `#D73533` / `var(--color-accent-red)` | White `#FFFFFF` | Work cannot proceed; user attention is required before automation should continue. |
+| `Needs Review`, `Review`, `Manual action`, `External action` | Review/action-needed badge | Static `.pen` uses coral for several `Review` states; onboarding runtime currently groups `Needs Review` into the warning class. | Coral `#FE5E41` / `var(--color-accent-coral)` | The WIZARD text `#01161E` | Human review is required, but the row is not necessarily hard-blocked. |
+| `Incomplete Data`, `Warning`, start-date warning icon | Warning / incomplete badge | Onboarding runtime uses Vegas Gold for `Incomplete Data`; lead-time warning icon uses Vegas Gold. | Vegas Gold `#CEB770` / `var(--color-highlight)` | The WIZARD text `#01161E` | Data is missing or a timing risk exists; record can remain visible while operators complete it. |
+| `In Progress`, `Running`, `Queued`, `Scheduled`, `Waiting` | In-flight / scheduled badge | Runtime default status class uses light blue; static pages use light blue for `Scheduled` and `In Progress` examples. | Light blue `#89B6E7` / `var(--color-accent-light-blue)` | The WIZARD text `#01161E` | Automation is underway, queued, or waiting on expected timing. |
+| `Ready`, `Ready to Provision`, `Healthy`, `Complete`, `Allowed` | Success / ready badge | Static and runtime ready states use green for several badges; some dashboard `Healthy` and KPI values are plain text rather than badges. | Green `#00A878` / `var(--color-accent-green)` | The WIZARD text `#01161E` | Workflow is healthy, complete, ready, or explicitly allowed. |
+| Neutral/default status, unknown non-error state | Neutral badge | Several generated mock labels are plain text on white and should stay plain unless they become reusable status badges. | Canvas `#DDE2E3` / `var(--color-canvas)` | The WIZARD text `#01161E` | Informational state with no severity. |
+| Primary command buttons: `Refresh`, `Save`, `Add Non-Escape Record`, `Return to Dashboard` | Primary action button | Shared header refresh, onboarding save/add, and error recovery buttons use Vegas Gold. | Vegas Gold `#CEB770` / `var(--color-highlight)` | The WIZARD text `#01161E` | Main affirmative action for the current surface. |
+| Destructive command buttons: `Delete Manual Entry` and future destructive actions | Destructive action button | Documented for manual-entry remediation; implementation should not reuse generic browser red. | Brand red `#D73533` / `var(--color-accent-red)` | White `#FFFFFF` | User action deletes, rejects, or removes a record. |
+
+Known cleanup target: migrate status rendering to a shared badge primitive so runtime pages and `.pen`-generated pages use the same label-to-severity mapping. `Blocked` should not render as a Vegas Gold warning badge once that migration is applied.
 
 ## Primitive Feedback Matrix
 
