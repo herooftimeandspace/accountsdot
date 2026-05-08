@@ -515,6 +515,13 @@ input {
   outline-offset: -2px;
 }
 
+.onboarding-runtime__start-cell,
+.onboarding-runtime__field > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .onboarding-runtime__table-footer {
   align-self: end;
   padding-top: 12px;
@@ -618,16 +625,54 @@ input {
 }
 
 .onboarding-runtime__warning {
+  position: relative;
   display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   width: 22px;
   height: 22px;
-  margin-left: 8px;
   vertical-align: middle;
   color: #CEB770;
+  cursor: help;
+  outline: 0;
 }
 
 .onboarding-runtime__warning svg {
   stroke-width: 3;
+}
+
+.onboarding-runtime__warning:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.onboarding-runtime__warning-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  width: 300px;
+  max-width: min(300px, 70vw);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  box-shadow: 0 12px 28px rgba(1, 22, 30, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.onboarding-runtime__warning:hover .onboarding-runtime__warning-tooltip,
+.onboarding-runtime__warning:focus .onboarding-runtime__warning-tooltip,
+.onboarding-runtime__warning:focus-within .onboarding-runtime__warning-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .onboarding-runtime__field-error,
@@ -959,6 +1004,43 @@ input {
   line-height: 1;
   padding: 0 18px;
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+}
+
+.error-page__runtime-copy {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  text-align: center;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+
+.error-page__runtime-copy h2,
+.error-page__runtime-copy p {
+  margin: 0;
+}
+
+.error-page__runtime-code {
+  color: #CEB770;
+  -webkit-text-stroke: 1px var(--color-text);
+  font-family: var(--font-display);
+  font-size: 112px;
+  line-height: 0.9;
+}
+
+.error-page__runtime-copy h2 {
+  color: #CEB770;
+  -webkit-text-stroke: 0.75px var(--color-text);
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1;
+}
+
+.error-page__runtime-copy p:not(.error-page__runtime-code) {
+  max-width: 600px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .error-page__cta:hover {

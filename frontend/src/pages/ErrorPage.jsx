@@ -34,10 +34,6 @@ const ERROR_COPY = {
   },
 };
 
-const ERROR_CODE_IDS = new Set(["t4", "error__t4"]);
-const ERROR_TITLE_IDS = new Set(["t5", "error__t5"]);
-const ERROR_BODY_IDS = new Set(["t6", "error__t6"]);
-
 function errorCopyFor(code, details) {
   const fallback = {
     title: "Unexpected Error",
@@ -72,16 +68,19 @@ function estimateWrappedTextHeight(content, width, fontSize) {
   return Math.ceil(lineCount * lineHeight);
 }
 
-function updateErrorArtboard(baseArtboard, copy) {
+function updateErrorArtboard(baseArtboard, copy, loggedIn) {
   const artboard = cloneArtboard(baseArtboard);
+  const codeIds = new Set(loggedIn ? ["error__t4"] : ["t4"]);
+  const titleIds = new Set(loggedIn ? ["error__t5"] : ["t5"]);
+  const bodyIds = new Set(loggedIn ? ["error__t6"] : ["t6"]);
 
   function visit(node) {
     if (node?.type === "text") {
-      if (ERROR_CODE_IDS.has(node.id)) {
+      if (codeIds.has(node.id)) {
         node.content = copy.code;
-      } else if (ERROR_TITLE_IDS.has(node.id)) {
+      } else if (titleIds.has(node.id)) {
         node.content = copy.title;
-      } else if (ERROR_BODY_IDS.has(node.id)) {
+      } else if (bodyIds.has(node.id)) {
         node.content = copy.body;
       }
       if (node.stroke?.fill) {
@@ -104,7 +103,8 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
   const hideVisibleBody = loggedIn && Number(code) === 403;
   const artboard = updateErrorArtboard(
     generatedArtboards[loggedIn ? "error-logged-in" : "error-logged-out"],
-    copy
+    copy,
+    loggedIn
   );
 
   const textOverrides = loggedIn
@@ -124,6 +124,9 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
     : [];
   if (hideVisibleBody) {
     hiddenNodeIds.push("error__t6");
+  }
+  if (loggedIn) {
+    hiddenNodeIds.push("error__t4", "error__t5", "error__t6");
   }
   const imageNodeOverrides = loggedIn ? buildSharedShellImageOverrides(session) : {};
   const sharedShellOverlay = loggedIn
@@ -164,6 +167,22 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
     return (
       <>
         {sharedShell}
+        {loggedIn ? (
+          <section
+            className="error-page__runtime-copy"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 520,
+              top: 340,
+              width: 900,
+            }}
+          >
+            <p className="error-page__runtime-code">{copy.code}</p>
+            <h2>{copy.title}</h2>
+            {!hideVisibleBody ? <p>{copy.body}</p> : null}
+          </section>
+        ) : null}
         <button
           type="button"
           className="error-page__cta"

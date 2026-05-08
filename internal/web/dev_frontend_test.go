@@ -76,6 +76,7 @@ type onboardingResponse struct {
 			DateAdded       string `json:"date_added"`
 			DateAddedReason string `json:"date_added_reason"`
 			StartDate       string `json:"start_date"`
+			LeadTimeWarning bool   `json:"lead_time_warning"`
 			Person          string `json:"person"`
 			ManualDraftID   string `json:"manual_draft_id"`
 			WorkflowStatus  string `json:"workflow_status"`
@@ -429,6 +430,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			}
 			if days := int(startDate.Sub(dateAdded).Hours() / 24); days < 0 || days > 3 {
 				t.Fatalf("lead-time review start/date-added gap = %d days, want 0..3", days)
+			}
+			if !row.LeadTimeWarning {
+				t.Fatal("expected lead-time review row to request the start-date warning")
 			}
 		}
 		if !foundLeadTimeReview {

@@ -143,6 +143,41 @@ function daysBetween(startDate, currentDate) {
   return Math.ceil((start.getTime() - current.getTime()) / 86400000);
 }
 
+function formatOnboardingDate(value) {
+  if (!value) {
+    return "";
+  }
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function LeadTimeWarning({ id }) {
+  return (
+    <span className="onboarding-runtime__warning" tabIndex={0} aria-describedby={id}>
+      <span
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{
+          __html: lucideIcons.AlertTriangle.replace(/width="[^"]+"/, 'width="16"').replace(
+            /height="[^"]+"/,
+            'height="16"'
+          ),
+        }}
+      />
+      <span id={id} role="tooltip" className="onboarding-runtime__warning-tooltip">
+        {LEAD_TIME_WARNING}
+      </span>
+    </span>
+  );
+}
+
 function statusClass(status) {
   if (status === "Ready" || status === "Ready to Provision") {
     return "onboarding-runtime__status onboarding-runtime__status--ready";
@@ -226,7 +261,10 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
             onClick={() => onSelectRow(row)}
           >
             <div title={row.date_added_reason}>{row.date_added || "Unknown"}</div>
-            <div>{row.start_date || "Unknown"}</div>
+            <div className="onboarding-runtime__start-cell">
+              <span>{formatOnboardingDate(row.start_date) || "Unknown"}</span>
+              {row.lead_time_warning ? <LeadTimeWarning id={`lead-time-warning-${row.id}`} /> : null}
+            </div>
             <div>{row.person}</div>
             <div>{row.site}</div>
             <div>{row.current_step}</div>
@@ -426,19 +464,7 @@ function ManualDraftDrawer({
         <label className={fieldClassName("start_date", draft, errors)} htmlFor="manual-start-date">
           <span>
             Start date
-            {showLeadTimeWarning ? (
-              <span className="onboarding-runtime__warning" title={LEAD_TIME_WARNING} aria-label={LEAD_TIME_WARNING}>
-                <span
-                  aria-hidden="true"
-                  dangerouslySetInnerHTML={{
-                    __html: lucideIcons.AlertTriangle.replace(/width="[^"]+"/, 'width="16"').replace(
-                      /height="[^"]+"/,
-                      'height="16"'
-                    ),
-                  }}
-                />
-              </span>
-            ) : null}
+            {showLeadTimeWarning ? <LeadTimeWarning id="manual-start-date-lead-time-warning" /> : null}
           </span>
           <input
             id="manual-start-date"

@@ -52,6 +52,7 @@ type onboardingRowPayload struct {
 	DateAdded       string                   `json:"date_added"`
 	DateAddedReason string                   `json:"date_added_reason"`
 	StartDate       string                   `json:"start_date"`
+	LeadTimeWarning bool                     `json:"lead_time_warning,omitempty"`
 	Person          string                   `json:"person"`
 	Site            string                   `json:"site"`
 	CurrentStep     string                   `json:"current_step"`
@@ -721,6 +722,7 @@ func (draft *onboardingManualDraft) toRowPayload() onboardingRowPayload {
 		DateAdded:       formatOnboardingDate(draft.CreatedAt),
 		DateAddedReason: "Manual Non-Escape record added",
 		StartDate:       draft.StartDate,
+		LeadTimeWarning: draft.hasLeadTimeWarning(),
 		Person:          person,
 		Site:            site.Name,
 		CurrentStep:     currentStep,
@@ -767,6 +769,17 @@ func (draft *onboardingManualDraft) workflowSteps() []onboardingWorkflowStep {
 			}},
 		},
 	}
+}
+
+func (draft *onboardingManualDraft) hasLeadTimeWarning() bool {
+	start, err := time.Parse("2006-01-02", draft.StartDate)
+	if err != nil || draft.CreatedAt.IsZero() {
+		return false
+	}
+	added := time.Date(draft.CreatedAt.Year(), draft.CreatedAt.Month(), draft.CreatedAt.Day(), 0, 0, 0, 0, time.UTC)
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	daysUntilStart := int(start.Sub(added).Hours() / 24)
+	return daysUntilStart >= 0 && daysUntilStart <= 3
 }
 
 func cloneOnboardingDraft(draft *onboardingManualDraft) *onboardingManualDraft {
