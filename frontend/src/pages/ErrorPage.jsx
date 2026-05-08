@@ -9,34 +9,34 @@ import {
 
 const ERROR_COPY = {
   401: {
-    title: "Not Authorized",
+    title: "not authorized",
     body: "You need to sign in before you can view this page.",
   },
   403: {
-    title: "Forbidden",
+    title: "forbidden",
     body: "Your current role does not have permission to access this page.",
   },
   404: {
-    title: "Page Not Found",
+    title: "page not found",
     body: "The requested page could not be found.",
   },
   500: {
-    title: "Application Error",
+    title: "application error",
     body: "The application encountered an unexpected problem while handling this request.",
   },
   502: {
-    title: "Upstream Error",
+    title: "upstream error",
     body: "A dependent service returned an invalid response.",
   },
   503: {
-    title: "Service Unavailable",
+    title: "service unavailable",
     body: "The application is temporarily unavailable. Please try again shortly.",
   },
 };
 
 function errorCopyFor(code, details) {
   const fallback = {
-    title: "Unexpected Error",
+    title: "unexpected error",
     body: "The application could not complete the requested operation.",
   };
   const base = ERROR_COPY[code] ?? fallback;

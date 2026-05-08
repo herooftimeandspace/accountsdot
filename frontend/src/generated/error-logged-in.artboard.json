@@ -1790,7 +1790,7 @@
     {
       "type": "text",
       "id": "error__t5",
-      "content": "Not Authorized",
+      "content": "not authorized",
       "x": 518,
       "y": 530,
       "fontFamily": "Varsity",

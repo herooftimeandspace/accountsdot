@@ -93,7 +93,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the logged-out experience starts at `/login`
   - the login page should show exactly three visible elements:
     - centered `Firefly.png` at `25%` opacity
-    - centered `The WIZARD` title in Vegas Gold using the Varsity display font with a black stroke outline
+    - centered `the wizard` title in Vegas Gold using the Varsity display font with a black stroke outline
     - centered `Log in with Google` button with the Google mark
   - no sidebar, header, or other shell chrome should render before login succeeds
   - in the DEV pilot, `Log in with Google` is a mock action that completes login and redirects to `/dashboard`
@@ -212,7 +212,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the application should support explicit first-pass error views for `401`, `403`, `404`, `500`, `502`, and `503`, plus a generic fallback for other supported HTTP codes
   - logged-out error pages should render without sidebar or header
   - logged-in error pages should retain the shared shell
-  - both logged-in and logged-out error pages should center `Firefly.png` at `25%` opacity and render the error code plus explanation in Vegas Gold Varsity with a black stroke outline
+  - both logged-in and logged-out error pages should center `Firefly.png` at `25%` opacity and render the error code plus explanation in Vegas Gold Varsity with a black stroke outline; every alphabetic Varsity text string must be authored in lowercase
   - the login page display title should use a fixed `1px` outer stroke
   - all stroked display text on HTTP error pages should use a fixed `1px` outer stroke
   - all HTTP error pages should include a recovery button; authenticated users should return through `/dashboard` so the app resolves their role-based default landing page, while signed-out users should return to `/login`

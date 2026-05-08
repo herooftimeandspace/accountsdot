@@ -79,7 +79,7 @@
     {
       "type": "text",
       "id": "t5",
-      "content": "Not Authorized",
+      "content": "not authorized",
       "x": 386,
       "y": 492,
       "fontFamily": "Varsity",
