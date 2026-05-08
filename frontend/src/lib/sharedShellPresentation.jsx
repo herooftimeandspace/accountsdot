@@ -656,9 +656,10 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
       <button
         type="button"
         className="shared-shell-help-button"
-        aria-label={`Open help for ${helpContent.title}`}
-        title={`Open help for ${helpContent.title}`}
-        onClick={() => setIsOpen(true)}
+        aria-expanded={isOpen}
+        aria-label={`${isOpen ? "Close" : "Open"} help for ${helpContent.title}`}
+        title={`${isOpen ? "Close" : "Open"} help for ${helpContent.title}`}
+        onClick={() => setIsOpen((current) => !current)}
         style={{
           position: "absolute",
           left: bounds.left - 4,
