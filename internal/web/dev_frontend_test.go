@@ -72,17 +72,34 @@ type onboardingResponse struct {
 	Page   struct {
 		CanManageManual bool `json:"can_manage_manual"`
 		Rows            []struct {
-			Kind            string `json:"kind"`
-			DateAdded       string `json:"date_added"`
-			DateAddedReason string `json:"date_added_reason"`
-			StartDate       string `json:"start_date"`
-			LeadTimeWarning bool   `json:"lead_time_warning"`
-			Person          string `json:"person"`
-			ManualDraftID   string `json:"manual_draft_id"`
-			WorkflowStatus  string `json:"workflow_status"`
-			AssignedEmail   string `json:"assigned_email"`
-			EmployeeNumber  string `json:"employee_number"`
-			WorkflowSteps   []struct {
+			Kind                 string `json:"kind"`
+			DateAdded            string `json:"date_added"`
+			DateAddedReason      string `json:"date_added_reason"`
+			StartDate            string `json:"start_date"`
+			EffectiveDate        string `json:"effective_date"`
+			LeadTimeWarning      bool   `json:"lead_time_warning"`
+			Person               string `json:"person"`
+			ManualDraftID        string `json:"manual_draft_id"`
+			WorkflowStatus       string `json:"workflow_status"`
+			ChangeReason         string `json:"change_reason"`
+			LateStart            bool   `json:"late_start"`
+			ScheduledFor         string `json:"scheduled_for"`
+			ValidityState        string `json:"validity_state"`
+			InvalidReason        string `json:"invalid_reason"`
+			CanDeleteManualEntry bool   `json:"can_delete_manual_entry"`
+			AssignedEmail        string `json:"assigned_email"`
+			EmployeeNumber       string `json:"employee_number"`
+			LinkedEscapeRecord   *struct {
+				ID             string `json:"id"`
+				Person         string `json:"person"`
+				Site           string `json:"site"`
+				AssignedEmail  string `json:"assigned_email"`
+				EmployeeNumber string `json:"employee_number"`
+				StartDate      string `json:"start_date"`
+				CurrentStep    string `json:"current_step"`
+				WorkflowStatus string `json:"workflow_status"`
+			} `json:"linked_escape_record"`
+			WorkflowSteps []struct {
 				Name    string `json:"name"`
 				Status  string `json:"status"`
 				Detail  string `json:"detail"`
@@ -103,14 +120,32 @@ type onboardingResponse struct {
 
 type onboardingDraftResponse struct {
 	Draft struct {
-		ID                  string   `json:"id"`
-		Status              string   `json:"status"`
-		FirstName           string   `json:"first_name"`
-		LastName            string   `json:"last_name"`
-		PersonalEmail       string   `json:"personal_email"`
-		GeneratedEmail      string   `json:"generated_email"`
-		GeneratedEmployeeID string   `json:"generated_employee_id"`
-		MissingFields       []string `json:"missing_fields"`
+		ID                   string `json:"id"`
+		Status               string `json:"status"`
+		StartDate            string `json:"start_date"`
+		EffectiveDate        string `json:"effective_date"`
+		FirstName            string `json:"first_name"`
+		LastName             string `json:"last_name"`
+		PersonalEmail        string `json:"personal_email"`
+		GeneratedEmail       string `json:"generated_email"`
+		GeneratedEmployeeID  string `json:"generated_employee_id"`
+		ChangeReason         string `json:"change_reason"`
+		LateStart            bool   `json:"late_start"`
+		ScheduledFor         string `json:"scheduled_for"`
+		ValidityState        string `json:"validity_state"`
+		InvalidReason        string `json:"invalid_reason"`
+		CanDeleteManualEntry bool   `json:"can_delete_manual_entry"`
+		LinkedEscapeRecord   *struct {
+			ID             string `json:"id"`
+			Person         string `json:"person"`
+			Site           string `json:"site"`
+			AssignedEmail  string `json:"assigned_email"`
+			EmployeeNumber string `json:"employee_number"`
+			StartDate      string `json:"start_date"`
+			CurrentStep    string `json:"current_step"`
+			WorkflowStatus string `json:"workflow_status"`
+		} `json:"linked_escape_record"`
+		MissingFields []string `json:"missing_fields"`
 	} `json:"draft"`
 	Rows []struct {
 		Kind            string `json:"kind"`
@@ -527,6 +562,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if updated.Draft.GeneratedEmail != "qzephyr@wusd.org" {
 			t.Fatalf("generated email = %q, want qzephyr@wusd.org", updated.Draft.GeneratedEmail)
 		}
+		if updated.Draft.ValidityState != "valid" {
+			t.Fatalf("validity state = %q, want valid", updated.Draft.ValidityState)
+		}
 
 		finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
 		finalizeReq.AddCookie(cookie)
@@ -561,6 +599,261 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !manualRowFound {
 			t.Fatal("expected finalized response to include manual row")
 		}
+	})
+
+	t.Run("inactive escape contractor reactivation reuses existing identity", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "human_resources")
+
+		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		createReq.AddCookie(cookie)
+		createRec := httptest.NewRecorder()
+		handler.ServeHTTP(createRec, createReq)
+		if createRec.Code != http.StatusCreated {
+			t.Fatalf("draft create returned %d, want 201", createRec.Code)
+		}
+		created := decodeJSON[onboardingDraftResponse](t, createRec)
+
+		body, err := json.Marshal(map[string]string{
+			"start_date":              "2026-05-11",
+			"ssn_last4":               "5678",
+			"employee_type":           "Contractor",
+			"classification":          "Contractor",
+			"first_name":              "Harper",
+			"last_name":               "Sloan",
+			"job_title":               "Counselor",
+			"site_id":                 "business-office",
+			"personal_email":          "harper.sloan@example.com",
+			"preferred_device":        "Windows",
+			"requested_aeries_access": "Staff",
+		})
+		if err != nil {
+			t.Fatalf("marshal reactivation draft: %v", err)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(body))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("reactivation draft update returned %d, want 200", updateRec.Code)
+		}
+		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
+		if updated.Draft.ChangeReason != "reactivate_non_escape" {
+			t.Fatalf("change reason = %q, want reactivate_non_escape", updated.Draft.ChangeReason)
+		}
+		if updated.Draft.GeneratedEmail != "harper.sloan@wusd.org" {
+			t.Fatalf("generated email = %q, want reused Escape email", updated.Draft.GeneratedEmail)
+		}
+		if updated.Draft.GeneratedEmployeeID != "104812" {
+			t.Fatalf("generated employee id = %q, want reused Escape employee number", updated.Draft.GeneratedEmployeeID)
+		}
+		if updated.Draft.LinkedEscapeRecord == nil || updated.Draft.LinkedEscapeRecord.ID != "escape-harper-sloan" {
+			t.Fatalf("linked escape record = %#v, want escape-harper-sloan", updated.Draft.LinkedEscapeRecord)
+		}
+
+		finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
+		finalizeReq.AddCookie(cookie)
+		finalizeRec := httptest.NewRecorder()
+		handler.ServeHTTP(finalizeRec, finalizeReq)
+		if finalizeRec.Code != http.StatusOK {
+			t.Fatalf("reactivation finalize returned %d, want 200", finalizeRec.Code)
+		}
+		finalized := decodeJSON[onboardingDraftResponse](t, finalizeRec)
+		if finalized.Draft.GeneratedEmail != "harper.sloan@wusd.org" || finalized.Draft.GeneratedEmployeeID != "104812" {
+			t.Fatalf("finalized draft identity reuse = %#v", finalized.Draft)
+		}
+	})
+
+	t.Run("active escape contractor collision saves invalid draft and allows soft delete", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+
+		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		createReq.AddCookie(cookie)
+		createRec := httptest.NewRecorder()
+		handler.ServeHTTP(createRec, createReq)
+		if createRec.Code != http.StatusCreated {
+			t.Fatalf("draft create returned %d, want 201", createRec.Code)
+		}
+		created := decodeJSON[onboardingDraftResponse](t, createRec)
+
+		body, err := json.Marshal(map[string]string{
+			"start_date":              "2026-05-11",
+			"ssn_last4":               "1234",
+			"employee_type":           "Contractor",
+			"classification":          "Contractor",
+			"first_name":              "Nia",
+			"last_name":               "Brooks",
+			"job_title":               "Counselor",
+			"site_id":                 "district-office",
+			"personal_email":          "nia.brooks.contractor@example.com",
+			"preferred_device":        "Mac",
+			"requested_aeries_access": "Staff",
+		})
+		if err != nil {
+			t.Fatalf("marshal collision draft: %v", err)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(body))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("collision draft update returned %d, want 200", updateRec.Code)
+		}
+		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
+		if updated.Draft.Status != "Invalid" {
+			t.Fatalf("status = %q, want Invalid", updated.Draft.Status)
+		}
+		if updated.Draft.ValidityState != "invalid" || updated.Draft.InvalidReason != "active_escape_contractor_collision" {
+			t.Fatalf("collision validity = %#v", updated.Draft)
+		}
+		if updated.Draft.ChangeReason != "active_escape_contractor_collision" {
+			t.Fatalf("change reason = %q, want active_escape_contractor_collision", updated.Draft.ChangeReason)
+		}
+		if updated.Draft.LinkedEscapeRecord == nil || updated.Draft.LinkedEscapeRecord.ID != "escape-nia-brooks" {
+			t.Fatalf("linked escape record = %#v, want escape-nia-brooks", updated.Draft.LinkedEscapeRecord)
+		}
+		if !updated.Draft.CanDeleteManualEntry {
+			t.Fatal("expected invalid contractor collision draft to be deletable")
+		}
+		if updated.Draft.GeneratedEmail != "" || updated.Draft.GeneratedEmployeeID != "" {
+			t.Fatalf("collision draft should not generate identifiers: %#v", updated.Draft)
+		}
+
+		finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
+		finalizeReq.AddCookie(cookie)
+		finalizeRec := httptest.NewRecorder()
+		handler.ServeHTTP(finalizeRec, finalizeReq)
+		if finalizeRec.Code != http.StatusConflict {
+			t.Fatalf("collision finalize returned %d, want 409", finalizeRec.Code)
+		}
+
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
+		pageReq.AddCookie(cookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("onboarding page returned %d, want 200", pageRec.Code)
+		}
+		pagePayload := decodeJSON[onboardingResponse](t, pageRec)
+		rowFound := false
+		for _, row := range pagePayload.Page.Rows {
+			if row.ManualDraftID != created.Draft.ID {
+				continue
+			}
+			rowFound = true
+			if row.ValidityState != "invalid" || row.InvalidReason != "active_escape_contractor_collision" {
+				t.Fatalf("collision row validity = %#v", row)
+			}
+			if row.LinkedEscapeRecord == nil || row.LinkedEscapeRecord.ID != "escape-nia-brooks" {
+				t.Fatalf("collision row linked record = %#v", row.LinkedEscapeRecord)
+			}
+			if !row.CanDeleteManualEntry {
+				t.Fatal("expected collision row to expose delete action")
+			}
+		}
+		if !rowFound {
+			t.Fatal("expected invalid collision row on onboarding page")
+		}
+
+		deleteReq := httptest.NewRequest(http.MethodDelete, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, nil)
+		deleteReq.AddCookie(cookie)
+		deleteRec := httptest.NewRecorder()
+		handler.ServeHTTP(deleteRec, deleteReq)
+		if deleteRec.Code != http.StatusOK {
+			t.Fatalf("delete draft returned %d, want 200", deleteRec.Code)
+		}
+
+		pageReq = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
+		pageReq.AddCookie(cookie)
+		pageRec = httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		pagePayload = decodeJSON[onboardingResponse](t, pageRec)
+		for _, row := range pagePayload.Page.Rows {
+			if row.ManualDraftID == created.Draft.ID {
+				t.Fatalf("deleted collision row still visible: %#v", row)
+			}
+		}
+	})
+
+	t.Run("past-dated manual entry shows warning fields and schedules next cycle", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+
+		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		createReq.AddCookie(cookie)
+		createRec := httptest.NewRecorder()
+		handler.ServeHTTP(createRec, createReq)
+		if createRec.Code != http.StatusCreated {
+			t.Fatalf("draft create returned %d, want 201", createRec.Code)
+		}
+		created := decodeJSON[onboardingDraftResponse](t, createRec)
+		pastDate := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+		body, err := json.Marshal(map[string]string{
+			"start_date":              pastDate,
+			"ssn_last4":               "9876",
+			"employee_type":           "Contractor",
+			"classification":          "Contractor",
+			"first_name":              "Ari",
+			"last_name":               "Pender",
+			"job_title":               "Counselor",
+			"site_id":                 "district-office",
+			"personal_email":          "ari.pender@example.com",
+			"preferred_device":        "Windows",
+			"requested_aeries_access": "Staff",
+		})
+		if err != nil {
+			t.Fatalf("marshal past-date draft: %v", err)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(body))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("past-date update returned %d, want 200", updateRec.Code)
+		}
+		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
+		if !updated.Draft.LateStart {
+			t.Fatal("expected manual past-date draft to be marked late_start")
+		}
+		if updated.Draft.ScheduledFor == "" {
+			t.Fatal("expected manual past-date draft to expose scheduled_for")
+		}
+		if updated.Draft.EffectiveDate != pastDate {
+			t.Fatalf("effective date = %q, want %q", updated.Draft.EffectiveDate, pastDate)
+		}
+	})
+
+	t.Run("escape-backed past-date row preserves source date and exposes next-cycle schedule", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "human_resources")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("onboarding returned %d", rec.Code)
+		}
+		payload := decodeJSON[onboardingResponse](t, rec)
+		for _, row := range payload.Page.Rows {
+			if row.Person != "Nia Brooks" {
+				continue
+			}
+			if row.ChangeReason != "reactivate_same_role" {
+				t.Fatalf("change reason = %q, want reactivate_same_role", row.ChangeReason)
+			}
+			if !row.LateStart {
+				t.Fatal("expected Nia Brooks to be marked late_start")
+			}
+			if row.ScheduledFor == "" {
+				t.Fatal("expected Nia Brooks to expose scheduled_for")
+			}
+			if row.EffectiveDate != row.StartDate {
+				t.Fatalf("effective date = %q, want preserved source date %q", row.EffectiveDate, row.StartDate)
+			}
+			return
+		}
+		t.Fatal("expected Nia Brooks reactivation row")
 	})
 
 	t.Run("manual onboarding generated email falls through collision order", func(t *testing.T) {

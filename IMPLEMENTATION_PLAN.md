@@ -1283,6 +1283,11 @@
   - requests inside that window are still accepted and scheduled
   - the UI must warn HR that the account will not be fully ready within 3 days
   - the requested start date remains visible as an at-risk date rather than being silently shifted
+- Past-date rule:
+  - requests with a start date already in the past are still accepted
+  - the original source/requested date remains visible exactly as stored
+  - the same warning text used for short-lead contractor intake is shown automatically
+  - the workflow is scheduled for the next available workflow-planner cycle instead of silently shifting the source date forward
 - Manual identifier rule:
   - sideloaded people need a non-colliding generated identifier
   - contractor IDs currently use prefix `66` plus a zero-padded five-digit number
@@ -1292,6 +1297,25 @@
   - the manual contractor record becomes inactive and remains in the database
   - existing AD/Entra/Google identity is copied to the new Escape-backed record
   - if the contractor assignment is still active during overlap, the end-user account must remain active and be reprovisioned with the appropriate baseline access instead of being deactivated
+- Manual contractor reactivation and collision rules:
+  - a former Escape-backed person who is now inactive in Escape and later returns as a manual Non-Escape contractor must reuse the existing identity
+  - that manual reactivation path uses the contractor/manual baseline and is exposed as `reactivate_non_escape`
+  - an active Escape employee plus a manual Non-Escape contractor entry is not supported
+  - when that unsupported overlap is detected, the manual record is saved for audit but is immediately marked invalid
+  - the invalid manual record is linked to the active Escape-backed record in the drawer payload
+  - the UI copy must state that Escape always takes precedence and that an active employee cannot be hired as a contractor
+  - the remediation action is `Delete Manual Entry`
+  - `Delete Manual Entry` is a soft delete only: the database record remains, preserves the collision metadata, and is removed from actionable queue/history surfaces
+  - the collision case must not enqueue onboarding work, provider writes, or fallback ticket creation
+- Manual-intake and workflow payloads must expose:
+  - `change_reason`
+  - `late_start`
+  - `effective_date`
+  - `scheduled_for`
+  - `validity_state`
+  - `invalid_reason`
+  - `linked_escape_record`
+  - `can_delete_manual_entry`
 
 ## Onboarding and Offboarding Dashboard Requirements
 - The People Tracker onboarding, offboarding, and Informacast sheets are diagnostic inputs only. They describe current human process and task coverage, but they do not define the future UI or data model.
@@ -1389,6 +1413,19 @@
   - offer an option to create a ticket on behalf of the user to restore selected extra permissions
   - permission delta is informational by default and must not be automatically restored
   - when a restore ticket is created, include the full delta set
+- The planner and UI must carry an explicit change-reason decision field for lifecycle interpretation. Supported values are:
+  - `assignment_add`
+  - `role_change`
+  - `same_site_transfer`
+  - `site_transfer`
+  - `reactivate_same_role`
+  - `reactivate_role_change`
+  - `reactivate_non_escape`
+  - `active_escape_contractor_collision`
+- Escape-backed past-date reactivation rules:
+  - the Escape date remains authoritative and must be shown exactly as listed upstream
+  - the UI shows the same late-start warning text used by manual contractor intake
+  - the resulting workflow is scheduled for the next available workflow-planner cycle and marked late rather than changing the effective date
 - Automatic permission-reset scope for v1 baseline restoration includes:
   - AD groups
   - Google Groups

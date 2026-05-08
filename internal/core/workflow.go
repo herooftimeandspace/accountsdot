@@ -2,6 +2,8 @@ package core
 
 type WorkflowType string
 
+type WorkflowChangeReason string
+
 const (
 	WorkflowTypePersonOnboard          WorkflowType = "person_onboard"
 	WorkflowTypePersonUpdate           WorkflowType = "person_update"
@@ -16,6 +18,17 @@ const (
 	WorkflowTypeStudentSyncDryRun      WorkflowType = "student_sync_dry_run"
 	WorkflowTypeSyncRecheck            WorkflowType = "sync_recheck"
 	WorkflowTypeAnnualResetArchive     WorkflowType = "annual_reset_archive"
+)
+
+const (
+	WorkflowChangeReasonAssignmentAdd                   WorkflowChangeReason = "assignment_add"
+	WorkflowChangeReasonRoleChange                      WorkflowChangeReason = "role_change"
+	WorkflowChangeReasonSameSiteTransfer                WorkflowChangeReason = "same_site_transfer"
+	WorkflowChangeReasonSiteTransfer                    WorkflowChangeReason = "site_transfer"
+	WorkflowChangeReasonReactivateSameRole              WorkflowChangeReason = "reactivate_same_role"
+	WorkflowChangeReasonReactivateRoleChange            WorkflowChangeReason = "reactivate_role_change"
+	WorkflowChangeReasonReactivateNonEscape             WorkflowChangeReason = "reactivate_non_escape"
+	WorkflowChangeReasonActiveEscapeContractorCollision WorkflowChangeReason = "active_escape_contractor_collision"
 )
 
 type WorkflowRunState string
@@ -84,6 +97,22 @@ func (v WorkflowType) Valid() bool {
 		WorkflowTypeStudentSyncDryRun,
 		WorkflowTypeSyncRecheck,
 		WorkflowTypeAnnualResetArchive:
+		return true
+	default:
+		return false
+	}
+}
+
+func (v WorkflowChangeReason) Valid() bool {
+	switch v {
+	case WorkflowChangeReasonAssignmentAdd,
+		WorkflowChangeReasonRoleChange,
+		WorkflowChangeReasonSameSiteTransfer,
+		WorkflowChangeReasonSiteTransfer,
+		WorkflowChangeReasonReactivateSameRole,
+		WorkflowChangeReasonReactivateRoleChange,
+		WorkflowChangeReasonReactivateNonEscape,
+		WorkflowChangeReasonActiveEscapeContractorCollision:
 		return true
 	default:
 		return false

@@ -44,6 +44,27 @@ func TestWorkflowRunStatesValidate(t *testing.T) {
 	}
 }
 
+func TestWorkflowChangeReasonsValidate(t *testing.T) {
+	valid := []core.WorkflowChangeReason{
+		core.WorkflowChangeReasonAssignmentAdd,
+		core.WorkflowChangeReasonRoleChange,
+		core.WorkflowChangeReasonSameSiteTransfer,
+		core.WorkflowChangeReasonSiteTransfer,
+		core.WorkflowChangeReasonReactivateSameRole,
+		core.WorkflowChangeReasonReactivateRoleChange,
+		core.WorkflowChangeReasonReactivateNonEscape,
+		core.WorkflowChangeReasonActiveEscapeContractorCollision,
+	}
+	for _, value := range valid {
+		if !value.Valid() {
+			t.Fatalf("expected workflow change reason %q to be valid", value)
+		}
+	}
+	if core.WorkflowChangeReason("bogus").Valid() {
+		t.Fatal("expected bogus workflow change reason to be invalid")
+	}
+}
+
 func TestApprovalStatesValidate(t *testing.T) {
 	valid := []core.ApprovalState{
 		core.ApprovalStateNotRequired,

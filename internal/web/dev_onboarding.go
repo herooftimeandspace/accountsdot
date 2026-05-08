@@ -10,12 +10,18 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/core"
 )
 
 const (
-	onboardingManualDraftStatusIncomplete = "Incomplete Data"
-	onboardingManualDraftStatusReady      = "Ready to Provision"
-	onboardingManualDraftTTL              = 30 * 24 * time.Hour
+	onboardingManualDraftStatusIncomplete                  = "Incomplete Data"
+	onboardingManualDraftStatusReady                       = "Ready to Provision"
+	onboardingManualDraftStatusInvalid                     = "Invalid"
+	onboardingManualDraftTTL                               = 30 * 24 * time.Hour
+	onboardingValidityStateValid                           = "valid"
+	onboardingValidityStateInvalid                         = "invalid"
+	onboardingInvalidReasonActiveEscapeContractorCollision = "active_escape_contractor_collision"
 )
 
 var (
@@ -47,24 +53,32 @@ type onboardingPageContent struct {
 }
 
 type onboardingRowPayload struct {
-	ID              string                   `json:"id"`
-	Kind            string                   `json:"kind"`
-	DateAdded       string                   `json:"date_added"`
-	DateAddedReason string                   `json:"date_added_reason"`
-	StartDate       string                   `json:"start_date"`
-	LeadTimeWarning bool                     `json:"lead_time_warning,omitempty"`
-	Person          string                   `json:"person"`
-	Site            string                   `json:"site"`
-	CurrentStep     string                   `json:"current_step"`
-	IssueAction     string                   `json:"issue_action"`
-	WorkflowStatus  string                   `json:"workflow_status"`
-	AssignedEmail   string                   `json:"assigned_email,omitempty"`
-	EmployeeNumber  string                   `json:"employee_number,omitempty"`
-	ManualDraftID   string                   `json:"manual_draft_id,omitempty"`
-	IncidentIQ      string                   `json:"incident_iq,omitempty"`
-	AeriesTicket    string                   `json:"aeries_ticket,omitempty"`
-	VerkadaTicket   string                   `json:"verkada_ticket,omitempty"`
-	WorkflowSteps   []onboardingWorkflowStep `json:"workflow_steps,omitempty"`
+	ID                   string                               `json:"id"`
+	Kind                 string                               `json:"kind"`
+	DateAdded            string                               `json:"date_added"`
+	DateAddedReason      string                               `json:"date_added_reason"`
+	StartDate            string                               `json:"start_date"`
+	LeadTimeWarning      bool                                 `json:"lead_time_warning,omitempty"`
+	EffectiveDate        string                               `json:"effective_date,omitempty"`
+	Person               string                               `json:"person"`
+	Site                 string                               `json:"site"`
+	CurrentStep          string                               `json:"current_step"`
+	IssueAction          string                               `json:"issue_action"`
+	WorkflowStatus       string                               `json:"workflow_status"`
+	ChangeReason         string                               `json:"change_reason,omitempty"`
+	LateStart            bool                                 `json:"late_start,omitempty"`
+	ScheduledFor         string                               `json:"scheduled_for,omitempty"`
+	ValidityState        string                               `json:"validity_state,omitempty"`
+	InvalidReason        string                               `json:"invalid_reason,omitempty"`
+	LinkedEscapeRecord   *onboardingLinkedEscapeRecordPayload `json:"linked_escape_record,omitempty"`
+	CanDeleteManualEntry bool                                 `json:"can_delete_manual_entry,omitempty"`
+	AssignedEmail        string                               `json:"assigned_email,omitempty"`
+	EmployeeNumber       string                               `json:"employee_number,omitempty"`
+	ManualDraftID        string                               `json:"manual_draft_id,omitempty"`
+	IncidentIQ           string                               `json:"incident_iq,omitempty"`
+	AeriesTicket         string                               `json:"aeries_ticket,omitempty"`
+	VerkadaTicket        string                               `json:"verkada_ticket,omitempty"`
+	WorkflowSteps        []onboardingWorkflowStep             `json:"workflow_steps,omitempty"`
 }
 
 type onboardingWorkflowStep struct {
@@ -79,6 +93,17 @@ type onboardingWorkflowAction struct {
 	Resolution string `json:"resolution"`
 	System     string `json:"system"`
 	Href       string `json:"href"`
+}
+
+type onboardingLinkedEscapeRecordPayload struct {
+	ID             string `json:"id"`
+	Person         string `json:"person"`
+	Site           string `json:"site"`
+	AssignedEmail  string `json:"assigned_email,omitempty"`
+	EmployeeNumber string `json:"employee_number,omitempty"`
+	StartDate      string `json:"start_date,omitempty"`
+	CurrentStep    string `json:"current_step,omitempty"`
+	WorkflowStatus string `json:"workflow_status,omitempty"`
 }
 
 type onboardingFormOptions struct {
@@ -123,32 +148,40 @@ type onboardingManualDraftRequest struct {
 }
 
 type onboardingManualDraftPayload struct {
-	ID                     string   `json:"id"`
-	Status                 string   `json:"status"`
-	StartDate              string   `json:"start_date"`
-	SSNLast4               string   `json:"ssn_last4,omitempty"`
-	EmployeeType           string   `json:"employee_type"`
-	Classification         string   `json:"classification"`
-	FirstName              string   `json:"first_name"`
-	LastName               string   `json:"last_name"`
-	JobTitle               string   `json:"job_title"`
-	SiteID                 string   `json:"site_id"`
-	SiteName               string   `json:"site_name"`
-	PersonalEmail          string   `json:"personal_email"`
-	PreferredDevice        string   `json:"preferred_device"`
-	RequestedAeriesAccess  string   `json:"requested_aeries_access"`
-	ReplacingEmployeeID    string   `json:"replacing_employee_id,omitempty"`
-	ReplacingEmployeeName  string   `json:"replacing_employee_name,omitempty"`
-	ReplacingEmployeeEmail string   `json:"replacing_employee_email,omitempty"`
-	RoomID                 string   `json:"room_id,omitempty"`
-	RoomName               string   `json:"room_name,omitempty"`
-	Notes                  string   `json:"notes,omitempty"`
-	GeneratedEmail         string   `json:"generated_email,omitempty"`
-	GeneratedEmployeeID    string   `json:"generated_employee_id,omitempty"`
-	MissingFields          []string `json:"missing_fields"`
-	CreatedAt              string   `json:"created_at"`
-	UpdatedAt              string   `json:"updated_at"`
-	FinalizedAt            string   `json:"finalized_at,omitempty"`
+	ID                     string                               `json:"id"`
+	Status                 string                               `json:"status"`
+	StartDate              string                               `json:"start_date"`
+	EffectiveDate          string                               `json:"effective_date,omitempty"`
+	SSNLast4               string                               `json:"ssn_last4,omitempty"`
+	EmployeeType           string                               `json:"employee_type"`
+	Classification         string                               `json:"classification"`
+	FirstName              string                               `json:"first_name"`
+	LastName               string                               `json:"last_name"`
+	JobTitle               string                               `json:"job_title"`
+	SiteID                 string                               `json:"site_id"`
+	SiteName               string                               `json:"site_name"`
+	PersonalEmail          string                               `json:"personal_email"`
+	PreferredDevice        string                               `json:"preferred_device"`
+	RequestedAeriesAccess  string                               `json:"requested_aeries_access"`
+	ReplacingEmployeeID    string                               `json:"replacing_employee_id,omitempty"`
+	ReplacingEmployeeName  string                               `json:"replacing_employee_name,omitempty"`
+	ReplacingEmployeeEmail string                               `json:"replacing_employee_email,omitempty"`
+	RoomID                 string                               `json:"room_id,omitempty"`
+	RoomName               string                               `json:"room_name,omitempty"`
+	Notes                  string                               `json:"notes,omitempty"`
+	GeneratedEmail         string                               `json:"generated_email,omitempty"`
+	GeneratedEmployeeID    string                               `json:"generated_employee_id,omitempty"`
+	ChangeReason           string                               `json:"change_reason,omitempty"`
+	LateStart              bool                                 `json:"late_start,omitempty"`
+	ScheduledFor           string                               `json:"scheduled_for,omitempty"`
+	ValidityState          string                               `json:"validity_state,omitempty"`
+	InvalidReason          string                               `json:"invalid_reason,omitempty"`
+	LinkedEscapeRecord     *onboardingLinkedEscapeRecordPayload `json:"linked_escape_record,omitempty"`
+	CanDeleteManualEntry   bool                                 `json:"can_delete_manual_entry,omitempty"`
+	MissingFields          []string                             `json:"missing_fields"`
+	CreatedAt              string                               `json:"created_at"`
+	UpdatedAt              string                               `json:"updated_at"`
+	FinalizedAt            string                               `json:"finalized_at,omitempty"`
 }
 
 type onboardingManualDraftResponse struct {
@@ -182,9 +215,38 @@ type onboardingManualDraft struct {
 	Notes                 string
 	GeneratedEmail        string
 	GeneratedEmployeeID   string
+	ChangeReason          core.WorkflowChangeReason
+	ValidityState         string
+	InvalidReason         string
+	LinkedEscapePersonID  string
+	ScheduledFor          *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	FinalizedAt           *time.Time
+	DeletedAt             *time.Time
+	DeletedBy             string
+}
+
+type devEscapeEmploymentRecord struct {
+	ID             string
+	FirstName      string
+	LastName       string
+	SiteID         string
+	SiteName       string
+	AssignedEmail  string
+	EmployeeNumber string
+	StartDate      string
+	CurrentStep    string
+	WorkflowStatus string
+	Active         bool
+}
+
+var devEscapeEmploymentRecords = []devEscapeEmploymentRecord{
+	{ID: "escape-jordan-miles", FirstName: "Jordan", LastName: "Miles", SiteID: "clover-hs", SiteName: "Clover HS", AssignedEmail: "jordan.miles@wusd.org", EmployeeNumber: "100241", StartDate: "2025-05-06", CurrentStep: "Google pending", WorkflowStatus: "In Progress", Active: true},
+	{ID: "escape-nia-brooks", FirstName: "Nia", LastName: "Brooks", SiteID: "district-office", SiteName: "District Office", AssignedEmail: "nia.brooks@wusd.org", EmployeeNumber: "100842", StartDate: "2025-05-08", CurrentStep: "Sync dry-run", WorkflowStatus: "Needs Review", Active: true},
+	{ID: "escape-evan-ruiz", FirstName: "Evan", LastName: "Ruiz", SiteID: "franklin-ms", SiteName: "Franklin MS", AssignedEmail: "evan.ruiz@wusd.org", EmployeeNumber: "101106", StartDate: "2025-05-12", CurrentStep: "HR intake", WorkflowStatus: "Blocked", Active: true},
+	{ID: "escape-mika-ito", FirstName: "Mika", LastName: "Ito", SiteID: "desert-view", SiteName: "Desert View", AssignedEmail: "mika.ito@wusd.org", EmployeeNumber: "101441", StartDate: "2025-05-13", CurrentStep: "Ready", WorkflowStatus: "Ready", Active: true},
+	{ID: "escape-harper-sloan", FirstName: "Harper", LastName: "Sloan", SiteID: "business-office", SiteName: "Business Office", AssignedEmail: "harper.sloan@wusd.org", EmployeeNumber: "104812", StartDate: "2024-08-12", CurrentStep: "Inactive in Escape", WorkflowStatus: "Inactive", Active: false},
 }
 
 func newDevOnboardingStore() *devOnboardingStoreState {
@@ -193,6 +255,86 @@ func newDevOnboardingStore() *devOnboardingStoreState {
 		nextEmployee: 1,
 		drafts:       map[string]*onboardingManualDraft{},
 	}
+}
+
+func findEscapeEmploymentRecord(firstName string, lastName string) *devEscapeEmploymentRecord {
+	normalizedFirst := strings.ToLower(normalizeSpaces(firstName))
+	normalizedLast := strings.ToLower(normalizeSpaces(lastName))
+	if normalizedFirst == "" || normalizedLast == "" {
+		return nil
+	}
+	for index := range devEscapeEmploymentRecords {
+		record := &devEscapeEmploymentRecords[index]
+		if strings.ToLower(record.FirstName) == normalizedFirst && strings.ToLower(record.LastName) == normalizedLast {
+			return record
+		}
+	}
+	return nil
+}
+
+func linkedEscapePayloadByID(id string) *onboardingLinkedEscapeRecordPayload {
+	for index := range devEscapeEmploymentRecords {
+		record := &devEscapeEmploymentRecords[index]
+		if record.ID != id {
+			continue
+		}
+		return &onboardingLinkedEscapeRecordPayload{
+			ID:             record.ID,
+			Person:         strings.TrimSpace(record.FirstName + " " + record.LastName),
+			Site:           record.SiteName,
+			AssignedEmail:  record.AssignedEmail,
+			EmployeeNumber: record.EmployeeNumber,
+			StartDate:      record.StartDate,
+			CurrentStep:    record.CurrentStep,
+			WorkflowStatus: record.WorkflowStatus,
+		}
+	}
+	return nil
+}
+
+func onboardingTimeLocation() *time.Location {
+	location, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		return time.UTC
+	}
+	return location
+}
+
+func parseOnboardingStartDate(value string) (time.Time, bool) {
+	if strings.TrimSpace(value) == "" {
+		return time.Time{}, false
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", value, onboardingTimeLocation())
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed, true
+}
+
+func isLateStart(startDate string, now time.Time) bool {
+	parsed, ok := parseOnboardingStartDate(startDate)
+	if !ok {
+		return false
+	}
+	current := now.In(onboardingTimeLocation())
+	currentDate := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, onboardingTimeLocation())
+	return parsed.Before(currentDate)
+}
+
+func nextAvailableWorkflowCycle(now time.Time) time.Time {
+	cadence := 30 * time.Second
+	next := now.UTC().Truncate(cadence).Add(cadence)
+	if !next.After(now.UTC()) {
+		next = next.Add(cadence)
+	}
+	return next
+}
+
+func formatOnboardingDateTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.In(onboardingTimeLocation()).Format("Jan 2, 2006 3:04 PM MST")
 }
 
 func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
@@ -251,7 +393,7 @@ func handleDevOnboardingManualDrafts(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().UTC()
 	draft := devOnboardingStore.create(now, config)
-	writeJSON(w, http.StatusCreated, onboardingManualDraftResponse{Draft: draft.toPayload()})
+	writeJSON(w, http.StatusCreated, onboardingManualDraftResponse{Draft: draft.toPayload(now)})
 }
 
 func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
@@ -288,7 +430,8 @@ func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		draft, found, validationErrors := devOnboardingStore.update(draftID, request, time.Now().UTC(), config)
+		now := time.Now().UTC()
+		draft, found, validationErrors := devOnboardingStore.update(draftID, request, now, config)
 		if !found {
 			writeJSON(w, http.StatusNotFound, map[string]any{
 				"code":    "not_found",
@@ -301,13 +444,36 @@ func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
 				"code":    "validation_failed",
 				"message": "Manual onboarding draft contains invalid fields.",
 				"errors":  validationErrors,
-				"draft":   draft.toPayload(),
+				"draft":   draft.toPayload(now),
 			})
 			return
 		}
-		writeJSON(w, http.StatusOK, onboardingManualDraftResponse{Draft: draft.toPayload()})
+		writeJSON(w, http.StatusOK, onboardingManualDraftResponse{Draft: draft.toPayload(now)})
 	case r.Method == http.MethodPost && finalize:
-		draft, found := devOnboardingStore.finalize(draftID, time.Now().UTC())
+		now := time.Now().UTC()
+		draft, found, blocked := devOnboardingStore.finalize(draftID, now)
+		if !found {
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"code":    "not_found",
+				"message": "Manual onboarding draft was not found.",
+			})
+			return
+		}
+		if blocked {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"code":    "unsupported_overlap",
+				"message": "Active Escape employees cannot be hired as manual contractors. Delete the manual entry to resolve this collision.",
+				"draft":   draft.toPayload(now),
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, onboardingManualDraftResponse{
+			Draft: draft.toPayload(now),
+			Rows:  devOnboardingStore.rows(now),
+		})
+	case r.Method == http.MethodDelete && !finalize:
+		now := time.Now().UTC()
+		draft, found := devOnboardingStore.softDelete(draftID, config.Persona.ID, now)
 		if !found {
 			writeJSON(w, http.StatusNotFound, map[string]any{
 				"code":    "not_found",
@@ -316,8 +482,8 @@ func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, onboardingManualDraftResponse{
-			Draft: draft.toPayload(),
-			Rows:  devOnboardingStore.rows(time.Now().UTC()),
+			Draft: draft.toPayload(now),
+			Rows:  devOnboardingStore.rows(now),
 		})
 	default:
 		http.NotFound(w, r)
@@ -384,11 +550,12 @@ func (s *devOnboardingStoreState) create(now time.Time, config devPersonaConfig)
 		siteID = "district-office"
 	}
 	draft := &onboardingManualDraft{
-		ID:        id,
-		Status:    onboardingManualDraftStatusIncomplete,
-		SiteID:    siteID,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:            id,
+		Status:        onboardingManualDraftStatusIncomplete,
+		SiteID:        siteID,
+		ValidityState: onboardingValidityStateValid,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 	s.drafts[id] = draft
 	return cloneOnboardingDraft(draft)
@@ -401,6 +568,19 @@ func (s *devOnboardingStoreState) update(id string, request onboardingManualDraf
 	draft, ok := s.drafts[id]
 	if !ok {
 		return nil, false, nil
+	}
+	if draft.DeletedAt != nil {
+		return nil, false, nil
+	}
+	if draft.ValidityState == onboardingValidityStateInvalid && draft.InvalidReason == onboardingInvalidReasonActiveEscapeContractorCollision {
+		return cloneOnboardingDraft(draft), true, map[string]string{
+			"form": "Active Escape contractor collisions cannot be edited. Delete the manual entry to resolve the collision.",
+		}
+	}
+	if draft.FinalizedAt != nil {
+		return cloneOnboardingDraft(draft), true, map[string]string{
+			"form": "Finalized manual onboarding records are read-only in the DEV workflow.",
+		}
 	}
 
 	clean, validationErrors := sanitizeManualDraftRequest(request, config)
@@ -422,27 +602,38 @@ func (s *devOnboardingStoreState) update(id string, request onboardingManualDraf
 	draft.RoomID = clean.RoomID
 	draft.Notes = clean.Notes
 	draft.UpdatedAt = now
-	if len(draft.missingFields()) > 0 {
-		draft.Status = onboardingManualDraftStatusIncomplete
-	} else {
-		draft.Status = onboardingManualDraftStatusIncomplete
-		draft.GeneratedEmail = s.generatedEmailLocked(draft)
-	}
+	s.applyDerivedDraftStateLocked(draft, now)
 	return cloneOnboardingDraft(draft), true, nil
 }
 
-func (s *devOnboardingStoreState) finalize(id string, now time.Time) (*onboardingManualDraft, bool) {
+func (s *devOnboardingStoreState) finalize(id string, now time.Time) (*onboardingManualDraft, bool, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.purgeExpiredLocked(now)
 	draft, ok := s.drafts[id]
 	if !ok {
-		return nil, false
+		return nil, false, false
+	}
+	if draft.DeletedAt != nil {
+		return nil, false, false
+	}
+	if draft.ValidityState == onboardingValidityStateInvalid && draft.InvalidReason == onboardingInvalidReasonActiveEscapeContractorCollision {
+		return cloneOnboardingDraft(draft), true, true
 	}
 	if len(draft.missingFields()) > 0 {
 		draft.Status = onboardingManualDraftStatusIncomplete
 		draft.UpdatedAt = now
-		return cloneOnboardingDraft(draft), true
+		return cloneOnboardingDraft(draft), true, false
+	}
+	if draft.ChangeReason == core.WorkflowChangeReasonReactivateNonEscape {
+		if record := linkedEscapePayloadByID(draft.LinkedEscapePersonID); record != nil {
+			if draft.GeneratedEmployeeID == "" {
+				draft.GeneratedEmployeeID = record.EmployeeNumber
+			}
+			if draft.GeneratedEmail == "" {
+				draft.GeneratedEmail = record.AssignedEmail
+			}
+		}
 	}
 	if draft.GeneratedEmployeeID == "" {
 		draft.GeneratedEmployeeID = "66" + leftPadInt(s.nextEmployee, 5)
@@ -451,9 +642,31 @@ func (s *devOnboardingStoreState) finalize(id string, now time.Time) (*onboardin
 	if draft.GeneratedEmail == "" {
 		draft.GeneratedEmail = s.generatedEmailLocked(draft)
 	}
+	if isLateStart(draft.StartDate, now) {
+		scheduledFor := nextAvailableWorkflowCycle(now)
+		draft.ScheduledFor = &scheduledFor
+	}
 	finalizedAt := now
 	draft.FinalizedAt = &finalizedAt
 	draft.Status = onboardingManualDraftStatusReady
+	draft.UpdatedAt = now
+	return cloneOnboardingDraft(draft), true, false
+}
+
+func (s *devOnboardingStoreState) softDelete(id string, actor string, now time.Time) (*onboardingManualDraft, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.purgeExpiredLocked(now)
+	draft, ok := s.drafts[id]
+	if !ok {
+		return nil, false
+	}
+	if draft.DeletedAt != nil {
+		return cloneOnboardingDraft(draft), true
+	}
+	deletedAt := now
+	draft.DeletedAt = &deletedAt
+	draft.DeletedBy = actor
 	draft.UpdatedAt = now
 	return cloneOnboardingDraft(draft), true
 }
@@ -462,10 +675,10 @@ func (s *devOnboardingStoreState) rows(now time.Time) []onboardingRowPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.purgeExpiredLocked(now)
-	rows := devSeedOnboardingRows()
+	rows := devSeedOnboardingRows(now)
 	drafts := s.activeDraftsLocked(now)
 	for _, draft := range drafts {
-		rows = append(rows, draft.toRowPayload())
+		rows = append(rows, draft.toRowPayload(now))
 	}
 	return rows
 }
@@ -477,7 +690,7 @@ func (s *devOnboardingStoreState) draftPayloads(now time.Time) []onboardingManua
 	drafts := s.activeDraftsLocked(now)
 	payload := make([]onboardingManualDraftPayload, 0, len(drafts))
 	for _, draft := range drafts {
-		payload = append(payload, draft.toPayload())
+		payload = append(payload, draft.toPayload(now))
 	}
 	return payload
 }
@@ -486,6 +699,9 @@ func (s *devOnboardingStoreState) activeDraftsLocked(now time.Time) []*onboardin
 	drafts := make([]*onboardingManualDraft, 0, len(s.drafts)+1)
 	drafts = append(drafts, devLeadTimeReviewDraft(now))
 	for _, draft := range s.drafts {
+		if draft.DeletedAt != nil {
+			continue
+		}
 		drafts = append(drafts, draft)
 	}
 	sort.Slice(drafts, func(i, j int) bool {
@@ -496,7 +712,7 @@ func (s *devOnboardingStoreState) activeDraftsLocked(now time.Time) []*onboardin
 
 func (s *devOnboardingStoreState) purgeExpiredLocked(now time.Time) {
 	for id, draft := range s.drafts {
-		if draft.FinalizedAt != nil {
+		if draft.FinalizedAt != nil || draft.DeletedAt != nil || draft.ValidityState == onboardingValidityStateInvalid {
 			continue
 		}
 		if now.Sub(draft.UpdatedAt) > onboardingManualDraftTTL {
@@ -511,6 +727,11 @@ func (s *devOnboardingStoreState) generatedEmailLocked(draft *onboardingManualDr
 		"nia.brooks@wusd.org":   true,
 		"evan.ruiz@wusd.org":    true,
 		"mika.ito@wusd.org":     true,
+	}
+	for _, record := range devEscapeEmploymentRecords {
+		if strings.HasSuffix(record.AssignedEmail, "@wusd.org") {
+			existing[strings.ToLower(record.AssignedEmail)] = true
+		}
 	}
 	for _, entry := range devPhoneDirectoryEntries {
 		if strings.HasSuffix(entry.Email, "@wusd.org") {
@@ -544,6 +765,44 @@ func (s *devOnboardingStoreState) generatedEmailLocked(draft *onboardingManualDr
 			return candidate
 		}
 	}
+}
+
+func (s *devOnboardingStoreState) applyDerivedDraftStateLocked(draft *onboardingManualDraft, now time.Time) {
+	draft.ValidityState = onboardingValidityStateValid
+	draft.InvalidReason = ""
+	draft.LinkedEscapePersonID = ""
+	draft.ChangeReason = ""
+	draft.ScheduledFor = nil
+	draft.GeneratedEmail = ""
+	draft.GeneratedEmployeeID = ""
+	if len(draft.missingFields()) > 0 {
+		draft.Status = onboardingManualDraftStatusIncomplete
+		return
+	}
+
+	record := findEscapeEmploymentRecord(draft.FirstName, draft.LastName)
+	if record != nil {
+		draft.LinkedEscapePersonID = record.ID
+		if record.Active {
+			draft.ValidityState = onboardingValidityStateInvalid
+			draft.InvalidReason = onboardingInvalidReasonActiveEscapeContractorCollision
+			draft.ChangeReason = core.WorkflowChangeReasonActiveEscapeContractorCollision
+			draft.Status = onboardingManualDraftStatusInvalid
+			draft.FinalizedAt = nil
+			return
+		}
+		draft.ChangeReason = core.WorkflowChangeReasonReactivateNonEscape
+		draft.GeneratedEmail = record.AssignedEmail
+		draft.GeneratedEmployeeID = record.EmployeeNumber
+	} else {
+		draft.GeneratedEmail = s.generatedEmailLocked(draft)
+	}
+
+	if isLateStart(draft.StartDate, now) {
+		scheduledFor := nextAvailableWorkflowCycle(now)
+		draft.ScheduledFor = &scheduledFor
+	}
+	draft.Status = onboardingManualDraftStatusIncomplete
 }
 
 func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config devPersonaConfig) (onboardingManualDraftRequest, map[string]string) {
@@ -658,14 +917,21 @@ func (draft *onboardingManualDraft) missingFields() []string {
 	return missing
 }
 
-func (draft *onboardingManualDraft) toPayload() onboardingManualDraftPayload {
+func (draft *onboardingManualDraft) toPayload(now time.Time) onboardingManualDraftPayload {
 	site := siteByID(draft.SiteID)
 	replacing := replacingEmployeeByID(draft.ReplacingEmployeeID)
 	room := roomByID(draft.RoomID)
+	lateStart := isLateStart(draft.StartDate, now)
+	linkedEscapeRecord := linkedEscapePayloadByID(draft.LinkedEscapePersonID)
+	validityState := draft.ValidityState
+	if validityState == "" {
+		validityState = onboardingValidityStateValid
+	}
 	payload := onboardingManualDraftPayload{
 		ID:                    draft.ID,
 		Status:                draft.Status,
 		StartDate:             draft.StartDate,
+		EffectiveDate:         draft.StartDate,
 		SSNLast4:              draft.SSNLast4,
 		EmployeeType:          draft.EmployeeType,
 		Classification:        draft.Classification,
@@ -682,6 +948,12 @@ func (draft *onboardingManualDraft) toPayload() onboardingManualDraftPayload {
 		Notes:                 draft.Notes,
 		GeneratedEmail:        draft.GeneratedEmail,
 		GeneratedEmployeeID:   draft.GeneratedEmployeeID,
+		ChangeReason:          string(draft.ChangeReason),
+		LateStart:             lateStart,
+		ValidityState:         validityState,
+		InvalidReason:         draft.InvalidReason,
+		LinkedEscapeRecord:    linkedEscapeRecord,
+		CanDeleteManualEntry:  draft.InvalidReason == onboardingInvalidReasonActiveEscapeContractorCollision && draft.DeletedAt == nil,
 		MissingFields:         draft.missingFields(),
 		CreatedAt:             draft.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:             draft.UpdatedAt.Format(time.RFC3339),
@@ -696,10 +968,13 @@ func (draft *onboardingManualDraft) toPayload() onboardingManualDraftPayload {
 	if draft.FinalizedAt != nil {
 		payload.FinalizedAt = draft.FinalizedAt.Format(time.RFC3339)
 	}
+	if draft.ScheduledFor != nil {
+		payload.ScheduledFor = formatOnboardingDateTime(*draft.ScheduledFor)
+	}
 	return payload
 }
 
-func (draft *onboardingManualDraft) toRowPayload() onboardingRowPayload {
+func (draft *onboardingManualDraft) toRowPayload(now time.Time) onboardingRowPayload {
 	person := strings.TrimSpace(strings.TrimSpace(draft.FirstName) + " " + strings.TrimSpace(draft.LastName))
 	if person == "" {
 		person = "Manual Non-Escape Draft"
@@ -708,35 +983,69 @@ func (draft *onboardingManualDraft) toRowPayload() onboardingRowPayload {
 	workflowStatus := draft.Status
 	currentStep := "Manual intake"
 	issueAction := "Missing required data"
-	if len(draft.missingFields()) == 0 {
+	linkedEscapeRecord := linkedEscapePayloadByID(draft.LinkedEscapePersonID)
+	lateStart := isLateStart(draft.StartDate, now)
+	validityState := draft.ValidityState
+	if validityState == "" {
+		validityState = onboardingValidityStateValid
+	}
+	if draft.ValidityState == onboardingValidityStateInvalid && draft.InvalidReason == onboardingInvalidReasonActiveEscapeContractorCollision {
+		currentStep = "Unsupported contractor collision"
+		issueAction = "Delete manual entry"
+	} else if len(draft.missingFields()) == 0 {
 		currentStep = "Ready"
 		issueAction = "Manual Non-Escape record"
+		if draft.ChangeReason == core.WorkflowChangeReasonReactivateNonEscape {
+			issueAction = "Reuse existing identity"
+		}
 	}
 	if draft.FinalizedAt != nil {
 		currentStep = "Workflow queued"
 		issueAction = "Mock employee + onboarding workflow"
+		if draft.ChangeReason == core.WorkflowChangeReasonReactivateNonEscape {
+			issueAction = "Reuse existing identity"
+		}
+		if draft.ScheduledFor != nil {
+			currentStep = "Scheduled for next cycle"
+			issueAction = "Late-start catch-up"
+		}
 	}
 	return onboardingRowPayload{
-		ID:              "manual-row-" + draft.ID,
-		Kind:            "manual",
-		DateAdded:       formatOnboardingDate(draft.CreatedAt),
-		DateAddedReason: "Manual Non-Escape record added",
-		StartDate:       draft.StartDate,
-		LeadTimeWarning: draft.hasLeadTimeWarning(),
-		Person:          person,
-		Site:            site.Name,
-		CurrentStep:     currentStep,
-		IssueAction:     issueAction,
-		WorkflowStatus:  workflowStatus,
-		AssignedEmail:   draft.GeneratedEmail,
-		EmployeeNumber:  draft.GeneratedEmployeeID,
-		ManualDraftID:   draft.ID,
-		WorkflowSteps:   draft.workflowSteps(),
+		ID:                   "manual-row-" + draft.ID,
+		Kind:                 "manual",
+		DateAdded:            formatOnboardingDate(draft.CreatedAt),
+		DateAddedReason:      "Manual Non-Escape record added",
+		StartDate:            draft.StartDate,
+		EffectiveDate:        draft.StartDate,
+		LeadTimeWarning:      draft.hasLeadTimeWarning(),
+		Person:               person,
+		Site:                 site.Name,
+		CurrentStep:          currentStep,
+		IssueAction:          issueAction,
+		WorkflowStatus:       workflowStatus,
+		ChangeReason:         string(draft.ChangeReason),
+		LateStart:            lateStart,
+		ScheduledFor:         formatOnboardingDateTimePointer(draft.ScheduledFor),
+		ValidityState:        validityState,
+		InvalidReason:        draft.InvalidReason,
+		LinkedEscapeRecord:   linkedEscapeRecord,
+		CanDeleteManualEntry: draft.InvalidReason == onboardingInvalidReasonActiveEscapeContractorCollision && draft.DeletedAt == nil,
+		AssignedEmail:        draft.GeneratedEmail,
+		EmployeeNumber:       draft.GeneratedEmployeeID,
+		ManualDraftID:        draft.ID,
+		WorkflowSteps:        draft.workflowSteps(now),
 	}
 }
 
-func (draft *onboardingManualDraft) workflowSteps() []onboardingWorkflowStep {
+func (draft *onboardingManualDraft) workflowSteps(now time.Time) []onboardingWorkflowStep {
 	missing := draft.missingFields()
+	if draft.ValidityState == onboardingValidityStateInvalid && draft.InvalidReason == onboardingInvalidReasonActiveEscapeContractorCollision {
+		return []onboardingWorkflowStep{{
+			Name:   "Manual contractor collision",
+			Status: onboardingManualDraftStatusInvalid,
+			Detail: "Invalid contractor entry. This person is already an active Escape employee. Escape always takes precedence. We cannot hire an active employee as a contractor. Delete the manual entry to resolve this collision.",
+		}}
+	}
 	if len(missing) > 0 {
 		return []onboardingWorkflowStep{{
 			Name:   "Manual intake",
@@ -745,17 +1054,33 @@ func (draft *onboardingManualDraft) workflowSteps() []onboardingWorkflowStep {
 		}}
 	}
 	if draft.FinalizedAt == nil {
+		detail := "All required fields are present. Save again to finalize the DEV mock employee and queue onboarding."
+		if draft.ChangeReason == core.WorkflowChangeReasonReactivateNonEscape {
+			detail = "All required fields are present. Save again to reactivate the existing identity as a manual Non-Escape contractor."
+		}
+		if draft.ScheduledFor != nil {
+			detail += " Because the start date is already in the past, the workflow will run on the next available cycle at " + formatOnboardingDateTime(*draft.ScheduledFor) + "."
+		}
 		return []onboardingWorkflowStep{{
 			Name:   "Manual intake",
 			Status: "Ready",
-			Detail: "All required fields are present. Save again to finalize the DEV mock employee and queue onboarding.",
+			Detail: detail,
 		}}
+	}
+	identityDetail := "The DEV mock employee is ready for baseline onboarding using the generated employee ID and email."
+	stepStatus := "Queued"
+	if draft.ChangeReason == core.WorkflowChangeReasonReactivateNonEscape {
+		identityDetail = "The existing identity is being reused for this manual Non-Escape contractor reactivation. Baseline-first reprovisioning applies and prior extras are not restored automatically."
+	}
+	if draft.ScheduledFor != nil {
+		stepStatus = "Scheduled"
+		identityDetail += " The start date is already in the past, so the workflow is scheduled for the next available cycle at " + formatOnboardingDateTime(*draft.ScheduledFor) + "."
 	}
 	return []onboardingWorkflowStep{
 		{
-			Name:   "Mock employee creation",
-			Status: "Queued",
-			Detail: "The DEV mock employee is ready for baseline onboarding using the generated employee ID and email.",
+			Name:   "Identity preparation",
+			Status: stepStatus,
+			Detail: identityDetail,
 		},
 		{
 			Name:   "Aeries access follow-up",
@@ -772,14 +1097,14 @@ func (draft *onboardingManualDraft) workflowSteps() []onboardingWorkflowStep {
 }
 
 func (draft *onboardingManualDraft) hasLeadTimeWarning() bool {
-	start, err := time.Parse("2006-01-02", draft.StartDate)
-	if err != nil || draft.CreatedAt.IsZero() {
+	start, ok := parseOnboardingStartDate(draft.StartDate)
+	if !ok || draft.CreatedAt.IsZero() {
 		return false
 	}
-	added := time.Date(draft.CreatedAt.Year(), draft.CreatedAt.Month(), draft.CreatedAt.Day(), 0, 0, 0, 0, time.UTC)
-	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
-	daysUntilStart := int(start.Sub(added).Hours() / 24)
-	return daysUntilStart >= 0 && daysUntilStart <= 3
+	added := draft.CreatedAt.In(onboardingTimeLocation())
+	addedDate := time.Date(added.Year(), added.Month(), added.Day(), 0, 0, 0, 0, onboardingTimeLocation())
+	days := int(start.Sub(addedDate).Hours() / 24)
+	return days >= 0 && days <= 3
 }
 
 func cloneOnboardingDraft(draft *onboardingManualDraft) *onboardingManualDraft {
@@ -790,10 +1115,11 @@ func cloneOnboardingDraft(draft *onboardingManualDraft) *onboardingManualDraft {
 	return &clone
 }
 
-func devSeedOnboardingRows() []onboardingRowPayload {
+func devSeedOnboardingRows(now time.Time) []onboardingRowPayload {
+	scheduledFor := formatOnboardingDateTime(nextAvailableWorkflowCycle(now))
 	return []onboardingRowPayload{
 		{
-			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "May 6, 2025", Person: "Jordan Miles", Site: "Clover HS", CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
+			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-06", EffectiveDate: "2025-05-06", Person: "Jordan Miles", Site: "Clover HS", CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", LateStart: isLateStart("2025-05-06", now), ScheduledFor: scheduledFor, AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
 			WorkflowSteps: []onboardingWorkflowStep{
 				{Name: "Google account", Status: "Complete", Detail: "The account exists and baseline profile planning has completed."},
 				{Name: "Entra convergence", Status: "Running", Detail: "AD -> Entra propagation is still inside the expected one-hour window."},
@@ -801,11 +1127,11 @@ func devSeedOnboardingRows() []onboardingRowPayload {
 			},
 		},
 		{
-			ID: "nia-brooks", Kind: "seed", DateAdded: "May 1, 2025", DateAddedReason: "Escape inactive employee set active", StartDate: "May 8, 2025", Person: "Nia Brooks", Site: "District Office", CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started",
+			ID: "nia-brooks", Kind: "seed", DateAdded: "May 1, 2025", DateAddedReason: "Escape inactive employee set active", StartDate: "2025-05-08", EffectiveDate: "2025-05-08", Person: "Nia Brooks", Site: "District Office", CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", ChangeReason: string(core.WorkflowChangeReasonReactivateSameRole), LateStart: isLateStart("2025-05-08", now), ScheduledFor: scheduledFor, AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started",
 			WorkflowSteps: []onboardingWorkflowStep{{
 				Name:   "Room mapping",
 				Status: "Manual action",
-				Detail: "The target room does not match the IncidentIQ room inventory. Confirm or override the room before provisioning resumes.",
+				Detail: "The target room does not match the IncidentIQ room inventory. Confirm or override the room before provisioning resumes. The Escape start date remains authoritative even though it is already in the past, and the same late-start warning used for manual contractor entries applies.",
 				Actions: []onboardingWorkflowAction{{
 					Label:      "Resolve room in IncidentIQ",
 					Resolution: "Select the correct room inventory item or document a temporary manual override.",
@@ -815,7 +1141,7 @@ func devSeedOnboardingRows() []onboardingRowPayload {
 			}},
 		},
 		{
-			ID: "evan-ruiz", Kind: "seed", DateAdded: "May 2, 2025", DateAddedReason: "First Escape import", StartDate: "May 12, 2025", Person: "Evan Ruiz", Site: "Franklin MS", CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting",
+			ID: "evan-ruiz", Kind: "seed", DateAdded: "May 2, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-12", EffectiveDate: "2025-05-12", Person: "Evan Ruiz", Site: "Franklin MS", CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", LateStart: isLateStart("2025-05-12", now), ScheduledFor: scheduledFor, AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting",
 			WorkflowSteps: []onboardingWorkflowStep{{
 				Name:   "HR intake",
 				Status: "Blocked",
@@ -829,7 +1155,7 @@ func devSeedOnboardingRows() []onboardingRowPayload {
 			}},
 		},
 		{
-			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "May 13, 2025", Person: "Mika Ito", Site: "Desert View", CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
+			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-13", EffectiveDate: "2025-05-13", Person: "Mika Ito", Site: "Desert View", CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", LateStart: isLateStart("2025-05-13", now), ScheduledFor: scheduledFor, AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
 			WorkflowSteps: []onboardingWorkflowStep{{Name: "Baseline readiness", Status: "Ready", Detail: "All required context is present. No user action is required."}},
 		},
 	}
@@ -863,6 +1189,13 @@ func formatOnboardingDate(value time.Time) string {
 		return ""
 	}
 	return value.Format("Jan 2, 2006")
+}
+
+func formatOnboardingDateTimePointer(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return formatOnboardingDateTime(*value)
 }
 
 func mockWorkflowHref(system string, id string) string {

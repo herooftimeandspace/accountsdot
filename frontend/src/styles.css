@@ -553,6 +553,11 @@ input {
   background: #CEB770;
 }
 
+.onboarding-runtime__status--invalid {
+  background: #D73533;
+  color: #FFFFFF;
+}
+
 .onboarding-runtime__form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -701,6 +706,59 @@ input {
 }
 
 .onboarding-runtime__save:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.onboarding-runtime__late-start,
+.onboarding-runtime__collision {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: rgba(206, 183, 112, 0.14);
+}
+
+.onboarding-runtime__late-start strong,
+.onboarding-runtime__collision-badge {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.onboarding-runtime__late-start p,
+.onboarding-runtime__collision-copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.onboarding-runtime__collision-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #D73533;
+  color: #FFFFFF;
+}
+
+.onboarding-runtime__delete {
+  min-height: 46px;
+  border: 1px solid #D73533;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #D73533;
+  cursor: pointer;
+  font: 800 14px/1 var(--font-ui);
+}
+
+.onboarding-runtime__delete:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
 }

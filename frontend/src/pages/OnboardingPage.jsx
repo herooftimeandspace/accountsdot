@@ -178,9 +178,26 @@ function LeadTimeWarning({ id }) {
   );
 }
 
+function changeReasonLabel(reason) {
+  const labels = {
+    assignment_add: "Secondary / tertiary assignment",
+    role_change: "Role change",
+    same_site_transfer: "Same-site transfer",
+    site_transfer: "Site transfer",
+    reactivate_same_role: "Reactivation into same role",
+    reactivate_role_change: "Reactivation into different role",
+    reactivate_non_escape: "Reactivated as manual Non-Escape contractor",
+    active_escape_contractor_collision: "Active Escape contractor collision",
+  };
+  return labels[reason] ?? reason ?? "";
+}
+
 function statusClass(status) {
   if (status === "Ready" || status === "Ready to Provision") {
     return "onboarding-runtime__status onboarding-runtime__status--ready";
+  }
+  if (status === "Invalid") {
+    return "onboarding-runtime__status onboarding-runtime__status--invalid";
   }
   if (status === "Blocked" || status === "Needs Review" || status === "Incomplete Data") {
     return "onboarding-runtime__status onboarding-runtime__status--warning";
@@ -313,11 +330,20 @@ function WorkflowDrawer({ row, onClose }) {
   }
   return (
     <RuntimeDrawer title={row.person} onClose={onClose}>
+      {row.late_start ? (
+        <div className="onboarding-runtime__late-start">
+          <strong>Late-start warning</strong>
+          <p>{LEAD_TIME_WARNING}</p>
+        </div>
+      ) : null}
       <RuntimeDetailList
         items={[
           { label: "Start", value: row.start_date },
+          { label: "Effective date", value: row.effective_date },
           { label: "Date Added", value: row.date_added },
           { label: "Added Because", value: row.date_added_reason },
+          { label: "Change reason", value: changeReasonLabel(row.change_reason) },
+          { label: "Scheduled for", value: row.scheduled_for },
           { label: "Site", value: row.site },
           { label: "Current Step", value: row.current_step },
           { label: "Issue / Action", value: row.issue_action },
@@ -327,6 +353,22 @@ function WorkflowDrawer({ row, onClose }) {
           { label: "IncidentIQ", value: row.incident_iq },
         ]}
       />
+      {row.linked_escape_record ? (
+        <div className="runtime-drawer__section">
+          <h3>Linked Escape Record</h3>
+          <RuntimeDetailList
+            items={[
+              { label: "Person", value: row.linked_escape_record.person },
+              { label: "Site", value: row.linked_escape_record.site },
+              { label: "Assigned Email", value: row.linked_escape_record.assigned_email },
+              { label: "Employee ID", value: row.linked_escape_record.employee_number },
+              { label: "Start Date", value: row.linked_escape_record.start_date },
+              { label: "Current Step", value: row.linked_escape_record.current_step },
+              { label: "Workflow Status", value: row.linked_escape_record.workflow_status },
+            ]}
+          />
+        </div>
+      ) : null}
       <div className="runtime-drawer__section">
         <p>
           <strong>Earliest matching Aeries ticket:</strong>
@@ -421,6 +463,7 @@ function ManualDraftDrawer({
   onChange,
   onClose,
   onSave,
+  onDelete,
 }) {
   const leadTimeDays = daysBetween(form.start_date, currentDate);
   const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays <= 3;
@@ -428,6 +471,49 @@ function ManualDraftDrawer({
   const missingSummary = draft.missing_fields?.length
     ? `Missing required fields: ${draft.missing_fields.map(missingFieldLabel).join(", ")}`
     : "";
+  const isCollision =
+    draft.validity_state === "invalid" &&
+    draft.invalid_reason === "active_escape_contractor_collision";
+
+  if (isCollision) {
+    return (
+      <RuntimeDrawer title="Invalid Manual Entry" onClose={onClose}>
+        <div className="onboarding-runtime__collision">
+          <span className="onboarding-runtime__collision-badge">Invalid contractor collision</span>
+          <p className="onboarding-runtime__collision-copy">
+            Invalid contractor entry. This person is already an active Escape employee. Escape always
+            takes precedence. We cannot hire an active employee as a contractor. Delete the manual
+            entry to resolve this collision.
+          </p>
+          {draft.linked_escape_record ? (
+            <div className="runtime-drawer__section">
+              <h3>Linked Escape Record</h3>
+              <RuntimeDetailList
+                items={[
+                  { label: "Person", value: draft.linked_escape_record.person },
+                  { label: "Site", value: draft.linked_escape_record.site },
+                  { label: "Assigned Email", value: draft.linked_escape_record.assigned_email },
+                  { label: "Employee ID", value: draft.linked_escape_record.employee_number },
+                  { label: "Start Date", value: draft.linked_escape_record.start_date },
+                  { label: "Current Step", value: draft.linked_escape_record.current_step },
+                  { label: "Workflow Status", value: draft.linked_escape_record.workflow_status },
+                ]}
+              />
+            </div>
+          ) : null}
+          {errors.form ? <p className="onboarding-runtime__field-error">{errors.form}</p> : null}
+          <button
+            type="button"
+            className="onboarding-runtime__delete"
+            onClick={onDelete}
+            disabled={saving || !draft.can_delete_manual_entry}
+          >
+            {saving ? "Deleting..." : "Delete Manual Entry"}
+          </button>
+        </div>
+      </RuntimeDrawer>
+    );
+  }
 
   return (
     <RuntimeDrawer title="Add Non-Escape Record" onClose={onClose}>
@@ -673,7 +759,11 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   }, []);
 
   const handleCloseDraft = useCallback(() => {
-    if (dirtyRef.current && activeDraftRef.current) {
+    if (
+      dirtyRef.current &&
+      activeDraftRef.current &&
+      activeDraftRef.current.validity_state !== "invalid"
+    ) {
       void saveDraft(activeDraftRef.current, draftFormRef.current);
     }
     setActiveDraft(null);
@@ -685,7 +775,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     if (!saved) {
       return;
     }
-    if (saved.missing_fields?.length) {
+    if (saved.missing_fields?.length || saved.validity_state === "invalid") {
       return;
     }
     setSaving(true);
@@ -706,6 +796,31 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
       setSaving(false);
     }
   }, [loadPage, saveDraft]);
+
+  const handleDeleteDraft = useCallback(async () => {
+    if (!activeDraft?.id) {
+      return;
+    }
+    setSaving(true);
+    setDraftErrors({});
+    try {
+      await readJSON(
+        await fetch(`${MANUAL_DRAFTS_ENDPOINT}/${activeDraft.id}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+      );
+      dirtyRef.current = false;
+      setActiveDraft(null);
+      setSelectedRow(null);
+      await loadPage();
+    } catch (error) {
+      setDraftErrors({ form: error.message });
+    } finally {
+      setSaving(false);
+    }
+  }, [activeDraft?.id, loadPage]);
 
   const textOverrides = buildSharedShellTextOverrides(session);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
@@ -769,6 +884,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
             onChange={handleDraftChange}
             onClose={handleCloseDraft}
             onSave={handleSaveDraft}
+            onDelete={handleDeleteDraft}
           />
         ) : addManualError ? (
           <AddManualErrorDrawer message={addManualError} onClose={() => setAddManualError("")} />

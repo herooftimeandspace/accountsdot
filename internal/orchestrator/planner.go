@@ -9,6 +9,7 @@ import (
 
 type PlanInput struct {
 	WorkflowType              core.WorkflowType
+	ChangeReason              core.WorkflowChangeReason
 	SubjectKind               core.SubjectKind
 	SubjectID                 string
 	RoomKnown                 bool
@@ -26,6 +27,7 @@ type FollowUpWorkflow struct {
 
 type PlanResult struct {
 	WorkflowType core.WorkflowType
+	ChangeReason core.WorkflowChangeReason
 	SubjectKind  core.SubjectKind
 	SubjectID    string
 	Jobs         []core.WorkflowJob
@@ -47,6 +49,7 @@ type plannedStep struct {
 func PlanWorkflow(input PlanInput) (PlanResult, error) {
 	result := PlanResult{
 		WorkflowType: input.WorkflowType,
+		ChangeReason: input.ChangeReason,
 		SubjectKind:  input.SubjectKind,
 		SubjectID:    input.SubjectID,
 	}

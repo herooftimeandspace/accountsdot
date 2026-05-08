@@ -452,6 +452,28 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Manual Non-Escape DEV drafts older than 30 days are deleted from the DEV mock store. The later production implementation must enforce the same retention rule in the database.
 - The system generates district email candidates; operators do not enter or override the district email in this drawer. Candidate order is first initial plus last name, first name dot last name, first initial dot last name, then first initial plus last name plus a zero-padded numeric suffix until unique.
 - If the start date is within 3 calendar days of the current date, the drawer shows a Vegas Gold warning triangle with tooltip text: `The start date is ≤ 3 days from the current date. Access to some systems may be delayed beyond the start date.`
+- If the start date is already in the past, the same warning is shown automatically. The original source/requested date remains visible exactly as entered or imported.
+- Past-date behavior is source-aware:
+  - Escape-backed rows keep the exact Escape date, show the same warning used for manual contractor entries, and execute on the next available cycle.
+  - Manual Non-Escape rows may be saved with a past start date, show the same warning automatically, and execute on the next available cycle.
+- Reactivation and rehire flows must expose an explicit `change_reason` to the UI and workflow payloads. Supported values are:
+  - `assignment_add`
+  - `role_change`
+  - `same_site_transfer`
+  - `site_transfer`
+  - `reactivate_same_role`
+  - `reactivate_role_change`
+  - `reactivate_non_escape`
+  - `active_escape_contractor_collision`
+- Reactivation always reuses the same end-user identity. The system removes accumulated ad hoc access first, restores only the current baseline profile, and shows prior extras as informational deltas that are not automatically restored.
+- An inactive former Escape employee who returns as a manual Non-Escape contractor must be reactivated on the existing identity rather than creating a second person/account.
+- An active Escape employee plus a manual Non-Escape contractor entry is not a supported staffing model.
+  - The system must save the manual entry for audit.
+  - The system must immediately mark the manual entry `Invalid`.
+  - The drawer must link the invalid manual entry to the active Escape-backed employee record and state clearly that Escape always takes precedence and that an active employee cannot be hired as a contractor.
+  - The remediation action is a `Delete Manual Entry` button.
+  - The delete action is a soft delete only. The database record remains for audit, preserves the collision metadata, and is removed from actionable queues and normal history views according to the invalid/deleted state.
+  - The collision case must not initiate provisioning workflows, provider writes, or fallback tickets.
 
 ### 2. Offboarding Dashboard
 - Show upcoming offboarding and status by person.
