@@ -445,13 +445,14 @@ input {
 }
 
 .onboarding-runtime__add-hotspot {
-  border: 0;
+  border: 1px solid rgba(1, 22, 30, 0.14);
   border-radius: 8px;
-  background: transparent;
+  background: var(--color-vegas-gold);
   color: var(--color-text);
   cursor: pointer;
   font: 800 14px/1 var(--font-ui);
   text-align: center;
+  box-shadow: 0 1px 0 rgba(1, 22, 30, 0.08);
 }
 
 .onboarding-runtime__add-hotspot:focus-visible {

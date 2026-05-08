@@ -263,7 +263,9 @@ function AddManualOverlay({ bounds, canManageManual, onAdd }) {
         zIndex: 4,
       }}
       onClick={onAdd}
-    />
+    >
+      Add Non-Escape Record
+    </button>
   );
 }
 
@@ -686,9 +688,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     hideAllNavGroups: true,
   });
   hiddenNodeIds.push(...STATIC_ONBOARDING_TABLE_NODE_IDS);
-  if (!payload?.page?.can_manage_manual) {
-    hiddenNodeIds.push(ADD_MANUAL_NODE_ID, ADD_MANUAL_LABEL_NODE_ID);
-  }
+  hiddenNodeIds.push(ADD_MANUAL_NODE_ID, ADD_MANUAL_LABEL_NODE_ID);
   const imageNodeOverrides = buildSharedShellImageOverrides(session);
   const sharedShellRenderOverlay = createSharedShellRenderOverlay({
     session,
