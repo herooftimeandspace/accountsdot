@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import * as lucideIcons from "lucide-static";
+import { RuntimeDrawer } from "../components/RuntimeDrawer";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { buildVisibleNavGroups, navDestinationForKey } from "./routeRegistry";
 
@@ -461,6 +462,48 @@ function SharedShellSearchOverlay({ bounds, iconBounds, initialQuery, placeholde
   );
 }
 
+function SharedShellHelpOverlay({ bounds, helpContent }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!bounds || !helpContent) {
+    return null;
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="shared-shell-help-button"
+        aria-label={`Open help for ${helpContent.title}`}
+        title={`Open help for ${helpContent.title}`}
+        onClick={() => setIsOpen(true)}
+        style={{
+          position: "absolute",
+          left: bounds.left - 4,
+          top: bounds.top - 4,
+          width: Math.max(44, bounds.right - bounds.left + 8),
+          height: Math.max(44, bounds.bottom - bounds.top + 8),
+          zIndex: 4,
+        }}
+      />
+      {isOpen ? (
+        <RuntimeDrawer title={helpContent.title} onClose={() => setIsOpen(false)}>
+          <div className="shared-shell-help-drawer">
+            {helpContent.sections.map((section) => (
+              <section key={section.heading}>
+                <h3>{section.heading}</h3>
+                {section.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </section>
+            ))}
+          </div>
+        </RuntimeDrawer>
+      ) : null}
+    </>
+  );
+}
+
 export function createSharedShellRenderOverlay({
   session,
   onNavigate,
@@ -468,6 +511,7 @@ export function createSharedShellRenderOverlay({
   onSearch = null,
   searchQuery = "",
   refreshMetadata = null,
+  helpContent = null,
 }) {
   if (
     !session?.authenticated ||
@@ -486,6 +530,7 @@ export function createSharedShellRenderOverlay({
       textOverrides
     );
     const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
+    const helpIconBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.helpIcon), textOverrides);
 
     return [
       <SharedShellRefreshMetadataOverlay
@@ -500,6 +545,11 @@ export function createSharedShellRenderOverlay({
         initialQuery={searchQuery}
         placeholder={session?.shell?.search_placeholder ?? ""}
         onSearch={onSearch}
+      />,
+      <SharedShellHelpOverlay
+        key="shared-shell-help"
+        bounds={helpIconBounds}
+        helpContent={helpContent}
       />,
       ...visibleNavGroups.map((navKey, index) => {
         const destination = navDestinationForKey(navKey, session);

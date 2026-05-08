@@ -444,6 +444,41 @@ input {
   line-height: 1.35;
 }
 
+.shared-shell-help-button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.shared-shell-help-button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.shared-shell-help-drawer {
+  display: grid;
+  gap: 22px;
+}
+
+.shared-shell-help-drawer section {
+  display: grid;
+  gap: 8px;
+}
+
+.shared-shell-help-drawer h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.shared-shell-help-drawer p {
+  margin: 0;
+  color: var(--color-accent-deep-navy);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .onboarding-runtime__add-hotspot {
   border: 1px solid rgba(1, 22, 30, 0.14);
   border-radius: 8px;
@@ -476,7 +511,7 @@ input {
 .onboarding-runtime__table-header,
 .onboarding-runtime__row {
   display: grid;
-  grid-template-columns: 110px 100px 140px 135px 145px minmax(190px, 1fr) 128px;
+  grid-template-columns: 108px 126px 126px 132px 138px minmax(180px, 1fr) 128px;
   column-gap: 16px;
   align-items: start;
 }
@@ -522,6 +557,10 @@ input {
   gap: 6px;
 }
 
+.onboarding-runtime__start-cell {
+  white-space: nowrap;
+}
+
 .onboarding-runtime__table-footer {
   align-self: end;
   padding-top: 12px;
@@ -537,8 +576,8 @@ input {
   min-height: 24px;
   padding: 5px 12px;
   border-radius: 6px;
-  background: #89B6E7;
-  color: #01161E;
+  background: var(--color-canvas);
+  color: var(--color-text);
   font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
@@ -546,16 +585,33 @@ input {
 }
 
 .onboarding-runtime__status--ready {
-  background: #00A878;
+  background: var(--color-accent-green);
+  color: var(--color-text);
 }
 
-.onboarding-runtime__status--warning {
-  background: #CEB770;
+.onboarding-runtime__status--critical {
+  background: var(--color-accent-red);
+  color: var(--color-bg);
 }
 
-.onboarding-runtime__status--invalid {
-  background: #D73533;
-  color: #FFFFFF;
+.onboarding-runtime__status--review {
+  background: var(--color-accent-coral);
+  color: var(--color-text);
+}
+
+.onboarding-runtime__status--active {
+  background: var(--color-accent-light-blue);
+  color: var(--color-text);
+}
+
+.onboarding-runtime__status--waiting {
+  background: var(--color-accent-pink);
+  color: var(--color-text);
+}
+
+.onboarding-runtime__status--neutral {
+  background: var(--color-canvas);
+  color: var(--color-text);
 }
 
 .onboarding-runtime__form {
