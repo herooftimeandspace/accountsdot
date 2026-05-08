@@ -462,13 +462,7 @@ func (s *devOnboardingStoreState) rows(now time.Time) []onboardingRowPayload {
 	defer s.mu.Unlock()
 	s.purgeExpiredLocked(now)
 	rows := devSeedOnboardingRows()
-	drafts := make([]*onboardingManualDraft, 0, len(s.drafts))
-	for _, draft := range s.drafts {
-		drafts = append(drafts, draft)
-	}
-	sort.Slice(drafts, func(i, j int) bool {
-		return drafts[i].CreatedAt.Before(drafts[j].CreatedAt)
-	})
+	drafts := s.activeDraftsLocked(now)
 	for _, draft := range drafts {
 		rows = append(rows, draft.toRowPayload())
 	}
@@ -479,18 +473,24 @@ func (s *devOnboardingStoreState) draftPayloads(now time.Time) []onboardingManua
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.purgeExpiredLocked(now)
-	drafts := make([]*onboardingManualDraft, 0, len(s.drafts))
+	drafts := s.activeDraftsLocked(now)
+	payload := make([]onboardingManualDraftPayload, 0, len(drafts))
+	for _, draft := range drafts {
+		payload = append(payload, draft.toPayload())
+	}
+	return payload
+}
+
+func (s *devOnboardingStoreState) activeDraftsLocked(now time.Time) []*onboardingManualDraft {
+	drafts := make([]*onboardingManualDraft, 0, len(s.drafts)+1)
+	drafts = append(drafts, devLeadTimeReviewDraft(now))
 	for _, draft := range s.drafts {
 		drafts = append(drafts, draft)
 	}
 	sort.Slice(drafts, func(i, j int) bool {
 		return drafts[i].CreatedAt.Before(drafts[j].CreatedAt)
 	})
-	payload := make([]onboardingManualDraftPayload, 0, len(drafts))
-	for _, draft := range drafts {
-		payload = append(payload, draft.toPayload())
-	}
-	return payload
+	return drafts
 }
 
 func (s *devOnboardingStoreState) purgeExpiredLocked(now time.Time) {
@@ -819,6 +819,29 @@ func devSeedOnboardingRows() []onboardingRowPayload {
 			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "May 13, 2025", Person: "Mika Ito", Site: "Desert View", CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
 			WorkflowSteps: []onboardingWorkflowStep{{Name: "Baseline readiness", Status: "Ready", Detail: "All required context is present. No user action is required."}},
 		},
+	}
+}
+
+func devLeadTimeReviewDraft(now time.Time) *onboardingManualDraft {
+	added := time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, time.UTC)
+	start := added.AddDate(0, 0, 2)
+	return &onboardingManualDraft{
+		ID:                    "manual-draft-lead-time-review",
+		Status:                onboardingManualDraftStatusIncomplete,
+		StartDate:             start.Format("2006-01-02"),
+		SSNLast4:              "4729",
+		EmployeeType:          "Contractor",
+		Classification:        "Contractor",
+		FirstName:             "Casey",
+		LastName:              "Quickstart",
+		JobTitle:              "Instructional Aide",
+		SiteID:                "district-office",
+		PersonalEmail:         "casey.quickstart@example.com",
+		PreferredDevice:       "Mac",
+		RequestedAeriesAccess: "Staff",
+		Notes:                 "DEV review row: start date is within three calendar days of Date Added so the intake drawer shows the lead-time warning.",
+		CreatedAt:             added,
+		UpdatedAt:             added,
 	}
 }
 

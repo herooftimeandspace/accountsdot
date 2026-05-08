@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
 )
@@ -74,6 +75,8 @@ type onboardingResponse struct {
 			Kind            string `json:"kind"`
 			DateAdded       string `json:"date_added"`
 			DateAddedReason string `json:"date_added_reason"`
+			StartDate       string `json:"start_date"`
+			Person          string `json:"person"`
 			ManualDraftID   string `json:"manual_draft_id"`
 			WorkflowStatus  string `json:"workflow_status"`
 			AssignedEmail   string `json:"assigned_email"`
@@ -406,6 +409,30 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if !foundAction {
 			t.Fatal("expected at least one onboarding workflow action to expose a deterministic mock link")
+		}
+		foundLeadTimeReview := false
+		for _, row := range payload.Page.Rows {
+			if row.Person != "Casey Quickstart" {
+				continue
+			}
+			foundLeadTimeReview = true
+			if row.Kind != "manual" || row.ManualDraftID != "manual-draft-lead-time-review" {
+				t.Fatalf("lead-time review row = %#v, want deterministic editable manual draft", row)
+			}
+			dateAdded, err := time.Parse("Jan 2, 2006", row.DateAdded)
+			if err != nil {
+				t.Fatalf("lead-time review date_added = %q: %v", row.DateAdded, err)
+			}
+			startDate, err := time.Parse("2006-01-02", row.StartDate)
+			if err != nil {
+				t.Fatalf("lead-time review start_date = %q: %v", row.StartDate, err)
+			}
+			if days := int(startDate.Sub(dateAdded).Hours() / 24); days < 0 || days > 3 {
+				t.Fatalf("lead-time review start/date-added gap = %d days, want 0..3", days)
+			}
+		}
+		if !foundLeadTimeReview {
+			t.Fatal("expected deterministic lead-time review manual draft row")
 		}
 
 		siteCookie := loginAsPersona(t, handler, "site_admin")
