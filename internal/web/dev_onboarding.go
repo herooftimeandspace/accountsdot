@@ -1145,10 +1145,10 @@ func devSeedOnboardingRows(now time.Time) []onboardingRowPayload {
 			WorkflowSteps: []onboardingWorkflowStep{{
 				Name:   "HR intake",
 				Status: "Blocked",
-				Detail: "A required HR source field is missing. Update the source record, then rerun the next DEV mock sync.",
+				Detail: "Missing required field: Employment type. Update the source record, then rerun the next DEV mock sync.",
 				Actions: []onboardingWorkflowAction{{
 					Label:      "Open mock HR source record",
-					Resolution: "Enter the missing employment field and confirm the source record is active.",
+					Resolution: "Enter Employment type and confirm the source record is active.",
 					System:     "Escape",
 					Href:       mockWorkflowHref("escape", "hr-intake-evan-ruiz"),
 				}},

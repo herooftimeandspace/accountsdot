@@ -26,7 +26,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 - `Helper Paragraph`: a card, rail, notice, or table cell that conveys one logical paragraph uses one wrapping text node.
 - `Status Badge`: badges must fit their text without colliding with card headers, table content, or action controls. Reused status bubbles/buttons must use the canonical severity palette below rather than page-local colors.
 - `Drawer`: row-selected detail/context surfaces use the shared right-hand runtime drawer. The drawer is closed by default, opens only after an explicit row selection, updates in place when another row is selected, and closes through its upper-right `X`.
-- `Page Help`: the shared-shell help icon opens the shared right-hand runtime drawer with end-user documentation for the current page. The copy explains what the page does and how a non-technical operator should use it; it is not implementation help.
+- `Page Help`: every page that renders the shared-shell help icon opens the shared right-hand runtime drawer with end-user documentation for the current page. The copy explains what the page does and how a non-technical operator should use it; it is not implementation help.
 - `Action Link`: links that lead to external systems must be defined by product behavior, not created solely because a mock contains link-like text.
 - `Varsity Display Text`: any UI text rendered with the Varsity font must be authored in all lowercase. The product name remains `The WIZARD` in prose, metadata, and non-Varsity UI, but Varsity-rendered display text uses lowercase source copy rather than CSS-only transformation.
 

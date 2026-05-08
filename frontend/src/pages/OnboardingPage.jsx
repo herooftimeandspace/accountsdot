@@ -185,9 +185,13 @@ function formatOnboardingDate(value) {
   });
 }
 
-function LeadTimeWarning({ id }) {
+function LeadTimeWarning({ id, placement = "center" }) {
   return (
-    <span className="onboarding-runtime__warning" tabIndex={0} aria-describedby={id}>
+    <span
+      className={`onboarding-runtime__warning onboarding-runtime__warning--${placement}`}
+      tabIndex={0}
+      aria-describedby={id}
+    >
       <span
         aria-hidden="true"
         dangerouslySetInnerHTML={{
@@ -356,10 +360,72 @@ function AddManualOverlay({ bounds, canManageManual, onAdd }) {
   );
 }
 
-function WorkflowDrawer({ row, onClose }) {
+function workflowMissingFields(row, step) {
+  if (row?.id === "evan-ruiz" && step?.name === "HR intake") {
+    return ["Employment type"];
+  }
+  if (row?.kind === "manual" && row?.missing_fields?.length) {
+    return row.missing_fields.map(missingFieldLabel);
+  }
+  return [];
+}
+
+function RoomOverrideForm({ formOptions }) {
+  const [site, setSite] = useState("");
+  const [room, setRoom] = useState("");
+  const [message, setMessage] = useState("");
+  const siteOptions = formOptions?.sites ?? [];
+  const roomOptions = formOptions?.rooms ?? [];
+
+  return (
+    <form className="onboarding-runtime__room-override" onSubmit={(event) => {
+      event.preventDefault();
+      const siteLabel = site || "selected site";
+      const roomLabel = room || "selected room";
+      setMessage(`Saved DEV override for ${siteLabel} / ${roomLabel}.`);
+    }}>
+      <h4>Override room from IncidentIQ</h4>
+      <label htmlFor="room-override-site">
+        <span>Site</span>
+        <input
+          id="room-override-site"
+          list="room-override-sites"
+          value={site}
+          onChange={(event) => setSite(event.target.value)}
+          placeholder="Filter sites..."
+        />
+      </label>
+      <datalist id="room-override-sites">
+        {siteOptions.map((option) => (
+          <option key={option.id} value={option.name} />
+        ))}
+      </datalist>
+      <label htmlFor="room-override-room">
+        <span>Room</span>
+        <input
+          id="room-override-room"
+          list="room-override-rooms"
+          value={room}
+          onChange={(event) => setRoom(event.target.value)}
+          placeholder="Filter rooms..."
+        />
+      </label>
+      <datalist id="room-override-rooms">
+        {roomOptions.map((option) => (
+          <option key={option.id} value={option.name} />
+        ))}
+      </datalist>
+      <button type="submit">Save Override</button>
+      {message ? <p role="status">{message}</p> : null}
+    </form>
+  );
+}
+
+function WorkflowDrawer({ row, formOptions, onClose }) {
   if (!row) {
     return null;
   }
+  const hasRoomMappingAction = row.workflow_steps?.some((step) => step.name === "Room mapping");
   return (
     <RuntimeDrawer title={row.person} onClose={onClose}>
       {row.late_start ? (
@@ -421,6 +487,16 @@ function WorkflowDrawer({ row, onClose }) {
                 <span className={statusClass(step.status)}>{step.status}</span>
               </div>
               <p>{step.detail}</p>
+              {workflowMissingFields(row, step).length ? (
+                <div className="onboarding-runtime__missing-fields">
+                  <strong>Missing field(s)</strong>
+                  <ul>
+                    {workflowMissingFields(row, step).map((field) => (
+                      <li key={field}>{field}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {step.actions?.length ? (
                 <ul>
                   {step.actions.map((action) => (
@@ -436,6 +512,7 @@ function WorkflowDrawer({ row, onClose }) {
               ) : null}
             </section>
           ))}
+          {hasRoomMappingAction ? <RoomOverrideForm formOptions={formOptions} /> : null}
         </div>
       ) : null}
     </RuntimeDrawer>
@@ -582,7 +659,9 @@ function ManualDraftDrawer({
         <label className={fieldClassName("start_date", draft, errors)} htmlFor="manual-start-date">
           <span>
             Start date
-            {showLeadTimeWarning ? <LeadTimeWarning id="manual-start-date-lead-time-warning" /> : null}
+            {showLeadTimeWarning ? (
+              <LeadTimeWarning id="manual-start-date-lead-time-warning" placement="drawer" />
+            ) : null}
           </span>
           <input
             id="manual-start-date"
@@ -922,7 +1001,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
         ) : addManualError ? (
           <AddManualErrorDrawer message={addManualError} onClose={() => setAddManualError("")} />
         ) : (
-          <WorkflowDrawer row={selectedRow} onClose={() => setSelectedRow(null)} />
+          <WorkflowDrawer row={selectedRow} formOptions={formOptions} onClose={() => setSelectedRow(null)} />
         )}
       </>
     );

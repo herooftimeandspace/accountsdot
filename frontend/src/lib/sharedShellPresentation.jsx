@@ -57,6 +57,188 @@ const STATIC_PAGE_REFRESH_METADATA = {
   "my-profile": DEFAULT_STATIC_REFRESH_METADATA,
 };
 
+const DEFAULT_HELP_BY_NAV_KEY = {
+  dashboard: {
+    title: "Dashboard help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This dashboard gives a quick view of current account, access, data quality, and workflow health.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Review the cards and tables for anything that needs attention. Select rows or use page actions when a page offers more detail.",
+        ],
+      },
+    ],
+  },
+  onboarding: {
+    title: "Onboarding help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page shows upcoming staff onboarding work. Each row is a person who needs accounts, access, rooms, or follow-up before they are fully ready.",
+          "The status badge tells you whether the work is ready, running, waiting, missing information, or blocked.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Select a row to open details in the right drawer. The drawer explains what is happening and lists any action needed from HR, IT, or another system.",
+          "Use Add Non-Escape Record when a contractor or other manual record needs onboarding before the person appears from Escape.",
+        ],
+      },
+      {
+        heading: "Warnings",
+        paragraphs: [
+          "A warning icon beside the start date means the start date is very close to the date the record was added. Some systems may not be ready by that date.",
+          "Incomplete or blocked records need attention before normal onboarding can continue.",
+        ],
+      },
+    ],
+  },
+  offboarding: {
+    title: "Offboarding help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page tracks upcoming account retirement work, including accounts, licenses, devices, and security follow-up.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Review rows with blocked or review statuses first. Select a row when details are available, then follow the listed action.",
+        ],
+      },
+    ],
+  },
+  roomMoves: {
+    title: "Room Moves help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page helps review room moves and phone changes before scheduled cutover work runs.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Review warnings before scheduling a cutover. Rows marked for review need a person to resolve the warning before automation can safely continue.",
+        ],
+      },
+    ],
+  },
+  phoneDirectory: {
+    title: "Phone Directory help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page shows phone directory information by person, room, or department.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Use the mode buttons and filters to find the directory view you need. Select a result to see more detail when the page provides it.",
+        ],
+      },
+    ],
+  },
+  dataQuality: {
+    title: "Data Quality help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page lists data issues that can block or delay account and access work.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Start with high-severity issues and follow the next action listed for each row. Refresh when you need the latest DEV mock queue.",
+        ],
+      },
+    ],
+  },
+  frequentFliers: {
+    title: "Frequent Fliers help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page highlights people or devices that repeatedly need support attention.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Use the repeated patterns to decide where follow-up, cleanup, or prevention work may be needed.",
+        ],
+      },
+    ],
+  },
+  studentDataCleanup: {
+    title: "Student Data Cleanup help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page shows student data cleanup items that need correction in source systems.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Review the listed issue, update the source system named in the row, then return to confirm the cleanup is complete.",
+        ],
+      },
+    ],
+  },
+  reports: {
+    title: "Reports help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page collects operational reports for account, access, onboarding, offboarding, and sync work.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Choose the report that matches the question you need to answer. Use row details when available for follow-up context.",
+        ],
+      },
+    ],
+  },
+  admin: {
+    title: "Admin help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page shows administrator controls and health information for the DEV dashboard.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Use admin controls carefully and review warnings before changing shared settings or workflow behavior.",
+        ],
+      },
+    ],
+  },
+};
+
 function estimateTextHeight(node, textOverrides) {
   const content = String(textOverrides?.[node.id] ?? node.content ?? "");
   const fontSize = node.fontSize ?? 14;
@@ -504,6 +686,29 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
   );
 }
 
+function defaultHelpContent(activeNavKey) {
+  if (activeNavKey && DEFAULT_HELP_BY_NAV_KEY[activeNavKey]) {
+    return DEFAULT_HELP_BY_NAV_KEY[activeNavKey];
+  }
+  return {
+    title: "Page help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page is part of The WIZARD staff dashboard and shows operational information for the current workflow.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Review the visible rows, badges, and actions. If a row opens a drawer, use the drawer to see more detail and next steps.",
+        ],
+      },
+    ],
+  };
+}
+
 export function createSharedShellRenderOverlay({
   session,
   onNavigate,
@@ -531,6 +736,7 @@ export function createSharedShellRenderOverlay({
     );
     const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
     const helpIconBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.helpIcon), textOverrides);
+    const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey);
 
     return [
       <SharedShellRefreshMetadataOverlay
@@ -549,7 +755,7 @@ export function createSharedShellRenderOverlay({
       <SharedShellHelpOverlay
         key="shared-shell-help"
         bounds={helpIconBounds}
-        helpContent={helpContent}
+        helpContent={resolvedHelpContent}
       />,
       ...visibleNavGroups.map((navKey, index) => {
         const destination = navDestinationForKey(navKey, session);
