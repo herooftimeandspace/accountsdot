@@ -3600,7 +3600,7 @@
       "x": 1084,
       "y": 700,
       "name": "Rect",
-      "width": 472,
+      "width": 500,
       "height": 300,
       "fill": "#FFFFFF",
       "cornerRadius": 8,
@@ -3658,7 +3658,7 @@
     {
       "type": "text",
       "id": "dashboard-it-admin__t320",
-      "x": 1498,
+      "x": 1494,
       "y": 746,
       "fill": "#01161E",
       "content": "Status",
@@ -3672,7 +3672,7 @@
       "x": 1102,
       "y": 772,
       "name": "Line",
-      "width": 436,
+      "width": 474,
       "height": 1,
       "fill": "#DDE2E3",
       "layout": "none"
@@ -3719,7 +3719,7 @@
     {
       "type": "frame",
       "id": "dashboard-it-admin__f326",
-      "x": 1498,
+      "x": 1494,
       "y": 781,
       "name": "Rect",
       "width": 82,
@@ -3736,7 +3736,7 @@
     {
       "type": "text",
       "id": "dashboard-it-admin__t327",
-      "x": 1510,
+      "x": 1506,
       "y": 786,
       "fill": "#01161E",
       "content": "Scheduled",
@@ -3753,7 +3753,7 @@
       "x": 1102,
       "y": 826,
       "name": "Line",
-      "width": 436,
+      "width": 474,
       "height": 1,
       "fill": "#DDE2E3",
       "layout": "none"
@@ -3800,7 +3800,7 @@
     {
       "type": "frame",
       "id": "dashboard-it-admin__f333",
-      "x": 1498,
+      "x": 1494,
       "y": 835,
       "name": "Rect",
       "width": 82,
@@ -3817,7 +3817,7 @@
     {
       "type": "text",
       "id": "dashboard-it-admin__t334",
-      "x": 1510,
+      "x": 1506,
       "y": 840,
       "fill": "#01161E",
       "content": "Scheduled",
@@ -3834,7 +3834,7 @@
       "x": 1102,
       "y": 880,
       "name": "Line",
-      "width": 436,
+      "width": 474,
       "height": 1,
       "fill": "#DDE2E3",
       "layout": "none"
@@ -3881,7 +3881,7 @@
     {
       "type": "frame",
       "id": "dashboard-it-admin__f340",
-      "x": 1498,
+      "x": 1494,
       "y": 889,
       "name": "Rect",
       "width": 82,
@@ -3898,7 +3898,7 @@
     {
       "type": "text",
       "id": "dashboard-it-admin__t341",
-      "x": 1510,
+      "x": 1506,
       "y": 894,
       "fill": "#01161E",
       "content": "Scheduled",
@@ -3915,7 +3915,7 @@
       "x": 1102,
       "y": 934,
       "name": "Line",
-      "width": 436,
+      "width": 474,
       "height": 1,
       "fill": "#DDE2E3",
       "layout": "none"
@@ -3962,7 +3962,7 @@
     {
       "type": "frame",
       "id": "dashboard-it-admin__f347",
-      "x": 1498,
+      "x": 1494,
       "y": 943,
       "name": "Rect",
       "width": 82,
@@ -3979,7 +3979,7 @@
     {
       "type": "text",
       "id": "dashboard-it-admin__t348",
-      "x": 1510,
+      "x": 1506,
       "y": 948,
       "fill": "#01161E",
       "content": "Scheduled",
@@ -3996,7 +3996,7 @@
       "x": 1102,
       "y": 988,
       "name": "Line",
-      "width": 436,
+      "width": 474,
       "height": 1,
       "fill": "#DDE2E3",
       "layout": "none"
