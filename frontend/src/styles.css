@@ -320,45 +320,58 @@ input {
   line-height: 1.1;
 }
 
-.onboarding-row-hotspot {
+.runtime-row-hotspot {
   position: absolute;
-  left: 306px;
   z-index: 22;
-  width: 1232px;
-  height: 54px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   cursor: pointer;
 }
 
-.onboarding-row-hotspot:hover {
+.runtime-row-hotspot:hover {
   background: rgba(137, 182, 231, 0.14);
 }
 
-.onboarding-row-hotspot:focus-visible,
-.onboarding-workflow-drawer__close:focus-visible {
+.runtime-row-hotspot:focus-visible,
+.runtime-drawer__close:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
-.onboarding-workflow-drawer {
+.runtime-drawer {
   position: absolute;
   top: 90px;
   right: 0;
   bottom: 0;
   z-index: 32;
   width: 440px;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+
+.runtime-drawer--bounded {
+  display: flex;
+  justify-content: flex-end;
+  width: auto;
+}
+
+.runtime-drawer__panel {
+  width: 100%;
+  height: 100%;
   padding: 28px 28px 32px;
   border-left: 1px solid var(--color-canvas);
   background: #ffffff;
   box-shadow: -18px 0 42px rgba(15, 23, 42, 0.14);
-  color: var(--color-text);
-  font-family: "Atkinson Hyperlegible", Arial, Helvetica, sans-serif;
   overflow-y: auto;
 }
 
-.onboarding-workflow-drawer__header {
+.runtime-drawer--bounded .runtime-drawer__panel {
+  border: 1px solid rgba(221, 226, 227, 0.92);
+  border-radius: 18px;
+}
+
+.runtime-drawer__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -366,13 +379,13 @@ input {
   margin-bottom: 22px;
 }
 
-.onboarding-workflow-drawer__header h2 {
+.runtime-drawer__header h2 {
   margin: 0;
   font-size: 20px;
   line-height: 1.2;
 }
 
-.onboarding-workflow-drawer__close {
+.runtime-drawer__close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -387,35 +400,35 @@ input {
   line-height: 1;
 }
 
-.onboarding-workflow-drawer__close:hover {
+.runtime-drawer__close:hover {
   border-color: var(--color-canvas);
   background: var(--color-bg);
 }
 
-.onboarding-workflow-drawer__details {
+.runtime-drawer__details {
   display: grid;
   gap: 14px;
   margin: 0;
 }
 
-.onboarding-workflow-drawer__details div {
+.runtime-drawer__details div {
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
   gap: 18px;
 }
 
-.onboarding-workflow-drawer__details dt {
+.runtime-drawer__details dt {
   font-size: 12px;
   font-weight: 700;
 }
 
-.onboarding-workflow-drawer__details dd {
+.runtime-drawer__details dd {
   margin: 0;
   font-size: 13px;
   line-height: 1.35;
 }
 
-.onboarding-workflow-drawer__tickets {
+.runtime-drawer__section {
   display: grid;
   gap: 18px;
   margin-top: 30px;
@@ -423,7 +436,7 @@ input {
   border-top: 1px solid var(--color-canvas);
 }
 
-.onboarding-workflow-drawer__tickets p {
+.runtime-drawer__section p {
   display: grid;
   gap: 6px;
   margin: 0;
@@ -547,50 +560,6 @@ input {
   line-height: 1.2;
   text-align: center;
   white-space: normal;
-}
-
-.phone-directory-runtime__drawer {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.phone-directory-runtime__drawer-card {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  padding: 18px;
-  border: 1px solid rgba(221, 226, 227, 0.92);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: -20px 0 48px rgba(14, 40, 67, 0.18);
-  overflow: auto;
-}
-
-.phone-directory-runtime__drawer-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-accent-deep-navy);
-  cursor: pointer;
-  font-size: 24px;
-  line-height: 1;
-}
-
-.phone-directory-runtime__drawer-close:hover {
-  background: rgba(14, 40, 67, 0.06);
-}
-
-.phone-directory-runtime__drawer-close:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .phone-directory-runtime__detail {

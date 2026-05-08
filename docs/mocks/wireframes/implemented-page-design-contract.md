@@ -25,6 +25,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 - `Wrapper/Card/Rail`: bordered containers keep clean separation from neighboring bordered elements and reserve space for titles, badges, icons, and actions.
 - `Helper Paragraph`: a card, rail, notice, or table cell that conveys one logical paragraph uses one wrapping text node.
 - `Status Badge`: badges must fit their text without colliding with card headers, table content, or action controls.
+- `Drawer`: row-selected detail/context surfaces use the shared right-hand runtime drawer. The drawer is closed by default, opens only after an explicit row selection, updates in place when another row is selected, and closes through its upper-right `X`.
 - `Action Link`: links that lead to external systems must be defined by product behavior, not created solely because a mock contains link-like text.
 
 ## Primitive Feedback Matrix
@@ -37,6 +38,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 | Card, rail, notice, panel, bordered control spacing | `wrapper/card/rail` | `.pen layout` | Spacing lint diagnostic, shared primitive rule, or accepted shared-border exception |
 | Split helper copy, paragraph fragments, table-cell body fragments | `helper paragraph` | `.pen layout` | Fragmented-paragraph lint diagnostic or explicit semantic split note |
 | Badge sizing, label fit, collision with row/card controls | `status badge` | `.pen layout` | Shared primitive rule, lint diagnostic, or accessibility check |
+| Row-selected detail panels, selected item context, or directory detail overlays | `drawer` | `docs/new behavior`, `.pen layout`, or `runtime behavior` | Shared drawer primitive, row-click browser verification, accessibility check, or docs update |
 | Page-specific visual issue with no shared primitive match | `page-local` | `.pen layout` | Page ledger row plus accepted one-time fix note or later primitive promotion |
 
 ## Spacing And Text Rules

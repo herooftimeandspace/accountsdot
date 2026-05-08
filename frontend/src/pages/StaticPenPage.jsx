@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { RowHotspotOverlay, RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { PenArtboard } from "../lib/PenArtboard";
 import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
@@ -27,152 +28,377 @@ const STATIC_PAGE_TITLES = {
   "my-profile": "My Profile",
 };
 
-const ONBOARDING_WORKFLOW_ROWS = [
-  {
-    id: "jordan-miles",
-    person: "Jordan Miles",
-    site: "Clover High School (CLA)",
-    start: "May 6, 2025",
-    currentStep: "Google pending",
-    issueAction: "Waiting Entra convergence",
-    status: "In Progress",
-    email: "jordan.miles@wusd.org",
-    incidentIq: "No local write owned by this app. User lookup retries at most once per hour.",
-    aeriesTicket: "IT-12904 Open",
-    verkadaTicket: "MOT-4412 Waiting",
-    top: 405,
+const STATIC_DRAWER_CONFIGS = {
+  onboarding: {
+    title: "Selected Workflow",
+    ariaLabel: "Upcoming staff onboarding rows",
+    rows: [
+      {
+        id: "jordan-miles",
+        ariaLabel: "View workflow details for Jordan Miles",
+        left: 306,
+        top: 405,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Person", "Jordan Miles"],
+          ["Site", "Clover High School (CLA)"],
+          ["Start", "May 6, 2025"],
+          ["Assigned Email", "jordan.miles@wusd.org"],
+          ["Workflow State", "Google pending"],
+          ["Issue / Action", "Waiting Entra convergence"],
+          ["Status", "In Progress"],
+          ["IncidentIQ", "No local write owned by this app. User lookup retries at most once per hour."],
+        ],
+        sections: [
+          ["Earliest matching Aeries ticket", "IT-12904 Open"],
+          ["Earliest matching Verkada ticket", "MOT-4412 Waiting"],
+        ],
+      },
+      {
+        id: "nia-brooks",
+        ariaLabel: "View workflow details for Nia Brooks",
+        left: 306,
+        top: 459,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Person", "Nia Brooks"],
+          ["Site", "District Office"],
+          ["Start", "May 8, 2025"],
+          ["Assigned Email", "nia.brooks@wusd.org"],
+          ["Workflow State", "Sync dry-run"],
+          ["Issue / Action", "Room mapping required"],
+          ["Status", "Needs Review"],
+          ["IncidentIQ", "Room assignment mismatch is waiting on district-office review before provisioning resumes."],
+        ],
+        sections: [
+          ["Earliest matching Aeries ticket", "IT-12941 Needs room mapping"],
+          ["Earliest matching Verkada ticket", "MOT-4420 Not started"],
+        ],
+      },
+      {
+        id: "evan-ruiz",
+        ariaLabel: "View workflow details for Evan Ruiz",
+        left: 306,
+        top: 513,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Person", "Evan Ruiz"],
+          ["Site", "Franklin Middle School"],
+          ["Start", "May 12, 2025"],
+          ["Assigned Email", "evan.ruiz@wusd.org"],
+          ["Workflow State", "HR intake"],
+          ["Issue / Action", "Missing mandatory field"],
+          ["Status", "Blocked"],
+          ["IncidentIQ", "HR intake is missing a required employment field; downstream account work is blocked."],
+        ],
+        sections: [
+          ["Earliest matching Aeries ticket", "IT-12988 Waiting on HR"],
+          ["Earliest matching Verkada ticket", "MOT-4434 Waiting"],
+        ],
+      },
+      {
+        id: "mika-ito",
+        ariaLabel: "View workflow details for Mika Ito",
+        left: 306,
+        top: 567,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Person", "Mika Ito"],
+          ["Site", "Desert View"],
+          ["Start", "May 13, 2025"],
+          ["Assigned Email", "mika.ito@wusd.org"],
+          ["Workflow State", "Ready"],
+          ["Issue / Action", "No blockers"],
+          ["Status", "Ready"],
+          ["IncidentIQ", "Ready for baseline provisioning. No external follow-up is currently required."],
+        ],
+        sections: [
+          ["Earliest matching Aeries ticket", "IT-13002 Ready"],
+          ["Earliest matching Verkada ticket", "MOT-4441 Ready"],
+        ],
+      },
+    ],
   },
-  {
-    id: "nia-brooks",
-    person: "Nia Brooks",
-    site: "District Office",
-    start: "May 8, 2025",
-    currentStep: "Sync dry-run",
-    issueAction: "Room mapping required",
-    status: "Needs Review",
-    email: "nia.brooks@wusd.org",
-    incidentIq: "Room assignment mismatch is waiting on district-office review before provisioning resumes.",
-    aeriesTicket: "IT-12941 Needs room mapping",
-    verkadaTicket: "MOT-4420 Not started",
-    top: 459,
+  "student-data-cleanup": {
+    title: "Student Details",
+    ariaLabel: "Aeries name correction queue rows",
+    rows: [
+      {
+        id: "carlos-nuno",
+        ariaLabel: "View student details for Carlos Nuno",
+        left: 306,
+        top: 443,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Student", "Carlos Nuno"],
+          ["Student ID", "0001021"],
+          ["Grade", "11"],
+          ["FirstName raw", "Carlos"],
+          ["LastName raw", "Nuño"],
+          ["FirstName normalized", "Carlos"],
+          ["LastName normalized", "Nuno"],
+          ["Issue Type", "Invalid character"],
+          ["Detected", "May 2, 2025 8:58 AM PT"],
+        ],
+        sections: [["Source system", "Corrections must be made in Aeries. This dashboard cannot edit student data."]],
+      },
+      {
+        id: "alex-oneil",
+        ariaLabel: "View student details for Alex O'Neil",
+        left: 306,
+        top: 497,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Student", "Alex O'Neil"],
+          ["Student ID", "0001087"],
+          ["Grade", "10"],
+          ["FirstName raw", "Alex"],
+          ["LastName raw", "O'Neil"],
+          ["FirstName normalized", "Alex"],
+          ["LastName normalized", "ONeil"],
+          ["Issue Type", "Invalid character"],
+          ["Detected", "May 2, 2025 8:56 AM PT"],
+        ],
+        sections: [["Source system", "Corrections must be made in Aeries. This dashboard cannot edit student data."]],
+      },
+      {
+        id: "jose-martinez",
+        ariaLabel: "View student details for Jose Martinez",
+        left: 306,
+        top: 551,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Student", "Jose Martinez"],
+          ["Student ID", "0001142"],
+          ["Grade", "12"],
+          ["FirstName raw", "Jose"],
+          ["LastName raw", "Martinez"],
+          ["FirstName normalized", "Jose"],
+          ["LastName normalized", "Martinez"],
+          ["Issue Type", "Invalid character"],
+          ["Detected", "May 2, 2025 8:54 AM PT"],
+        ],
+      },
+      {
+        id: "taylor-smith-jones",
+        ariaLabel: "View student details for Taylor Smith-Jones",
+        left: 306,
+        top: 605,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Student", "Taylor Smith-Jones"],
+          ["Student ID", "0001233"],
+          ["Grade", "9"],
+          ["FirstName raw", "Taylor"],
+          ["LastName raw", "Smith-Jones"],
+          ["FirstName normalized", "Taylor"],
+          ["LastName normalized", "SmithJones"],
+          ["Issue Type", "Invalid character"],
+          ["Detected", "May 2, 2025 8:52 AM PT"],
+        ],
+      },
+    ],
   },
-  {
-    id: "evan-ruiz",
-    person: "Evan Ruiz",
-    site: "Franklin Middle School",
-    start: "May 12, 2025",
-    currentStep: "HR intake",
-    issueAction: "Missing mandatory field",
-    status: "Blocked",
-    email: "evan.ruiz@wusd.org",
-    incidentIq: "HR intake is missing a required employment field; downstream account work is blocked.",
-    aeriesTicket: "IT-12988 Waiting on HR",
-    verkadaTicket: "MOT-4434 Waiting",
-    top: 513,
+  "reports-sync-transparency": {
+    title: "Selected Sync Item",
+    ariaLabel: "Sync transparency queue rows",
+    rows: [
+      {
+        id: "alex-ramirez",
+        ariaLabel: "View sync item for Alex Ramirez",
+        left: 306,
+        top: 321,
+        width: 1232,
+        height: 42,
+        details: [
+          ["User", "Alex Ramirez"],
+          ["Type", "Staff"],
+          ["Current Phase", "room_mapped"],
+          ["Overall Status", "manual_action"],
+          ["Queued At", "Apr 29, 2026 8:44 AM PT"],
+          ["Errors / Warnings", "primary_conflict"],
+          ["Action", "Open mapping"],
+        ],
+        sections: [["Warning", "Phone assignment needs a primary owner selection."]],
+      },
+      {
+        id: "marisol-vega",
+        ariaLabel: "View sync item for Marisol Vega",
+        left: 306,
+        top: 363,
+        width: 1232,
+        height: 42,
+        details: [
+          ["User", "Marisol Vega"],
+          ["Type", "Student"],
+          ["Current Phase", "iiq_matched"],
+          ["Overall Status", "manual_action"],
+          ["Queued At", "Apr 29, 2026 8:38 AM PT"],
+          ["Errors / Warnings", "missing_asset"],
+          ["Action", "Override"],
+        ],
+      },
+      {
+        id: "mika-ito-sync",
+        ariaLabel: "View sync item for Mika Ito",
+        left: 306,
+        top: 405,
+        width: 1232,
+        height: 42,
+        details: [
+          ["User", "Mika Ito"],
+          ["Type", "Staff"],
+          ["Current Phase", "photo_processed"],
+          ["Overall Status", "in_progress"],
+          ["Queued At", "Apr 28, 2026 2:30 PM PT"],
+          ["Errors / Warnings", "rollover_wait"],
+          ["Action", "Recheck"],
+        ],
+        sections: [["Warning", "rollover_wait is an in-progress warning, not a manual-action block."]],
+      },
+      {
+        id: "nia-brooks-sync",
+        ariaLabel: "View sync item for Nia Brooks",
+        left: 306,
+        top: 447,
+        width: 1232,
+        height: 42,
+        details: [
+          ["User", "Nia Brooks"],
+          ["Type", "Staff"],
+          ["Current Phase", "ingested"],
+          ["Overall Status", "manual_action"],
+          ["Queued At", "Apr 28, 2026 12:12 PM PT"],
+          ["Errors / Warnings", "room_mapping_required"],
+          ["Action", "Open mapping"],
+        ],
+      },
+    ],
   },
-  {
-    id: "mika-ito",
-    person: "Mika Ito",
-    site: "Desert View",
-    start: "May 13, 2025",
-    currentStep: "Ready",
-    issueAction: "No blockers",
-    status: "Ready",
-    email: "mika.ito@wusd.org",
-    incidentIq: "Ready for baseline provisioning. No external follow-up is currently required.",
-    aeriesTicket: "IT-13002 Ready",
-    verkadaTicket: "MOT-4441 Ready",
-    top: 567,
+  "reports-ticketing-human-work": {
+    title: "Selected Ticket Context",
+    ariaLabel: "Human work queue rows",
+    rows: [
+      {
+        id: "ticket-jordan-miles",
+        ariaLabel: "View ticket context for Jordan Miles",
+        left: 306,
+        top: 407,
+        width: 1232,
+        height: 54,
+        details: [
+          ["Affected User", "Jordan Miles"],
+          ["Current Workflow", "Onboarding"],
+          ["Matching Rule", "Requestor email + category"],
+          ["Displayed Ticket", "IT-12904"],
+          ["Current Status", "Open"],
+          ["Category", "Aeries Add User"],
+        ],
+        sections: [["Workflow", "Aeries (Asset Tag: AERIES) → User Rights → Add User"]],
+      },
+      {
+        id: "ticket-nia-brooks",
+        ariaLabel: "View ticket context for Nia Brooks",
+        left: 306,
+        top: 461,
+        width: 1232,
+        height: 42,
+        details: [
+          ["Affected User", "Nia Brooks"],
+          ["Current Workflow", "Onboarding"],
+          ["Matching Rule", "External IIQ config"],
+          ["Displayed Ticket", "MOT-4412"],
+          ["Current Status", "Waiting"],
+          ["Category", "Alarm Code"],
+        ],
+        sections: [["Workflow", "Security Systems → Alarm Codes → Add Alarm Code"]],
+      },
+      {
+        id: "ticket-morgan-lee",
+        ariaLabel: "View ticket context for Morgan Lee",
+        left: 306,
+        top: 503,
+        width: 1232,
+        height: 42,
+        details: [
+          ["Affected User", "Morgan Lee"],
+          ["Current Workflow", "Room Move"],
+          ["Matching Rule", "Manual fallback"],
+          ["Displayed Ticket", "IT-13012"],
+          ["Current Status", "Open"],
+          ["Category", "Phone conflict"],
+        ],
+      },
+      {
+        id: "ticket-chris-morgan",
+        ariaLabel: "View ticket context for Chris Morgan",
+        left: 306,
+        top: 545,
+        width: 1232,
+        height: 42,
+        details: [
+          ["Affected User", "Chris Morgan"],
+          ["Current Workflow", "Offboarding"],
+          ["Matching Rule", "Linked to lifecycle"],
+          ["Displayed Ticket", "IT-13044"],
+          ["Current Status", "Closed"],
+          ["Category", "Asset retrieval"],
+        ],
+      },
+    ],
   },
-];
+};
 
-function OnboardingWorkflowDrawerOverlay({ selectedWorkflow, onSelectWorkflow, onClose }) {
+function StaticDrawerOverlay({ config, selectedRow, onSelectRow, onClose }) {
   return (
     <>
-      <div className="onboarding-row-hotspots" aria-label="Upcoming staff onboarding rows">
-        {ONBOARDING_WORKFLOW_ROWS.map((row) => (
-          <button
-            key={row.id}
-            type="button"
-            className="onboarding-row-hotspot"
-            aria-label={`View workflow details for ${row.person}`}
-            aria-pressed={selectedWorkflow?.id === row.id}
-            onClick={() => onSelectWorkflow(row)}
-            style={{ top: row.top }}
+      <RowHotspotOverlay
+        rows={config.rows}
+        selectedId={selectedRow?.id}
+        onSelect={onSelectRow}
+        ariaLabel={config.ariaLabel}
+      />
+      {selectedRow ? (
+        <RuntimeDrawer title={config.title} onClose={onClose}>
+          <RuntimeDetailList
+            items={selectedRow.details.map(([label, value]) => ({
+              label,
+              value,
+            }))}
           />
-        ))}
-      </div>
-      {selectedWorkflow ? (
-        <aside
-          className="onboarding-workflow-drawer"
-          aria-labelledby="onboarding-workflow-drawer-title"
-          aria-live="polite"
-        >
-          <div className="onboarding-workflow-drawer__header">
-            <h2 id="onboarding-workflow-drawer-title">Selected Workflow</h2>
-            <button
-              type="button"
-              className="onboarding-workflow-drawer__close"
-              aria-label="Close selected workflow drawer"
-              onClick={onClose}
-            >
-              ×
-            </button>
-          </div>
-          <dl className="onboarding-workflow-drawer__details">
-            <div>
-              <dt>Person</dt>
-              <dd>{selectedWorkflow.person}</dd>
+          {selectedRow.sections?.length ? (
+            <div className="runtime-drawer__section">
+              {selectedRow.sections.map(([label, value]) => (
+                <p key={label}>
+                  <strong>{label}:</strong>
+                  <span>{value}</span>
+                </p>
+              ))}
             </div>
-            <div>
-              <dt>Site</dt>
-              <dd>{selectedWorkflow.site}</dd>
-            </div>
-            <div>
-              <dt>Start</dt>
-              <dd>{selectedWorkflow.start}</dd>
-            </div>
-            <div>
-              <dt>Assigned Email</dt>
-              <dd>{selectedWorkflow.email}</dd>
-            </div>
-            <div>
-              <dt>Workflow State</dt>
-              <dd>{selectedWorkflow.currentStep}</dd>
-            </div>
-            <div>
-              <dt>Issue / Action</dt>
-              <dd>{selectedWorkflow.issueAction}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{selectedWorkflow.status}</dd>
-            </div>
-            <div>
-              <dt>IncidentIQ</dt>
-              <dd>{selectedWorkflow.incidentIq}</dd>
-            </div>
-          </dl>
-          <div className="onboarding-workflow-drawer__tickets">
-            <p>
-              <strong>Earliest matching Aeries ticket:</strong>
-              <span>{selectedWorkflow.aeriesTicket}</span>
-            </p>
-            <p>
-              <strong>Earliest matching Verkada ticket:</strong>
-              <span>{selectedWorkflow.verkadaTicket}</span>
-            </p>
-          </div>
-        </aside>
+          ) : null}
+        </RuntimeDrawer>
       ) : null}
     </>
   );
 }
 
 export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, searchQuery = "" }) {
-  const [selectedOnboardingWorkflow, setSelectedOnboardingWorkflow] = useState(null);
+  const [selectedStaticDrawerRow, setSelectedStaticDrawerRow] = useState(null);
   const artboard = generatedArtboards[artboardKey];
   const meta = generatedArtboardMeta[artboardKey];
+  const staticDrawerConfig = STATIC_DRAWER_CONFIGS[artboardKey] ?? null;
+
+  useEffect(() => {
+    setSelectedStaticDrawerRow(null);
+  }, [artboardKey]);
 
   const textOverrides = buildSharedShellTextOverrides(session);
   const imageNodeOverrides = buildSharedShellImageOverrides(session);
@@ -192,11 +418,12 @@ export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, sear
   const renderOverlay = (overlayProps) => (
     <>
       {sharedShellRenderOverlay(overlayProps)}
-      {artboardKey === "onboarding" ? (
-        <OnboardingWorkflowDrawerOverlay
-          selectedWorkflow={selectedOnboardingWorkflow}
-          onSelectWorkflow={setSelectedOnboardingWorkflow}
-          onClose={() => setSelectedOnboardingWorkflow(null)}
+      {staticDrawerConfig ? (
+        <StaticDrawerOverlay
+          config={staticDrawerConfig}
+          selectedRow={selectedStaticDrawerRow}
+          onSelectRow={setSelectedStaticDrawerRow}
+          onClose={() => setSelectedStaticDrawerRow(null)}
         />
       ) : null}
     </>

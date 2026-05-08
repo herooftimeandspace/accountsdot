@@ -267,6 +267,7 @@
   - the implemented header scope selector must become a real site-list dropdown and stay wide enough to keep the current selected site label on one line
   - implemented pages should not duplicate page-scope badges beside the title when the shell scope selector already communicates the same scope context
   - implemented pages using the current shared shell should render a white page background inside the app frame rather than the neutral canvas gray
+  - row-level detail and context surfaces should use the shared right-hand runtime drawer primitive rather than fixed right-side static panels; the drawer is closed by default, opens after a row selection, updates when another row is selected, and closes from the drawer `X`
   - fields such as `Last refreshed` may stack onto multiple lines when that avoids collisions with neighboring controls while preserving clear label/date/time grouping
   - when a page exposes the shared-header `Refresh` control, the `Last refreshed` cluster should sit immediately to the left of the button, preserve a `5px` blank gap, and stay no taller than the button by collapsing to two lines when needed
   - the `Data Quality` refresh control should remain a real re-fetch action, render as a Vegas Gold primary action, and re-collect the current queue payload rather than applying a cosmetic-only reload

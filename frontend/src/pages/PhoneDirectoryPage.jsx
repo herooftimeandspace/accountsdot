@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
+import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { generatedArtboards } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
 import {
@@ -369,18 +370,6 @@ function boundsIntersect(a, b, tolerance = 1) {
   );
 }
 
-function detailField(label, value) {
-  if (!value) {
-    return null;
-  }
-  return (
-    <>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </>
-  );
-}
-
 function canViewEmployeeId(session) {
   const personaId = session?.current_persona?.id;
   return (
@@ -525,45 +514,25 @@ function PhoneDirectoryDetailOverlay({ bounds, mode, result, session, onClose })
   }
 
   return (
-    <aside
-      className="phone-directory-runtime__drawer"
-      style={{
-        position: "absolute",
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        zIndex: 4,
-      }}
-      aria-live="polite"
-    >
-      <div className="phone-directory-runtime__drawer-card">
-        <button
-          type="button"
-          className="phone-directory-runtime__drawer-close"
-          aria-label="Close directory details"
-          onClick={onClose}
-        >
-          ×
-        </button>
-        <div className="phone-directory-runtime__detail">
-          <h2>{result.title}</h2>
-          <p>{result.site_name}</p>
-          <div className="phone-directory-runtime__detail-card">
-            <dl>
-              {detailField("Type", result.type_label)}
-              {detailField("Role", result.role)}
-              {detailField("Department", result.department)}
-              {detailField(mode === "room" ? "Area" : "Room", result.location)}
-              {detailField("Extension", result.extension)}
-              {detailField("Phone", result.phone)}
-              {detailField("Email", result.email)}
-              {canViewEmployeeId(session) ? detailField("ID", result.identifier) : null}
-            </dl>
-          </div>
+    <RuntimeDrawer title={result.title} bounds={bounds} onClose={onClose} className="phone-directory-runtime__drawer">
+      <div className="phone-directory-runtime__detail">
+        <p>{result.site_name}</p>
+        <div className="phone-directory-runtime__detail-card">
+          <RuntimeDetailList
+            items={[
+              { label: "Type", value: result.type_label },
+              { label: "Role", value: result.role },
+              { label: "Department", value: result.department },
+              { label: mode === "room" ? "Area" : "Room", value: result.location },
+              { label: "Extension", value: result.extension },
+              { label: "Phone", value: result.phone },
+              { label: "Email", value: result.email },
+              canViewEmployeeId(session) ? { label: "ID", value: result.identifier } : null,
+            ]}
+          />
         </div>
       </div>
-    </aside>
+    </RuntimeDrawer>
   );
 }
 
