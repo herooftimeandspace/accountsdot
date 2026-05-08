@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
@@ -114,6 +115,15 @@ const STATIC_ONBOARDING_TABLE_NODE_IDS = [
 const ADD_MANUAL_NODE_ID = "onboarding__f109";
 const ADD_MANUAL_LABEL_NODE_ID = "onboarding__t110";
 const ONBOARDING_TABLE_FRAME_NODE_ID = "onboarding__f116";
+const ONBOARDING_TABLE_COLUMNS = [
+  { key: "date_added", label: "Date Added", value: (row) => row.date_added || "Unknown" },
+  { key: "start_date", label: "Start", value: (row) => formatOnboardingDate(row.start_date) || "Unknown", sortValue: (row) => row.start_date || "" },
+  { key: "person", label: "Person", value: (row) => row.person },
+  { key: "site", label: "Site", value: (row) => row.site },
+  { key: "current_step", label: "Current Step", value: (row) => row.current_step },
+  { key: "issue_action", label: "Issue / Action", value: (row) => row.issue_action },
+  { key: "workflow_status", label: "Workflow Status", value: (row) => row.workflow_status },
+];
 
 function nodeBox(node) {
   if (!node) {
@@ -273,9 +283,14 @@ function fieldClassName(field, draft, errors, extraClass = "") {
 }
 
 function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
+  const table = useRuntimeTableData(rows, ONBOARDING_TABLE_COLUMNS, {
+    defaultSort: { key: "date_added", direction: "asc" },
+  });
+
   if (!bounds) {
     return null;
   }
+  const visibleRows = table.visibleRows;
   const manualRows = rows.filter((row) => row.kind === "manual").length;
   const totalRows = Math.max(rows.length, 42 + manualRows);
   return (
@@ -292,17 +307,16 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
       aria-labelledby={ONBOARDING_HEADING_ID}
     >
       <div className="onboarding-runtime__table-title">Upcoming Staff Onboarding</div>
+      <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
       <div className="onboarding-runtime__table-header">
-        <div>Date Added</div>
-        <div>Start</div>
-        <div>Person</div>
-        <div>Site</div>
-        <div>Current Step</div>
-        <div>Issue / Action</div>
-        <div>Workflow Status</div>
+        {ONBOARDING_TABLE_COLUMNS.map((column) => (
+          <div key={column.key}>
+            <RuntimeSortableHeader column={column} sortState={table.sortState} onSort={table.toggleSort} />
+          </div>
+        ))}
       </div>
       <div className="onboarding-runtime__table-body">
-        {rows.map((row) => (
+        {visibleRows.map((row) => (
           <button
             key={row.id}
             type="button"
@@ -329,7 +343,7 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
         ))}
       </div>
       <div className="onboarding-runtime__table-footer">
-        Showing 1 to {Math.min(rows.length, 4)} of {totalRows} upcoming people
+        Showing {visibleRows.length ? 1 : 0} to {visibleRows.length} of {totalRows} upcoming people
       </div>
     </section>
   );

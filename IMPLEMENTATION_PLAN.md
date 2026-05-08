@@ -260,6 +260,7 @@
   - the DEV implementation target for this pilot is a React + Vite frontend consuming page-shaped mock JSON from the Go backend
   - the `Data Quality` queue remains inline on the implemented page rather than linking to a separate full-queue screen, and the queue card is expected to expand or contract with the current row count
   - the `Data Quality` queue headers are expected to support `ASC / DESC / NONE` sorting directly on the page rather than routing the user to a separate list surface
+  - runtime-backed implemented tables should use the shared table-control primitive for local search/filter and three-way header sorting; each page provides its own default sort column and hidden data remains excluded from search when the role cannot see it
   - implemented shell user avatars should prefer a Google profile photo when one is present in the user object and fall back to generated initials when one is not
   - the implemented shell account menu must expose `My Profile` and `Sign Out`; `My Profile` routes to the user's profile page for preferred-name and pronoun updates, while `Sign Out` triggers the configured SAML/SSO sign-out flow
   - during the pre-phase 0 DEV pilot, `My Profile` should land on an internal mock-backed profile route implemented from its authoritative `.pen` and should allow preferred-name and pronoun edits against DEV-local mock state until real profile integration exists

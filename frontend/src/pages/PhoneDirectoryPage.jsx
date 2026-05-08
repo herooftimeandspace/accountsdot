@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboards } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
 import {
@@ -428,6 +429,9 @@ function PhoneDirectoryResultsOverlay({
   }
 
   const columns = resultsColumnsForMode(mode);
+  const table = useRuntimeTableData(results, columns, {
+    defaultSort: { key: "title", direction: "asc" },
+  });
   const resultsTitleId = `phone-directory-${mode}-results-title`;
 
   return (
@@ -450,12 +454,15 @@ function PhoneDirectoryResultsOverlay({
       </h2>
       {results.length > 0 ? (
         <div className={`phone-directory-runtime__table phone-directory-runtime__table--${mode}`}>
+          <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
           <div className="phone-directory-runtime__table-header">
             {columns.map((column) => (
-              <div key={column.key}>{column.label}</div>
+              <div key={column.key}>
+                <RuntimeSortableHeader column={column} sortState={table.sortState} onSort={table.toggleSort} />
+              </div>
             ))}
           </div>
-          {results.map((result) => (
+          {table.visibleRows.map((result) => (
             <button
               key={result.id}
               type="button"

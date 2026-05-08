@@ -630,6 +630,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Device Wrangler`
   - `Faculty and Staff`
 - All dashboard tables must use the same multi-line row-rendering behavior, not just the phone directory.
+- Runtime-backed dashboard tables must use shared table controls: a local search/filter field that searches data available in that table, and sortable headers that cycle through ascending, descending, and no sort. Each page may define a workflow-appropriate default sort column.
 - Any table row with multi-line content must render with a shared top baseline across all columns in the row.
 - The first visible line of content in every cell for a given row must align horizontally across the full row.
 - Cells must not vertically center themselves relative to taller neighboring cells.

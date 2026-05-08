@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
@@ -15,6 +16,16 @@ const OFFBOARDING_ENDPOINT = "/api/v1/dev/pages/offboarding";
 const OFFBOARDING_RECORDS_ENDPOINT = "/api/v1/dev/offboarding/records";
 const OFFBOARDING_HEADING_ID = "offboarding-heading";
 const OFFBOARDING_TABLE_FRAME_NODE_ID = "offboarding__f115";
+const OFFBOARDING_TABLE_COLUMNS = [
+  { key: "status", label: "Status", value: (row) => row.status },
+  { key: "person", label: "Person / Account", value: (row) => row.person },
+  { key: "email", label: "Email", value: (row) => row.email },
+  { key: "employee_id", label: "Employee ID", value: (row) => row.employee_id || "None" },
+  { key: "site", label: "Site", value: (row) => row.site },
+  { key: "end_date", label: "End", value: (row) => formatDate(row.end_date), sortValue: (row) => row.end_date || "" },
+  { key: "next_action", label: "Next Action", value: (row) => row.next_action },
+  { key: "asset_work", label: "Asset Work", value: (row) => row.asset_work },
+];
 const STATIC_OFFBOARDING_NODE_IDS = [
   "t116", "t117", "t118", "t119", "t120", "t121", "t122", "l123",
   "t124", "t125", "t126", "f128", "t129", "t130", "t131", "l132",
@@ -99,9 +110,17 @@ function OffboardingWarning({ id, text }) {
 }
 
 function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs, onSelectRow }) {
+  const columns = showEmployeeIDs
+    ? OFFBOARDING_TABLE_COLUMNS
+    : OFFBOARDING_TABLE_COLUMNS.filter((column) => column.key !== "employee_id");
+  const table = useRuntimeTableData(rows, columns, {
+    defaultSort: { key: "end_date", direction: "asc" },
+  });
+
   if (!bounds) {
     return null;
   }
+  const visibleRows = table.visibleRows;
   return (
     <section
       className={`offboarding-runtime__table ${showEmployeeIDs ? "offboarding-runtime__table--with-ids" : ""}`}
@@ -116,18 +135,16 @@ function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs,
       aria-labelledby={OFFBOARDING_HEADING_ID}
     >
       <div className="offboarding-runtime__table-title">Upcoming Offboarding</div>
+      <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
       <div className="offboarding-runtime__table-header">
-        <div>Status</div>
-        <div>Person / Account</div>
-        <div>Email</div>
-        {showEmployeeIDs ? <div>Employee ID</div> : null}
-        <div>Site</div>
-        <div>End</div>
-        <div>Next Action</div>
-        <div>Asset Work</div>
+        {columns.map((column) => (
+          <div key={column.key}>
+            <RuntimeSortableHeader column={column} sortState={table.sortState} onSort={table.toggleSort} />
+          </div>
+        ))}
       </div>
       <div className="offboarding-runtime__table-body">
-        {rows.map((row) => (
+        {visibleRows.map((row) => (
           <button
             key={row.id}
             type="button"

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
+import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import {
   DataQualityGeneratedView,
   dataQualityDesign,
@@ -22,6 +23,11 @@ const QUEUE_SORT_HEADERS = {
   impact: { label: "Impact", field: "impact" },
   nextAction: { label: "Next Action", field: "next_action" },
 };
+const DATA_QUALITY_QUEUE_COLUMNS = Object.entries(QUEUE_SORT_HEADERS).map(([key, config]) => ({
+  key,
+  label: config.label,
+  value: (row) => readableLine(row?.[config.field]),
+}));
 
 function readableLine(value) {
   return String(value ?? "").replaceAll("\n", " ");
@@ -39,49 +45,6 @@ function assignLines(overrides, slotIds, value) {
   slotIds.forEach((slotId, index) => {
     overrides[slotId] = values[index] ?? "";
   });
-}
-
-function nextSortState(current, key) {
-  if (current.key !== key || current.direction === "none") {
-    return { key, direction: "asc" };
-  }
-  if (current.direction === "asc") {
-    return { key, direction: "desc" };
-  }
-  return { key: null, direction: "none" };
-}
-
-function sortableValue(row, key) {
-  const config = QUEUE_SORT_HEADERS[key];
-  if (!config) {
-    return "";
-  }
-  return readableLine(row?.[config.field]);
-}
-
-function sortQueueRows(rows, sortState) {
-  if (!Array.isArray(rows)) {
-    return [];
-  }
-  if (!sortState?.key || sortState.direction === "none") {
-    return rows;
-  }
-
-  return [...rows]
-    .map((row, index) => ({ row, index }))
-    .sort((left, right) => {
-      const leftValue = sortableValue(left.row, sortState.key);
-      const rightValue = sortableValue(right.row, sortState.key);
-      const comparison = leftValue.localeCompare(rightValue, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
-      if (comparison !== 0) {
-        return sortState.direction === "asc" ? comparison : -comparison;
-      }
-      return left.index - right.index;
-    })
-    .map(({ row }) => row);
 }
 
 function queueHeaderLabel(key, sortState) {
@@ -131,9 +94,14 @@ function buildDataQualityTextOverrides(session, payload, sortState) {
     assignValue(overrides, slotId, queueHeaderLabel(key, sortState));
   });
 
-  page.queue.rows.forEach((row, index) => {
-    const slot = dataQualityDesign.slots.queue.rows[index];
-    if (!slot) {
+  dataQualityDesign.slots.queue.rows.forEach((slot, index) => {
+    const row = page.queue.rows[index];
+    if (!row) {
+      assignValue(overrides, slot.issue, "");
+      assignValue(overrides, slot.source, "");
+      assignValue(overrides, slot.owner, "");
+      assignLines(overrides, slot.impact, "");
+      assignLines(overrides, slot.nextAction, "");
       return;
     }
     assignValue(overrides, slot.issue, row.issue);
@@ -161,7 +129,7 @@ function buildDataQualityTextOverrides(session, payload, sortState) {
   return overrides;
 }
 
-function DataQualitySemanticContent({ payload, onRefresh, mappingHref, onSort, sortState }) {
+function DataQualitySemanticContent({ payload, onRefresh, mappingHref, table }) {
   if (!payload) {
     return null;
   }
@@ -197,11 +165,12 @@ function DataQualitySemanticContent({ payload, onRefresh, mappingHref, onSort, s
       </dl>
 
       <h2>Data Quality Queue</h2>
+      <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
       <table>
         <thead>
           <tr>
-            {Object.entries(QUEUE_SORT_HEADERS).map(([key, config]) => {
-              const activeDirection = sortState?.key === key ? sortState.direction : "none";
+            {DATA_QUALITY_QUEUE_COLUMNS.map((column) => {
+              const activeDirection = table.sortState?.key === column.key ? table.sortState.direction : "none";
               const ariaSort =
                 activeDirection === "asc"
                   ? "ascending"
@@ -209,10 +178,8 @@ function DataQualitySemanticContent({ payload, onRefresh, mappingHref, onSort, s
                     ? "descending"
                     : "none";
               return (
-                <th key={key} scope="col" aria-sort={ariaSort}>
-                  <button type="button" onClick={() => onSort(key)}>
-                    {queueHeaderLabel(key, sortState)}
-                  </button>
+                <th key={column.key} scope="col" aria-sort={ariaSort}>
+                  <RuntimeSortableHeader column={column} sortState={table.sortState} onSort={table.toggleSort} />
                 </th>
               );
             })}
@@ -255,7 +222,9 @@ export function DataQualityPage({
   const [payload, setPayload] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [sortState, setSortState] = useState({ key: null, direction: "none" });
+  const table = useRuntimeTableData(payload?.page?.queue?.rows ?? [], DATA_QUALITY_QUEUE_COLUMNS, {
+    defaultSort: { key: "issue", direction: "asc" },
+  });
 
   useEffect(() => {
     if (!session?.authenticated || !session?.authorized) {
@@ -314,21 +283,18 @@ export function DataQualityPage({
         ...payload.page,
         queue: {
           ...payload.page.queue,
-          rows: sortQueueRows(payload.page.queue.rows, sortState),
+          rows: table.visibleRows,
         },
       },
     };
-  }, [payload, sortState]);
+  }, [payload, table.visibleRows]);
 
   const textOverrides = useMemo(
-    () => buildDataQualityTextOverrides(session, viewPayload, sortState),
-    [session, sortState, viewPayload]
+    () => buildDataQualityTextOverrides(session, viewPayload, table.sortState),
+    [session, table.sortState, viewPayload]
   );
   const mappingDashboardHref = `${apiOrigin}/sync-dashboard/mappings`;
   const refreshDataQuality = useCallback(() => setReloadKey((value) => value + 1), []);
-  const toggleSort = useCallback((key) => {
-    setSortState((current) => nextSortState(current, key));
-  }, []);
 
   const hotspots = useMemo(() => {
     if (!viewPayload?.hotspots || pageState !== "ready") {
@@ -357,12 +323,12 @@ export function DataQualityPage({
     Object.entries(dataQualityDesign.slots.queue.headers || {}).forEach(([key, nodeId]) => {
       mapping[nodeId] = {
         label: `Sort by ${QUEUE_SORT_HEADERS[key]?.label ?? key}`,
-        onClick: () => toggleSort(key),
+        onClick: () => table.toggleSort(key),
       };
     });
 
     return mapping;
-  }, [mappingDashboardHref, pageState, refreshDataQuality, toggleSort, viewPayload]);
+  }, [mappingDashboardHref, pageState, refreshDataQuality, table, viewPayload]);
 
   const imageNodeOverrides = useMemo(
     () => buildSharedShellImageOverrides(session),
@@ -427,8 +393,7 @@ export function DataQualityPage({
           payload={viewPayload}
           onRefresh={refreshDataQuality}
           mappingHref={mappingDashboardHref}
-          onSort={toggleSort}
-          sortState={sortState}
+          table={table}
         />
         <DataQualityGeneratedView
           textOverrides={textOverrides}
