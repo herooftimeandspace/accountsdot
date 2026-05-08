@@ -320,6 +320,117 @@ input {
   line-height: 1.1;
 }
 
+.onboarding-row-hotspot {
+  position: absolute;
+  left: 306px;
+  z-index: 22;
+  width: 1232px;
+  height: 54px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.onboarding-row-hotspot:hover {
+  background: rgba(137, 182, 231, 0.14);
+}
+
+.onboarding-row-hotspot:focus-visible,
+.onboarding-workflow-drawer__close:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.onboarding-workflow-drawer {
+  position: absolute;
+  top: 90px;
+  right: 0;
+  bottom: 0;
+  z-index: 32;
+  width: 440px;
+  padding: 28px 28px 32px;
+  border-left: 1px solid var(--color-canvas);
+  background: #ffffff;
+  box-shadow: -18px 0 42px rgba(15, 23, 42, 0.14);
+  color: var(--color-text);
+  font-family: "Atkinson Hyperlegible", Arial, Helvetica, sans-serif;
+  overflow-y: auto;
+}
+
+.onboarding-workflow-drawer__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.onboarding-workflow-drawer__header h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.onboarding-workflow-drawer__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.onboarding-workflow-drawer__close:hover {
+  border-color: var(--color-canvas);
+  background: var(--color-bg);
+}
+
+.onboarding-workflow-drawer__details {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.onboarding-workflow-drawer__details div {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.onboarding-workflow-drawer__details dt {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.onboarding-workflow-drawer__details dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.onboarding-workflow-drawer__tickets {
+  display: grid;
+  gap: 18px;
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--color-canvas);
+}
+
+.onboarding-workflow-drawer__tickets p {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .phone-directory-runtime {
   position: relative;
 }

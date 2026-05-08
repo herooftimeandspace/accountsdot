@@ -1288,6 +1288,7 @@
   - show upcoming offboarding processes
   - focus status on the person rather than on a spreadsheet row
   - expose where each person currently is in the lifecycle and what steps remain
+  - for the implemented pre-phase 0 Onboarding page, show selected person workflow details in a right-hand drawer that opens only after a row click, updates when another row is clicked, and closes from the drawer `X`
 - Visibility rules for onboarding and offboarding status:
   - HR can see all sensitive lifecycle data
   - site admin staff can only see, for their own site:

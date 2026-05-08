@@ -423,6 +423,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 
 ### 1. Onboarding Dashboard
 - Show upcoming onboarding processes by person rather than by spreadsheet row.
+- On the implemented pre-phase 0 Onboarding page, person rows open a right-hand workflow drawer instead of showing a permanently fixed detail panel. The drawer remains closed until a row is selected, refreshes its displayed workflow details when a different row is selected, and closes through its upper-right `X` control.
 - Replace the current Google Sheet workflow with imported data, automation state, and targeted manual exceptions.
 - Allow HR to view and manage all onboarding details, including sensitive fields.
 - Allow site admin staff to see only:
