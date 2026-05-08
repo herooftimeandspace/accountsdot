@@ -1,3 +1,18 @@
+import { useEffect } from "react";
+
+function shouldCloseDrawerForPointerTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  if (target.closest(".runtime-drawer")) {
+    return false;
+  }
+  if (target.closest("button, a, input, select, textarea, label, summary, [role='button'], [role='link'], [tabindex]")) {
+    return false;
+  }
+  return true;
+}
+
 export function RuntimeDetailList({ items }) {
   const visibleItems = items.filter((item) => item && item.value !== undefined && item.value !== null && item.value !== "");
 
@@ -28,8 +43,19 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
         width: bounds.width,
         height: bounds.height,
         zIndex: 32,
-      }
+    }
     : undefined;
+
+  useEffect(() => {
+    function handleDocumentPointerDown(event) {
+      if (shouldCloseDrawerForPointerTarget(event.target)) {
+        onClose();
+      }
+    }
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown, true);
+    return () => document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+  }, [onClose]);
 
   return (
     <aside
