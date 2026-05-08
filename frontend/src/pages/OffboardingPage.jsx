@@ -84,6 +84,22 @@ function statusClass(status) {
   return "offboarding-runtime__status offboarding-runtime__status--neutral";
 }
 
+function shouldCloseDrawerForPointerTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  if (target.closest(".runtime-drawer")) {
+    return false;
+  }
+  if (target.closest(".offboarding-runtime__row")) {
+    return false;
+  }
+  if (target.closest("button, a, input, select, textarea, label, summary, [role='button'], [tabindex]")) {
+    return false;
+  }
+  return true;
+}
+
 function OffboardingWarning({ id, text }) {
   if (!text) {
     return null;
@@ -331,6 +347,15 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
   const rows = payload?.page?.rows ?? [];
   const selectedPayloadRow = selectedRow ? rows.find((row) => row.id === selectedRow.id) || selectedRow : null;
 
+  const handlePagePointerDown = useCallback((event) => {
+    if (!selectedPayloadRow) {
+      return;
+    }
+    if (shouldCloseDrawerForPointerTarget(event.target)) {
+      setSelectedRow(null);
+    }
+  }, [selectedPayloadRow]);
+
   const handleSaveEndDate = useCallback(async (row, endDate) => {
     const updated = await readJSON(
       await fetch(`${OFFBOARDING_RECORDS_ENDPOINT}/${row.id}/end-date`, {
@@ -392,7 +417,12 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
   }
 
   return (
-    <main id="main-content" className="page-canvas page-canvas--static" aria-labelledby={OFFBOARDING_HEADING_ID}>
+    <main
+      id="main-content"
+      className="page-canvas page-canvas--static"
+      aria-labelledby={OFFBOARDING_HEADING_ID}
+      onPointerDownCapture={handlePagePointerDown}
+    >
       <section className="sr-only" aria-labelledby={OFFBOARDING_HEADING_ID}>
         <h1 id={OFFBOARDING_HEADING_ID}>{payload?.page?.title || semanticSummary.title}</h1>
         <ul>

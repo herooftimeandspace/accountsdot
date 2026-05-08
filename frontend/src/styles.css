@@ -795,6 +795,11 @@ input {
   background: rgba(221, 226, 227, 0.18);
 }
 
+.offboarding-runtime__end-date-form {
+  grid-template-columns: minmax(0, 1fr) 148px;
+  align-items: end;
+}
+
 .offboarding-runtime__drawer-warning {
   margin-bottom: 18px;
   border-color: rgba(215, 53, 51, 0.35);
@@ -832,6 +837,10 @@ input {
   color: var(--color-text);
   cursor: pointer;
   font: 800 13px/1 var(--font-ui);
+}
+
+.offboarding-runtime__end-date-form p {
+  grid-column: 1 / -1;
 }
 
 .offboarding-runtime__end-date-form button:focus-visible {
