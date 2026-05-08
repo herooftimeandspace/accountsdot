@@ -79,6 +79,11 @@ const STATIC_ONBOARDING_TABLE_NODE_IDS = [
   "t159",
   "l160",
   "t161",
+  "t500",
+  "t501",
+  "t502",
+  "t503",
+  "t504",
 ].map((id) => `onboarding__${id}`);
 const ADD_MANUAL_NODE_ID = "onboarding__f109";
 const ADD_MANUAL_LABEL_NODE_ID = "onboarding__t110";
@@ -148,6 +153,37 @@ function statusClass(status) {
   return "onboarding-runtime__status";
 }
 
+function missingFieldLabel(field) {
+  const labels = {
+    start_date: "Start date",
+    ssn_last4: "Last 4 SSN",
+    employee_type: "Employee type",
+    classification: "Classification",
+    first_name: "First name",
+    last_name: "Last name",
+    job_title: "Job title",
+    site_id: "Site",
+    personal_email: "Personal email",
+    preferred_device: "Preferred device",
+    requested_aeries_access: "Requested Aeries access",
+  };
+  return labels[field] ?? field;
+}
+
+function fieldHasProblem(field, draft, errors) {
+  return Boolean(errors?.[field] || draft?.missing_fields?.includes(field));
+}
+
+function fieldClassName(field, draft, errors, extraClass = "") {
+  return [
+    "onboarding-runtime__field",
+    fieldHasProblem(field, draft, errors) ? "onboarding-runtime__field--problem" : "",
+    extraClass,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
   if (!bounds) {
     return null;
@@ -169,6 +205,7 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
     >
       <div className="onboarding-runtime__table-title">Upcoming Staff Onboarding</div>
       <div className="onboarding-runtime__table-header">
+        <div>Date Added</div>
         <div>Start</div>
         <div>Person</div>
         <div>Site</div>
@@ -188,6 +225,7 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
             aria-pressed={selectedRowId === row.id}
             onClick={() => onSelectRow(row)}
           >
+            <div title={row.date_added_reason}>{row.date_added || "Unknown"}</div>
             <div>{row.start_date || "Unknown"}</div>
             <div>{row.person}</div>
             <div>{row.site}</div>
@@ -238,6 +276,8 @@ function WorkflowDrawer({ row, onClose }) {
       <RuntimeDetailList
         items={[
           { label: "Start", value: row.start_date },
+          { label: "Date Added", value: row.date_added },
+          { label: "Added Because", value: row.date_added_reason },
           { label: "Site", value: row.site },
           { label: "Current Step", value: row.current_step },
           { label: "Issue / Action", value: row.issue_action },
@@ -257,6 +297,49 @@ function WorkflowDrawer({ row, onClose }) {
           <span>{row.verkada_ticket || "Not linked"}</span>
         </p>
       </div>
+      {row.workflow_steps?.length ? (
+        <div className="onboarding-runtime__workflow-steps">
+          <h3>Workflow Steps</h3>
+          {row.workflow_steps.map((step) => (
+            <section key={step.name} className="onboarding-runtime__workflow-step">
+              <div>
+                <strong>{step.name}</strong>
+                <span className={statusClass(step.status)}>{step.status}</span>
+              </div>
+              <p>{step.detail}</p>
+              {step.actions?.length ? (
+                <ul>
+                  {step.actions.map((action) => (
+                    <li key={`${step.name}-${action.label}`}>
+                      <a href={action.href} target="_blank" rel="noreferrer">
+                        {action.label}
+                      </a>
+                      <span>{action.system}</span>
+                      <p>{action.resolution}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ))}
+        </div>
+      ) : null}
+    </RuntimeDrawer>
+  );
+}
+
+function AddManualErrorDrawer({ message, onClose }) {
+  if (!message) {
+    return null;
+  }
+  return (
+    <RuntimeDrawer title="Add Non-Escape Record" onClose={onClose}>
+      <div className="onboarding-runtime__generated">
+        <span>Status</span>
+        <strong className="onboarding-runtime__generated-warning">Unable to open intake drawer</strong>
+        <span>Reason</span>
+        <strong className="onboarding-runtime__generated-warning">{message}</strong>
+      </div>
     </RuntimeDrawer>
   );
 }
@@ -268,9 +351,9 @@ function FieldError({ value }) {
   return <span className="onboarding-runtime__field-error">{value}</span>;
 }
 
-function SelectField({ id, label, value, options, onChange, required = false }) {
+function SelectField({ id, label, value, options, onChange, required = false, className = "" }) {
   return (
-    <label className="onboarding-runtime__field" htmlFor={id}>
+    <label className={className || "onboarding-runtime__field"} htmlFor={id}>
       <span>{label}</span>
       <select id={id} value={value} required={required} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select...</option>
@@ -302,6 +385,9 @@ function ManualDraftDrawer({
   const leadTimeDays = daysBetween(form.start_date, currentDate);
   const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays <= 3;
   const replacingEmployee = formOptions.replacing_employees.find((employee) => employee.id === form.replacing_employee_id);
+  const missingSummary = draft.missing_fields?.length
+    ? `Missing required fields: ${draft.missing_fields.map(missingFieldLabel).join(", ")}`
+    : "";
 
   return (
     <RuntimeDrawer title="Add Non-Escape Record" onClose={onClose}>
@@ -321,9 +407,21 @@ function ManualDraftDrawer({
               <strong>{draft.generated_employee_id}</strong>
             </>
           ) : null}
+          {missingSummary ? (
+            <>
+              <span>Required Fields</span>
+              <strong className="onboarding-runtime__generated-warning">{missingSummary}</strong>
+            </>
+          ) : null}
+          {errors.form ? (
+            <>
+              <span>Save Error</span>
+              <strong className="onboarding-runtime__generated-warning">{errors.form}</strong>
+            </>
+          ) : null}
         </div>
 
-        <label className="onboarding-runtime__field" htmlFor="manual-start-date">
+        <label className={fieldClassName("start_date", draft, errors)} htmlFor="manual-start-date">
           <span>
             Start date
             {showLeadTimeWarning ? (
@@ -350,7 +448,7 @@ function ManualDraftDrawer({
           <FieldError value={errors.start_date} />
         </label>
 
-        <label className="onboarding-runtime__field" htmlFor="manual-ssn-last4">
+        <label className={fieldClassName("ssn_last4", draft, errors)} htmlFor="manual-ssn-last4">
           <span>Last 4 SSN</span>
           <input
             id="manual-ssn-last4"
@@ -364,45 +462,42 @@ function ManualDraftDrawer({
           <FieldError value={errors.ssn_last4} />
         </label>
 
-        <SelectField id="manual-employee-type" label="Employee type" value={form.employee_type} options={formOptions.employee_types} required onChange={(value) => onChange("employee_type", value)} />
-        <SelectField id="manual-classification" label="Classification" value={form.classification} options={formOptions.classifications} required onChange={(value) => onChange("classification", value)} />
+        <SelectField id="manual-employee-type" label="Employee type" value={form.employee_type} options={formOptions.employee_types} required className={fieldClassName("employee_type", draft, errors)} onChange={(value) => onChange("employee_type", value)} />
+        <SelectField id="manual-classification" label="Classification" value={form.classification} options={formOptions.classifications} required className={fieldClassName("classification", draft, errors)} onChange={(value) => onChange("classification", value)} />
 
-        <label className="onboarding-runtime__field" htmlFor="manual-first-name">
+        <label className={fieldClassName("first_name", draft, errors)} htmlFor="manual-first-name">
           <span>First name</span>
           <input id="manual-first-name" type="text" required value={form.first_name} onChange={(event) => onChange("first_name", event.target.value)} />
         </label>
 
-        <label className="onboarding-runtime__field" htmlFor="manual-last-name">
+        <label className={fieldClassName("last_name", draft, errors)} htmlFor="manual-last-name">
           <span>Last name</span>
           <input id="manual-last-name" type="text" required value={form.last_name} onChange={(event) => onChange("last_name", event.target.value)} />
         </label>
 
-        <SelectField id="manual-job-title" label="Job title" value={form.job_title} options={formOptions.job_titles} required onChange={(value) => onChange("job_title", value)} />
-        <SelectField id="manual-site" label="Site" value={form.site_id} options={formOptions.sites} required onChange={(value) => onChange("site_id", value)} />
+        <SelectField id="manual-job-title" label="Job title" value={form.job_title} options={formOptions.job_titles} required className={fieldClassName("job_title", draft, errors)} onChange={(value) => onChange("job_title", value)} />
+        <SelectField id="manual-site" label="Site" value={form.site_id} options={formOptions.sites} required className={fieldClassName("site_id", draft, errors)} onChange={(value) => onChange("site_id", value)} />
 
-        <label className="onboarding-runtime__field" htmlFor="manual-personal-email">
+        <SelectField id="manual-replacing" label="Replacing" value={form.replacing_employee_id} options={formOptions.replacing_employees} onChange={(value) => onChange("replacing_employee_id", value)} />
+        <SelectField id="manual-room" label="Room / classroom" value={form.room_id} options={formOptions.rooms} onChange={(value) => onChange("room_id", value)} />
+        {replacingEmployee ? (
+          <p className="onboarding-runtime__hint">{replacingEmployee.email}</p>
+        ) : null}
+
+        <label className={fieldClassName("personal_email", draft, errors, "onboarding-runtime__field--full")} htmlFor="manual-personal-email">
           <span>Personal email</span>
           <input id="manual-personal-email" type="email" required value={form.personal_email} onChange={(event) => onChange("personal_email", event.target.value)} />
           <FieldError value={errors.personal_email} />
         </label>
 
-        <SelectField id="manual-device" label="Preferred device" value={form.preferred_device} options={formOptions.preferred_devices} required onChange={(value) => onChange("preferred_device", value)} />
-        <SelectField id="manual-aeries" label="Requested Aeries access" value={form.requested_aeries_access} options={formOptions.requested_aeries_access} required onChange={(value) => onChange("requested_aeries_access", value)} />
-        <SelectField id="manual-replacing" label="Replacing" value={form.replacing_employee_id} options={formOptions.replacing_employees} onChange={(value) => onChange("replacing_employee_id", value)} />
-        {replacingEmployee ? (
-          <p className="onboarding-runtime__hint">{replacingEmployee.email}</p>
-        ) : null}
-        <SelectField id="manual-room" label="Room / classroom" value={form.room_id} options={formOptions.rooms} onChange={(value) => onChange("room_id", value)} />
+        <SelectField id="manual-device" label="Preferred device" value={form.preferred_device} options={formOptions.preferred_devices} required className={fieldClassName("preferred_device", draft, errors)} onChange={(value) => onChange("preferred_device", value)} />
+        <SelectField id="manual-aeries" label="Requested Aeries access" value={form.requested_aeries_access} options={formOptions.requested_aeries_access} required className={fieldClassName("requested_aeries_access", draft, errors)} onChange={(value) => onChange("requested_aeries_access", value)} />
 
-        <label className="onboarding-runtime__field" htmlFor="manual-notes">
+        <label className="onboarding-runtime__field onboarding-runtime__field--full" htmlFor="manual-notes">
           <span>Notes</span>
           <textarea id="manual-notes" value={form.notes} onChange={(event) => onChange("notes", event.target.value)} />
         </label>
 
-        {draft.missing_fields?.length ? (
-          <p className="onboarding-runtime__missing">Missing required fields: {draft.missing_fields.join(", ")}</p>
-        ) : null}
-        {errors.form ? <p className="onboarding-runtime__missing">{errors.form}</p> : null}
         <button type="button" className="onboarding-runtime__save" onClick={onSave} disabled={saving}>
           {saving ? "Saving..." : "Save"}
         </button>
@@ -416,6 +511,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   const [pageState, setPageState] = useState("loading");
   const [selectedRow, setSelectedRow] = useState(null);
   const [activeDraft, setActiveDraft] = useState(null);
+  const [addManualError, setAddManualError] = useState("");
   const [draftForm, setDraftForm] = useState(EMPTY_DRAFT_FORM);
   const [draftErrors, setDraftErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -425,6 +521,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
 
   const artboard = generatedArtboards.onboarding;
   const meta = generatedArtboardMeta.onboarding;
+  const personaId = session?.current_persona?.id ?? "";
 
   const loadPage = useCallback(async () => {
     setPageState("loading");
@@ -448,9 +545,14 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
       }
       setPageState("error");
     }
-  }, [onForbidden, onUnauthorized]);
+  }, [onForbidden, onUnauthorized, personaId]);
 
   useEffect(() => {
+    setSelectedRow(null);
+    setActiveDraft(null);
+    setAddManualError("");
+    setDraftErrors({});
+    dirtyRef.current = false;
     void loadPage();
   }, [loadPage]);
 
@@ -501,7 +603,9 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
 
   const handleAddManual = useCallback(async () => {
     setSelectedRow(null);
+    setActiveDraft(null);
     setDraftErrors({});
+    setAddManualError("");
     try {
       const created = await readJSON(
         await fetch(MANUAL_DRAFTS_ENDPOINT, {
@@ -515,12 +619,13 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
       dirtyRef.current = false;
       await loadPage();
     } catch (error) {
-      setDraftErrors({ form: error.message });
+      setAddManualError(error.message);
     }
   }, [loadPage]);
 
   const handleSelectRow = useCallback((row) => {
     setSelectedRow(row);
+    setAddManualError("");
     if (row.kind === "manual") {
       const draft = payload?.page?.drafts?.find((candidate) => candidate.id === row.manual_draft_id);
       if (draft) {
@@ -639,6 +744,8 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
             onClose={handleCloseDraft}
             onSave={handleSaveDraft}
           />
+        ) : addManualError ? (
+          <AddManualErrorDrawer message={addManualError} onClose={() => setAddManualError("")} />
         ) : (
           <WorkflowDrawer row={selectedRow} onClose={() => setSelectedRow(null)} />
         )}
@@ -646,6 +753,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     );
   }, [
     activeDraft,
+    addManualError,
     draftErrors,
     draftForm,
     formOptions,

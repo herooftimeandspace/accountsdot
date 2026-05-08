@@ -475,8 +475,8 @@ input {
 .onboarding-runtime__table-header,
 .onboarding-runtime__row {
   display: grid;
-  grid-template-columns: 120px 160px 160px 170px minmax(220px, 1fr) 160px;
-  column-gap: 22px;
+  grid-template-columns: 110px 100px 140px 135px 145px minmax(190px, 1fr) 128px;
+  column-gap: 16px;
   align-items: start;
 }
 
@@ -547,7 +547,8 @@ input {
 
 .onboarding-runtime__form {
   display: grid;
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .onboarding-runtime__generated {
@@ -559,10 +560,15 @@ input {
   border-radius: 8px;
   background: rgba(221, 226, 227, 0.2);
   font-size: 13px;
+  grid-column: 1 / -1;
 }
 
 .onboarding-runtime__generated span {
   font-weight: 700;
+}
+
+.onboarding-runtime__generated-warning {
+  color: var(--color-accent-red);
 }
 
 .onboarding-runtime__field {
@@ -570,6 +576,12 @@ input {
   gap: 7px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.onboarding-runtime__field--full,
+.onboarding-runtime__hint,
+.onboarding-runtime__save {
+  grid-column: 1 / -1;
 }
 
 .onboarding-runtime__field input,
@@ -596,6 +608,12 @@ input {
 .onboarding-runtime__field textarea:focus {
   border-color: var(--focus-ring);
   outline: 3px solid rgba(87, 151, 219, 0.25);
+}
+
+.onboarding-runtime__field--problem input,
+.onboarding-runtime__field--problem select,
+.onboarding-runtime__field--problem textarea {
+  border-color: var(--color-accent-red);
 }
 
 .onboarding-runtime__warning {
@@ -639,6 +657,64 @@ input {
 .onboarding-runtime__save:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
+}
+
+.onboarding-runtime__workflow-steps {
+  display: grid;
+  gap: 12px;
+}
+
+.onboarding-runtime__workflow-steps h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.onboarding-runtime__workflow-step {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: rgba(221, 226, 227, 0.18);
+}
+
+.onboarding-runtime__workflow-step > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-runtime__workflow-step p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.onboarding-runtime__workflow-step ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-runtime__workflow-step li {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-canvas);
+  font-size: 13px;
+}
+
+.onboarding-runtime__workflow-step a {
+  color: var(--color-accent-navy);
+  font-weight: 800;
+}
+
+.onboarding-runtime__workflow-step li span {
+  color: var(--color-accent-slate);
+  font-weight: 700;
 }
 
 .phone-directory-runtime {

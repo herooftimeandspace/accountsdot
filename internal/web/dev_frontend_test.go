@@ -71,11 +71,24 @@ type onboardingResponse struct {
 	Page   struct {
 		CanManageManual bool `json:"can_manage_manual"`
 		Rows            []struct {
-			Kind           string `json:"kind"`
-			ManualDraftID  string `json:"manual_draft_id"`
-			WorkflowStatus string `json:"workflow_status"`
-			AssignedEmail  string `json:"assigned_email"`
-			EmployeeNumber string `json:"employee_number"`
+			Kind            string `json:"kind"`
+			DateAdded       string `json:"date_added"`
+			DateAddedReason string `json:"date_added_reason"`
+			ManualDraftID   string `json:"manual_draft_id"`
+			WorkflowStatus  string `json:"workflow_status"`
+			AssignedEmail   string `json:"assigned_email"`
+			EmployeeNumber  string `json:"employee_number"`
+			WorkflowSteps   []struct {
+				Name    string `json:"name"`
+				Status  string `json:"status"`
+				Detail  string `json:"detail"`
+				Actions []struct {
+					Label      string `json:"label"`
+					Resolution string `json:"resolution"`
+					System     string `json:"system"`
+					Href       string `json:"href"`
+				} `json:"actions"`
+			} `json:"workflow_steps"`
 		} `json:"rows"`
 	} `json:"page"`
 	Form struct {
@@ -96,10 +109,19 @@ type onboardingDraftResponse struct {
 		MissingFields       []string `json:"missing_fields"`
 	} `json:"draft"`
 	Rows []struct {
-		Kind           string `json:"kind"`
-		WorkflowStatus string `json:"workflow_status"`
-		AssignedEmail  string `json:"assigned_email"`
-		EmployeeNumber string `json:"employee_number"`
+		Kind            string `json:"kind"`
+		DateAdded       string `json:"date_added"`
+		DateAddedReason string `json:"date_added_reason"`
+		WorkflowStatus  string `json:"workflow_status"`
+		AssignedEmail   string `json:"assigned_email"`
+		EmployeeNumber  string `json:"employee_number"`
+		WorkflowSteps   []struct {
+			Name    string `json:"name"`
+			Status  string `json:"status"`
+			Actions []struct {
+				Href string `json:"href"`
+			} `json:"actions"`
+		} `json:"workflow_steps"`
 	} `json:"rows"`
 }
 
@@ -369,6 +391,22 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !slices.Contains(payload.Form.RequestedAeriesAccess, "Teacher") || !slices.Contains(payload.Form.RequestedAeriesAccess, "Registrar") {
 			t.Fatalf("requested Aeries options = %#v", payload.Form.RequestedAeriesAccess)
 		}
+		if len(payload.Page.Rows) == 0 || payload.Page.Rows[0].DateAdded == "" || payload.Page.Rows[0].DateAddedReason != "First Escape import" {
+			t.Fatalf("first onboarding row date added metadata = %#v, want first Escape import", payload.Page.Rows)
+		}
+		foundAction := false
+		for _, row := range payload.Page.Rows {
+			for _, step := range row.WorkflowSteps {
+				for _, action := range step.Actions {
+					if strings.HasPrefix(action.Href, "https://mock.wusd.invalid/") {
+						foundAction = true
+					}
+				}
+			}
+		}
+		if !foundAction {
+			t.Fatal("expected at least one onboarding workflow action to expose a deterministic mock link")
+		}
 
 		siteCookie := loginAsPersona(t, handler, "site_admin")
 		siteReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
@@ -472,6 +510,25 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if !strings.HasPrefix(finalized.Draft.GeneratedEmployeeID, "66") || len(finalized.Draft.GeneratedEmployeeID) != 7 {
 			t.Fatalf("generated employee id = %q, want contractor-style 66xxxxx id", finalized.Draft.GeneratedEmployeeID)
+		}
+		if len(finalized.Rows) == 0 {
+			t.Fatal("expected finalized response rows")
+		}
+		var manualRowFound bool
+		for _, row := range finalized.Rows {
+			if row.Kind != "manual" {
+				continue
+			}
+			manualRowFound = true
+			if row.DateAdded == "" || row.DateAddedReason != "Manual Non-Escape record added" {
+				t.Fatalf("manual row date added metadata = %#v, want manual creation reason", row)
+			}
+			if len(row.WorkflowSteps) == 0 {
+				t.Fatalf("manual row workflow steps = %#v, want at least one step", row.WorkflowSteps)
+			}
+		}
+		if !manualRowFound {
+			t.Fatal("expected finalized response to include manual row")
 		}
 	})
 

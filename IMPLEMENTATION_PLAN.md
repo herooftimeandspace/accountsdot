@@ -553,7 +553,10 @@
   - actionable admin controls for the Google-active / Aeries-inactive queue, moving beyond the review-only Phase 1 surface
 - Pre-phase 0 DEV manual Non-Escape intake is implemented as a mock-only slice:
   - `/onboarding` renders a Vegas Gold `Add Non-Escape Record` action for HR and IT only
+  - the onboarding table renders `Date Added` first; it is the first Escape import date, the inactive-to-active Escape reactivation date, or the manual Non-Escape creation date
+  - row drawers show workflow steps; user-action steps include status, resolution instructions, and deterministic mock links for this DEV slice
   - the action opens the shared right-hand drawer with required fields for start date, last 4 SSN, employee type, classification, first name, last name, job title, site, personal email, preferred device, and requested Aeries access
+  - manual drawer fields use compact two-column desktop rows, with missing required fields summarized in the status bubble and controls highlighted with `var(--color-accent-red)` / `#D73533`
   - optional fields are limited to replacing employee, room/classroom, and notes
   - excluded People Tracker columns are district email guess, Google groups, other platforms, trainings, keys/building access, alarm codes, and ID card
   - incomplete DEV drafts appear in the onboarding table as `Incomplete Data`, autosave every 60 seconds while dirty, and reopen in the drawer for continued editing
@@ -1300,6 +1303,8 @@
   - focus status on the person rather than on a spreadsheet row
   - expose where each person currently is in the lifecycle and what steps remain
   - for the implemented pre-phase 0 Onboarding page, show selected person workflow details in a right-hand drawer that opens only after a row click, updates when another row is clicked, and closes from the drawer `X`
+  - the onboarding table's first column is `Date Added`, defined as first Escape import, Escape inactive-to-active reactivation, or manual Non-Escape creation
+  - if a selected workflow requires user action, the drawer lists each action step with status, resolution instructions, and the relevant external-system link when available
 - Visibility rules for onboarding and offboarding status:
   - HR can see all sensitive lifecycle data
   - site admin staff can only see, for their own site:

@@ -47,20 +47,37 @@ type onboardingPageContent struct {
 }
 
 type onboardingRowPayload struct {
-	ID             string `json:"id"`
-	Kind           string `json:"kind"`
-	StartDate      string `json:"start_date"`
-	Person         string `json:"person"`
-	Site           string `json:"site"`
-	CurrentStep    string `json:"current_step"`
-	IssueAction    string `json:"issue_action"`
-	WorkflowStatus string `json:"workflow_status"`
-	AssignedEmail  string `json:"assigned_email,omitempty"`
-	EmployeeNumber string `json:"employee_number,omitempty"`
-	ManualDraftID  string `json:"manual_draft_id,omitempty"`
-	IncidentIQ     string `json:"incident_iq,omitempty"`
-	AeriesTicket   string `json:"aeries_ticket,omitempty"`
-	VerkadaTicket  string `json:"verkada_ticket,omitempty"`
+	ID              string                   `json:"id"`
+	Kind            string                   `json:"kind"`
+	DateAdded       string                   `json:"date_added"`
+	DateAddedReason string                   `json:"date_added_reason"`
+	StartDate       string                   `json:"start_date"`
+	Person          string                   `json:"person"`
+	Site            string                   `json:"site"`
+	CurrentStep     string                   `json:"current_step"`
+	IssueAction     string                   `json:"issue_action"`
+	WorkflowStatus  string                   `json:"workflow_status"`
+	AssignedEmail   string                   `json:"assigned_email,omitempty"`
+	EmployeeNumber  string                   `json:"employee_number,omitempty"`
+	ManualDraftID   string                   `json:"manual_draft_id,omitempty"`
+	IncidentIQ      string                   `json:"incident_iq,omitempty"`
+	AeriesTicket    string                   `json:"aeries_ticket,omitempty"`
+	VerkadaTicket   string                   `json:"verkada_ticket,omitempty"`
+	WorkflowSteps   []onboardingWorkflowStep `json:"workflow_steps,omitempty"`
+}
+
+type onboardingWorkflowStep struct {
+	Name    string                     `json:"name"`
+	Status  string                     `json:"status"`
+	Detail  string                     `json:"detail"`
+	Actions []onboardingWorkflowAction `json:"actions,omitempty"`
+}
+
+type onboardingWorkflowAction struct {
+	Label      string `json:"label"`
+	Resolution string `json:"resolution"`
+	System     string `json:"system"`
+	Href       string `json:"href"`
 }
 
 type onboardingFormOptions struct {
@@ -699,17 +716,56 @@ func (draft *onboardingManualDraft) toRowPayload() onboardingRowPayload {
 		issueAction = "Mock employee + onboarding workflow"
 	}
 	return onboardingRowPayload{
-		ID:             "manual-row-" + draft.ID,
-		Kind:           "manual",
-		StartDate:      draft.StartDate,
-		Person:         person,
-		Site:           site.Name,
-		CurrentStep:    currentStep,
-		IssueAction:    issueAction,
-		WorkflowStatus: workflowStatus,
-		AssignedEmail:  draft.GeneratedEmail,
-		EmployeeNumber: draft.GeneratedEmployeeID,
-		ManualDraftID:  draft.ID,
+		ID:              "manual-row-" + draft.ID,
+		Kind:            "manual",
+		DateAdded:       formatOnboardingDate(draft.CreatedAt),
+		DateAddedReason: "Manual Non-Escape record added",
+		StartDate:       draft.StartDate,
+		Person:          person,
+		Site:            site.Name,
+		CurrentStep:     currentStep,
+		IssueAction:     issueAction,
+		WorkflowStatus:  workflowStatus,
+		AssignedEmail:   draft.GeneratedEmail,
+		EmployeeNumber:  draft.GeneratedEmployeeID,
+		ManualDraftID:   draft.ID,
+		WorkflowSteps:   draft.workflowSteps(),
+	}
+}
+
+func (draft *onboardingManualDraft) workflowSteps() []onboardingWorkflowStep {
+	missing := draft.missingFields()
+	if len(missing) > 0 {
+		return []onboardingWorkflowStep{{
+			Name:   "Manual intake",
+			Status: onboardingManualDraftStatusIncomplete,
+			Detail: "Required manual onboarding data is missing. Complete the highlighted fields and save again.",
+		}}
+	}
+	if draft.FinalizedAt == nil {
+		return []onboardingWorkflowStep{{
+			Name:   "Manual intake",
+			Status: "Ready",
+			Detail: "All required fields are present. Save again to finalize the DEV mock employee and queue onboarding.",
+		}}
+	}
+	return []onboardingWorkflowStep{
+		{
+			Name:   "Mock employee creation",
+			Status: "Queued",
+			Detail: "The DEV mock employee is ready for baseline onboarding using the generated employee ID and email.",
+		},
+		{
+			Name:   "Aeries access follow-up",
+			Status: "External action",
+			Detail: "Requested Aeries access is tracked as workflow data. The app links external IncidentIQ follow-up status when it exists.",
+			Actions: []onboardingWorkflowAction{{
+				Label:      "Open mock Aeries access request",
+				Resolution: "Confirm the requested Aeries role and complete the external user-rights task.",
+				System:     "IncidentIQ",
+				Href:       mockWorkflowHref("incidentiq", "aeries-"+draft.ID),
+			}},
+		},
 	}
 }
 
@@ -723,11 +779,58 @@ func cloneOnboardingDraft(draft *onboardingManualDraft) *onboardingManualDraft {
 
 func devSeedOnboardingRows() []onboardingRowPayload {
 	return []onboardingRowPayload{
-		{ID: "jordan-miles", Kind: "seed", StartDate: "May 6, 2025", Person: "Jordan Miles", Site: "Clover HS", CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting"},
-		{ID: "nia-brooks", Kind: "seed", StartDate: "May 8, 2025", Person: "Nia Brooks", Site: "District Office", CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started"},
-		{ID: "evan-ruiz", Kind: "seed", StartDate: "May 12, 2025", Person: "Evan Ruiz", Site: "Franklin MS", CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting"},
-		{ID: "mika-ito", Kind: "seed", StartDate: "May 13, 2025", Person: "Mika Ito", Site: "Desert View", CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready"},
+		{
+			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "May 6, 2025", Person: "Jordan Miles", Site: "Clover HS", CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
+			WorkflowSteps: []onboardingWorkflowStep{
+				{Name: "Google account", Status: "Complete", Detail: "The account exists and baseline profile planning has completed."},
+				{Name: "Entra convergence", Status: "Running", Detail: "AD -> Entra propagation is still inside the expected one-hour window."},
+				{Name: "IncidentIQ user sync", Status: "Waiting", Detail: "IncidentIQ is expected to sync from Google and Aeries on its normal cadence."},
+			},
+		},
+		{
+			ID: "nia-brooks", Kind: "seed", DateAdded: "May 1, 2025", DateAddedReason: "Escape inactive employee set active", StartDate: "May 8, 2025", Person: "Nia Brooks", Site: "District Office", CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started",
+			WorkflowSteps: []onboardingWorkflowStep{{
+				Name:   "Room mapping",
+				Status: "Manual action",
+				Detail: "The target room does not match the IncidentIQ room inventory. Confirm or override the room before provisioning resumes.",
+				Actions: []onboardingWorkflowAction{{
+					Label:      "Resolve room in IncidentIQ",
+					Resolution: "Select the correct room inventory item or document a temporary manual override.",
+					System:     "IncidentIQ",
+					Href:       mockWorkflowHref("incidentiq", "room-mapping-nia-brooks"),
+				}},
+			}},
+		},
+		{
+			ID: "evan-ruiz", Kind: "seed", DateAdded: "May 2, 2025", DateAddedReason: "First Escape import", StartDate: "May 12, 2025", Person: "Evan Ruiz", Site: "Franklin MS", CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting",
+			WorkflowSteps: []onboardingWorkflowStep{{
+				Name:   "HR intake",
+				Status: "Blocked",
+				Detail: "A required HR source field is missing. Update the source record, then rerun the next DEV mock sync.",
+				Actions: []onboardingWorkflowAction{{
+					Label:      "Open mock HR source record",
+					Resolution: "Enter the missing employment field and confirm the source record is active.",
+					System:     "Escape",
+					Href:       mockWorkflowHref("escape", "hr-intake-evan-ruiz"),
+				}},
+			}},
+		},
+		{
+			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "May 13, 2025", Person: "Mika Ito", Site: "Desert View", CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
+			WorkflowSteps: []onboardingWorkflowStep{{Name: "Baseline readiness", Status: "Ready", Detail: "All required context is present. No user action is required."}},
+		},
 	}
+}
+
+func formatOnboardingDate(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.Format("Jan 2, 2006")
+}
+
+func mockWorkflowHref(system string, id string) string {
+	return "https://mock.wusd.invalid/" + system + "/" + id
 }
 
 func replacingEmployeeByID(id string) onboardingEmployeeOption {
