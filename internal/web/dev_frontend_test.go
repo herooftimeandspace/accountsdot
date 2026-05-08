@@ -164,6 +164,36 @@ type onboardingDraftResponse struct {
 	} `json:"rows"`
 }
 
+type offboardingResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		CanManageEndDates bool `json:"can_manage_end_dates"`
+		ShowEmployeeIDs   bool `json:"show_employee_ids"`
+		Rows              []struct {
+			ID              string `json:"id"`
+			Kind            string `json:"kind"`
+			Person          string `json:"person"`
+			Email           string `json:"email"`
+			EmployeeID      string `json:"employee_id"`
+			SiteID          string `json:"site_id"`
+			EndDate         string `json:"end_date"`
+			EndDateSource   string `json:"end_date_source"`
+			EndDateEditable bool   `json:"end_date_editable"`
+			Status          string `json:"status"`
+			Warning         string `json:"warning"`
+			Actions         []struct {
+				Name       string `json:"name"`
+				Owner      string `json:"owner"`
+				Status     string `json:"status"`
+				Resolution string `json:"resolution"`
+				Links      []struct {
+					Href string `json:"href"`
+				} `json:"links"`
+			} `json:"actions"`
+		} `json:"rows"`
+	} `json:"page"`
+}
+
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	t.Helper()
 	var payload T
@@ -481,6 +511,158 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(siteRec, siteReq)
 		if siteRec.Code != http.StatusForbidden {
 			t.Fatalf("site admin draft create returned %d, want 403", siteRec.Code)
+		}
+	})
+
+	t.Run("offboarding page enforces auth and role scoped employee id visibility", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/offboarding", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated offboarding returned %d, want 401", rec.Code)
+		}
+
+		secretaryCookie := loginAsPersona(t, handler, "site_secretary")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/offboarding", nil)
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site secretary offboarding returned %d, want 403", rec.Code)
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/offboarding", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it offboarding returned %d, want 200", rec.Code)
+		}
+		itPayload := decodeJSON[offboardingResponse](t, rec)
+		if !itPayload.Page.CanManageEndDates || !itPayload.Page.ShowEmployeeIDs {
+			t.Fatalf("it flags = manage:%v ids:%v, want true/true", itPayload.Page.CanManageEndDates, itPayload.Page.ShowEmployeeIDs)
+		}
+		if len(itPayload.Page.Rows) < 6 {
+			t.Fatalf("it rows = %d, want seeded escape and orphan rows", len(itPayload.Page.Rows))
+		}
+		if itPayload.Page.Rows[0].EmployeeID == "" {
+			t.Fatalf("it row employee id missing: %#v", itPayload.Page.Rows[0])
+		}
+		foundOrphanAction := false
+		for _, row := range itPayload.Page.Rows {
+			if row.Kind == "orphan" && row.Warning != "" && len(row.Actions) > 0 {
+				foundOrphanAction = true
+			}
+		}
+		if !foundOrphanAction {
+			t.Fatal("expected orphan row with warning and drawer actions")
+		}
+
+		siteCookie := loginAsPersona(t, handler, "site_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/offboarding", nil)
+		req.AddCookie(siteCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("site admin offboarding returned %d, want 200", rec.Code)
+		}
+		sitePayload := decodeJSON[offboardingResponse](t, rec)
+		if sitePayload.Page.CanManageEndDates || sitePayload.Page.ShowEmployeeIDs {
+			t.Fatalf("site flags = manage:%v ids:%v, want false/false", sitePayload.Page.CanManageEndDates, sitePayload.Page.ShowEmployeeIDs)
+		}
+		for _, row := range sitePayload.Page.Rows {
+			if row.EmployeeID != "" {
+				t.Fatalf("site admin received employee id in row %#v", row)
+			}
+			if row.SiteID != "clover-hs" && row.SiteID != "desert-view" {
+				t.Fatalf("site admin received out-of-scope row %#v", row)
+			}
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/offboarding", nil)
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("hr offboarding returned %d, want 200", rec.Code)
+		}
+		hrPayload := decodeJSON[offboardingResponse](t, rec)
+		if !hrPayload.Page.CanManageEndDates || !hrPayload.Page.ShowEmployeeIDs {
+			t.Fatalf("hr flags = manage:%v ids:%v, want true/true", hrPayload.Page.CanManageEndDates, hrPayload.Page.ShowEmployeeIDs)
+		}
+	})
+
+	t.Run("offboarding end date updates are limited to non escape rows", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+
+		updateBody, err := json.Marshal(map[string]string{"end_date": "2026-07-15"})
+		if err != nil {
+			t.Fatalf("marshal update: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", bytes.NewReader(updateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("orphan end date update returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		updated := decodeJSON[struct {
+			Row struct {
+				EndDate       string `json:"end_date"`
+				EndDateSource string `json:"end_date_source"`
+			} `json:"row"`
+		}](t, rec)
+		if updated.Row.EndDate != "2026-07-15" || updated.Row.EndDateSource != "Local override" {
+			t.Fatalf("updated row = %#v, want local override date", updated.Row)
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		hrBody, err := json.Marshal(map[string]string{"end_date": "2026-08-01"})
+		if err != nil {
+			t.Fatalf("marshal hr update: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/offboarding/records/orphan-riley-park/end-date", bytes.NewReader(hrBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("hr orphan end date update returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+
+		badBody, err := json.Marshal(map[string]string{"end_date": "07/15/2026"})
+		if err != nil {
+			t.Fatalf("marshal invalid update: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", bytes.NewReader(badBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid date returned %d, want 400", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/offboarding/records/escape-chris-morgan/end-date", bytes.NewReader(updateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("escape date update returned %d, want 409", rec.Code)
+		}
+
+		siteCookie := loginAsPersona(t, handler, "site_admin")
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/offboarding/records/orphan-riley-park/end-date", bytes.NewReader(updateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(siteCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site admin update returned %d, want 403", rec.Code)
 		}
 	})
 

@@ -1329,8 +1329,11 @@
   - focus status on the person rather than on a spreadsheet row
   - expose where each person currently is in the lifecycle and what steps remain
   - for the implemented pre-phase 0 Onboarding page, show selected person workflow details in a right-hand drawer that opens only after a row click, updates when another row is clicked, and closes from the drawer `X`
+  - for the implemented pre-phase 0 Offboarding page, use the same shared right-hand drawer primitive for selected offboarding rows; fixed side-panel Queue Actions content moves into per-row drawer actions
   - the onboarding table's first column is `Date Added`, defined as first Escape import, Escape inactive-to-active reactivation, or manual Non-Escape creation
   - if a selected workflow requires user action, the drawer lists each action step with status, resolution instructions, and the relevant external-system link when available
+  - Offboarding rows show status first, then person/account, email, site, end date, next action, and asset work; employee ID is visible only to HR and IT Admin
+  - Escape-backed offboarding end dates are source-owned and read-only in the dashboard; non-Escape, orphan, or local override rows may expose an HR/IT-only date picker in the drawer
 - Visibility rules for onboarding and offboarding status:
   - HR can see all sensitive lifecycle data
   - site admin staff can only see, for their own site:
@@ -1350,6 +1353,7 @@
 - HR must be able to:
   - view pending onboarding and offboarding records
   - set or override contractor end dates
+  - do not set or override Escape-backed end dates in the dashboard; Escape remains authoritative for those rows
   - immediately terminate a person from the dashboard
   - immediately reactivate a person from the dashboard
 - Contractor lifecycle rules:

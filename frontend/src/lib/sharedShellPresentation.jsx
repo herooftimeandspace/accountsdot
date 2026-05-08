@@ -113,7 +113,8 @@ const DEFAULT_HELP_BY_NAV_KEY = {
       {
         heading: "How to use it",
         paragraphs: [
-          "Review rows with blocked or review statuses first. Select a row when details are available, then follow the listed action.",
+          "Review rows with blocked, manual action, or security risk statuses first. Select any row to open the right drawer, then follow the listed owner and resolution steps.",
+          "Escape-backed end dates are read-only and must be corrected in Escape. Non-Escape and orphan account rows may show an end-date picker for HR and IT.",
         ],
       },
     ],

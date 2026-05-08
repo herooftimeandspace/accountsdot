@@ -5,7 +5,7 @@ export const APP_ROUTES = [
   { path: "/dashboard/hr-lifecycle", kind: "static", artboardKey: "dashboard-hr-lifecycle" },
   { path: "/dashboard/site-admin", kind: "static", artboardKey: "dashboard-site-admin" },
   { path: "/onboarding", kind: "onboarding", artboardKey: "onboarding" },
-  { path: "/offboarding", kind: "static", artboardKey: "offboarding" },
+  { path: "/offboarding", kind: "offboarding", artboardKey: "offboarding" },
   { path: "/room-moves", kind: "static", artboardKey: "room-moves" },
   {
     path: "/phone-directory/by-person",

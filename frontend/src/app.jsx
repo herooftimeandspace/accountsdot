@@ -3,6 +3,7 @@ import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
 import { ErrorPage } from "./pages/ErrorPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DataQualityPage } from "./pages/DataQualityPage";
+import { OffboardingPage } from "./pages/OffboardingPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PhoneDirectoryPage } from "./pages/PhoneDirectoryPage";
 import { StaticPenPage } from "./pages/StaticPenPage";
@@ -47,6 +48,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Dashboard";
     case "data-quality":
       return "Data Quality";
+    case "offboarding":
+      return "Offboarding";
     case "phone-directory":
       return PHONE_DIRECTORY_TITLES[route.mode] || "Phone Directory";
     case "static":
@@ -383,6 +386,17 @@ export function App() {
   } else if (currentRoute?.kind === "onboarding") {
     page = (
       <OnboardingPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
+  } else if (currentRoute?.kind === "offboarding") {
+    page = (
+      <OffboardingPage
         session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}

@@ -479,6 +479,12 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Show upcoming offboarding and status by person.
 - Replace spreadsheet-based closeout tracking with status plus linked tickets and tasks.
 - Expose offboarding tasks that currently exist across IT, HR, and Facilities processes, including accounts, devices, keys, alarm codes, and other handoff items.
+- On the implemented pre-phase 0 Offboarding page, person/account rows open the shared right-hand drawer instead of using a fixed Queue Actions panel. The drawer remains closed until a row is selected, refreshes when a different row is selected, and closes through its upper-right `X` control.
+- The Offboarding table must show status first, then person/account, email, site, end date, next action, and asset work. HR and IT Admin also see employee ID; Site Admin and other scoped roles do not see employee ID.
+- Escape-backed end dates are read-only source data. HR and IT must correct incorrect Escape-backed end dates in Escape rather than overriding them in the dashboard.
+- Non-Escape, orphan, or local override records may expose an `End date` date picker in the row drawer for HR and IT Admin. Site Admin may view applicable rows but cannot update end dates.
+- Manual actions are shown per selected row in the drawer with owner, status, resolution, and the relevant external-system link when available. Pre-phase 0 DEV links use deterministic mock URLs.
+- Orphan accounts are rows in the Offboarding table, not a separate fixed side-panel action. Flagged accounts show the security-risk note as hover/focus row help and contextual drawer text rather than a persistent red note card.
 - Reclaim licenses and access during offboarding, including limited Zoom customer-engagement licenses.
 - Track assets assigned directly to humans and create retrieval tasks for site admins.
 - Do not treat room equipment such as phones, TVs, and clock speakers as person-assigned assets.
