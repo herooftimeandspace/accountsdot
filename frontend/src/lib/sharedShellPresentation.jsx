@@ -28,7 +28,7 @@ const NAV_ICON_MARKUP = {
 
 const NAV_LABELS = {
   dashboard: "Dashboard",
-  onboarding: "Staff Onboarding",
+  onboarding: "Onboarding",
   offboarding: "Offboarding",
   roomMoves: "Room Moves",
   phoneDirectory: "Phone Directory",

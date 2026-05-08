@@ -16,7 +16,7 @@ const STATIC_PAGE_TITLES = {
   "dashboard-it-admin": "IT Admin Dashboard",
   "dashboard-hr-lifecycle": "Human Resources Dashboard",
   "dashboard-site-admin": "Site Admin Dashboard",
-  onboarding: "Staff Onboarding",
+  onboarding: "Onboarding",
   offboarding: "Offboarding",
   "room-moves": "Room Moves",
   "frequent-fliers": "Frequent Fliers",

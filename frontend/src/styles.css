@@ -444,6 +444,203 @@ input {
   line-height: 1.35;
 }
 
+.onboarding-runtime__add-hotspot {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font: 800 14px/1 var(--font-ui);
+  text-align: center;
+}
+
+.onboarding-runtime__add-hotspot:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.onboarding-runtime__table {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+
+.onboarding-runtime__table-title {
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.onboarding-runtime__table-header,
+.onboarding-runtime__row {
+  display: grid;
+  grid-template-columns: 120px 160px 160px 170px minmax(220px, 1fr) 160px;
+  column-gap: 22px;
+  align-items: start;
+}
+
+.onboarding-runtime__table-header {
+  padding-bottom: 10px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.onboarding-runtime__table-body {
+  overflow: hidden;
+}
+
+.onboarding-runtime__row {
+  width: 100%;
+  min-height: 54px;
+  padding: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--color-canvas);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.onboarding-runtime__row:hover,
+.onboarding-runtime__row--selected {
+  background: rgba(206, 183, 112, 0.12);
+}
+
+.onboarding-runtime__row:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.onboarding-runtime__table-footer {
+  align-self: end;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-canvas);
+  font-size: 12px;
+}
+
+.onboarding-runtime__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: #89B6E7;
+  color: #01161E;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.onboarding-runtime__status--ready {
+  background: #00A878;
+}
+
+.onboarding-runtime__status--warning {
+  background: #CEB770;
+}
+
+.onboarding-runtime__form {
+  display: grid;
+  gap: 16px;
+}
+
+.onboarding-runtime__generated {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 8px 14px;
+  padding: 14px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: rgba(221, 226, 227, 0.2);
+  font-size: 13px;
+}
+
+.onboarding-runtime__generated span {
+  font-weight: 700;
+}
+
+.onboarding-runtime__field {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.onboarding-runtime__field input,
+.onboarding-runtime__field select,
+.onboarding-runtime__field textarea {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: var(--color-text);
+  font: 400 14px/1.3 var(--font-ui);
+  padding: 10px 12px;
+}
+
+.onboarding-runtime__field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.onboarding-runtime__field input:focus,
+.onboarding-runtime__field select:focus,
+.onboarding-runtime__field textarea:focus {
+  border-color: var(--focus-ring);
+  outline: 3px solid rgba(87, 151, 219, 0.25);
+}
+
+.onboarding-runtime__warning {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  vertical-align: middle;
+  color: #CEB770;
+}
+
+.onboarding-runtime__warning svg {
+  stroke-width: 3;
+}
+
+.onboarding-runtime__field-error,
+.onboarding-runtime__missing,
+.onboarding-runtime__hint {
+  margin: 0;
+  color: var(--color-accent-deep-navy);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.onboarding-runtime__field-error,
+.onboarding-runtime__missing {
+  color: #D73533;
+}
+
+.onboarding-runtime__save {
+  min-height: 46px;
+  border: 1px solid #CEB770;
+  border-radius: 8px;
+  background: #CEB770;
+  color: #01161E;
+  cursor: pointer;
+  font: 800 14px/1 var(--font-ui);
+}
+
+.onboarding-runtime__save:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
 .phone-directory-runtime {
   position: relative;
 }

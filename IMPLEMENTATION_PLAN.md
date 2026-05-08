@@ -551,6 +551,16 @@
     - do not truncate the linked ticket number; always show the full raw ticket number
   - AD -> Entra warning path and baseline reactivation/deprovision logic
   - actionable admin controls for the Google-active / Aeries-inactive queue, moving beyond the review-only Phase 1 surface
+- Pre-phase 0 DEV manual Non-Escape intake is implemented as a mock-only slice:
+  - `/onboarding` renders a Vegas Gold `Add Non-Escape Record` action for HR and IT only
+  - the action opens the shared right-hand drawer with required fields for start date, last 4 SSN, employee type, classification, first name, last name, job title, site, personal email, preferred device, and requested Aeries access
+  - optional fields are limited to replacing employee, room/classroom, and notes
+  - excluded People Tracker columns are district email guess, Google groups, other platforms, trainings, keys/building access, alarm codes, and ID card
+  - incomplete DEV drafts appear in the onboarding table as `Incomplete Data`, autosave every 60 seconds while dirty, and reopen in the drawer for continued editing
+  - complete DEV saves generate a mock employee number, generated district email, and mock onboarding workflow state without triggering real provider provisioning
+  - DEV drafts older than 30 days are removed from the in-memory mock store; the production DB-backed implementation must preserve this retention rule
+  - generated district email collision fallback order is `[f][lastname]@wusd.org`, `[firstname].[lastname]@wusd.org`, `[f].[lastname]@wusd.org`, then `[f][lastname][nn]@wusd.org` with a zero-padded numeric suffix until unique
+  - start dates within 3 calendar days of the current date show the exact warning tooltip: `The start date is ≤ 3 days from the current date. Access to some systems may be delayed beyond the start date.`
 - Success gates:
   - the system can onboard a new staff member or sideloaded contractor end-to-end on the common path with auditable state transitions
   - offboarding and reactivation are deterministic, idempotent, and recoverable from partial failure

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
@@ -52,7 +53,7 @@ type phoneDirectoryResponse struct {
 		SelectedResult  *struct {
 			ID string `json:"id"`
 		} `json:"selected_result,omitempty"`
-		Results         []struct {
+		Results []struct {
 			ID              string `json:"id"`
 			Type            string `json:"type"`
 			TypeLabel       string `json:"type_label"`
@@ -63,6 +64,43 @@ type phoneDirectoryResponse struct {
 			ExtensionValid  bool   `json:"extension_valid"`
 		} `json:"results"`
 	} `json:"page"`
+}
+
+type onboardingResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		CanManageManual bool `json:"can_manage_manual"`
+		Rows            []struct {
+			Kind           string `json:"kind"`
+			ManualDraftID  string `json:"manual_draft_id"`
+			WorkflowStatus string `json:"workflow_status"`
+			AssignedEmail  string `json:"assigned_email"`
+			EmployeeNumber string `json:"employee_number"`
+		} `json:"rows"`
+	} `json:"page"`
+	Form struct {
+		PreferredDevices      []string `json:"preferred_devices"`
+		RequestedAeriesAccess []string `json:"requested_aeries_access"`
+	} `json:"form"`
+}
+
+type onboardingDraftResponse struct {
+	Draft struct {
+		ID                  string   `json:"id"`
+		Status              string   `json:"status"`
+		FirstName           string   `json:"first_name"`
+		LastName            string   `json:"last_name"`
+		PersonalEmail       string   `json:"personal_email"`
+		GeneratedEmail      string   `json:"generated_email"`
+		GeneratedEmployeeID string   `json:"generated_employee_id"`
+		MissingFields       []string `json:"missing_fields"`
+	} `json:"draft"`
+	Rows []struct {
+		Kind           string `json:"kind"`
+		WorkflowStatus string `json:"workflow_status"`
+		AssignedEmail  string `json:"assigned_email"`
+		EmployeeNumber string `json:"employee_number"`
+	} `json:"rows"`
 }
 
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
@@ -101,6 +139,51 @@ func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.
 		t.Fatalf("login %s did not set session cookie", personaID)
 	}
 	return cookie
+}
+
+func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cookie *http.Cookie, firstName string, lastName string) string {
+	t.Helper()
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+	createReq.AddCookie(cookie)
+	createRec := httptest.NewRecorder()
+	handler.ServeHTTP(createRec, createReq)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("draft create returned %d, want 201", createRec.Code)
+	}
+	created := decodeJSON[onboardingDraftResponse](t, createRec)
+	body, err := json.Marshal(map[string]string{
+		"start_date":              "2026-05-11",
+		"ssn_last4":               "5678",
+		"employee_type":           "Contractor",
+		"classification":          "Certificated",
+		"first_name":              firstName,
+		"last_name":               lastName,
+		"job_title":               "Counselor",
+		"site_id":                 "district-office",
+		"personal_email":          strings.ToLower(firstName + "." + lastName + "@example.com"),
+		"preferred_device":        "Windows",
+		"requested_aeries_access": "Counselor",
+	})
+	if err != nil {
+		t.Fatalf("marshal draft: %v", err)
+	}
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(body))
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateReq.AddCookie(cookie)
+	updateRec := httptest.NewRecorder()
+	handler.ServeHTTP(updateRec, updateReq)
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("draft update returned %d, want 200", updateRec.Code)
+	}
+	finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
+	finalizeReq.AddCookie(cookie)
+	finalizeRec := httptest.NewRecorder()
+	handler.ServeHTTP(finalizeRec, finalizeReq)
+	if finalizeRec.Code != http.StatusOK {
+		t.Fatalf("finalize returned %d, want 200", finalizeRec.Code)
+	}
+	finalized := decodeJSON[onboardingDraftResponse](t, finalizeRec)
+	return finalized.Draft.GeneratedEmail
 }
 
 func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
@@ -259,6 +342,148 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if payload.Page.Results[2].SiteID != "clover-hs" || payload.Page.Results[2].Type != "common_area" {
 			t.Fatalf("unexpected third person result: %#v", payload.Page.Results[2])
+		}
+	})
+
+	t.Run("onboarding page exposes manual intake options only to hr and it", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "human_resources")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("onboarding returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[onboardingResponse](t, rec)
+		if payload.PageID != "onboarding" {
+			t.Fatalf("page id = %q, want onboarding", payload.PageID)
+		}
+		if !payload.Page.CanManageManual {
+			t.Fatal("expected HR to manage manual onboarding")
+		}
+		if !slices.Contains(payload.Form.PreferredDevices, "Mac") || !slices.Contains(payload.Form.PreferredDevices, "Windows") {
+			t.Fatalf("preferred devices = %#v, want Mac and Windows", payload.Form.PreferredDevices)
+		}
+		if !slices.Contains(payload.Form.RequestedAeriesAccess, "Teacher") || !slices.Contains(payload.Form.RequestedAeriesAccess, "Registrar") {
+			t.Fatalf("requested Aeries options = %#v", payload.Form.RequestedAeriesAccess)
+		}
+
+		siteCookie := loginAsPersona(t, handler, "site_admin")
+		siteReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		siteReq.AddCookie(siteCookie)
+		siteRec := httptest.NewRecorder()
+		handler.ServeHTTP(siteRec, siteReq)
+		if siteRec.Code != http.StatusForbidden {
+			t.Fatalf("site admin draft create returned %d, want 403", siteRec.Code)
+		}
+	})
+
+	t.Run("manual onboarding draft validates sanitizes and finalizes into mock row", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+
+		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		createReq.AddCookie(cookie)
+		createRec := httptest.NewRecorder()
+		handler.ServeHTTP(createRec, createReq)
+		if createRec.Code != http.StatusCreated {
+			t.Fatalf("draft create returned %d, want 201", createRec.Code)
+		}
+		created := decodeJSON[onboardingDraftResponse](t, createRec)
+		if created.Draft.ID == "" {
+			t.Fatal("expected draft id")
+		}
+
+		invalidBody, err := json.Marshal(map[string]string{
+			"start_date":              "2026-05-10",
+			"ssn_last4":               "12ab",
+			"employee_type":           "Contractor",
+			"classification":          "Certificated",
+			"first_name":              "  Quincy  ",
+			"last_name":               "  Zephyr  ",
+			"job_title":               "Counselor",
+			"site_id":                 "district-office",
+			"personal_email":          "not-an-email",
+			"preferred_device":        "Mac",
+			"requested_aeries_access": "Teacher",
+		})
+		if err != nil {
+			t.Fatalf("marshal invalid draft: %v", err)
+		}
+		invalidReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(invalidBody))
+		invalidReq.Header.Set("Content-Type", "application/json")
+		invalidReq.AddCookie(cookie)
+		invalidRec := httptest.NewRecorder()
+		handler.ServeHTTP(invalidRec, invalidReq)
+		if invalidRec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid draft update returned %d, want 400", invalidRec.Code)
+		}
+
+		validBody, err := json.Marshal(map[string]string{
+			"start_date":              "2026-05-10",
+			"ssn_last4":               "1234",
+			"employee_type":           "Contractor",
+			"classification":          "Certificated",
+			"first_name":              "  Quincy  ",
+			"last_name":               "  Zephyr  ",
+			"job_title":               "Counselor",
+			"site_id":                 "district-office",
+			"personal_email":          "  Quincy.Zephyr@Example.COM  ",
+			"preferred_device":        "Mac",
+			"requested_aeries_access": "Teacher",
+			"notes":                   "  Needs   account  ",
+		})
+		if err != nil {
+			t.Fatalf("marshal valid draft: %v", err)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(validBody))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("valid draft update returned %d, want 200", updateRec.Code)
+		}
+		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
+		if updated.Draft.FirstName != "Quincy" || updated.Draft.LastName != "Zephyr" {
+			t.Fatalf("expected names to be sanitized, got %#v", updated.Draft)
+		}
+		if updated.Draft.PersonalEmail != "quincy.zephyr@example.com" {
+			t.Fatalf("personal email = %q, want lowercase sanitized email", updated.Draft.PersonalEmail)
+		}
+		if len(updated.Draft.MissingFields) != 0 {
+			t.Fatalf("missing fields = %#v, want none", updated.Draft.MissingFields)
+		}
+		if updated.Draft.GeneratedEmail != "qzephyr@wusd.org" {
+			t.Fatalf("generated email = %q, want qzephyr@wusd.org", updated.Draft.GeneratedEmail)
+		}
+
+		finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
+		finalizeReq.AddCookie(cookie)
+		finalizeRec := httptest.NewRecorder()
+		handler.ServeHTTP(finalizeRec, finalizeReq)
+		if finalizeRec.Code != http.StatusOK {
+			t.Fatalf("finalize returned %d, want 200", finalizeRec.Code)
+		}
+		finalized := decodeJSON[onboardingDraftResponse](t, finalizeRec)
+		if finalized.Draft.Status != "Ready to Provision" {
+			t.Fatalf("status = %q, want Ready to Provision", finalized.Draft.Status)
+		}
+		if !strings.HasPrefix(finalized.Draft.GeneratedEmployeeID, "66") || len(finalized.Draft.GeneratedEmployeeID) != 7 {
+			t.Fatalf("generated employee id = %q, want contractor-style 66xxxxx id", finalized.Draft.GeneratedEmployeeID)
+		}
+	})
+
+	t.Run("manual onboarding generated email falls through collision order", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+		firstEmail := createAndFinalizeManualOnboarding(t, handler, cookie, "Maren", "Lumen")
+		secondEmail := createAndFinalizeManualOnboarding(t, handler, cookie, "Maren", "Lumen")
+		if firstEmail != "mlumen@wusd.org" {
+			t.Fatalf("first generated email = %q, want mlumen@wusd.org", firstEmail)
+		}
+		if secondEmail != "maren.lumen@wusd.org" {
+			t.Fatalf("second generated email = %q, want maren.lumen@wusd.org", secondEmail)
 		}
 	})
 
@@ -444,11 +669,13 @@ func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
 		"/api/v1/dev/session",
 		"/api/v1/dev/login",
 		"/api/v1/dev/logout",
+		"/api/v1/dev/pages/onboarding",
+		"/api/v1/dev/onboarding/manual-drafts",
 		"/api/v1/dev/pages/data-quality",
 		"/api/v1/dev/pages/phone-directory/by-person",
 	} {
 		method := http.MethodGet
-		if path == "/api/v1/dev/login" || path == "/api/v1/dev/logout" {
+		if path == "/api/v1/dev/login" || path == "/api/v1/dev/logout" || path == "/api/v1/dev/onboarding/manual-drafts" {
 			method = http.MethodPost
 		}
 		req := httptest.NewRequest(method, path, nil)
@@ -467,11 +694,13 @@ func TestDevFrontendRoutesDisabledWhenAppEnvUnset(t *testing.T) {
 		"/api/v1/dev/session",
 		"/api/v1/dev/login",
 		"/api/v1/dev/logout",
+		"/api/v1/dev/pages/onboarding",
+		"/api/v1/dev/onboarding/manual-drafts",
 		"/api/v1/dev/pages/data-quality",
 		"/api/v1/dev/pages/phone-directory/by-person",
 	} {
 		method := http.MethodGet
-		if path == "/api/v1/dev/login" || path == "/api/v1/dev/logout" {
+		if path == "/api/v1/dev/login" || path == "/api/v1/dev/logout" || path == "/api/v1/dev/onboarding/manual-drafts" {
 			method = http.MethodPost
 		}
 		req := httptest.NewRequest(method, path, nil)

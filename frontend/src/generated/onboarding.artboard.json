@@ -818,7 +818,7 @@
       "x": 58,
       "y": 177,
       "fill": "#01161E",
-      "content": "Staff Onboarding",
+      "content": "Onboarding",
       "fontFamily": "Arial",
       "fontSize": 14,
       "fontWeight": "500"
@@ -2025,54 +2025,29 @@
       "x": 1232,
       "y": 178,
       "width": 324,
-      "height": 178,
-      "fill": "#FFFFFF",
+      "height": 56,
+      "fill": "#CEB770",
       "cornerRadius": 8,
       "layout": "none",
       "stroke": {
         "thickness": 1,
-        "fill": "#DDE2E3",
+        "fill": "#CEB770",
         "align": "inside"
       }
     },
     {
       "type": "text",
       "id": "onboarding__t110",
-      "content": "Current Rules",
-      "x": 1250,
-      "y": 191,
-      "fontFamily": "Arial",
-      "fontSize": 13,
-      "fontWeight": "700",
-      "fill": "#01161E",
-      "width": 288,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "text",
-      "id": "onboarding__t111",
-      "content": "AD → Google → Zoom",
-      "x": 1250,
-      "y": 224,
+      "content": "Add Non-Escape Record",
+      "x": 1282,
+      "y": 198,
       "fontFamily": "Arial",
       "fontSize": 14,
       "fontWeight": "800",
       "fill": "#01161E",
-      "width": 288,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "text",
-      "id": "onboarding__t112",
-      "content": "IncidentIQ user is polled hourly by email after the account exists. Earliest matching Aeries and Verkada tickets are linked when found.",
-      "x": 1250,
-      "y": 260,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "400",
-      "fill": "#01161E",
-      "width": 288,
-      "textGrowth": "fixed"
+      "width": 224,
+      "textGrowth": "auto",
+      "textAlign": "center"
     },
     {
       "type": "frame",
@@ -2107,21 +2082,21 @@
     {
       "type": "text",
       "id": "onboarding__t118",
-      "content": "Person",
+      "content": "Start",
       "x": 306,
       "y": 392,
       "fontFamily": "Arial",
       "fontSize": 10,
       "fontWeight": "700",
       "fill": "#01161E",
-      "width": 150,
+      "width": 120,
       "textGrowth": "auto"
     },
     {
       "type": "text",
       "id": "onboarding__t119",
-      "content": "Site",
-      "x": 480,
+      "content": "Person",
+      "x": 444,
       "y": 392,
       "fontFamily": "Arial",
       "fontSize": 10,
@@ -2133,14 +2108,14 @@
     {
       "type": "text",
       "id": "onboarding__t120",
-      "content": "Start",
-      "x": 660,
+      "content": "Site",
+      "x": 626,
       "y": 392,
       "fontFamily": "Arial",
       "fontSize": 10,
       "fontWeight": "700",
       "fill": "#01161E",
-      "width": 120,
+      "width": 150,
       "textGrowth": "auto"
     },
     {
@@ -2197,22 +2172,22 @@
     {
       "type": "text",
       "id": "onboarding__t125",
-      "content": "Jordan Miles",
+      "content": "May 6, 2025",
       "x": 306,
       "y": 416,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 150,
+      "width": 120,
       "textGrowth": "auto"
     },
     {
       "type": "text",
       "id": "onboarding__t126",
-      "content": "Clover HS",
-      "x": 480,
-      "y": 417,
+      "content": "Jordan Miles",
+      "x": 444,
+      "y": 416,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
@@ -2223,14 +2198,14 @@
     {
       "type": "text",
       "id": "onboarding__t127",
-      "content": "May 6, 2025",
-      "x": 660,
+      "content": "Clover HS",
+      "x": 626,
       "y": 416,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 120,
+      "width": 150,
       "textGrowth": "auto"
     },
     {
@@ -2304,22 +2279,22 @@
     {
       "type": "text",
       "id": "onboarding__t134",
-      "content": "Nia Brooks",
+      "content": "May 8, 2025",
       "x": 306,
       "y": 470,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 150,
+      "width": 120,
       "textGrowth": "auto"
     },
     {
       "type": "text",
       "id": "onboarding__t135",
-      "content": "District Office",
-      "x": 480,
-      "y": 471,
+      "content": "Nia Brooks",
+      "x": 444,
+      "y": 470,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
@@ -2330,14 +2305,14 @@
     {
       "type": "text",
       "id": "onboarding__t136",
-      "content": "May 8, 2025",
-      "x": 660,
+      "content": "District Office",
+      "x": 626,
       "y": 470,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 120,
+      "width": 150,
       "textGrowth": "auto"
     },
     {
@@ -2411,22 +2386,22 @@
     {
       "type": "text",
       "id": "onboarding__t143",
-      "content": "Evan Ruiz",
+      "content": "May 12, 2025",
       "x": 306,
       "y": 524,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 150,
+      "width": 120,
       "textGrowth": "auto"
     },
     {
       "type": "text",
       "id": "onboarding__t144",
-      "content": "Franklin MS",
-      "x": 480,
-      "y": 525,
+      "content": "Evan Ruiz",
+      "x": 444,
+      "y": 524,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
@@ -2437,14 +2412,14 @@
     {
       "type": "text",
       "id": "onboarding__t145",
-      "content": "May 12, 2025",
-      "x": 660,
+      "content": "Franklin MS",
+      "x": 626,
       "y": 524,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 120,
+      "width": 150,
       "textGrowth": "auto"
     },
     {
@@ -2518,22 +2493,22 @@
     {
       "type": "text",
       "id": "onboarding__t152",
-      "content": "Mika Ito",
+      "content": "May 13, 2025",
       "x": 306,
       "y": 578,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 150,
+      "width": 120,
       "textGrowth": "auto"
     },
     {
       "type": "text",
       "id": "onboarding__t153",
-      "content": "Desert View",
-      "x": 480,
-      "y": 579,
+      "content": "Mika Ito",
+      "x": 444,
+      "y": 578,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
@@ -2544,14 +2519,14 @@
     {
       "type": "text",
       "id": "onboarding__t154",
-      "content": "May 13, 2025",
-      "x": 660,
+      "content": "Desert View",
+      "x": 626,
       "y": 578,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 120,
+      "width": 150,
       "textGrowth": "auto"
     },
     {
@@ -2627,108 +2602,12 @@
       "id": "onboarding__t161",
       "content": "Showing 1 to 4 of 42 upcoming people",
       "x": 306,
-      "y": 678,
+      "y": 920,
       "fontFamily": "Arial",
       "fontSize": 12,
       "fontWeight": "400",
       "fill": "#01161E",
-      "width": 360,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "frame",
-      "id": "onboarding__f188",
-      "name": "Rect",
-      "x": 288,
-      "y": 996,
-      "width": 1360,
-      "height": 56,
-      "fill": "#89B6E7",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#89B6E7",
-        "align": "inside"
-      }
-    },
-    {
-      "type": "path",
-      "id": "onboarding__p189",
-      "x": 304,
-      "y": 1012,
-      "width": 16,
-      "height": 16,
-      "geometry": "M 22 12 A 10 10 0 1 1 2 12 A 10 10 0 1 1 22 12",
-      "viewBox": [
-        0,
-        0,
-        24,
-        24
-      ],
-      "stroke": {
-        "thickness": 2,
-        "fill": "#194676",
-        "align": "center",
-        "cap": "round",
-        "join": "round"
-      }
-    },
-    {
-      "type": "path",
-      "id": "onboarding__p190",
-      "x": 304,
-      "y": 1012,
-      "width": 16,
-      "height": 16,
-      "geometry": "M12 16v-4",
-      "viewBox": [
-        0,
-        0,
-        24,
-        24
-      ],
-      "stroke": {
-        "thickness": 2,
-        "fill": "#194676",
-        "align": "center",
-        "cap": "round",
-        "join": "round"
-      }
-    },
-    {
-      "type": "path",
-      "id": "onboarding__p191",
-      "x": 304,
-      "y": 1012,
-      "width": 16,
-      "height": 16,
-      "geometry": "M12 8h.01",
-      "viewBox": [
-        0,
-        0,
-        24,
-        24
-      ],
-      "stroke": {
-        "thickness": 2,
-        "fill": "#194676",
-        "align": "center",
-        "cap": "round",
-        "join": "round"
-      }
-    },
-    {
-      "type": "text",
-      "id": "onboarding__t192",
-      "content": "People are shown by person rather than spreadsheet row. Sensitive lifecycle data remains restricted to HR visibility.",
-      "x": 336,
-      "y": 1005,
-      "fontFamily": "Arial",
-      "fontSize": 13,
-      "fontWeight": "400",
-      "fill": "#01161E",
-      "width": 1292,
+      "width": 430,
       "textGrowth": "auto"
     }
   ]

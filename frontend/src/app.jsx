@@ -3,6 +3,7 @@ import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
 import { ErrorPage } from "./pages/ErrorPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DataQualityPage } from "./pages/DataQualityPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import { PhoneDirectoryPage } from "./pages/PhoneDirectoryPage";
 import { StaticPenPage } from "./pages/StaticPenPage";
 import { isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
@@ -15,7 +16,7 @@ const STATIC_ROUTE_TITLES = {
   "dashboard-it-admin": "IT Admin Dashboard",
   "dashboard-hr-lifecycle": "Human Resources Dashboard",
   "dashboard-site-admin": "Site Admin Dashboard",
-  onboarding: "Staff Onboarding",
+  onboarding: "Onboarding",
   offboarding: "Offboarding",
   "room-moves": "Room Moves",
   "frequent-fliers": "Frequent Fliers",
@@ -372,6 +373,17 @@ export function App() {
         session={session}
         mode={currentRoute.mode}
         artboardKey={currentRoute.artboardKey}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
+  } else if (currentRoute?.kind === "onboarding") {
+    page = (
+      <OnboardingPage
+        session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}

@@ -442,6 +442,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - job title selection must use a dropdown of known job titles
   - creating a new title requires mapping permissions at the same time
   - the creator may copy an existing permission set as a starting point
+- In the pre-phase 0 DEV slice, the Onboarding page exposes a Vegas Gold `Add Non-Escape Record` action for HR and IT only. The action opens the shared right-hand drawer with a DEV-mock manual intake form. The drawer is not a production persistence commitment in this slice; it records behavior for the later DB-backed implementation.
+- Manual Non-Escape intake required fields are: start date, last 4 SSN, employee type, classification, first name, last name, job title, site, personal email, preferred device, and requested Aeries access. Preferred device options are limited to `Mac` and `Windows`; requested Aeries access options are limited to `Teacher`, `Staff`, `Counselor`, `Secretary`, and `Registrar`.
+- Manual Non-Escape intake optional fields are: replacing employee, room/classroom, and notes. The drawer must not expose district email guess, Google groups, other platforms, trainings, keys/building access, alarm codes, or ID card fields.
+- Manual Non-Escape drafts autosave every 60 seconds while edited. Incomplete records remain visible on the main `/onboarding` table with `Incomplete Data` status, and selecting that row reopens the drawer for continued editing.
+- Manual Non-Escape DEV drafts older than 30 days are deleted from the DEV mock store. The later production implementation must enforce the same retention rule in the database.
+- The system generates district email candidates; operators do not enter or override the district email in this drawer. Candidate order is first initial plus last name, first name dot last name, first initial dot last name, then first initial plus last name plus a zero-padded numeric suffix until unique.
+- If the start date is within 3 calendar days of the current date, the drawer shows a Vegas Gold warning triangle with tooltip text: `The start date is ≤ 3 days from the current date. Access to some systems may be delayed beyond the start date.`
 
 ### 2. Offboarding Dashboard
 - Show upcoming offboarding and status by person.
