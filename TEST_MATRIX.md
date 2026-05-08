@@ -228,6 +228,14 @@ This document tracks the named mock scenarios and verification coverage required
   | `P2-2D-001` | Preferred Name Request Submission | Verify a staff/faculty user can submit a preferred-name request into the HR review flow. | Confirm staging accepts the request and creates the expected review state. |
   | `P2-2D-002` | HR Approval Drives Downstream Preferred Name Sync | Verify HR approval triggers the documented downstream preferred-name synchronization behavior. | Confirm staging approval updates the downstream read model and write targets correctly. |
   | `P2-2D-003` | No End-User Request Status Surface In Phase 2 | Verify Phase 2 exposes no end-user status or rejection-reason surface for preferred-name requests. | Confirm staging keeps the end-user scope aligned with the phase boundary. |
+- `2F` staff and manual-contractor legal-name rename handling
+  | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
+  | --- | --- | --- | --- |
+  | `P2-2F-001` | Escape Staff Legal-Name Change Creates Rename Job After Provisioning Exists | Verify an Escape-backed legal-name change on an already-provisioned staff identity creates a downstream rename job rather than mutating the account inline during sync. | Confirm staging keeps the source date/name authoritative while running the rename as its own audited job. |
+  | `P2-2F-002` | Manual Contractor Legal-Name Change Reuses Existing Identity | Verify a legal-name change on an already-provisioned manual contractor reuses the same identity and creates the downstream rename job. | Confirm staging preserves identity continuity for contractor rename work. |
+  | `P2-2F-003` | Pre-Provisioning Staff Or Contractor Name Correction Does Not Create Rename Job | Verify a source-name correction that happens before the first AD/downstream account creation produces no rename job and only affects the later initial provisioning outcome. | Confirm staging does not enqueue rename work for pre-provisioning corrections. |
+  | `P2-2F-004` | Username Collision Falls Through Fallback Order | Verify an unrelated existing account holding the preferred username/email forces the rename job to continue through the documented fallback order until a unique result is found. | Confirm staging never overwrites another person's username or alias ownership when resolving a legal-name change. |
+  | `P2-2F-005` | Rename Completion Preserves Google Alias And Sends Notification | Verify successful rename keeps the old primary username/email as a receive-only Google alias and emits the completion-notification email to the affected person. | Confirm staging preserves Gmail alias behavior and sends the documented completion notice. |
 - `2E` actionable Google-active / Aeries-inactive controls
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
@@ -364,6 +372,8 @@ This document tracks the named mock scenarios and verification coverage required
   | `P5-5A-001` | Student Base Profile Created From School And Grade | Verify a new student account receives the default school/grade profile from the future student provisioning module. | Confirm staging student base provisioning follows the documented school/grade profile rules. |
   | `P5-5A-002` | Course Change Triggers End-Of-Day Access Recalculation | Verify enrollment/schedule/course changes trigger end-of-day recalculation of extended student access. | Confirm staging recalculation waits until cutoff and reflects current course participation. |
   | `P5-5A-003` | Highest Privilege Profile Wins With Same-Tier Union | Verify student access chooses the highest privilege profile and unions app access within the same tier. | Confirm staging student-access resolution follows the documented precedence model. |
+  | `P5-5A-004` | Aeries Student Legal-Name Change Creates Rename Job Only After Provisioning Exists | Verify an Aeries legal-name change for a student who already has an AD/downstream identity creates the downstream rename job rather than silently mutating source-linked account fields. | Confirm staging runs the student rename as an audited job only when the student account already exists. |
+  | `P5-5A-005` | Pre-Provisioning Student Name Correction Does Not Trigger Rename | Verify a student name correction made in Aeries before the student's first account provisioning produces no rename job and only affects the later initial provisioning run. | Confirm staging keeps pre-provisioning student corrections out of the rename pipeline. |
 - `5B` multi-application orphaned-permission cleanup
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |

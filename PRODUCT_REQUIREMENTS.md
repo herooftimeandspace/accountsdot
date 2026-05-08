@@ -542,6 +542,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Keep student invalid-name handling on its own dedicated screen.
 - Do not combine student invalid-name content with Frequent Fliers on the same screen.
 - No student writeback or student onboarding logic is part of this pass.
+- If a student's source name is corrected in Aeries before the student account exists in Active Directory and downstream systems, that correction must not create a rename workflow. The later initial student-provisioning flow must simply use the corrected source name.
 - Students must not be allowed to log into the dashboard.
 
 ### 4. Frequent Fliers Device-Accountability Page
@@ -900,6 +901,19 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Preferred/display name is separate from legal name.
 - Preferred/display name can be requested by the end user and reviewed by HR.
 - Legal-name changes require a dedicated rename workflow and collision handling.
+- Legal-name rename scope includes staff and students and applies to common cases such as marriage, divorce, gender transition, or other legal corrections.
+- Source-of-truth and trigger rules for legal-name rename are:
+  - regular employee legal-name changes originate in Escape
+  - manual contractor, volunteer, and other Non-Escape legal-name changes originate in the local HR-managed record
+  - student legal-name changes originate in Aeries student data
+- Legal-name rename automation runs only after the person already has an Active Directory account plus the expected downstream service identities.
+- If the source name is corrected before the initial account is provisioned, the system must not create a rename workflow. The later initial provisioning flow must use the corrected source data directly.
+- After a source sync detects a legal-name change on an already-provisioned identity, the application must create a downstream account-rename job rather than applying the rename inline inside the source sync.
+- The rename job must update the Active Directory account and primary district email to match the district's current username scheme for the new legal name.
+- If the preferred username/email candidate collides with an existing unrelated district account, the rename job must continue through the documented fallback candidate order until it finds a unique result. The system must never overwrite or steal another person's current username.
+- The old primary username/email must be preserved in Google as a receive-only alias after a successful rename.
+- The affected person must receive an email notification when the legal-name rename completes.
+- Preferred/display-name updates remain separate from legal-name rename and must not trigger username conversion.
 
 ## Current Manual Process Being Replaced
 - People Tracker onboarding sheet

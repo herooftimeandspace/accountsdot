@@ -1716,6 +1716,7 @@
     - `https://windsorusd.aeries.net/admin/Default.aspx`
   - TODO: revisit whether teacher-facing Aeries links should be exposed in a later iteration
 - Student exception queues should remain informational for secretaries and drive correction in Aeries rather than local overrides in this app.
+- If a student's source name is corrected in Aeries before the student account exists in Active Directory and downstream systems, the correction must not create a downstream rename job. The later initial student-provisioning flow must use the corrected Aeries name directly.
 - Only active unresolved student failures should be visible to site secretaries.
 - IT needs a separate audit view of past student-failure resolutions.
 - Students must not be allowed to log into this dashboard.
@@ -1751,20 +1752,28 @@
 - Legal-name update rules:
   - legal name is immutable except for HR and IT initiated changes
   - legal-name changes such as marriage, divorce, or gender transition require a dedicated rename workflow
-  - HR initiates the legal-name change workflow
+  - the dedicated rename workflow applies to both staff and students, but only after the person's account already exists in Active Directory and the downstream services managed by this application
+  - for regular employees, the legal-name source of truth is Escape
+  - for manual contractors, volunteers, and other Non-Escape records, the legal-name source of truth is the local HR-managed record
+  - for students, the legal-name source of truth is Aeries student data
+  - if the source name is corrected before the initial account is provisioned, do not create a rename workflow; the later initial provisioning run must use the corrected source data directly
+  - after source sync detects a legal-name change on an already-provisioned identity, create a dedicated downstream account-rename job rather than mutating the account inline during source ingestion
+  - HR initiates or approves staff legal-name rename work; student legal-name rename is source-driven from Aeries once the student account already exists
   - IT must have visibility into the workflow because manual intervention may be required when automation fails
-  - the workflow must rename the AD object and primary email address
-  - the workflow must detect and prevent collisions with existing accounts before committing the rename
+  - the workflow must rename the AD object, the AD username, and the primary district email address to match the district's current username scheme for the new legal name
+  - the workflow must detect and prevent collisions with existing unrelated accounts before committing the rename
   - collision fallback order for new primary email should be:
-    - `[f][lastname]@company.com`
-    - `[firstname].[lastname]@company.com`
-    - `[f].[lastname]@company.com`
-    - `[f][lastname][nn]@company.com` where `[nn]` is a zero-padded incremental number
+    - `[f][lastname]@wusd.org`
+    - `[firstname].[lastname]@wusd.org`
+    - `[f].[lastname]@wusd.org`
+    - `[f][lastname][nn]@wusd.org` where `[nn]` is a zero-padded incremental number
     - if all prior candidates collide, continue incrementing `[nn]` until a unique address is found
+  - collision checks must evaluate both active district usernames and preserved receive-only Google aliases so the rename job does not create ambiguous address ownership
   - the old email/name should be preserved as an alias after successful rename when technically possible
   - old aliases should remain indefinitely by default
   - alias preservation requirement is limited to Gmail
   - old aliases are receive-only aliases, not send-as identities
+  - after successful rename, the system must send an email notification to the affected person confirming that the rename completed
 - Preferred-name update rules:
   - preferred/display name may be updated by the end user
   - preferred/display self-service changes route to HR for review before final application
