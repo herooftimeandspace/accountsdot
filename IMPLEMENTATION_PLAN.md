@@ -526,13 +526,13 @@
   - `2A` provisioning-profile and baseline bundle foundation
   - `2B` common-path onboarding and baseline update/deprovision lifecycle
   - `2C` reactivation and AD -> Entra propagation warning handling
-  - `2D` preferred-name self-service request and HR approval flow
+  - `2D` preferred-name self-service and downstream sync
   - `2E` actionable Google-active / Aeries-inactive queue controls, including bulk actions
 - In scope:
   - manual intake for non-Escape people
   - provisioning profile editor and snapshot behavior
   - job-title bundle enforcement and unmapped-title blocking
-  - preferred-name self-service request, HR review, and downstream write path
+  - preferred-name self-service for employee and contractor accounts plus downstream write path
   - baseline account creation/update/deprovision flows across the in-scope identity and access systems
   - first-pass provider sequencing for baseline staff onboarding:
     - `AD` first
@@ -572,7 +572,7 @@
   - provisioning-profile changes affect future/in-flight-not-started work exactly as documented
   - provider sequencing follows the documented first-pass order through `Zoom`, with any `Aeries`/`Verkada` follow-up ticketing handled as external `IncidentIQ` configuration rather than app behavior
   - the dashboard can surface linked `IncidentIQ` user, `Aeries`, and `Verkada` follow-up ticket status after the `IncidentIQ` user appears, without taking ownership of ticket creation
-  - preferred-name self-service flows work with HR approval and downstream synchronization behavior as documented, without requiring end-user request-status or rejection-reason visibility in this phase
+  - preferred-name self-service for employee and contractor accounts writes through directly and reaches the documented downstream targets without a review gate in this phase
   - unmapped titles block only affected people and route resolution to HR/IT correctly
   - IT Admin can safely execute documented queue actions for Google-active / Aeries-inactive cases instead of using review-only observation
 - Failure gates:
@@ -593,10 +593,11 @@
     - warning visibility evidence for workflow viewers and IT Admin
     - resume/cancel/replan execution trace
     - database state check confirming baseline-first restoration behavior
-  - `2D` preferred-name self-service request and HR approval flow
+  - `2D` preferred-name self-service and downstream sync
     - request audit record
-    - HR approval evidence
     - downstream sync log or state-change evidence
+    - evidence that both Zoom user naming surfaces were updated
+    - authorization evidence that students cannot submit preferred-name edits through the dashboard
   - `2E` actionable Google-active / Aeries-inactive queue controls
     - queue action audit evidence for individual and bulk actions
     - resulting queue-state database check
@@ -615,10 +616,10 @@
     - `P2-2C-001` Reactivation Restores Baseline Not Extras
     - `P2-2C-002` Entra Propagation Warning After One Hour
     - `P2-2C-003` Resume Cancels And Replans With Latest Profile
-  - `2D` preferred-name self-service request and HR approval flow
-    - `P2-2D-001` Preferred Name Request Submission
-    - `P2-2D-002` HR Approval Drives Downstream Preferred Name Sync
-    - `P2-2D-003` No End-User Request Status Surface In Phase 2
+  - `2D` preferred-name self-service and downstream sync
+    - `P2-2D-001` Preferred Name Submission For Employee Or Contractor Applies Without Review
+    - `P2-2D-002` Preferred Name Sync Updates Zoom User And Phone Profiles
+    - `P2-2D-003` Students Cannot Submit Preferred Name Through Dashboard
   - `2E` actionable Google-active / Aeries-inactive queue controls
     - `P2-2E-001` Individual Queue Action Changes Outcome
     - `P2-2E-002` Bulk Queue Actions On Day One
@@ -628,7 +629,7 @@
   - `2A`: trigger rollback if started workflows reread live profile edits, profile snapshots are not stable, or unmapped-title blocking affects the wrong people.
   - `2B`: trigger rollback if baseline onboarding or deprovisioning is non-idempotent, duplicate account effects occur, or the common-path end-state is materially wrong.
   - `2C`: trigger rollback if reactivation restores extras, resume/cancel/replan corrupts workflow state, or Entra warning handling violates the documented baseline-first rule.
-  - `2D`: trigger rollback if preferred-name requests bypass HR approval, write the wrong downstream values, or expose out-of-phase end-user status behavior.
+  - `2D`: trigger rollback if preferred-name edits write the wrong downstream values, fail to update one of the required Zoom naming surfaces, or allow student-originated preferred-name edits through the dashboard.
   - `2E`: trigger rollback if individual or bulk queue actions move the wrong records, corrupt queue state, or mishandle graduated-senior suppression and override behavior.
 - Rollback references for this phase:
   - `2A`: restore the last approved provisioning-profile and title-bundle configuration, cancel or replan not-yet-started workflows that referenced the superseded config, and preserve already-started workflows on their captured snapshot.
@@ -1776,10 +1777,10 @@
   - old aliases are receive-only aliases, not send-as identities
   - after successful rename, the system must send an email notification to the affected person confirming that the rename completed
 - Preferred-name update rules:
-  - preferred/display name may be updated by the end user
-  - preferred/display self-service changes route to HR for review before final application
-  - HR review is approve/reject only
-  - HR may provide an optional reason when rejecting the requested name
+  - preferred/display name may be updated directly by employee and contractor end users
+  - employee and contractor preferred/display updates do not require HR or IT review before downstream application
+  - students must not be able to submit preferred/display updates through the dashboard
+  - if a student somehow reaches an authenticated dashboard state, the preferred-name controls must stay hidden or disabled and any attempted write must be rejected server-side
   - preferred/display updates do not imply legal-name changes
 - Room-move `removal` is not deprovisioning:
   - it removes room-linked assignments only
@@ -1793,6 +1794,7 @@
   - edit once in this application
   - canonical editable source is AD first
   - synchronize to Google, Entra, and Active Directory display-name fields
+  - synchronize preferred/display name to Zoom user naming through both `/users/{userId}` and `/phone/users/{userId}` because the phone-facing name must not rely on the regular Zoom user update alone
 - AD field mapping requirements:
   - legal first name -> `GivenName`
   - legal last name -> `Surname`

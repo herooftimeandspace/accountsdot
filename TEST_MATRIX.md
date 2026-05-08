@@ -192,10 +192,11 @@ This document tracks the named mock scenarios and verification coverage required
     - warning visibility evidence
     - resume/cancel/replan execution trace
     - baseline-restoration database state check
-  - `2D` preferred-name self-service request and HR approval flow
+  - `2D` preferred-name self-service and downstream sync
     - request audit evidence
-    - HR approval evidence
     - downstream sync evidence
+    - Zoom `/users/{userId}` and `/phone/users/{userId}` naming evidence
+    - authorization evidence that students cannot submit preferred-name edits
   - `2E` actionable Google-active / Aeries-inactive controls
     - individual and bulk action audit evidence
     - resulting queue-state database check
@@ -222,12 +223,12 @@ This document tracks the named mock scenarios and verification coverage required
   | `P2-2C-004` | Active Escape Contractor Collision Blocks Workflow | Verify a manual contractor entry for an already-active Escape employee is saved, marked invalid, linked to the Escape record, and never enqueues onboarding or provider work. Confirm the drawer shows the soft-delete remediation action. | Confirm staging preserves the invalid audit record, shows the linked Escape record, and blocks workflow creation for the overlap case. |
   | `P2-2C-005` | Inactive Escape Contractor Reactivation Reuses Identity | Verify a former Escape employee rehired as a manual Non-Escape contractor reuses the existing identity instead of creating a second account. | Confirm staging reactivates the same identity under the contractor/manual baseline. |
   | `P2-2C-006` | Past-Dated Start Preserves Date And Schedules Catch-Up | Verify both Escape-backed and manual past-date starts preserve the source date, show the standard late-start warning, and schedule the next available workflow cycle. | Confirm staging treats past-date starts as late-but-valid work without rewriting the source/requested date. |
-- `2D` preferred-name self-service request and HR approval flow
+- `2D` preferred-name self-service and downstream sync
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
-  | `P2-2D-001` | Preferred Name Request Submission | Verify a staff/faculty user can submit a preferred-name request into the HR review flow. | Confirm staging accepts the request and creates the expected review state. |
-  | `P2-2D-002` | HR Approval Drives Downstream Preferred Name Sync | Verify HR approval triggers the documented downstream preferred-name synchronization behavior. | Confirm staging approval updates the downstream read model and write targets correctly. |
-  | `P2-2D-003` | No End-User Request Status Surface In Phase 2 | Verify Phase 2 exposes no end-user status or rejection-reason surface for preferred-name requests. | Confirm staging keeps the end-user scope aligned with the phase boundary. |
+  | `P2-2D-001` | Preferred Name Submission For Employee Or Contractor Applies Without Review | Verify an employee or manual contractor can submit a preferred-name change and the system applies it without an HR approval gate. | Confirm staging writes the preferred-name change directly for eligible non-student identities. |
+  | `P2-2D-002` | Preferred Name Sync Updates Zoom User And Phone Profiles | Verify preferred-name propagation updates the documented downstream display-name targets, including Zoom `/users/{userId}` and `/phone/users/{userId}`. | Confirm staging updates both Zoom naming surfaces in addition to the other documented downstream targets. |
+  | `P2-2D-003` | Students Cannot Submit Preferred Name Through Dashboard | Verify students cannot access preferred-name self-service, and server-side writes are rejected if a student somehow reaches an authenticated dashboard state. | Confirm staging keeps student preferred-name edits blocked at both UI and write layers. |
 - `2F` staff and manual-contractor legal-name rename handling
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |

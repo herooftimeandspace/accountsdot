@@ -276,7 +276,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - reactivation and resume/replan behavior match the documented rules
   - provider sequencing follows the documented first-pass order through `Zoom`, with any `Aeries`/`Verkada` follow-up ticketing treated as external `IncidentIQ` configuration rather than app behavior
   - the dashboard can surface linked `IncidentIQ` user, `Aeries`, and `Verkada` follow-up ticket status once the `IncidentIQ` user exists, without owning ticket creation
-  - preferred-name self-service requests work with HR review and downstream synchronization, without requiring end-user status or rejection-reason visibility in this phase
+  - preferred-name self-service for employee and contractor accounts writes through directly and synchronizes downstream without requiring an HR approval gate in this phase
   - IT Admin can act on the Google-active / Aeries-inactive queue instead of using that queue only as a review surface
 - Failure gates:
   - duplicate account behavior, non-idempotent retries, or ambiguous baseline restoration remain
@@ -900,7 +900,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 
 ### Preferred and Legal Name
 - Preferred/display name is separate from legal name.
-- Preferred/display name can be requested by the end user and reviewed by HR.
+- Preferred/display name may be updated directly by employee and contractor end users through the dashboard without HR or IT review.
+- Students must not be able to use the dashboard, and if a student somehow reaches an authenticated dashboard state, the preferred-name edit surface must not be shown and any attempted preferred-name write must be rejected.
 - Legal-name changes require a dedicated rename workflow and collision handling.
 - Legal-name rename scope includes staff and students and applies to common cases such as marriage, divorce, gender transition, or other legal corrections.
 - Source-of-truth and trigger rules for legal-name rename are:
@@ -915,6 +916,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - The old primary username/email must be preserved in Google as a receive-only alias after a successful rename.
 - The affected person must receive an email notification when the legal-name rename completes.
 - Preferred/display-name updates remain separate from legal-name rename and must not trigger username conversion.
+- Preferred/display-name updates must propagate independently to Zoom user naming surfaces in both the Zoom `/users/{userId}` API and the Zoom Phone `/phone/users/{userId}` API.
 
 ## Current Manual Process Being Replaced
 - People Tracker onboarding sheet
