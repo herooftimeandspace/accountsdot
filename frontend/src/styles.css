@@ -940,6 +940,204 @@ input {
   font-weight: 700;
 }
 
+.departing-seniors-runtime__pane {
+  position: absolute;
+  left: 286px;
+  top: 92px;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 22px;
+  width: 1348px;
+  height: 930px;
+  padding: 28px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+
+.departing-seniors-runtime__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.departing-seniors-runtime__header h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.departing-seniors-runtime__header p {
+  max-width: 780px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.departing-seniors-runtime__year {
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: rgba(221, 226, 227, 0.18);
+}
+
+.departing-seniors-runtime__year span {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.departing-seniors-runtime__year strong {
+  font-size: 18px;
+}
+
+.departing-seniors-runtime__table {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  min-height: 0;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.departing-seniors-runtime__toolbar {
+  max-width: 520px;
+}
+
+.departing-seniors-runtime__error {
+  margin: 0 0 10px;
+  color: var(--color-accent-red);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.departing-seniors-runtime__table-header,
+.departing-seniors-runtime__row {
+  display: grid;
+  grid-template-columns: 150px minmax(190px, 1fr) 78px 120px 118px minmax(230px, 1.2fr) 134px 184px 156px;
+  column-gap: 14px;
+  align-items: center;
+}
+
+.departing-seniors-runtime__table-header {
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--color-canvas);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.departing-seniors-runtime__table-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.departing-seniors-runtime__row {
+  min-height: 74px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-canvas);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.departing-seniors-runtime__row strong,
+.departing-seniors-runtime__row span,
+.departing-seniors-runtime__row small {
+  display: block;
+}
+
+.departing-seniors-runtime__row small {
+  margin-top: 4px;
+  color: var(--color-accent-slate);
+  font-weight: 700;
+}
+
+.departing-seniors-runtime__devices {
+  display: grid;
+  gap: 4px;
+}
+
+.departing-seniors-runtime__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 24px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.departing-seniors-runtime__status--ready {
+  background: var(--color-accent-green);
+  color: var(--color-text);
+}
+
+.departing-seniors-runtime__status--critical {
+  background: var(--color-accent-red);
+  color: var(--color-bg);
+}
+
+.departing-seniors-runtime__status--neutral {
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+.departing-seniors-runtime__date-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+  gap: 8px;
+  align-items: center;
+}
+
+.departing-seniors-runtime__date-control input {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: var(--color-text);
+  font: 400 12px/1.2 var(--font-ui);
+}
+
+.departing-seniors-runtime__date-control button,
+.departing-seniors-runtime__deprovision {
+  min-height: 36px;
+  border: 1px solid var(--color-highlight);
+  border-radius: 8px;
+  background: var(--color-highlight);
+  color: var(--color-text);
+  cursor: pointer;
+  font: 800 12px/1.1 var(--font-ui);
+}
+
+.departing-seniors-runtime__deprovision {
+  width: 100%;
+}
+
+.departing-seniors-runtime__date-control button:disabled,
+.departing-seniors-runtime__deprovision:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.departing-seniors-runtime__date-control input:focus,
+.departing-seniors-runtime__date-control button:focus-visible,
+.departing-seniors-runtime__deprovision:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .onboarding-runtime__form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

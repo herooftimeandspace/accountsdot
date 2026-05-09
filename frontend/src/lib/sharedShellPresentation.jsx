@@ -18,6 +18,7 @@ const NAV_ICON_MARKUP = {
   dashboard: lucideIcons.LayoutDashboard,
   onboarding: lucideIcons.UserRoundPlus,
   offboarding: lucideIcons.UserRoundMinus,
+  departingSeniors: lucideIcons.GraduationCap,
   roomMoves: lucideIcons.MoveHorizontal,
   phoneDirectory: lucideIcons.Phone,
   dataQuality: lucideIcons.AlertTriangle,
@@ -31,6 +32,7 @@ const NAV_LABELS = {
   dashboard: "Dashboard",
   onboarding: "Onboarding",
   offboarding: "Offboarding",
+  departingSeniors: "Departing Seniors",
   roomMoves: "Room Moves",
   phoneDirectory: "Phone Directory",
   dataQuality: "Data Quality",
@@ -115,6 +117,25 @@ const DEFAULT_HELP_BY_NAV_KEY = {
         paragraphs: [
           "Review rows with blocked, manual action, or security risk statuses first. Select any row to open the right drawer, then follow the listed owner and resolution steps.",
           "Escape-backed end dates are read-only and must be corrected in Escape. Non-Escape and orphan account rows may show an end-date picker for HR and IT.",
+        ],
+      },
+    ],
+  },
+  departingSeniors: {
+    title: "Departing Seniors help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This page lists seniors who are expected to leave at the end of the current school year.",
+          "It shows each student, graduation year, student ID, district email, planned end date, and any outstanding devices from IncidentIQ.",
+        ],
+      },
+      {
+        heading: "How to use it",
+        paragraphs: [
+          "Use the table search to find a student by name, email, graduation year, student ID, assigned asset serial, or assigned asset ID.",
+          "IT and Device Wranglers can adjust a local end-date override, then deprovision the account when it is ready. A student stays on the list until the account is deprovisioned and all assigned devices are cleared.",
         ],
       },
     ],

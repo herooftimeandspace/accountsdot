@@ -534,6 +534,15 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - V2 target: validate the optional ticket/reference field against IncidentIQ ticket identifiers.
 - V3 target: add a button to create a ticket when the reference is not already validated.
 
+### Departing Seniors Page
+- The pre-phase 0 DEV frontend includes a bare-bones `Departing Seniors` page for current senior-class account retirement and device-return review.
+- The page is visible only to IT Admin and Device Wrangler personas. Other personas must receive the normal access-denied behavior for direct links.
+- The page lists the current school year's graduating senior class and refreshes the source cohort each school year from the current senior graduation year.
+- Each row shows first and last name, student email address, graduation year, student ID, current end date, deprovision status, and outstanding IncidentIQ devices assigned to the student. Device display must include the assigned asset serial and IncidentIQ asset ID.
+- The page provides a local end-date override date picker for each student. The override is DEV mock behavior in this slice and does not change Aeries source data.
+- Each row provides a deprovision-account action. A student remains on the list until the account is deprovisioned and IncidentIQ shows no outstanding assigned devices. If the account is deprovisioned while devices remain assigned, the row remains visible as device-return work.
+- The page-level search/filter must search all table data available in the row, including first name, last name, email address, graduation year, assigned asset serial, assigned asset ID, and student ID.
+
 ### 3. Student Invalid-Name Dashboard
 - Show only active unresolved student name failures for the secretary’s site.
 - Source student-name validation from separate Aeries `FirstName` and `LastName` fields.

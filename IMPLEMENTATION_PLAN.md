@@ -1347,6 +1347,14 @@
   - track assets assigned directly to humans
   - create tasks for site admins to retrieve those person-assigned assets
   - room equipment such as phones, TVs, and clock speakers remains assigned to the room and does not require person-level retrieval tracking
+- Departing Seniors page behavior:
+  - expose a bare-bones `/departing-seniors` runtime page for IT Admin and Device Wrangler personas only
+  - list the current school year's senior class using the current graduation year, with rows refreshed each school year
+  - show student name, district email, graduation year, student ID, end date, status, and outstanding IncidentIQ devices with serial and asset ID
+  - provide a per-row local end-date override date picker in DEV mock state
+  - provide a per-row deprovision action; remove a row only after the account is deprovisioned and IncidentIQ reports no outstanding devices
+  - keep deprovisioned rows visible when devices remain assigned, because the remaining work is device recovery rather than account removal
+  - use the shared runtime table search/sort primitive, with the search covering first name, last name, email address, graduation year, assigned asset serial, assigned asset ID, and student ID
 
 ## Lifecycle Decisions
 - Most workflows should run automatically.

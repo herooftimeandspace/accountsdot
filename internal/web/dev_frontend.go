@@ -22,7 +22,8 @@ const (
 )
 
 var (
-	devPhoneDirectoryRoutes = []string{
+	devDepartingSeniorsRoute = "/departing-seniors"
+	devPhoneDirectoryRoutes  = []string{
 		"/phone-directory/by-person",
 		"/phone-directory/by-room",
 		"/phone-directory/by-department",
@@ -249,6 +250,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 				"/dashboard/hr-lifecycle",
 				"/dashboard/site-admin",
 				"/my-profile",
+				devDepartingSeniorsRoute,
 			},
 			devPhoneDirectoryRoutes,
 			devSiteScopedRoutes,
@@ -383,6 +385,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			[]string{
 				"/my-profile",
 				"/frequent-fliers",
+				devDepartingSeniorsRoute,
 			},
 			devPhoneDirectoryRoutes...,
 		),

@@ -194,6 +194,33 @@ type offboardingResponse struct {
 	} `json:"page"`
 }
 
+type departingSeniorsResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		CanManage      bool   `json:"can_manage"`
+		GraduationYear string `json:"graduation_year"`
+		Rows           []struct {
+			ID                 string `json:"id"`
+			FirstName          string `json:"first_name"`
+			LastName           string `json:"last_name"`
+			Email              string `json:"email"`
+			StudentID          string `json:"student_id"`
+			GraduationYear     string `json:"graduation_year"`
+			EndDate            string `json:"end_date"`
+			EndDateSource      string `json:"end_date_source"`
+			Status             string `json:"status"`
+			CanOverrideEndDate bool   `json:"can_override_end_date"`
+			CanDeprovision     bool   `json:"can_deprovision"`
+			Deprovisioned      bool   `json:"deprovisioned"`
+			OutstandingDevices []struct {
+				AssetID string `json:"asset_id"`
+				Serial  string `json:"serial"`
+				Type    string `json:"type"`
+			} `json:"outstanding_devices"`
+		} `json:"rows"`
+	} `json:"page"`
+}
+
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	t.Helper()
 	var payload T
@@ -663,6 +690,159 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("site admin update returned %d, want 403", rec.Code)
+		}
+	})
+
+	t.Run("departing seniors page is scoped to it and device wranglers", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated departing seniors returned %d, want 401", rec.Code)
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors", nil)
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("hr departing seniors returned %d, want 403", rec.Code)
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		sessionPayload := decodeJSON[devSessionResponse](t, rec)
+		if !slices.Contains(sessionPayload.AllowedRoutes, "/departing-seniors") {
+			t.Fatalf("it allowed routes missing departing seniors: %#v", sessionPayload.AllowedRoutes)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		itPayload := decodeJSON[departingSeniorsResponse](t, rec)
+		if !itPayload.Page.CanManage {
+			t.Fatal("it should be allowed to manage departing seniors")
+		}
+		if len(itPayload.Page.Rows) == 0 {
+			t.Fatal("expected current senior rows")
+		}
+		foundDevice := false
+		for _, row := range itPayload.Page.Rows {
+			if row.GraduationYear != itPayload.Page.GraduationYear {
+				t.Fatalf("row graduation year = %s, page year = %s", row.GraduationYear, itPayload.Page.GraduationYear)
+			}
+			if row.Email == "" || row.StudentID == "" {
+				t.Fatalf("row missing searchable identity data: %#v", row)
+			}
+			if len(row.OutstandingDevices) > 0 {
+				foundDevice = true
+				if row.OutstandingDevices[0].AssetID == "" || row.OutstandingDevices[0].Serial == "" {
+					t.Fatalf("device row missing incidentiq identifiers: %#v", row.OutstandingDevices[0])
+				}
+			}
+		}
+		if !foundDevice {
+			t.Fatal("expected at least one senior with outstanding IncidentIQ device data")
+		}
+
+		deviceCookie := loginAsPersona(t, handler, "device_wrangler")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		req.AddCookie(deviceCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		deviceSession := decodeJSON[devSessionResponse](t, rec)
+		if !slices.Contains(deviceSession.AllowedRoutes, "/departing-seniors") {
+			t.Fatalf("device wrangler allowed routes missing departing seniors: %#v", deviceSession.AllowedRoutes)
+		}
+	})
+
+	t.Run("departing seniors updates end dates and removes rows only after deprovision without devices", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+
+		updateBody, err := json.Marshal(map[string]string{"end_date": "2026-08-31"})
+		if err != nil {
+			t.Fatalf("marshal departing seniors update: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/end-date", bytes.NewReader(updateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("departing senior end date returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		updated := decodeJSON[struct {
+			Row struct {
+				EndDate       string `json:"end_date"`
+				EndDateSource string `json:"end_date_source"`
+			} `json:"row"`
+		}](t, rec)
+		if updated.Row.EndDate != "2026-08-31" || updated.Row.EndDateSource != "Local override" {
+			t.Fatalf("departing senior update = %#v, want local override", updated.Row)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/deprovision", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("departing senior device deprovision returned %d, want 200", rec.Code)
+		}
+		deviceResponse := decodeJSON[struct {
+			Removed bool `json:"removed"`
+			Row     *struct {
+				Deprovisioned bool   `json:"deprovisioned"`
+				Status        string `json:"status"`
+			} `json:"row"`
+		}](t, rec)
+		if deviceResponse.Removed || deviceResponse.Row == nil || !deviceResponse.Row.Deprovisioned {
+			t.Fatalf("device row deprovision response = %#v, want retained deprovisioned row", deviceResponse)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/departing-seniors/records/senior-maya-chen/deprovision", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("departing senior clean deprovision returned %d, want 200", rec.Code)
+		}
+		cleanResponse := decodeJSON[struct {
+			Removed bool `json:"removed"`
+		}](t, rec)
+		if !cleanResponse.Removed {
+			t.Fatal("expected no-device senior to be removed after deprovision")
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-maya-chen" {
+				t.Fatal("senior with no devices remained after deprovision")
+			}
+		}
+
+		badBody, err := json.Marshal(map[string]string{"end_date": "08/31/2026"})
+		if err != nil {
+			t.Fatalf("marshal invalid departing seniors update: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/departing-seniors/records/senior-priya-shah/end-date", bytes.NewReader(badBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid departing senior date returned %d, want 400", rec.Code)
 		}
 	})
 

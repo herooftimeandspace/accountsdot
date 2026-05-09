@@ -6,6 +6,7 @@ export const APP_ROUTES = [
   { path: "/dashboard/site-admin", kind: "static", artboardKey: "dashboard-site-admin" },
   { path: "/onboarding", kind: "onboarding", artboardKey: "onboarding" },
   { path: "/offboarding", kind: "offboarding", artboardKey: "offboarding" },
+  { path: "/departing-seniors", kind: "departing-seniors", artboardKey: "offboarding" },
   { path: "/room-moves", kind: "static", artboardKey: "room-moves" },
   {
     path: "/phone-directory/by-person",
@@ -49,6 +50,7 @@ export const NAV_GROUP_ORDER = [
   "dashboard",
   "onboarding",
   "offboarding",
+  "departingSeniors",
   "roomMoves",
   "phoneDirectory",
   "dataQuality",
@@ -94,6 +96,8 @@ export function navDestinationForKey(navKey, session) {
       return "/onboarding";
     case "offboarding":
       return "/offboarding";
+    case "departingSeniors":
+      return "/departing-seniors";
     case "roomMoves":
       return "/room-moves";
     case "phoneDirectory":
@@ -133,6 +137,8 @@ export function navGroupVisible(navKey, session) {
       return allowedRoutes.includes("/onboarding");
     case "offboarding":
       return allowedRoutes.includes("/offboarding");
+    case "departingSeniors":
+      return allowedRoutes.includes("/departing-seniors");
     case "roomMoves":
       return allowedRoutes.includes("/room-moves");
     case "frequentFliers":
