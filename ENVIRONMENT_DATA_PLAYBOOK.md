@@ -152,13 +152,31 @@ This document defines the required process for creating and refreshing safe deve
   - failure handling is understood
   - rollback behavior is documented
   - ticket fallback behavior is verified where automation cannot complete
+  - projection freshness and live action-path verification behavior are both understood for the affected provider
+
+## Provider Access Strategy Validation
+- Non-production validation should distinguish clearly between:
+  - projection source cadence
+  - live action-path reads
+  - write-path verification expectations
+- API-backed list and queue surfaces should be validated primarily through local projections rather than per-request provider fan-out.
+- Selected-record detail, explicit refresh, and write-capable or destructive flows should be validated against live provider reads where the product design depends on fresher provider truth for safety.
+- Event-capable providers must still be tested for missed-event recovery through scheduled delta and full reconciliation rather than assuming event delivery is complete or perfect.
+- Promotion evidence for API-backed providers should show both:
+  - that the local projection can tolerate ordinary provider or API lag without corrupting operator workflows
+  - that targeted live verification can still protect action paths when the projection is stale
+- Staging validation should confirm that projection freshness targets and live verification expectations are appropriate for each provider before write-capable behavior is promoted.
 
 ## Provider-Specific Expectations
 - Zoom: test assignment, SLG changes, CAP handling, and limited-license reclamation without relying on production users or production devices.
+- Zoom: validate the hybrid model directly, with projection-backed operator surfaces, event or delta refresh behavior, and live end-state verification for action paths.
 - Incident IQ: verify parent ticket creation first; add subticket and subtask support before declaring the workflow surface complete.
+- Incident IQ: validate that list and status projections remain useful without live fan-out while selected-ticket or action-sensitive refresh paths can still query current provider state when needed.
 - Google and AD chain: confirm ticket-safe-to-create timing after propagation.
+- Google and AD chain: verify that minimal local identity facts are enough for joins and workflow planning, while collision checks, rename verification, and destructive-action confirmation still rely on live reads.
 - Aeries: validate read-only integration against the mandatory v1 endpoint families (`staff`, `students`, `schools`, `teachers`, `scheduling`) using masked previous-year data where possible.
 - Aeries: verify that staff-related and teacher-related API paths both resolve and can be converged into one internal entity view together with scheduling context.
+- Aeries: treat the API as a read-only projection source rather than a live interactive dependency for list views or routine operator navigation.
 - Verkada: verify ticket generation timing rather than direct account provisioning.
 
 ## Required Tooling TODOs

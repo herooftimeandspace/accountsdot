@@ -221,6 +221,87 @@
   - if a rollback trigger blocks a bucket in `dev`, the external runbook/process must capture an explicit closure note describing how the trigger condition was resolved and linking to the replacement evidence that proved the bucket was clean again before `staging` verification may begin for that bucket
   - repository artifacts may define the rules, scenarios, and evidence expectations, but they must not become the live promotion status ledger
 
+## Provider Access Modes and Freshness Policy
+- This application should use a hybrid source-first data-access model rather than building a full mirror of every upstream system.
+- The local database is authoritative for:
+  - workflow state
+  - queue and dashboard projections
+  - normalized cross-system join facts
+  - idempotency and replay safety
+  - operator audit history
+- The local database is not intended to replace provider-owned system state for Zoom, Google, IncidentIQ, LDAP, or other live operational systems.
+- Every provider-backed read surface should be classified as one of:
+  - `batch-only source`
+  - `projection-backed list/search`
+  - `live detail read`
+  - `live write-path verification`
+- `batch-only source` means source data is available only through scheduled import or file ingest, not live operator reads.
+- `projection-backed list/search` means operator tables, queues, and search surfaces read from local normalized projections rather than issuing provider queries on every page load.
+- `live detail read` means selected-record drawers, detail panes, or explicit refresh actions may query the upstream provider directly for fresher single-record state.
+- `live write-path verification` means write-capable workflows must query the provider immediately before and after mutation to confirm safe intended state.
+- Every provider integration should document:
+  - `authoritative source mode`
+  - `projection freshness target`
+  - `supports live detail read`
+  - `requires live write-path verification`
+  - `supports events/webhooks`
+- Every persisted provider-backed entity must justify its local presence by at least one of:
+  - workflow planning
+  - cross-system join
+  - operator search/list projection
+  - idempotency
+  - audit/history
+- Persist only the minimal provider-backed fields needed for those purposes. Do not create full-object provider mirrors as a default runtime pattern.
+- Raw provider payloads must not be persisted by default. Persist raw or near-raw payload fragments only when a specific retry, audit, or reconciliation case requires them and only under the documented sensitive-data rules.
+- Projection-backed records should conceptually carry freshness metadata sufficient for future implementation, including:
+  - `source_observed_at`
+  - `ingested_at`
+  - `stale_after`
+  - `provider_cursor_or_version` where applicable
+  - `last_live_verified_at` where live verification occurred
+- UI/runtime guidance for the future implementation:
+  - tables, queues, and global search should read from local projections
+  - selected-row drawers and equivalent detail surfaces may refresh live
+  - explicit `Refresh` actions may perform targeted live reads rather than full-table provider fan-out
+  - all write-capable workflows must do live read-before-write and live read-after-write
+  - if live provider truth disagrees with the projection during an action path, the live provider result wins for that action and the local projection must be refreshed
+- Provider recommendations for the current product:
+  - `Escape / SFTP`
+    - authoritative mode: `batch-only source`
+    - local use: normalized employment and assignment facts plus import metadata
+    - live UI dependency: none
+    - preferred cadence: `24h`
+  - `Aeries`
+    - authoritative mode: `projection-backed list/search`
+    - local use: minimal read-only student, staff, school, scheduling, and room-context facts needed for joins and workflows
+    - live UI dependency: no normal live list UI dependency
+    - preferred cadence: `1h` delta and `24h` full reconciliation
+  - `Active Directory / LDAP`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live write-path verification`
+    - local use: minimal identity and account facts required for joins, orphan detection, naming, and workflow planning
+    - live reads required for: username collision checks, rename verification, deprovision verification, and other write-sensitive operations
+  - `Google`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
+    - local use: minimal identity, alias, login-activity, and group-membership facts needed for workflows and audit
+    - preferred cadence: `15m` delta, `24h` full reconciliation, and immediate post-write refresh
+  - `Zoom`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
+    - local use: minimal user, phone, extension, license, SLG, CAP, and queue facts needed for directory, transfer, and cleanup behavior
+    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
+  - `IncidentIQ`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read`
+    - local use: minimal user linkage, ticket linkage, and ticket status facts needed for workflow visibility and operator queues
+    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
+  - `InformedK12`
+    - authoritative mode: normalized trigger and event facts only
+    - local use: workflow-triggering and preparatory facts, not broad operator-search duplication
+    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
+  - `Google Sheets`
+    - authoritative mode: compatibility export only
+    - local use: none as a runtime source of truth
+    - live UI dependency: none
+    - preferred cadence: export on demand or through compatibility workflows only
+
 ### Pre-Phase 0: Frontend Design and DEV UI Iteration
 - Purpose:
   - establish a PEN-authoritative UI workflow, a real DEV frontend shell, and a repeatable design-to-code pattern before trusted operational phases begin
@@ -323,6 +404,8 @@
   - establish the application shell, data model, control plane, auth gate, provider clients, environment safety, and durable orchestration primitives before operational writes are trusted
 - Dependency note:
   - Phase 0 may build on shell and frontend iteration work established in `Pre-Phase 0`, but it still owns the first promotable safety-rail baseline
+- Phase-specific data-access note:
+  - Phase 0 must codify provider capability classification, freshness policy, and projection-versus-live-read boundaries before implementation locks in an accidental full-mirror design
 - Recommended delivery buckets:
   - `0A` repo-local safety artifacts and environment playbooks
   - `0B` core database schema, migrations, workflow engine, outbox, and recovery primitives
@@ -368,6 +451,7 @@
     - provider readiness success evidence against mocks
     - provider readiness failure evidence for missing or bad credentials/config
     - safe Aeries previous-year staging configuration evidence
+    - evidence that each provider is documented with the intended batch, projection-backed, live-detail, and live-write-verification behavior before implementation begins
   - `0E` health checks, metrics, readiness gates, and promotion plumbing
     - `/health/live` and `/health/ready` evidence under healthy and degraded conditions
     - observability evidence for pause/dependency state
@@ -389,6 +473,7 @@
     - `P0-0D-001` Provider Readiness Mock Success Path
     - `P0-0D-002` Provider Readiness Failure Surfacing
     - `P0-0D-003` Aeries Previous-Year Staging Configuration
+    - `P0-0D-004` Provider Access Modes Classified Before Implementation
   - `0E` health checks, metrics, and promotion plumbing
     - `P0-0E-001` Readiness Fails Closed on Missing Dependency
     - `P0-0E-002` Health Endpoints Reflect Pause and Dependency State
@@ -412,6 +497,8 @@
   - replace spreadsheet-driven visibility first, surface upstream data problems early, and let operators trust the dashboard before write automation expands
 - Phase-boundary note:
   - student invalid-name handling remains fully in Phase 1 as a visibility and upstream-correction surface, not a later automation feature
+- Phase-specific data-access note:
+  - read-side dashboards in this phase remain projection-backed surfaces with freshness context rather than live provider fan-out on every page load
 - Recommended delivery buckets:
   - `1A` canonical read model ingestion and dashboard projections
   - `1B` onboarding/offboarding visibility plus HR/IT mismatch queues in review-only mode
@@ -444,6 +531,7 @@
     - ingest/projection runtime evidence from masked or mock source inputs
     - conflict-surfacing evidence showing no silent normalization
     - projection-refresh evidence after successful import
+    - evidence that projection-backed read surfaces expose freshness context without requiring live provider calls for list rendering
   - `1B` onboarding/offboarding visibility plus HR/IT mismatch queues in review-only mode
     - scope evidence for HR, Site Admin, and IT review surfaces
     - queue ownership evidence for review-only operational handling
@@ -455,6 +543,7 @@
     - evidence that all logged-in user types can reach their authorized directory surface
     - evidence that directory state labels use explicit documented values rather than undefined abbreviations
     - evidence that department-view classification labels and call-queue retrieval behave as documented
+    - evidence that selected-record directory detail may refresh targeted provider state without turning the full directory table into a live provider view
     - evidence that multi-line dashboard tables use a shared top baseline across all cells and do not vertically center sparse cells
   - `1D` student invalid-name visibility
     - site-secretary scope evidence
@@ -474,6 +563,7 @@
     - `P1-1A-001` Escape Ingest Creates Canonical Person Projection
     - `P1-1A-002` Source Conflict Surfaces Without Silent Normalization
     - `P1-1A-003` Projection Refresh After Successful Import
+    - `P1-1A-004` Projection Backed Lists Expose Freshness Context
   - `1B` onboarding/offboarding visibility and review-only mismatch queues
     - `P1-1B-001` HR District-Wide Onboarding Visibility
     - `P1-1B-002` Site-Scoped Administrative Visibility
@@ -487,6 +577,8 @@
     - `P1-1C-006` Department View Uses Department Extensions And Call Queues
     - `P1-1C-007` Phone Directory Available To All Logged-In User Types
     - `P1-1C-008` Dashboard Tables Preserve Shared Top Baseline
+    - `P1-1C-009` DEV Directory Seeds Preserve Reference Extension Patterns
+    - `P1-1C-010` Directory Detail Live Refresh Stays Scoped To Selected Record
   - `1D` student invalid-name visibility
     - `P1-1D-001` Secretary Sees Site-Scoped Active Invalid Names Only
     - `P1-1D-002` Suggested Corrected Name And Aeries Link
@@ -523,6 +615,8 @@
   - automate the common-path onboarding, reactivation, and offboarding lifecycle for staff while preserving blocking rules, approvals, idempotency, and manual fallback
 - Phase-boundary note:
   - `Aeries` access and `Verkada` ticket automation are external `IncidentIQ` configuration TODOs rather than app-owned `Phase 2` workflow buckets
+- Phase-specific data-access note:
+  - lifecycle planning may consume local normalized projections, but all provider mutations in this phase require live read-before-write and live post-write verification
 - Recommended delivery buckets:
   - `2A` provisioning-profile and baseline bundle foundation
   - `2B` common-path onboarding and baseline update/deprovision lifecycle
@@ -590,6 +684,7 @@
     - database state check before and after lifecycle execution
     - mock or staging output summary for downstream baseline actions taken
     - `IncidentIQ` workflow-status evidence showing hourly-bounded user/ticket polling and dashboard linking behavior
+    - evidence that live provider disagreement on a write path refreshes projections and prevents unsafe mutation
   - `2C` reactivation and AD -> Entra propagation warning handling
     - warning visibility evidence for workflow viewers and IT Admin
     - resume/cancel/replan execution trace
@@ -613,6 +708,7 @@
     - `P2-2B-002` Staff Offboarding Baseline Deprovision
     - `P2-2B-003` Highest Category Re-Evaluation After Assignment Change
     - `P2-2B-004` IncidentIQ User Poll And External Ticket Status Linkage
+    - `P2-2B-005` Live Provider Disagreement Refreshes Projection Before Write
   - `2C` reactivation and AD -> Entra propagation warning handling
     - `P2-2C-001` Reactivation Restores Baseline Not Extras
     - `P2-2C-002` Entra Propagation Warning After One Hour
@@ -642,6 +738,8 @@
 ### Phase 3: Room, Phone, and Transfer Orchestration
 - Purpose:
   - automate the district’s room, desk-phone, SLG, extension, and transfer workflows without clobbering active assignments, after the read-side phone directory is already in place from Phase 1
+- Phase-specific data-access note:
+  - Zoom, Google, and AD-sensitive transfer and phone workflows must use live action-path reads and post-write verification even though the surrounding queues and list views remain projection-backed
 - Recommended delivery buckets:
   - `3A` room-move execution path built on earlier drafts, including final review
   - `3B` same-site room and IncidentIQ assignment changes
@@ -745,6 +843,8 @@
   - harden the security, cleanup, and operational reliability surfaces so the dashboard can become the trusted primary system
 - Phase-boundary note:
   - orphaned Zoom cleanup remains in this later hardening phase rather than appearing as an earlier read-only queue
+- Phase-specific data-access note:
+  - cleanup queues remain projection-backed, but resolution and auto-resolution decisions must continue to depend on live technical end-state verification and reconciliation backstops
 - Recommended delivery buckets:
   - `4A` orphaned Zoom cleanup queue and verification surface
   - `4B` orphaned cleanup ticket automation, auto-resolution, and ticket-sync warnings
@@ -779,6 +879,7 @@
     - runtime overlap-count evidence across the defined 7-day window
     - ticket evidence for create/update behavior and material-cadence-change notes
     - runtime evidence that no-op saves do not reset overlap state
+    - evidence that missed provider events are repaired by the documented delta and full reconciliation backstops
   - `4D` legacy Google Sheets retirement and cutover runbooks
     - runtime or audit evidence of the 90-day no-end-user-edit gate
     - evidence distinguishing automation writes from end-user edits
@@ -797,6 +898,7 @@
     - `P4-4C-001` Five Overlaps In Seven Days Opens Or Updates Ticket
     - `P4-4C-002` Material Cadence Change Adds Old And New Values To Ticket
     - `P4-4C-003` Overlap Counter Persists Until Material Change
+    - `P4-4C-004` Missed Provider Event Repaired By Reconciliation
   - `4D` legacy Google Sheets retirement and cutover runbooks
     - `P4-4D-001` Ninety Day No End-User Edit Retirement Gate
     - `P4-4D-002` Automation Writes Do Not Block Retirement Gate
@@ -816,6 +918,8 @@
 ### Phase 5: Future Extensions
 - Purpose:
   - extend the established foundation into deferred domains without rewriting the earlier lifecycle engine
+- Phase-specific data-access note:
+  - student lifecycle and later deferred modules should follow the same pattern: projection-backed list and queue surfaces plus targeted live verification on write-sensitive or destructive action paths
 - Recommended delivery buckets:
   - `5A` student lifecycle and student-access automation
   - `5B` multi-application orphaned-permission cleanup
@@ -839,6 +943,7 @@
     - runtime evidence of base student profile creation from school and grade
     - runtime evidence of end-of-day recalculation after enrollment, schedule, or course change
     - state evidence showing highest-privilege resolution with same-tier app union behavior
+    - evidence that student lifecycle surfaces remain projection-backed while targeted live verification is used only where safety requires it
   - `5B` multi-application orphaned-permission cleanup
     - runtime evidence of person-row badge aggregation and subtype drill-in behavior
     - runtime evidence that bulk actions remain constrained to a single subtype
@@ -857,6 +962,9 @@
     - `P5-5A-001` Student Base Profile Created From School And Grade
     - `P5-5A-002` Course Change Triggers End-Of-Day Access Recalculation
     - `P5-5A-003` Highest Privilege Profile Wins With Same-Tier Union
+    - `P5-5A-004` Student Lifecycle Lists Stay Projection Backed With Targeted Verification
+    - `P5-5A-005` Aeries Student Legal-Name Change Creates Rename Job Only After Provisioning Exists
+    - `P5-5A-006` Pre-Provisioning Student Name Correction Does Not Trigger Rename
   - `5B` multi-application orphaned-permission cleanup
     - `P5-5B-001` Person View Shows Multiple Cleanup Badges
     - `P5-5B-002` Mixed-App Bulk Action Restricted To Single Subtype
@@ -928,7 +1036,7 @@
 - 2026-04-24: The entire site must be WCAG-compliant. District accent fonts are `Reset.ttf` and `varsity_regular.ttf`, but they should be used only as accent/display fonts. `Atkinson Hyperlegible` is the primary UI/body font for readability and accessibility.
 - 2026-04-24: The entire application should use Pacific time by default for date/time display and computation. The effective application timezone must be configurable from the IT Admin UI, and date math, schedule boundaries, audit windows, and displayed timestamps should all use the configured app timezone rather than host-local time. When the configured timezone changes, existing scheduled jobs and saved effective dates must be reinterpreted into the new timezone; if the resulting scheduled time is already in the past, move it to the next configured cadence window. Store timestamps internally in UTC and render them in the configured app timezone. End users do not get per-user local timezone preferences.
 - 2026-04-24: Add the Frequent Fliers logic from `docs/reference-inputs/vendor-code/incidentiq/app/frequent_fliers.py` as a first-class dashboard page for student device-accountability reporting. The current product requirement is a live dashboard showing students with 2 or more device assignments within the last 90 days, with student, device, and all related student-device ticket context in one view for site admins and Device Wranglers. The 90-day window is a librarian-driven feature request intended to surface longer patterns of device abuse that were not visible at 45 days.
-- 2026-04-24: Source sync timing must use bounded, configurable settings in an IT-admin settings dashboard. Current first-pass presets are `Escape CSV flat file = every 24h`, `Aeries direct API = hourly delta plus daily full reconciliation with a 1-week lookback`, and for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12`: immediate post-write refresh, hourly delta reconciliation, and daily full reconciliation with a 1-week lookback.
+- 2026-04-24: Source sync timing must use bounded, configurable settings in an IT-admin settings dashboard. Current first-pass presets are `Escape CSV flat file = every 24h`, `Aeries direct API = hourly delta plus daily full reconciliation with a 1-week lookback`, and for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12`: immediate post-write refresh, daily full reconciliation with a 1-week lookback, and delta reconciliation on a scheduled cadence that may begin hourly but should target `15m` where provider limits and environment safety allow.
 - 2026-04-24: Legacy Google Sheets flows may be retired only after end users have not modified them for 90+ days. System automation writes do not count against the retirement gate.
 - 2026-04-24: Any non-repo file or legacy-code artifact cited by the plan must be snapshotted under `docs/reference-inputs/` and referenced from there so the planning corpus is portable and not tied to one laptop or cloud-drive mount.
 - 2026-04-24: Until CLA-specific brand assets exist in the shared branding corpus, CLA pages should use the Windsor Middle School visuals without text.
@@ -936,7 +1044,7 @@
 - 2026-04-29: UI mock generation must not invent feature-level product behavior beyond the documented PRD and implementation plan. Example data is acceptable, but speculative controls, queues, status concepts, or admin/reporting affordances that are not cleanly grounded in the written product surface should be treated as invalid mock output and regenerated.
 - 2026-04-29: Visual-asset changes are part of the implementation record. When SVG, PNG, or PEN dashboard assets are revised in a way that clarifies or alters implementation-relevant UI behavior, the same change pass must update this implementation plan so the written execution spec stays synchronized with the approved visuals.
 - 2026-04-24: AD to Entra synchronization is handled outside this application. For workflow timing inside this app, AD-originating changes should be treated as complete in Entra within 1 hour maximum.
-- 2026-04-24: For API-backed systems, v1 should prefer inbound webhooks or event subscriptions where the provider supports them, while still retaining the documented hourly delta and daily full reconciliation loops as safety backstops.
+- 2026-04-24: For API-backed systems, v1 should prefer inbound webhooks or event subscriptions where the provider supports them, while still retaining scheduled delta and daily full reconciliation loops as safety backstops. The preferred target for API-backed projection freshness is `15m` deltas where provider limits, operational cost, and environment safety allow.
 - 2026-04-24: Baseline bundles are keyed directly by raw job title in v1 rather than introducing a smaller canonical-title abstraction layer first.
 - 2026-04-24: Trivial raw job-title formatting differences must not be normalized away in v1. A recommendation to collapse whitespace, casing, or punctuation differences was explicitly rejected because the application should surface poor HR data quality and force correction upstream rather than silently masking it.
 - 2026-04-24: Zoom is the only provider currently known to deliver usable inbound webhooks in this environment. Other API-backed systems should stay on scheduled delta/full reconciliation until their event capabilities are proven in-tenant.
@@ -2180,14 +2288,17 @@
 - Sync timing must be configurable per data source by IT Admin through a settings dashboard.
 - Sync timing must use bounded presets and minimum intervals rather than fully unrestricted values.
 - For API-backed providers, prefer inbound webhooks or event-subscription/pubsub integrations where supported.
-- Event-driven ingestion does not remove the need for scheduled reconciliation; hourly deltas and daily full syncs remain required backstops.
-- Current first-pass sync presets:
+- Event-driven ingestion does not remove the need for scheduled reconciliation; scheduled deltas and daily full syncs remain required backstops.
+- Existing hourly delta presets are an acceptable coarse baseline, but the preferred target for API-backed projection freshness is now `15m` deltas where provider limits, operational cost, and environment safety allow it.
+- Recommended first-pass sync presets:
   - `Escape CSV flat file`: every `24h`
   - `Aeries direct API`: delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
-  - `Zoom`: immediate refresh after local writes, delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
-  - `Google`: immediate refresh after local writes, delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
-  - `IncidentIQ`: immediate refresh after local writes, delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
-  - `InformedK12`: immediate refresh after local writes, delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
+  - `Zoom`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+  - `Google`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+  - `IncidentIQ`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+  - `InformedK12`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+- Projection-backed list and queue surfaces should show `Last synced` or equivalent freshness context.
+- Explicit UI refresh actions should prefer targeted live provider reads for the selected surface instead of indiscriminately rebuilding every projection.
 - AD is managed directly by this application where applicable; downstream AD -> Entra propagation is externally managed and should be treated as complete within `1h` maximum for workflow timing.
 - Entra propagation is considered complete for app workflow gating when the user exists in Entra and `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled` match expected state.
 - If Entra convergence has not occurred after `1h`, continue the workflow with warning rather than blocking the entire run.
@@ -2274,7 +2385,7 @@
   - `aeries_sync_loop`: every `1h`, cluster-wide advisory lock, reconcile room/site context from the direct Aeries API
   - `aeries_full_reconcile_loop`: every `24h`, cluster-wide advisory lock, perform a full Aeries reconciliation using a `1 week` lookback window
   - `provider_event_ingest_loop`: webhook or event-subscription consumer where supported by `Zoom`, normalizing inbound change events into internal triggers
-  - `provider_delta_sync_loop`: every `1h`, cluster-wide advisory lock, reconcile provider deltas for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12`
+  - `provider_delta_sync_loop`: every `15m`, cluster-wide advisory lock, reconcile provider deltas for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12`
   - `provider_full_reconcile_loop`: every `24h`, cluster-wide advisory lock, perform full provider reconciliation for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12` using a `1 week` lookback window
   - `context_watcher_loop`: every `5m + jitter`, cluster-wide advisory lock, recheck `provision_pending_context`
   - `workflow_planner_loop`: NOTIFY-driven with `30s` fallback sweep, no provider calls

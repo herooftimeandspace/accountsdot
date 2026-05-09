@@ -404,6 +404,15 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Escape / SFTP is the primary source for employment status for regular employees.
 - Local HR-managed records cover contractors, volunteers, and other non-Escape cases.
 - Aeries is the current authority for student data and for teacher room/class context where available.
+- The product should minimize local duplication and treat upstream systems as the primary source of truth for provider-owned data.
+- Local database state exists to support safe orchestration, cross-system joins, performant operator search and list surfaces, audit history, and deterministic workflow execution. It must not become a full mirror intended to replace the upstream provider surfaces.
+- The default operator experience for tables, queues, dashboards, and global search is projection-backed local data with documented freshness targets rather than per-request provider fan-out.
+- Projection-backed surfaces may be slightly stale within their documented freshness targets. That tradeoff is acceptable when it improves performance, rate-limit safety, cross-provider consistency, and deterministic queue behavior.
+- Provider detail surfaces, explicit refresh actions, and destructive or write-capable workflows may fetch fresher live provider state when needed for safety, confidence, or post-write verification.
+- Projection-backed operator surfaces should expose `Last synced` or equivalent freshness context so users can distinguish locally projected state from live provider verification.
+- Escape remains a batch-ingested source through SFTP rather than a live interactive data source.
+- Aeries remains a read-only API source whose data is converged into local projections for runtime use rather than queried live for every operator interaction.
+- Active Directory / LDAP should use a hybrid approach: retain only the minimal local identity and account facts needed for joins and workflow planning, while using live reads for collision-sensitive and write-sensitive operations.
 - Operational site-alias mapping that affects phone and permission scope currently includes:
   - `MOT` -> site code `1`
   - `WELL` -> site code `1`
@@ -955,7 +964,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - IT Admin controls per-source refresh cadence through a settings dashboard.
 - Sync settings must use bounded presets and minimum intervals rather than unrestricted free-form values.
 - For API-backed providers, the product should use inbound webhooks or event-subscription/pubsub integrations where supported.
-- Event-driven updates accelerate freshness but do not replace scheduled hourly delta syncs and daily full reconciliations.
+- Event-driven updates accelerate freshness but do not replace scheduled delta syncs and daily full reconciliations. For API-backed projection surfaces, the preferred refresh target is `15m` deltas where provider limits and environment safety allow.
 - Long-running sync jobs must be allowed to finish even if the next cadence window arrives while they are still running.
 - The system must not start conflicting overlapping runs for the same provider or sync job family, and must defer duplicate work cleanly so race conditions and clobbering do not occur.
 - If schedule overlap happens 5 times within 7 days for the same job family, the app must generate or update an operational ticket recommending cadence adjustment.

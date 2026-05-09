@@ -59,6 +59,7 @@ This document tracks the named mock scenarios and verification coverage required
     - provider readiness success evidence against mocks
     - provider readiness failure evidence for missing or bad credentials/config
     - safe Aeries previous-year staging configuration evidence
+    - provider access-mode evidence showing batch, projection-backed, live-detail, and live-write-verification boundaries are documented before implementation
   - `0E` health checks, metrics, and promotion plumbing
     - `/health/live` and `/health/ready` evidence under healthy and degraded conditions
     - observability evidence for pause/dependency state
@@ -87,6 +88,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P0-0D-001` | Provider Readiness Mock Success Path | Verify provider clients initialize and pass readiness against mocks without real outbound writes. | Confirm staging read-only/provider connectivity checks succeed with configured non-prod credentials. |
   | `P0-0D-002` | Provider Readiness Failure Surfacing | Simulate missing credential, bad URL, or bad certificate and verify readiness fails closed with actionable diagnostics. | Confirm the same failures surface clearly in staging without partial startup ambiguity. |
   | `P0-0D-003` | Aeries Previous-Year Staging Configuration | Verify Aeries staging config resolves `current school year - 1` and uses masked previous-year reads only. | Confirm staging can successfully query masked previous-year Aeries data with `DatabaseYear=YYYY`. |
+  | `P0-0D-004` | Provider Access Modes Classified Before Implementation | Verify the implementation plan documents each provider as batch-only, projection-backed, live-detail, or live-write-verified where appropriate before code locks in a full-mirror design. | Confirm staging readiness review uses the same provider capability classification and freshness expectations. |
 - `0E` health checks, metrics, and promotion plumbing
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
@@ -100,11 +102,12 @@ This document tracks the named mock scenarios and verification coverage required
     - ingest/projection runtime evidence from masked or mock source inputs
     - conflict-surfacing evidence showing no silent normalization
     - projection-refresh evidence after successful import
+    - evidence that projection-backed read surfaces expose freshness context without requiring live provider fan-out for list rendering
   - `1B` onboarding/offboarding visibility and review-only mismatch queues
     - scope evidence for HR, Site Admin, and IT review surfaces
     - queue ownership evidence for review-only operational handling
     - review-only evidence showing no write controls are available in this phase
-- `1C` phone directory visibility surfaces
+  - `1C` phone directory visibility surfaces
     - runtime evidence for person-centric, room-centric, and department-centric synced views
     - evidence that site default and cross-site lookup behavior matches scope rules
     - evidence that the view is provider-synced rather than CSV-driven
@@ -115,6 +118,7 @@ This document tracks the named mock scenarios and verification coverage required
     - evidence that each phone-directory mode restricts visible rows to its documented type families rather than re-ranking one mixed result pool
     - evidence that DEV directory seeds keep numeric-only 4-, 5-, and 6-digit extensions valid while preferring 6-digit examples by default
     - evidence that multi-line dashboard tables use a shared top baseline across all cells and do not vertically center sparse cells
+    - evidence that selected-record detail refresh remains scoped to the chosen row rather than turning the whole directory into a live provider table
 - `1D` student invalid-name visibility
     - site-secretary scope evidence
     - invalid-name detail evidence including suggested correction and Aeries link
@@ -136,6 +140,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P1-1A-001` | Escape Ingest Creates Canonical Person Projection | Mock Escape ingest and verify a canonical person/workflow projection is created with expected identity links. | Confirm staging ingest produces the same projection shape from masked data. |
   | `P1-1A-002` | Source Conflict Surfaces Without Silent Normalization | Feed conflicting upstream values and verify the dashboard surfaces the conflict rather than normalizing it away. | Confirm staging conflict handling produces owned review surfaces, not silent drift. |
   | `P1-1A-003` | Projection Refresh After Successful Import | Verify successful import refreshes the visible read model without manual rebuild steps. | Confirm staging projections refresh after completed sync/import runs. |
+  | `P1-1A-004` | Projection Backed Lists Expose Freshness Context | Verify projection-backed dashboard and queue surfaces show last-sync or equivalent freshness context without requiring live provider calls for the list view itself. | Confirm staging list and queue surfaces expose the same freshness context while remaining projection-backed. |
 - `1B` onboarding/offboarding visibility and review-only mismatch queues
   | Scenario ID | Scenario Name | Operational Owner | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- | --- |
@@ -154,6 +159,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P1-1C-007` | Phone Directory Available To All Logged-In User Types | Verify every logged-in authorized role can access the phone directory while still seeing only the scope and fields allowed for that role. | Confirm staging role access and scoping match the documented directory-availability rules. |
   | `P1-1C-008` | Dashboard Tables Preserve Shared Top Baseline | Verify representative dashboard tables with multi-line cells keep the first visible line aligned horizontally across all columns, with row height expanding downward and no vertical centering of sparse cells or state badges. | Confirm staging renders representative dashboard tables with the same shared top baseline and top-aligned badges across directory and non-directory table surfaces. |
   | `P1-1C-009` | DEV Directory Seeds Preserve Reference Extension Patterns | Verify DEV phone-directory seed data uses sanitized names and emails, preserves real extension values and type families from the read-only reference HTML, treats 4-, 5-, and 6-digit numeric extensions as valid, and prefers 6-digit examples as the default visible mock pattern. | Confirm staging continues to render real synchronized extension values without introducing non-numeric formatting artifacts or invalid type-family mixing. |
+  | `P1-1C-010` | Directory Detail Live Refresh Stays Scoped To Selected Record | Verify selected-record phone-directory detail or drawer refresh can fetch fresher provider state for the active row without turning the surrounding table into a live provider fan-out surface. | Confirm staging keeps selected-record detail refresh targeted while the directory list remains projection-backed. |
 - `1D` student invalid-name visibility
   | Scenario ID | Scenario Name | Operational Owner | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- | --- |
@@ -188,6 +194,7 @@ This document tracks the named mock scenarios and verification coverage required
     - database state check before and after lifecycle execution
     - downstream action summary
     - `IncidentIQ` workflow-status evidence showing hourly-bounded user/ticket polling and dashboard linkage
+    - evidence that live provider disagreement on a write path refreshes the local projection and prevents unsafe writes
   - `2C` reactivation and AD -> Entra propagation warning handling
     - warning visibility evidence
     - resume/cancel/replan execution trace
@@ -214,6 +221,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P2-2B-002` | Staff Offboarding Baseline Deprovision | Verify offboarding removes baseline access and starts the expected reclaim/ticket side effects. | Confirm staging offboarding reaches the documented baseline deprovisioned state. |
   | `P2-2B-003` | Highest Category Re-Evaluation After Assignment Change | Verify a change in active Escape assignments recalculates the highest effective category correctly. | Confirm staging assignment changes preserve or reset baseline access according to category outcome. |
   | `P2-2B-004` | IncidentIQ User Poll And External Ticket Status Linkage | Verify the workflow polls `IncidentIQ` for the user by email no more than once per hour and links only the earliest created matching externally created `Aeries` and `Verkada` tickets once the user exists there, where matching means requestor email plus ticket category using `Aeries (Asset Tag: AERIES) -> User Rights -> Add User` and `Security Systems -> Alarm Codes -> Add Alarm Code`. Verify the earliest match remains authoritative even if a later matching ticket is still open, that no linked ticket is shown if the earliest match later disappears or becomes inaccessible, and that this absence is silent with no warning text. Confirm linked results show the full raw ticket number as link plus current status value with no truncation. | Confirm staging surfaces linked `IncidentIQ` user and external ticket status without taking ownership of ticket creation. |
+  | `P2-2B-005` | Live Provider Disagreement Refreshes Projection Before Write | Verify a write-capable lifecycle path re-reads live provider state, detects disagreement with the stored projection, refreshes the projection, and refuses the unsafe mutation until the planner has current source truth. | Confirm staging uses live provider disagreement as a safety stop rather than applying stale projected state blindly. |
 - `2C` reactivation and AD -> Entra propagation warning handling
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
@@ -317,6 +325,7 @@ This document tracks the named mock scenarios and verification coverage required
     - runtime overlap-count evidence across the defined 7-day window
     - ticket evidence for create/update behavior and material-cadence-change notes
     - runtime evidence that no-op saves do not reset overlap state
+    - evidence that missed provider events are repaired by delta or full reconciliation rather than leaving drift unresolved
   - `4D` legacy Google Sheets retirement and cutover
     - runtime or audit evidence of the 90-day no-end-user-edit gate
     - evidence distinguishing automation writes from end-user edits
@@ -341,6 +350,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P4-4C-001` | Five Overlaps In Seven Days Opens Or Updates Ticket | Verify five overlaps inside seven days create or update the cadence-adjustment ticket. | Confirm staging overlap counting and ticket update behavior match the threshold rule. |
   | `P4-4C-002` | Material Cadence Change Adds Old And New Values To Ticket | Verify interval/lookback changes append the old/new values to the open overlap ticket. | Confirm staging ticket notes record the expected cadence delta details. |
   | `P4-4C-003` | Overlap Counter Persists Until Material Change | Verify overlap counting does not reset on mere ticket creation or no-op config save. | Confirm staging counter reset requires a material cadence change only. |
+  | `P4-4C-004` | Missed Provider Event Repaired By Reconciliation | Verify a missed or delayed provider event is corrected by the documented delta or full reconciliation pass and does not leave the projection permanently stale. | Confirm staging reconciliation backstops can repair event loss without manual data surgery. |
 - `4D` legacy Google Sheets retirement and cutover
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
@@ -354,6 +364,7 @@ This document tracks the named mock scenarios and verification coverage required
     - runtime evidence of base student profile creation from school and grade
     - runtime evidence of end-of-day recalculation after enrollment, schedule, or course change
     - state evidence showing highest-privilege resolution with same-tier app union behavior
+    - evidence that student lifecycle list and queue surfaces remain projection-backed while targeted live verification is used only where safety requires it
   - `5B` multi-application orphaned-permission cleanup
     - runtime evidence of person-row badge aggregation and subtype drill-in behavior
     - runtime evidence that bulk actions remain constrained to a single subtype
@@ -373,8 +384,9 @@ This document tracks the named mock scenarios and verification coverage required
   | `P5-5A-001` | Student Base Profile Created From School And Grade | Verify a new student account receives the default school/grade profile from the future student provisioning module. | Confirm staging student base provisioning follows the documented school/grade profile rules. |
   | `P5-5A-002` | Course Change Triggers End-Of-Day Access Recalculation | Verify enrollment/schedule/course changes trigger end-of-day recalculation of extended student access. | Confirm staging recalculation waits until cutoff and reflects current course participation. |
   | `P5-5A-003` | Highest Privilege Profile Wins With Same-Tier Union | Verify student access chooses the highest privilege profile and unions app access within the same tier. | Confirm staging student-access resolution follows the documented precedence model. |
-  | `P5-5A-004` | Aeries Student Legal-Name Change Creates Rename Job Only After Provisioning Exists | Verify an Aeries legal-name change for a student who already has an AD/downstream identity creates the downstream rename job rather than silently mutating source-linked account fields. | Confirm staging runs the student rename as an audited job only when the student account already exists. |
-  | `P5-5A-005` | Pre-Provisioning Student Name Correction Does Not Trigger Rename | Verify a student name correction made in Aeries before the student's first account provisioning produces no rename job and only affects the later initial provisioning run. | Confirm staging keeps pre-provisioning student corrections out of the rename pipeline. |
+  | `P5-5A-004` | Student Lifecycle Lists Stay Projection Backed With Targeted Verification | Verify student lifecycle tables, queues, and search surfaces stay projection-backed while targeted live verification is reserved for write-sensitive or destructive action paths only. | Confirm staging preserves the same projection-backed default while allowing targeted live verification where the workflow requires it. |
+  | `P5-5A-005` | Aeries Student Legal-Name Change Creates Rename Job Only After Provisioning Exists | Verify an Aeries legal-name change for a student who already has an AD/downstream identity creates the downstream rename job rather than silently mutating source-linked account fields. | Confirm staging runs the student rename as an audited job only when the student account already exists. |
+  | `P5-5A-006` | Pre-Provisioning Student Name Correction Does Not Trigger Rename | Verify a student name correction made in Aeries before the student's first account provisioning produces no rename job and only affects the later initial provisioning run. | Confirm staging keeps pre-provisioning student corrections out of the rename pipeline. |
 - `5B` multi-application orphaned-permission cleanup
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
