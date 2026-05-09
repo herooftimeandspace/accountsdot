@@ -126,10 +126,10 @@ function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs,
       className={`offboarding-runtime__table ${showEmployeeIDs ? "offboarding-runtime__table--with-ids" : ""}`}
       style={{
         position: "absolute",
-        left: bounds.left + 18,
-        top: bounds.top + 14,
-        width: Math.max(0, bounds.width - 36),
-        height: Math.max(0, bounds.height - 28),
+        left: bounds.left,
+        top: bounds.top,
+        width: Math.max(0, bounds.width),
+        height: Math.max(0, bounds.height + 96),
         zIndex: 2,
       }}
       aria-labelledby={OFFBOARDING_HEADING_ID}
@@ -331,7 +331,7 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
     hideSearchPlaceholder: true,
     hideAllNavGroups: true,
   });
-  hiddenNodeIds.push(...STATIC_OFFBOARDING_NODE_IDS);
+  hiddenNodeIds.push(OFFBOARDING_TABLE_FRAME_NODE_ID, ...STATIC_OFFBOARDING_NODE_IDS);
   const imageNodeOverrides = buildSharedShellImageOverrides(session);
   const sharedShellRenderOverlay = createSharedShellRenderOverlay({
     session,

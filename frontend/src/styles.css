@@ -667,8 +667,13 @@ input {
 .offboarding-runtime__table {
   display: grid;
   grid-template-rows: auto auto auto 1fr;
+  padding: 14px 18px 18px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-ui);
+  overflow: hidden;
 }
 
 .offboarding-runtime__table-title {
