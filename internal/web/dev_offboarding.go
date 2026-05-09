@@ -358,14 +358,15 @@ var devOffboardingSeedRecords = []offboardingSeedRecord{
 			{Label: "Source", Value: "Escape"},
 			{Label: "End date ownership", Value: "Escape is authoritative. This dashboard does not override it."},
 			{Label: "Assigned email", Value: "taylor.singh@wusd.org"},
+			{Label: "Licenses to reclaim", Value: "Zoom Workplace for Education Enterprise Essentials; Zoom Phone Basic"},
 		},
 		Actions: []offboardingWorkflowStep{
 			{
 				Name:       "License reclaim",
 				Owner:      "Automation",
 				Status:     "Scheduled",
-				Detail:     "Zoom and Google Workspace license checks are queued for the Escape end date.",
-				Resolution: "No manual action is needed unless the scheduled job reports a failure.",
+				Detail:     "Zoom Workplace for Education Enterprise Essentials and Zoom Phone Basic are queued for reclamation on the Escape end date.",
+				Resolution: "No manual action is needed unless the scheduled job reports a failure reclaiming Zoom Workplace for Education Enterprise Essentials, Zoom Phone Basic, or the baseline Google Workspace assignment.",
 			},
 		},
 	},

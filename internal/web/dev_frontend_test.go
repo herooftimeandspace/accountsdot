@@ -185,6 +185,7 @@ type offboardingResponse struct {
 				Name       string `json:"name"`
 				Owner      string `json:"owner"`
 				Status     string `json:"status"`
+				Detail     string `json:"detail"`
 				Resolution string `json:"resolution"`
 				Links      []struct {
 					Href string `json:"href"`
@@ -577,13 +578,22 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("it row employee id missing: %#v", itPayload.Page.Rows[0])
 		}
 		foundOrphanAction := false
+		foundNamedLicenseReclaim := false
 		for _, row := range itPayload.Page.Rows {
 			if row.Kind == "orphan" && row.Warning != "" && len(row.Actions) > 0 {
 				foundOrphanAction = true
 			}
+			if row.ID == "escape-taylor-singh" && len(row.Actions) > 0 {
+				actionText := row.Actions[0].Detail + " " + row.Actions[0].Resolution
+				foundNamedLicenseReclaim = strings.Contains(actionText, "Zoom Workplace for Education Enterprise Essentials") &&
+					strings.Contains(actionText, "Zoom Phone Basic")
+			}
 		}
 		if !foundOrphanAction {
 			t.Fatal("expected orphan row with warning and drawer actions")
+		}
+		if !foundNamedLicenseReclaim {
+			t.Fatal("expected license reclaim drawer action to name the specific Zoom licenses")
 		}
 
 		siteCookie := loginAsPersona(t, handler, "site_admin")
