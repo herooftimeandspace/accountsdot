@@ -2112,7 +2112,9 @@
           "fill": "#01161E",
           "content": "Unmapped job title",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 200,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2122,7 +2124,9 @@
           "fill": "#01161E",
           "content": "Escape / SFTP",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 106,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2132,7 +2136,9 @@
           "fill": "#01161E",
           "content": "HR + IT",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 100,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2142,7 +2148,9 @@
           "fill": "#01161E",
           "content": "Blocks access bundle",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 150,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2152,7 +2160,9 @@
           "fill": "#01161E",
           "content": "Map title",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 190,
+          "textGrowth": "auto"
         },
         {
           "type": "frame",
@@ -2234,7 +2244,9 @@
           "fill": "#01161E",
           "content": "Google-active / Aeries-inactive",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 200,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2244,7 +2256,9 @@
           "fill": "#01161E",
           "content": "Google + Aeries",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 106,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2264,7 +2278,9 @@
           "fill": "#01161E",
           "content": "Security review",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 150,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2274,7 +2290,9 @@
           "fill": "#01161E",
           "content": "Schedule deprovision",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 190,
+          "textGrowth": "auto"
         },
         {
           "type": "frame",
@@ -2295,7 +2313,9 @@
           "fill": "#01161E",
           "content": "Missing mandatory field",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 200,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2325,7 +2345,9 @@
           "fill": "#01161E",
           "content": "Blocks onboarding",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 150,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2335,7 +2357,9 @@
           "fill": "#01161E",
           "content": "Update record",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 190,
+          "textGrowth": "auto"
         },
         {
           "type": "frame",
@@ -2386,7 +2410,9 @@
           "fill": "#01161E",
           "content": "Blocks baseline site selection",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 150,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2396,7 +2422,9 @@
           "fill": "#01161E",
           "content": "Apply temporary override",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 190,
+          "textGrowth": "auto"
         },
         {
           "type": "frame",
@@ -2488,7 +2516,9 @@
           "fill": "#01161E",
           "content": "Sensitive lifecycle or title issues",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 220,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2508,7 +2538,9 @@
           "fill": "#01161E",
           "content": "Room and student data corrections",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 220,
+          "textGrowth": "auto"
         },
         {
           "type": "text",
@@ -2528,7 +2560,9 @@
           "fill": "#01161E",
           "content": "Provider conflicts and security mismatches",
           "fontFamily": "Arial",
-          "fontSize": 12
+          "fontSize": 12,
+          "width": 220,
+          "textGrowth": "auto"
         },
         {
           "type": "frame",
