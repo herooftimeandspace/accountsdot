@@ -1,10 +1,19 @@
-export function DevPersonaSwitcher({ session, personaId, sessionState, onChange }) {
+export function DevPersonaSwitcher({
+  session,
+  personaId,
+  pendingPersonaId = null,
+  pendingLabel = "",
+  sessionState,
+  onChange,
+}) {
   if (!import.meta.env.DEV) {
     return null;
   }
 
   const personas = session?.personas ?? [];
   const hintId = "dev-persona-switcher-hint";
+  const statusLabel = pendingPersonaId ? "switching" : sessionState;
+  const statusDetail = pendingLabel ? `Switching to ${pendingLabel}...` : null;
 
   return (
     <aside className="dev-toolbar" aria-label="Development persona controls">
@@ -33,8 +42,9 @@ export function DevPersonaSwitcher({ session, personaId, sessionState, onChange 
       {/* WCAG 4.1.3: persona-session load state changes announce without moving focus. */}
       <div className="dev-toolbar__meta" aria-live="polite">
         <span>Status</span>
-        <strong>{sessionState}</strong>
+        <strong>{statusLabel}</strong>
       </div>
+      {statusDetail ? <p className="dev-toolbar__status-detail">{statusDetail}</p> : null}
       <p id={hintId} className="dev-toolbar__hint">
         DEV-only persona switching is backed by mock data from the Go app. Production auth is out of
         scope for pre-phase 0.

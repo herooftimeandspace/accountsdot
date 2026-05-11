@@ -14,6 +14,7 @@ const DEV_API_BASE = "/api/v1/dev";
 const DEFAULT_PERSONA_ID = "it_admin";
 const PERSONA_STORAGE_KEY = "wizard-dev-persona";
 const APP_TITLE = "The WIZARD";
+const PERSONA_SWITCH_OVERLAY_MIN_MS = 450;
 const STATIC_ROUTE_TITLES = {
   "dashboard-it-admin": "IT Admin Dashboard",
   "dashboard-hr-lifecycle": "Human Resources Dashboard",
@@ -105,6 +106,18 @@ function PageStatus({ title, message }) {
   );
 }
 
+function PersonaSwitchOverlay({ label }) {
+  if (!label) {
+    return null;
+  }
+
+  return (
+    <div className="persona-switch-overlay" role="status" aria-live="polite" aria-atomic="true">
+      <strong>Switching to {label}...</strong>
+    </div>
+  );
+}
+
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -138,6 +151,7 @@ export function App() {
   const [sessionState, setSessionState] = useState("loading");
   const [sessionError, setSessionError] = useState(null);
   const [preferredPersonaId, setPreferredPersonaId] = useState(readStoredPersona);
+  const [personaSwitchState, setPersonaSwitchState] = useState(null);
 
   const currentPath = currentLocation.pathname;
   const currentSearch = currentLocation.search;
@@ -197,7 +211,17 @@ export function App() {
 
   const loginAsPersona = useCallback(
     async (personaId) => {
-      setSessionState("updating");
+      const isPersonaSwitch = Boolean(session?.authenticated && session?.authorized);
+      const targetPersona = session?.personas?.find((persona) => persona.id === personaId);
+      if (isPersonaSwitch) {
+        setPersonaSwitchState({
+          targetPersonaId: personaId,
+          targetLabel: targetPersona?.label || personaId,
+          targetPath: null,
+        });
+      } else {
+        setSessionState("updating");
+      }
       setSessionError(null);
       try {
         const payload = await readJSON(
@@ -212,23 +236,48 @@ export function App() {
           })
         );
         const switchTarget = resolvePersonaSwitchTarget(payload, window.location.pathname);
-        if (switchTarget) {
-          const url = new URL(switchTarget, window.location.origin);
-          const targetPathname = normalizePath(url.pathname);
-          const targetSearch = url.search || "";
-          window.history.replaceState({}, "", `${targetPathname}${targetSearch}`);
-          setCurrentLocation({ pathname: targetPathname, search: targetSearch });
+        const targetUrl = switchTarget ? new URL(switchTarget, window.location.origin) : null;
+        const targetPathname = targetUrl ? normalizePath(targetUrl.pathname) : null;
+        const targetSearch = targetUrl?.search || "";
+        const targetHref = targetPathname ? `${targetPathname}${targetSearch}` : null;
+
+        if (isPersonaSwitch) {
+          setPersonaSwitchState((current) =>
+            current?.targetPersonaId === personaId
+              ? { ...current, targetPath: targetHref }
+              : current
+          );
         }
-        setSession(payload);
-        setPreferredPersonaId(personaId);
-        storePersona(personaId);
-        setSessionState("ready");
+
+        startTransition(() => {
+          if (targetHref) {
+            window.history.replaceState({}, "", targetHref);
+            setCurrentLocation({ pathname: targetPathname, search: targetSearch });
+          }
+          setSession(payload);
+          setPreferredPersonaId(personaId);
+          storePersona(personaId);
+          setSessionState("ready");
+        });
+
+        if (isPersonaSwitch) {
+          window.setTimeout(() => {
+            window.requestAnimationFrame(() => {
+              window.requestAnimationFrame(() => {
+                setPersonaSwitchState((current) =>
+                  current?.targetPersonaId === personaId ? null : current
+                );
+              });
+            });
+          }, PERSONA_SWITCH_OVERLAY_MIN_MS);
+        }
       } catch (error) {
+        setPersonaSwitchState(null);
         setSessionError(error);
         setSessionState("error");
       }
     },
-    []
+    [session]
   );
 
   const logout = useCallback(async () => {
@@ -328,6 +377,8 @@ export function App() {
   }, [navigate]);
 
   const showDevPersonaSwitcher = Boolean(import.meta.env.DEV && authenticated);
+  const activePersonaId = session?.current_persona?.id || preferredPersonaId;
+  const visiblePersonaId = personaSwitchState?.targetPersonaId || activePersonaId;
 
   let page = null;
   if (sessionState === "loading") {
@@ -442,16 +493,19 @@ export function App() {
       {showDevPersonaSwitcher ? (
         <DevPersonaSwitcher
           session={session}
-          personaId={session?.current_persona?.id || preferredPersonaId}
+          personaId={visiblePersonaId}
+          pendingPersonaId={personaSwitchState?.targetPersonaId}
+          pendingLabel={personaSwitchState?.targetLabel}
           sessionState={sessionState}
           onChange={(personaId) => {
-            if (personaId === (session?.current_persona?.id || preferredPersonaId)) {
+            if (personaId === visiblePersonaId) {
               return;
             }
             void loginAsPersona(personaId);
           }}
         />
       ) : null}
+      {personaSwitchState ? <PersonaSwitchOverlay label={personaSwitchState.targetLabel} /> : null}
       {page}
     </>
   );
