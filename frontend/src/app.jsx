@@ -8,6 +8,7 @@ import { FrequentFliersPage } from "./pages/FrequentFliersPage";
 import { OffboardingPage } from "./pages/OffboardingPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PhoneDirectoryPage } from "./pages/PhoneDirectoryPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { SearchPage } from "./pages/SearchPage";
 import { StaticPenPage } from "./pages/StaticPenPage";
 import { StudentDataCleanupPage } from "./pages/StudentDataCleanupPage";
@@ -63,6 +64,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Frequent Fliers";
     case "student-data-cleanup":
       return "Student Data Cleanup";
+    case "reports":
+      return "Reports";
     case "phone-directory":
       return PHONE_DIRECTORY_TITLES[route.mode] || "Phone Directory";
     case "static":
@@ -511,6 +514,15 @@ export function App() {
   } else if (currentRoute?.kind === "student-data-cleanup") {
     page = (
       <StudentDataCleanupPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+      />
+    );
+  } else if (currentRoute?.kind === "reports") {
+    page = (
+      <ReportsPage
         session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}

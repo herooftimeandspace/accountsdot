@@ -393,6 +393,9 @@
   - shared header search groups results by source/type, including people, rooms/extensions, departments/lines, onboarding, offboarding, departing seniors, devices/assets, and workflow/action records where mock data exists
   - global search must respect persona route access and field visibility; employee IDs are included only for `IT Admin` and `Human Resources`
   - within each grouped result bucket, exact matches outrank prefix matches, prefix matches outrank substring matches, and remaining ties sort deterministically
+  - the `/reports` route is a runtime-owned Reports hub over the shared `.pen` shell; the live page hides the fixed artboard detail card and renders report inventory plus recent refresh rows with shared table search/sort primitives
+  - selecting any report or refresh row on `/reports` opens the shared right-hand drawer with row-specific scope, source, data-included, open-item, last-run or refresh, cadence, status, and explanation details
+  - report rows may expose an `Open Report` drawer action that routes to the owning implemented page or report route; refresh rows remain informational and do not navigate
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Purpose:
@@ -1875,6 +1878,12 @@
 - The table height should be driven by the visible row count, including empty filtered states, rather than fixed artboard whitespace.
 - The page-level sync action is a runtime-owned Vegas Gold button. It is a DEV mock action in this slice and does not write student records.
 - Row selection opens the shared right-hand drawer with the raw Aeries values, normalized values, and a deterministic DEV Aeries link. The drawer remains informational; corrections must happen upstream in Aeries.
+
+## Reports Runtime Notes
+- The live `/reports` page uses runtime table primitives over the shared `.pen` shell for page-local report search, three-way sortable column headers, and selected-row drawer details.
+- Fixed right-side report detail cards from the source artboard are hidden in the live runtime page. Row details belong in the shared right-hand drawer so Reports follows the same row-open, row-update, and close behavior as other implemented pages.
+- Report rows open a drawer with report-specific scope, source systems, included data, open-item count, last run, refresh frequency, status, and a concise explanation. The drawer `Open Report` action routes to the owning implemented page or report route.
+- Provider refresh rows open the same drawer primitive with source, last refresh, health status, and refresh details. Refresh rows are informational and do not provide navigation actions in this DEV slice.
 
 ## Non-Deterministic Overrides
 - Certain fields are explicitly non-deterministic and may be updated by authorized users even when they are not authoritative in upstream systems.

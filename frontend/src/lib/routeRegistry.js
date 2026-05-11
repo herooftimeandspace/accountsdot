@@ -30,7 +30,7 @@ export const APP_ROUTES = [
   { path: "/data-quality", kind: "data-quality", artboardKey: "data-quality" },
   { path: "/frequent-fliers", kind: "frequent-fliers", artboardKey: "frequent-fliers" },
   { path: "/student-data-cleanup", kind: "student-data-cleanup", artboardKey: "student-data-cleanup" },
-  { path: "/reports", kind: "static", artboardKey: "reports" },
+  { path: "/reports", kind: "reports", artboardKey: "reports" },
   {
     path: "/reports/sync-transparency",
     kind: "static",

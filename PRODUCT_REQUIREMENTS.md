@@ -201,6 +201,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/reports/sync-transparency`
   - `/reports/ticketing-human-work`
   - `/admin`
+- Reports page behavior for the current foundation slice:
+  - `/reports` is an IT Admin operational reporting hub for report inventory, queue summaries, and provider refresh state
+  - report inventory rows and recent refresh rows should open the shared right-hand drawer when selected
+  - the drawer should show the row's scope, source systems, included data, open-item count, last run or refresh time, refresh cadence, status, and a short plain-language explanation of what the row means
+  - report rows may include an `Open Report` action that routes to the owning implemented page or report route
+  - fixed report-detail panels in the artboard are layout artifacts for review only and should not remain visible in the live runtime page
+  - the Reports table should use the shared page-level table search and three-way sort primitives rather than static text-only rows
 - Shared-header search behavior for the current foundation slice:
   - the shared header search is a global search entrypoint rather than Phone Directory-only chrome
   - submitting a query from any logged-in page should route the user to `/search?q=...`

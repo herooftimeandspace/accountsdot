@@ -48,6 +48,7 @@ This ledger is the default landing place for annotation-driven hardening work ac
 | UIH-041 | All logged-in implemented pages | User feedback: shared header search is a global search entrypoint, not a Phone Directory-only shortcut; numeric extension searches must not leave Phone Directory stuck loading | docs/new behavior, runtime behavior, DEV mock API behavior | PRD/implementation docs, DEV global search API, `/search` runtime page, shared header search routing, Phone Directory request lifecycle | completed | Global search route/API groups accessible results without leaking hidden employee IDs, header submit routes to `/search?q=...`, Phone Directory request keys always settle loading, Go handler tests, `npm run build:web`, `npm run a11y:check`, and browser verification |
 | UIH-042 | Frequent Fliers | User feedback: move the fixed student detail panel into the shared drawer, make threshold/type filters real controls, replace static trend marks with a color-coded graph, move helper copy into global help, and make device/ticket rows link to deterministic DEV targets | docs/new behavior, runtime behavior | PRD/implementation docs, `FrequentFliersPage.jsx`, shared drawer/help/table primitives | completed | Runtime-owned Frequent Fliers pane over the shared shell plus `npm run build:web`, `npm run a11y:check`, and browser verification on `/frequent-fliers` |
 | UIH-043 | Student Data Cleanup | User feedback: fix the Sync button overflow/color, move helper copy into page help, remove static filter/helper clutter, and use page-level search/filter plus shared table sorting and auto-sized rows | docs/new behavior, runtime behavior | PRD/implementation docs, `StudentDataCleanupPage.jsx`, shared help/table/drawer primitives | completed | Runtime-owned Student Data Cleanup pane over the shared shell plus `npm run build:web`, `npm run a11y:check`, and browser verification on `/student-data-cleanup` |
+| UIH-044 | Reports | User feedback: move the fixed report detail card into the shared right-hand drawer, and make every report or refresh row open relevant row details through the shared open/close drawer primitive | docs/new behavior, runtime behavior | PRD/implementation docs, `ReportsPage.jsx`, shared drawer/table primitives | completed | Runtime-owned Reports pane over the shared shell plus `npm run build:web`, `npm run a11y:check`, and browser verification on `/reports` |
 
 ## Page Index
 
@@ -64,7 +65,7 @@ This ledger is the default landing place for annotation-driven hardening work ac
 - `phone-directory-by-department`: no additional active annotations captured yet.
 - `phone-directory-by-person`: no additional active annotations captured yet.
 - `phone-directory-by-room`: no additional active annotations captured yet.
-- `reports`: no additional active annotations captured yet.
+- `reports`: no additional active annotations captured yet; latest runtime drawer feedback is captured in UIH-044.
 - `reports-sync-transparency`: no additional active annotations captured yet.
 - `reports-ticketing-human-work`: no additional active annotations captured yet.
 - `room-moves`: no additional active annotations captured yet.

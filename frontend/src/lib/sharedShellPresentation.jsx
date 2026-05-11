@@ -673,6 +673,11 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
     return null;
   }
 
+  const sections = (helpContent.sections || []).map((section) => ({
+    heading: section.heading,
+    paragraphs: section.paragraphs || (section.body ? [section.body] : []),
+  }));
+
   return (
     <>
       <button
@@ -694,7 +699,7 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
       {isOpen ? (
         <RuntimeDrawer title={helpContent.title} onClose={() => setIsOpen(false)}>
           <div className="shared-shell-help-drawer">
-            {helpContent.sections.map((section) => (
+            {sections.map((section) => (
               <section key={section.heading}>
                 <h3>{section.heading}</h3>
                 {section.paragraphs.map((paragraph) => (
