@@ -120,7 +120,7 @@ function resolvePersonaSwitchTarget(payload, pathname) {
   const currentPath = normalizePath(pathname);
   const currentRoute = resolveRoute(currentPath);
 
-  if (currentPath === "/dashboard" || currentPath === "/error/403") {
+  if (currentPath === "/dashboard" || currentPath.startsWith("/dashboard/") || currentPath === "/error/403") {
     return payload?.landing_path || "/dashboard";
   }
 
