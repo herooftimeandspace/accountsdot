@@ -304,6 +304,8 @@ const MODE_BUTTONS = [
   { mode: "department", label: "By Department", buttonId: "f93", labelId: "t94" },
 ];
 const PHONE_DIRECTORY_HEADING_ID = "phone-directory-heading";
+const PHONE_DIRECTORY_RESULTS_TOP = 236;
+const PHONE_DIRECTORY_RESULTS_BOTTOM_PADDING = 64;
 const MODE_PAGE_TITLES = {
   person: "Phone Directory by Person",
   room: "Phone Directory by Room",
@@ -392,6 +394,31 @@ function nodeBounds(node) {
     width: node.width ?? 0,
     height: node.height ?? 0,
   };
+}
+
+function phoneDirectoryResultsBounds(bounds) {
+  if (!bounds) {
+    return null;
+  }
+  return {
+    ...bounds,
+    top: PHONE_DIRECTORY_RESULTS_TOP,
+    height: Math.max(bounds.height, bounds.top + bounds.height - PHONE_DIRECTORY_RESULTS_TOP),
+  };
+}
+
+function phoneDirectoryExpandedArtboardHeight(baseHeight, resultCount) {
+  const rows = Math.max(1, resultCount || 0);
+  const tableChromeHeight = 104;
+  const rowHeight = 48;
+  return Math.max(
+    baseHeight,
+    PHONE_DIRECTORY_RESULTS_TOP +
+      14 +
+      tableChromeHeight +
+      rows * rowHeight +
+      PHONE_DIRECTORY_RESULTS_BOTTOM_PADDING
+  );
 }
 
 function boundsIntersect(a, b, tolerance = 1) {
@@ -681,6 +708,9 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
   }
 
   pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.descriptionId));
+  pushDuplicateIds(hiddenNodeIds, nodeIndex, sharedShellSpec.sharedShellIds.scopeField);
+  pushDuplicateIds(hiddenNodeIds, nodeIndex, sharedShellSpec.sharedShellIds.scopeTitle);
+  pushDuplicateIds(hiddenNodeIds, nodeIndex, sharedShellSpec.sharedShellIds.scopeSubtitle);
   pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.searchFieldId));
   pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.searchIconId));
   pushDuplicateIds(
@@ -697,6 +727,9 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
   const modeButtonBounds = MODE_BUTTONS.map((button) =>
     nodeBounds(nodeIndex.get(resolvePaneId(nodeIndex, config, button.buttonId)))
   ).filter(Boolean);
+  if (resultsFrame?.id) {
+    hiddenNodeIds.push(resultsFrame.id);
+  }
   hiddenNodeIds.push(...descendantIds(resultsFrame), ...descendantIds(detailRail));
   hiddenNodeIds.push(
     ...(config.hiddenStaticNodeIds ?? []).map((nodeId) => resolvePaneId(nodeIndex, config, nodeId))
@@ -753,10 +786,12 @@ export function PhoneDirectoryPage({
     setSelectedResultId("");
   }, [mode]);
 
-  const artboard = useMemo(
-    () => uniquifyNodeIds(clone(generatedArtboards[artboardKey])),
-    [artboardKey]
-  );
+  const resultCount = payload?.page?.results?.length ?? 0;
+  const artboard = useMemo(() => {
+    const nextArtboard = uniquifyNodeIds(clone(generatedArtboards[artboardKey]));
+    nextArtboard.height = phoneDirectoryExpandedArtboardHeight(nextArtboard.height, resultCount);
+    return nextArtboard;
+  }, [artboardKey, resultCount]);
   const nodeIndex = useMemo(() => buildNodeIndex(artboard), [artboard]);
 
   useEffect(() => {
@@ -866,6 +901,7 @@ export function PhoneDirectoryPage({
       const resultsBounds = nodeBounds(
         nodeIndex.get(resolvePaneId(nodeIndex, modeConfig, modeConfig.resultsFrameId))
       );
+      const runtimeResultsBounds = phoneDirectoryResultsBounds(resultsBounds);
       const scopeBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.scopeField));
       const results = payload?.page?.results ?? [];
       const selected = selectedResultForPayload(payload, selectedResultId);
@@ -889,7 +925,7 @@ export function PhoneDirectoryPage({
         />,
         <PhoneDirectoryResultsOverlay
           key="phone-directory-results"
-          bounds={resultsBounds}
+          bounds={runtimeResultsBounds}
           mode={mode}
           results={results}
           selectedResultId={selectedResultId}
