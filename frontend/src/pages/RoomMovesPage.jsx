@@ -36,6 +36,7 @@ const HIDDEN_ROOM_MOVES_NODE_IDS = [
   "room-moves__t148", "room-moves__t149", "room-moves__t150", "room-moves__t151", "room-moves__t152", "room-moves__t153",
   "room-moves__t154", "room-moves__t155", "room-moves__l156", "room-moves__f157", "room-moves__t158",
   "room-moves__f159", "room-moves__t160", "room-moves__f161", "room-moves__p162", "room-moves__p163", "room-moves__t164",
+  "room-moves__f300", "room-moves__t301", "room-moves__f302", "room-moves__t303", "room-moves__f304", "room-moves__t305",
 ];
 
 async function readJSON(response) {
@@ -153,7 +154,7 @@ function RoomMovesActions({ bounds, onCreateSingle, onCreateBulkRoster, onCreate
   return (
     <div
       className="room-moves-runtime__actions"
-      style={{ left: bounds.left + 232, top: bounds.top + 44, width: 520 }}
+      style={{ left: bounds.left + bounds.width + 12, top: bounds.top + 52, width: 360 }}
     >
       <button type="button" onClick={onCreateSingle} disabled={busy}>Create Room Move</button>
       <button type="button" onClick={onCreateBulkRoster} disabled={busy}>Bulk Site Roster</button>
@@ -170,6 +171,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   const [destinationSiteId, setDestinationSiteId] = useState(selectedPerson?.site_id || row?.current_site_id || sites[0]?.id || "");
   const [destinationRoomId, setDestinationRoomId] = useState(defaultDestinationRoom(selectedPerson, destinationSiteId));
   const [saving, setSaving] = useState(false);
+  const [createdDraftId, setCreatedDraftId] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -212,6 +214,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           }),
         })
       );
+      setCreatedDraftId(response.draft.id);
       if (action === "schedule" || action === "apply") {
         const transition = await readJSON(
           await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${response.draft.id}/${action}`, {
@@ -229,6 +232,21 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
     } finally {
       setSaving(false);
     }
+  }
+
+  async function cancelDraft() {
+    if (createdDraftId) {
+      try {
+        await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${createdDraftId}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+      } catch {
+        // Cancel should still close the draft drawer if the cleanup request fails.
+      }
+    }
+    onClose();
   }
 
   return (
@@ -306,6 +324,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           <button type="button" onClick={() => saveDraft("save")} disabled={saving}>Save Draft</button>
           <button type="button" onClick={() => saveDraft("schedule")} disabled={saving}>Schedule</button>
           <button type="button" onClick={() => saveDraft("apply")} disabled={saving}>Apply</button>
+          <button type="button" className="room-moves-runtime__delete" onClick={cancelDraft} disabled={saving}>Cancel</button>
         </div>
       </div>
     </RuntimeDrawer>

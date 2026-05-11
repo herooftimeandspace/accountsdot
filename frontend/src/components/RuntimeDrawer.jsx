@@ -42,7 +42,7 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
         top: bounds.top,
         width: bounds.width,
         height: bounds.height,
-        zIndex: 32,
+        zIndex: 80,
     }
     : undefined;
 
