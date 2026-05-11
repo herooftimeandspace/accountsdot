@@ -778,6 +778,7 @@
     - single-move warnings belong in right-drawer details
     - bulk-draft warnings belong in a top warning bar above the bulk table
     - the main Move Set Review table shows both persona-visible single moves and persona-visible scheduled bulk moves; bulk rows use `Bulk Move` as the name value and include an Author column immediately before State
+    - IT Admin can open any Room Moves draft that is visible in the review table, even when another operator authored the draft
     - Room Moves help text must include: `IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.`
   - cancellation and reversal rules:
     - every pending Room Moves table row exposes `Cancel Move`

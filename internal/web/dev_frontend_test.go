@@ -1834,6 +1834,17 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !foundSeedBulkMove {
 			t.Fatalf("it room moves rows = %#v, want seeded bulk move row", itRoomMoves.Page.Rows)
 		}
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id=rm-draft-103", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it seeded bulk draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		seedBulkDraft := decodeJSON[roomMovesBulkDraftResponse](t, rec)
+		if seedBulkDraft.Page.Draft.ID != "rm-draft-103" || len(seedBulkDraft.Page.Draft.Rows) == 0 {
+			t.Fatalf("seeded bulk draft = %#v, want rm-draft-103 with visible rows", seedBulkDraft.Page.Draft)
+		}
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/cancel", nil)
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()

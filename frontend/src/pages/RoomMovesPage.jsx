@@ -217,12 +217,12 @@ function RoomMovesActions({ bounds, onCreateSingle, onCreateBulkRoster, onCreate
   if (!bounds) {
     return null;
   }
-  const width = 220;
-  const left = Math.min(bounds.left + bounds.width + 12, 1440 - width - 36);
+  const width = 186;
+  const left = Math.min(bounds.left + bounds.width + 20, 1440 - width - 36);
   return (
     <div
       className="room-moves-runtime__actions"
-      style={{ left, top: bounds.top + 52, width }}
+      style={{ left, top: bounds.top + 8, width }}
     >
       <button type="button" onClick={onCreateSingle} disabled={busy}>Create Room Move</button>
       <button type="button" onClick={onCreateBulkRoster} disabled={busy}>Bulk Site Roster</button>
@@ -788,7 +788,8 @@ export function RoomMovesPage({
   const fullOverlay = useCallback(
     ({ nodeIndex, textOverrides: overlayTextOverrides }) => {
       const shellOverlay = renderOverlay({ nodeIndex, textOverrides: overlayTextOverrides });
-      if (pageState !== "ready" || !payload?.page) {
+      const routePayloadReady = isBulk ? Boolean(payload?.page?.draft) : Boolean(payload?.page?.rows);
+      if (pageState !== "ready" || !payload?.page || !routePayloadReady) {
         return shellOverlay;
       }
       const page = payload.page;
