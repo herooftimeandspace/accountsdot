@@ -272,7 +272,10 @@ type roomMovesResponse struct {
 			ID            string `json:"id"`
 			DraftID       string `json:"draft_id"`
 			MoveType      string `json:"move_type"`
+			Person        string `json:"person"`
 			CurrentSiteID string `json:"current_site_id"`
+			Author        string `json:"author"`
+			State         string `json:"state"`
 			Warning       string `json:"warning"`
 		} `json:"rows"`
 	} `json:"page"`
@@ -1815,6 +1818,28 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if noneRoomOptions != 1 {
 			t.Fatalf("it room options have %d None entries, want exactly 1: %#v", noneRoomOptions, itRoomMoves.Page.Rooms)
+		}
+		foundSeedBulkMove := false
+		for _, row := range itRoomMoves.Page.Rows {
+			if row.DraftID == "rm-draft-103" {
+				foundSeedBulkMove = true
+				if row.Person != "Bulk Move" || row.Author == "" || row.State != "Scheduled" {
+					t.Fatalf("seed bulk row = %#v, want Bulk Move with author and Scheduled state", row)
+				}
+				if row.Warning == "" {
+					t.Fatalf("seed bulk row = %#v, want warning available for drawer/bulk warning surfaces", row)
+				}
+			}
+		}
+		if !foundSeedBulkMove {
+			t.Fatalf("it room moves rows = %#v, want seeded bulk move row", itRoomMoves.Page.Rows)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/cancel", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("cancel seeded bulk draft returned %d, want 200: %s", rec.Code, rec.Body.String())
 		}
 
 		itBody, err := json.Marshal(map[string]any{

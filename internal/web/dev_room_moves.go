@@ -75,6 +75,7 @@ type roomMoveReviewRow struct {
 	DestinationSite string `json:"destination_site"`
 	DestinationRoom string `json:"destination_room"`
 	Phone           string `json:"phone"`
+	Author          string `json:"author"`
 	State           string `json:"state"`
 	Warning         string `json:"warning,omitempty"`
 	WarningLevel    string `json:"warning_level,omitempty"`
@@ -88,6 +89,7 @@ type roomMoveDraftPayload struct {
 	ScopeSite         string             `json:"scope_site"`
 	EffectiveDate     string             `json:"effective_date"`
 	ScheduledFor      string             `json:"scheduled_for,omitempty"`
+	Author            string             `json:"author"`
 	Warnings          []string           `json:"warnings"`
 	Rows              []roomMoveDraftRow `json:"rows"`
 	CanEdit           bool               `json:"can_edit"`
@@ -401,15 +403,23 @@ func (s *devRoomMoveStoreState) page(config devPersonaConfig) roomMovesPageConte
 
 func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveReviewRow {
 	base := []roomMoveReviewRow{
-		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Ready", ""),
-		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Review", "Primary conflict"),
-		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone", "Review", "Null-room outcome"),
-		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Ready", ""),
+		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
+		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Avery Shah", "Review", "Primary conflict"),
+		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
+		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone", "Alex Ramirez", "Review", "Null-room outcome"),
+		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
+	}
+	baseDraftIDs := map[string]bool{}
+	for _, row := range base {
+		baseDraftIDs[row.DraftID] = true
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, draft := range s.drafts {
+		if baseDraftIDs[draft.ID] {
+			continue
+		}
 		if s.completed[draft.ID] || s.canceled[draft.ID] {
 			continue
 		}
@@ -431,6 +441,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 				DestinationSite: row.DestinationSite,
 				DestinationRoom: row.DestinationRoom,
 				Phone:           row.Phone,
+				Author:          draft.Author,
 				State:           draftStatusLabel(draft.Status),
 				Warning:         row.Warning,
 				WarningLevel:    warningLevel(row.Warning),
@@ -441,7 +452,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 			ID:              "bulk-" + draft.ID,
 			DraftID:         draft.ID,
 			MoveType:        draft.Mode,
-			Person:          fmt.Sprintf("%d bulk rows", len(draft.Rows)),
+			Person:          "Bulk Move",
 			Email:           "",
 			EmployeeID:      "",
 			CurrentSiteID:   draft.ScopeSiteID,
@@ -449,7 +460,8 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 			CurrentRoom:     "Multiple",
 			DestinationSite: draft.ScopeSite,
 			DestinationRoom: "Multiple",
-			Phone:           "Batch cutover",
+			Phone:           fmt.Sprintf("%d rows", len(draft.Rows)),
+			Author:          draft.Author,
 			State:           draftStatusLabel(draft.Status),
 			Warning:         strings.Join(draft.Warnings, " "),
 			WarningLevel:    warningLevel(strings.Join(draft.Warnings, " ")),
@@ -465,7 +477,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 	return filtered
 }
 
-func seedRoomMoveReviewRow(id string, draftID string, moveType string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, phone string, state string, warning string) roomMoveReviewRow {
+func seedRoomMoveReviewRow(id string, draftID string, moveType string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, phone string, author string, state string, warning string) roomMoveReviewRow {
 	currentSite := siteByID(currentSiteID)
 	destinationSite := siteByID(destinationSiteID)
 	return roomMoveReviewRow{
@@ -481,6 +493,7 @@ func seedRoomMoveReviewRow(id string, draftID string, moveType string, person st
 		DestinationSite: destinationSite.Name,
 		DestinationRoom: destinationRoom,
 		Phone:           phone,
+		Author:          author,
 		State:           state,
 		Warning:         warning,
 		WarningLevel:    warningLevel(warning),
@@ -489,10 +502,11 @@ func seedRoomMoveReviewRow(id string, draftID string, moveType string, person st
 
 func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	for _, row := range []roomMoveReviewRow{
-		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Ready", ""),
-		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Review", "Primary conflict"),
-		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone", "Review", "Null-room outcome"),
-		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Ready", ""),
+		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
+		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Avery Shah", "Review", "Primary conflict"),
+		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
+		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone", "Alex Ramirez", "Review", "Null-room outcome"),
+		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
 	} {
 		if row.DraftID == draftID {
 			return row, true
@@ -723,13 +737,20 @@ func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID
 	if draft, ok := s.drafts[draftID]; ok && canAccessRoomMoveSite(config, draft.ScopeSiteID) {
 		return draft
 	}
-	s.nextID++
 	mode := defaultMode
 	if mode == "" {
 		mode = roomMoveTypeBulkRoster
 	}
-	newID := fmt.Sprintf("rm-draft-%03d", s.nextID)
-	request := roomMoveDraftRequest{Mode: mode, ScopeSiteID: roomMovesScopeSite(config).ID}
+	newID := strings.TrimSpace(draftID)
+	if newID == "" {
+		s.nextID++
+		newID = fmt.Sprintf("rm-draft-%03d", s.nextID)
+	}
+	scopeSiteID := roomMovesScopeSite(config).ID
+	if newID == "rm-draft-103" {
+		scopeSiteID = "clover-hs"
+	}
+	request := roomMoveDraftRequest{Mode: mode, ScopeSiteID: scopeSiteID}
 	draft, _, _ := buildRoomMoveDraft(config, newID, request)
 	s.drafts[draft.ID] = draft
 	return draft
@@ -778,6 +799,7 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 		ScopeSiteID:       scopeSite.ID,
 		ScopeSite:         scopeSite.Name,
 		EffectiveDate:     effectiveDate,
+		Author:            config.Persona.DisplayName,
 		Warnings:          warnings,
 		Rows:              normalizedRows,
 		CanEdit:           true,

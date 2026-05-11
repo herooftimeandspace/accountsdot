@@ -1013,13 +1013,13 @@ input {
 .room-moves-runtime__table-header,
 .room-moves-runtime__row-open {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) 116px 116px minmax(140px, 1fr) 104px 112px;
+  grid-template-columns: minmax(150px, 1.35fr) 108px 108px minmax(130px, 1fr) minmax(130px, 1fr) 104px 112px;
   column-gap: 18px;
   align-items: start;
 }
 
 .room-moves-runtime__row-open {
-  grid-template-columns: minmax(160px, 1.4fr) 116px 116px minmax(140px, 1fr) 104px;
+  grid-template-columns: minmax(150px, 1.35fr) 108px 108px minmax(130px, 1fr) minmax(130px, 1fr) 104px;
 }
 
 .room-moves-runtime__table-header {

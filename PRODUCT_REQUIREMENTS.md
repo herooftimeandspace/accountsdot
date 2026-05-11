@@ -314,6 +314,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - execution rules and cutover-control guidance live in the Room Moves help drawer, not as fixed page-side panels
   - one-person move warnings appear in the right drawer
   - bulk-draft warnings appear in a top warning bar on the bulk draft page
+  - the main Room Moves review table includes both single moves and scheduled bulk moves visible to the persona; bulk rows render as `Bulk Move`, and every row shows its move author immediately before the state badge
 - Batch author scope:
   - `IT` may author multi-site batches
   - non-IT authors are limited to batches within their own site scope

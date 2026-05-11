@@ -16,10 +16,11 @@ const ROOM_MOVES_BULK_ENDPOINT = "/api/v1/dev/pages/room-moves/bulk-draft";
 const ROOM_MOVES_DRAFTS_ENDPOINT = "/api/v1/dev/room-moves/drafts";
 const ROOM_MOVES_HEADING_ID = "room-moves-heading";
 const ROOM_MOVES_TABLE_COLUMNS = [
-  { key: "person", label: "Person", value: (row) => row.person },
+  { key: "person", label: "Name", value: (row) => row.person },
   { key: "current_room", label: "Current", value: (row) => row.current_room },
   { key: "destination_room", label: "Target", value: (row) => row.destination_room },
   { key: "phone", label: "Phone", value: (row) => row.phone || "No phone" },
+  { key: "author", label: "Author", value: (row) => row.author || "DEV mock" },
   { key: "state", label: "State", value: (row) => row.state },
 ];
 const BULK_COLUMNS = [
@@ -194,6 +195,7 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
               <div>{row.current_room}</div>
               <div>{row.destination_room}</div>
               <div>{row.phone}</div>
+              <div>{row.author || "DEV mock"}</div>
               <div><RoomMovesStatusBadge status={row.state} /></div>
             </button>
             <button
@@ -326,6 +328,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
       <RuntimeDetailList
         items={[
           { label: "State", value: row?.state },
+          { label: "Author", value: row?.author },
           { label: "Current room", value: selectedPerson?.current_room || row?.current_room },
           { label: "Current site", value: selectedPerson?.site || row?.current_site },
           { label: "Phone", value: selectedPerson?.phone || row?.phone },
