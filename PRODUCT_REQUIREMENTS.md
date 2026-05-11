@@ -306,6 +306,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Build Move List` creates an empty draft where the user can add searchable rows one at a time
 - Destination-room defaults:
   - `None` must appear first in destination-room dropdowns
+  - destination-room dropdowns must show one unique option per room value; duplicate `None` or duplicate room labels from DEV mocks or provider payloads should collapse to a single selectable value
   - for same-site moves, the default destination room is the person’s current room when that room exists in the destination site
   - for inter-site moves, the destination room defaults to `None`
   - if a person is moving sites, the destination room should be set to none

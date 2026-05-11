@@ -281,8 +281,13 @@ type roomMovesResponse struct {
 type roomMovesBulkDraftResponse struct {
 	PageID string `json:"page_id"`
 	Page   struct {
-		CanManageDistrict bool                     `json:"can_manage_district"`
-		Draft             roomMoveDraftTestPayload `json:"draft"`
+		CanManageDistrict bool `json:"can_manage_district"`
+		Rooms             []struct {
+			ID     string `json:"id"`
+			Label  string `json:"label"`
+			SiteID string `json:"site_id"`
+		} `json:"rooms"`
+		Draft roomMoveDraftTestPayload `json:"draft"`
 	} `json:"page"`
 }
 
@@ -1794,6 +1799,24 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 
 		itCookie := loginAsPersona(t, handler, "it_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it room moves returned %d, want 200", rec.Code)
+		}
+		itRoomMoves := decodeJSON[roomMovesResponse](t, rec)
+		noneRoomOptions := 0
+		for _, room := range itRoomMoves.Page.Rooms {
+			if room.ID == "none" {
+				noneRoomOptions++
+			}
+		}
+		if noneRoomOptions != 1 {
+			t.Fatalf("it room options have %d None entries, want exactly 1: %#v", noneRoomOptions, itRoomMoves.Page.Rooms)
+		}
+
 		itBody, err := json.Marshal(map[string]any{
 			"mode": "mid_year_targeted_move",
 			"rows": []map[string]string{
@@ -1866,6 +1889,15 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		page := decodeJSON[roomMovesBulkDraftResponse](t, rec)
 		if page.Page.Draft.ID != roster.Draft.ID || len(page.Page.Draft.Rows) != len(roster.Draft.Rows) {
 			t.Fatalf("bulk page draft = %#v, want roster draft %q", page.Page.Draft, roster.Draft.ID)
+		}
+		bulkNoneRoomOptions := 0
+		for _, room := range page.Page.Rooms {
+			if room.ID == "none" {
+				bulkNoneRoomOptions++
+			}
+		}
+		if bulkNoneRoomOptions != 1 {
+			t.Fatalf("bulk page room options have %d None entries, want exactly 1: %#v", bulkNoneRoomOptions, page.Page.Rooms)
 		}
 
 		buildBody, err := json.Marshal(map[string]any{

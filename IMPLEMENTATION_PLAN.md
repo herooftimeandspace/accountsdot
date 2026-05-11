@@ -769,6 +769,7 @@
     - non-IT users do not see destination-site controls and can choose only rooms from their own site
     - destination room options are filtered to the selected destination site
     - `None` appears first in every destination-room dropdown
+    - room dropdowns must deduplicate provider or DEV mock room options by selectable room value, with duplicate `None` entries collapsed into the single first option
     - same-site moves default destination room to the person’s current room when available
     - inter-site moves default destination room to `None`
     - if a person is moving sites, the destination room should be set to none

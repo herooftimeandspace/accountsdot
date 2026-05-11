@@ -926,8 +926,19 @@ func roomMovePeopleForSite(siteID string) []roomMovePersonOption {
 
 func roomMoveRoomsForConfig(config devPersonaConfig) []roomMoveRoomOption {
 	rooms := []roomMoveRoomOption{}
+	seen := map[string]bool{}
 	for _, site := range roomMoveVisibleSites(config) {
-		rooms = append(rooms, roomMoveRoomsForSite(site.ID)...)
+		for _, room := range roomMoveRoomsForSite(site.ID) {
+			key := room.ID
+			if room.ID == "none" {
+				key = "none"
+			}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			rooms = append(rooms, room)
+		}
 	}
 	return rooms
 }

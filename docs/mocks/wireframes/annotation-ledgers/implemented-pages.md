@@ -57,6 +57,7 @@ This ledger is the default landing place for annotation-driven hardening work ac
 | UIH-050 | Room Moves | User feedback: clicking either bulk room button should land on a usable bulk draft page instead of an apparently empty surface | runtime behavior | `RoomMovesPage.jsx`, Room Moves runtime action styling | completed | Bulk action buttons hide static duplicates by artboard prefix, stay within the artboard, and manual build-list drafts show an explicit empty state plus `npm run build:web` and `npm run a11y:check` |
 | UIH-051 | Room Moves | User feedback: clicking the X on the Room Move drawer should close the drawer without deleting any saved draft; Cancel remains the destructive cleanup affordance | runtime behavior | Shared drawer close button primitive, Room Moves drawer cancel semantics | completed | Shared drawer X handles pointer and keyboard close without calling draft deletion plus `npm run build:web` and `npm run a11y:check` |
 | UIH-052 | Room Moves, Admin | User feedback: every pending Room Moves row needs a `Cancel Move` affordance until the job runs, and IT Admin needs an Admin-only completed-job reversal surface with explicit full-job confirmation guidance | docs/new behavior, runtime behavior, DEV mock API behavior | PRD/implementation docs, Room Moves DEV APIs, `RoomMovesPage.jsx`, Admin runtime overlay, Room Moves help drawer | completed | Go handler tests, `npm run build:web`, `npm run a11y:check`, and browser verification on `/room-moves`, `/room-moves/bulk-draft`, and `/admin` |
+| UIH-053 | Room Moves | User feedback: the bulk room-move draft page should hide obsolete summary boxes, and all Room Moves room selectors should show unique room values with a single `None` option first while preserving the current-room default | runtime behavior, DEV mock API behavior, pipeline | Room Moves DEV APIs, `RoomMovesPage.jsx`, generated bulk-draft static-node suppression | completed | Go handler tests, `npm run build:web`, `npm run a11y:check`, and browser verification on `/room-moves/bulk-draft` |
 
 ## Page Index
 
@@ -76,5 +77,5 @@ This ledger is the default landing place for annotation-driven hardening work ac
 - `reports`: no additional active annotations captured yet; latest runtime drawer feedback is captured in UIH-044.
 - `reports-sync-transparency`: no additional active annotations captured yet.
 - `reports-ticketing-human-work`: no additional active annotations captured yet.
-- `room-moves`: latest cancel/reversal behavior feedback is captured in UIH-052.
+- `room-moves`: latest cancel/reversal behavior feedback is captured in UIH-052; latest bulk-draft room selector cleanup is captured in UIH-053.
 - `student-data-cleanup`: active shared-header scope dropdown annotation is captured in UIH-046; latest legacy invalid-name mock coverage is captured in UIH-045.

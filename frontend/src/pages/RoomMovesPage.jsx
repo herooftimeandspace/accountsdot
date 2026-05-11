@@ -39,11 +39,14 @@ const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
   "f300", "t301", "f302", "t303", "f304", "t305",
 ];
 const HIDDEN_BULK_DRAFT_NODE_SUFFIXES = [
+  "f76", "t77", "t78", "t79", "f80", "t81", "t82", "t83",
+  "f84", "t85", "t86", "t87", "f88", "t89", "t90", "t91",
   "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
   "t109", "t110", "t111", "t112", "t113", "f114", "t115", "l116",
   "t117", "t118", "t119", "t120", "t121", "f122", "t123", "l124",
   "t125", "t126", "t127", "t128", "t129", "f130", "t131", "l132",
   "t133", "t134", "t135", "t136", "t137", "f138", "t139", "l140",
+  "t162",
 ];
 
 function nodeIdForSuffix(artboardKey, suffix) {
@@ -94,7 +97,31 @@ function statusClass(status) {
 }
 
 function roomOptionsForSite(rooms, siteId) {
-  return rooms.filter((room) => room.site_id === siteId || room.id === "none");
+  const options = [];
+  const seen = new Set();
+  const addOption = (room) => {
+    if (!room) {
+      return;
+    }
+    const key = room.id === "none" ? "none" : `${room.site_id}:${room.id}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    options.push(room);
+  };
+
+  addOption(rooms.find((room) => room.id === "none") || {
+    id: "none",
+    label: "None",
+    site_id: siteId,
+    site: "",
+  });
+  rooms
+    .filter((room) => room.id !== "none" && room.site_id === siteId)
+    .forEach(addOption);
+
+  return options;
 }
 
 function personMatchesQuery(person, query) {
