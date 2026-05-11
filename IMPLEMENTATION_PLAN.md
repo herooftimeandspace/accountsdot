@@ -761,9 +761,9 @@
     - `5` or fewer moves may execute immediately once final review is passed
     - more than `5` moves must execute through a batch cutover window
   - runtime draft modes:
-    - one-person corrections open from `Create Room Move` or a single-move row into the shared right-hand drawer
-    - `Bulk Site Roster` opens a bulk draft preloaded with every eligible employee and contractor at the scoped site
-    - `Build Move List` opens an empty bulk draft where `Add` appends searchable rows to the bottom of the table
+- one-person corrections open from `Move Person` or a single-move row into the shared right-hand drawer
+- `Batch Move` opens an empty bulk draft where `Add` appends searchable rows to the bottom of the table
+- `Site Rollover` opens a bulk draft preloaded with every eligible employee and contractor at the scoped site
   - destination-site and destination-room controls:
     - IT Admin sees a destination-site dropdown so inter-site moves can be planned
     - non-IT users do not see destination-site controls and can choose only rooms from their own site

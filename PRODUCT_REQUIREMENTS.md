@@ -301,9 +301,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - reviewed move sets of `5` or fewer may execute immediately
   - reviewed move sets of more than `5` must execute through a batch cutover window
 - Draft creation modes:
-  - `Create Room Move` opens a right-hand drawer for a one-person correction with employee ID, email, or name search, current room context, destination room, and IT-only destination-site control
-  - `Bulk Site Roster` creates a draft preloaded with every eligible employee or contractor at the scoped site
-  - `Build Move List` creates an empty draft where the user can add searchable rows one at a time
+- `Move Person` opens a right-hand drawer for a one-person correction with employee ID, email, or name search, current room context, destination room, and IT-only destination-site control
+- `Batch Move` creates a blank bulk draft where the user can add searchable rows one at a time
+- `Site Rollover` creates a draft preloaded with every eligible employee or contractor at the scoped site
 - Destination-room defaults:
   - `None` must appear first in destination-room dropdowns
   - destination-room dropdowns must show one unique option per room value; duplicate `None` or duplicate room labels from DEV mocks or provider payloads should collapse to a single selectable value

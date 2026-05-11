@@ -213,20 +213,20 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
   );
 }
 
-function RoomMovesActions({ bounds, onCreateSingle, onCreateBulkRoster, onCreateBuildList, busy }) {
+function RoomMovesActions({ bounds, onMovePerson, onBatchMove, onSiteRollover, busy }) {
   if (!bounds) {
     return null;
   }
   const width = 186;
-  const left = Math.min(bounds.left + bounds.width + 20, 1440 - width - 36);
+  const left = Math.min(bounds.left + bounds.width + 36, 1440 - width - 24);
   return (
     <div
       className="room-moves-runtime__actions"
       style={{ left, top: bounds.top + 8, width }}
     >
-      <button type="button" onClick={onCreateSingle} disabled={busy}>Create Room Move</button>
-      <button type="button" onClick={onCreateBulkRoster} disabled={busy}>Bulk Site Roster</button>
-      <button type="button" onClick={onCreateBuildList} disabled={busy}>Build Move List</button>
+      <button type="button" onClick={onMovePerson} disabled={busy}>Move Person</button>
+      <button type="button" onClick={onBatchMove} disabled={busy}>Batch Move</button>
+      <button type="button" onClick={onSiteRollover} disabled={busy}>Site Rollover</button>
     </div>
   );
 }
@@ -806,9 +806,9 @@ export function RoomMovesPage({
               <RoomMovesActions
                 bounds={batchBounds}
                 busy={busy}
-                onCreateSingle={() => setShowCreateDrawer(true)}
-                onCreateBulkRoster={() => createDraft("end_of_year_site_move")}
-                onCreateBuildList={() => createDraft("manual_move_list")}
+                onMovePerson={() => setShowCreateDrawer(true)}
+                onBatchMove={() => createDraft("manual_move_list")}
+                onSiteRollover={() => createDraft("end_of_year_site_move")}
               />
               <RoomMovesTable
                 bounds={tableBounds}
