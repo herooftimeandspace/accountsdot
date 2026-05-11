@@ -476,6 +476,7 @@ input {
   margin: 0;
   font-size: 13px;
   line-height: 1.35;
+  white-space: pre-wrap;
 }
 
 .runtime-drawer__section {
@@ -1835,6 +1836,10 @@ input {
   font-size: 13px;
   line-height: 1.35;
   text-align: left;
+}
+
+.student-data-runtime__row div {
+  white-space: pre-wrap;
 }
 
 .student-data-runtime__row:hover,

@@ -939,6 +939,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Suggested corrected names may include letters and spaces only.
 - Invalid-character examples should include transliteration cases such as `Nuño -> Nuno`.
 - Digits are invalid in student names in the current pass.
+- Legacy Aeries AD sync evidence also treats leading and trailing spaces in either `FirstName` or `LastName` as invalid, even though internal spaces are allowed after normalization.
 
 ### Frequent Fliers
 - Frequent Fliers uses an IT-configurable rolling window and threshold.

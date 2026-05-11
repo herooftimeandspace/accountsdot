@@ -1827,8 +1827,10 @@
     - `Nuño` -> `Nuno`
     - `O'Neil` -> `ONeil`
     - `Smith-Jones` -> `SmithJones`
+    - leading or trailing spaces in either `FirstName` or `LastName` -> trimmed field value
   - spaces remain allowed in suggested corrected names
   - digits in student first and last names are treated as invalid in v1
+  - DEV mock data should cover the legacy `Student_Aeries_AD_Sync.ps1` invalid-name gate: diacritics, ASCII apostrophes, smart punctuation, hyphens, digits, other non-letter symbols, leading first-name spaces, trailing first-name spaces, leading last-name spaces, and trailing last-name spaces
   - corrected-name suggestions are limited to letters and spaces only
   - numeric suffixes are reserved for generated email-address uniqueness, not human-readable corrected names
   - provide a link to Aeries so the issue can be corrected at the source
