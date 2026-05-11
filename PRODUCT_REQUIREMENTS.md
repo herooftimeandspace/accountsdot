@@ -255,6 +255,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - Frequent Fliers is usable as a live dashboard replacement for its legacy emailed/sheet-based visibility workflow
   - room-move drafts are available as planning/validation artifacts before move execution automation is live, with IT able to create district-wide drafts in the same phase
   - Room Moves provides a DEV mock runtime surface for one-person corrections, whole-site bulk roster drafts, and manually built bulk move lists. Site-level users may create and manage drafts only for their own site. IT Admin may create district-wide and inter-site drafts and receives an extra destination-site control.
+  - pending Room Moves rows expose `Cancel Move` until the automation job actually runs; completed jobs are not canceled in place and must instead be handled through the IT Admin reversal flow
+  - IT Admin receives an Admin-only Room Move Reversal section listing completed room-move jobs; choosing `Revert` confirms the risk and schedules a new reversal job that undoes every change in the completed job
+  - Room Moves help text must tell operators: `IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.`
 - Failure gates:
   - legacy sheets remain required to understand in-scope current state
   - upstream defects are hidden instead of surfaced

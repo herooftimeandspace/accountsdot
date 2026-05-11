@@ -12,6 +12,8 @@ import {
   staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
+const ROOM_MOVES_COMPLETED_ENDPOINT = "/api/v1/dev/room-moves/completed";
+
 const STATIC_PAGE_TITLES = {
   "dashboard-it-admin": "IT Admin Dashboard",
   "dashboard-hr-lifecycle": "Human Resources Dashboard",
@@ -390,6 +392,128 @@ function StaticDrawerOverlay({ config, selectedRow, onSelectRow, onClose }) {
   );
 }
 
+async function readJSON(response) {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload?.message || `Request failed with ${response.status}`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
+}
+
+function AdminRoomMoveRevertOverlay({ session }) {
+  const isItAdmin = session?.current_persona?.id === "it_admin";
+  const [state, setState] = useState("idle");
+  const [jobs, setJobs] = useState([]);
+  const [message, setMessage] = useState("");
+  const [busyJobId, setBusyJobId] = useState("");
+
+  useEffect(() => {
+    if (!isItAdmin) {
+      setJobs([]);
+      return undefined;
+    }
+    const controller = new AbortController();
+    async function loadCompletedJobs() {
+      setState("loading");
+      setMessage("");
+      try {
+        const payload = await readJSON(
+          await fetch(ROOM_MOVES_COMPLETED_ENDPOINT, {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          })
+        );
+        setJobs(payload.jobs || []);
+        setState("ready");
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setState("error");
+          setMessage(error.message);
+        }
+      }
+    }
+    void loadCompletedJobs();
+    return () => controller.abort();
+  }, [isItAdmin]);
+
+  async function revertJob(job) {
+    const confirmed = window.confirm(
+      "Reverting this completed room move schedules a new job that reverses every change from the selected job. IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees."
+    );
+    if (!confirmed) {
+      return;
+    }
+    setBusyJobId(job.id);
+    setMessage("");
+    try {
+      const payload = await readJSON(
+        await fetch(`${ROOM_MOVES_COMPLETED_ENDPOINT}/${encodeURIComponent(job.id)}/revert`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+      );
+      setJobs((current) =>
+        current.map((candidate) =>
+          candidate.id === job.id
+            ? { ...candidate, revert_draft_id: payload.draft?.id, revert_status: payload.draft?.status || "scheduled" }
+            : candidate
+        )
+      );
+      setMessage(`Revert scheduled as ${payload.draft?.id || "a new room move draft"}.`);
+    } catch (error) {
+      setMessage(error.payload?.errors ? Object.values(error.payload.errors).join(" ") : error.message);
+    } finally {
+      setBusyJobId("");
+    }
+  }
+
+  if (!isItAdmin) {
+    return null;
+  }
+
+  return (
+    <section className="admin-room-move-revert" aria-label="Completed room move reversals">
+      <div>
+        <h2>Room Move Reversal</h2>
+        <p>IT Admins can schedule a full reversal for completed room move jobs.</p>
+      </div>
+      {state === "loading" ? <p role="status">Loading completed room moves...</p> : null}
+      {message ? <p className="admin-room-move-revert__message" role={state === "error" ? "alert" : "status"}>{message}</p> : null}
+      {state === "ready" ? (
+        <div className="admin-room-move-revert__table">
+          <div className="admin-room-move-revert__header">
+            <span>Job</span>
+            <span>Scope</span>
+            <span>Completed</span>
+            <span>Rows</span>
+            <span>Action</span>
+          </div>
+          {jobs.map((job) => (
+            <div key={job.id} className="admin-room-move-revert__row">
+              <span>{job.id}</span>
+              <span>{job.scope_site}</span>
+              <span>{job.completed_at}</span>
+              <span>{job.row_count}</span>
+              {job.revert_draft_id ? (
+                <span className="admin-room-move-revert__scheduled">Revert scheduled: {job.revert_draft_id}</span>
+              ) : (
+                <button type="button" onClick={() => revertJob(job)} disabled={busyJobId === job.id}>
+                  Revert
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, searchQuery = "" }) {
   const [selectedStaticDrawerRow, setSelectedStaticDrawerRow] = useState(null);
   const artboard = generatedArtboards[artboardKey];
@@ -426,6 +550,7 @@ export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, sear
           onClose={() => setSelectedStaticDrawerRow(null)}
         />
       ) : null}
+      {artboardKey === "admin" ? <AdminRoomMoveRevertOverlay session={session} /> : null}
     </>
   );
   const pageTitle = STATIC_PAGE_TITLES[artboardKey] || "Dashboard Page";

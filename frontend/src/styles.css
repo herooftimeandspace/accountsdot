@@ -1011,11 +1011,15 @@ input {
 }
 
 .room-moves-runtime__table-header,
-.room-moves-runtime__row {
+.room-moves-runtime__row-open {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) 116px 116px minmax(140px, 1fr) 104px;
+  grid-template-columns: minmax(160px, 1.4fr) 116px 116px minmax(140px, 1fr) 104px 112px;
   column-gap: 18px;
   align-items: start;
+}
+
+.room-moves-runtime__row-open {
+  grid-template-columns: minmax(160px, 1.4fr) 116px 116px minmax(140px, 1fr) 104px;
 }
 
 .room-moves-runtime__table-header {
@@ -1025,11 +1029,20 @@ input {
 }
 
 .room-moves-runtime__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  column-gap: 18px;
+  width: 100%;
+  min-height: 54px;
+  border-top: 1px solid var(--color-canvas);
+  background: transparent;
+}
+
+.room-moves-runtime__row-open {
   width: 100%;
   min-height: 54px;
   padding: 12px 0;
   border: 0;
-  border-top: 1px solid var(--color-canvas);
   background: transparent;
   color: var(--color-text);
   cursor: pointer;
@@ -1038,14 +1051,24 @@ input {
   text-align: left;
 }
 
-.room-moves-runtime__row:hover,
+.room-moves-runtime__row:hover .room-moves-runtime__row-open,
 .room-moves-runtime__row--selected {
   background: rgba(206, 183, 112, 0.12);
 }
 
-.room-moves-runtime__row:focus-visible {
+.room-moves-runtime__row-open:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+.room-moves-runtime__cancel-row {
+  align-self: center;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: 800 10px/1.15 var(--font-ui);
+  white-space: normal;
 }
 
 .room-moves-runtime__status {
@@ -1227,6 +1250,87 @@ input {
   border-top: 1px solid var(--color-canvas);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.admin-room-move-revert {
+  position: absolute;
+  left: 288px;
+  top: 720px;
+  width: 1240px;
+  min-height: 190px;
+  z-index: 4;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+
+.admin-room-move-revert h2,
+.admin-room-move-revert p {
+  margin: 0;
+}
+
+.admin-room-move-revert h2 {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.admin-room-move-revert p {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.admin-room-move-revert__message {
+  font-weight: 800;
+}
+
+.admin-room-move-revert__table {
+  display: grid;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.admin-room-move-revert__header,
+.admin-room-move-revert__row {
+  display: grid;
+  grid-template-columns: 140px 1fr 210px 80px 250px;
+  column-gap: 14px;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-canvas);
+  font-size: 12px;
+}
+
+.admin-room-move-revert__header {
+  border-top: 0;
+  background: rgba(221, 226, 227, 0.45);
+  font-weight: 900;
+}
+
+.admin-room-move-revert__row button {
+  min-height: 32px;
+  border: 1px solid var(--color-highlight);
+  border-radius: 6px;
+  background: var(--color-highlight);
+  color: var(--color-text);
+  cursor: pointer;
+  font: 800 11px/1.2 var(--font-ui);
+}
+
+.admin-room-move-revert__row button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.admin-room-move-revert__scheduled {
+  font-weight: 800;
+  color: var(--color-accent-slate);
 }
 
 .departing-seniors-runtime__pane {

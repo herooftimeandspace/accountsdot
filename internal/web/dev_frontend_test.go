@@ -293,6 +293,7 @@ type roomMoveDraftTestResponse struct {
 type roomMoveDraftTestPayload struct {
 	ID                string   `json:"id"`
 	Mode              string   `json:"mode"`
+	Status            string   `json:"status"`
 	ScopeSiteID       string   `json:"scope_site_id"`
 	CanManageDistrict bool     `json:"can_manage_district"`
 	Warnings          []string `json:"warnings"`
@@ -304,6 +305,18 @@ type roomMoveDraftTestPayload struct {
 		DestinationRoomID string `json:"destination_room_id"`
 		Warning           string `json:"warning"`
 	} `json:"rows"`
+}
+
+type roomMoveCompletedJobsTestResponse struct {
+	Jobs []struct {
+		ID            string `json:"id"`
+		SourceDraftID string `json:"source_draft_id"`
+		ScopeSiteID   string `json:"scope_site_id"`
+		RowCount      int    `json:"row_count"`
+		CanRevert     bool   `json:"can_revert"`
+		RevertDraftID string `json:"revert_draft_id"`
+		RevertStatus  string `json:"revert_status"`
+	} `json:"jobs"`
 }
 
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
@@ -1913,6 +1926,131 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("delete roster draft returned %d, want 204", rec.Code)
+		}
+	})
+
+	t.Run("room moves cancel pending drafts and schedule IT-only completed-job reversals", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		siteAdminCookie := loginAsPersona(t, handler, "site_admin")
+
+		cancelBody, err := json.Marshal(map[string]any{
+			"mode":      "mid_year_targeted_move",
+			"person_id": "alex-ramirez",
+		})
+		if err != nil {
+			t.Fatalf("marshal cancel draft: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(cancelBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("cancel fixture draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		cancelDraft := decodeJSON[roomMoveDraftTestResponse](t, rec)
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+cancelDraft.Draft.ID+"/cancel", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("cancel pending draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		canceled := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if canceled.Draft.Status != "canceled" {
+			t.Fatalf("canceled draft status = %q, want canceled", canceled.Draft.Status)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("room moves after cancel returned %d, want 200", rec.Code)
+		}
+		roomMovesAfterCancel := decodeJSON[roomMovesResponse](t, rec)
+		for _, row := range roomMovesAfterCancel.Page.Rows {
+			if row.DraftID == cancelDraft.Draft.ID {
+				t.Fatalf("canceled draft %q still appeared in review rows", cancelDraft.Draft.ID)
+			}
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/room-moves/completed", nil)
+		req.AddCookie(siteAdminCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site admin completed room moves returned %d, want 403", rec.Code)
+		}
+
+		applyBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal apply draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(applyBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("apply fixture draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		applyDraft := decodeJSON[roomMoveDraftTestResponse](t, rec)
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+applyDraft.Draft.ID+"/apply", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("apply draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+applyDraft.Draft.ID+"/cancel", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("cancel applied draft returned %d, want 409", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/room-moves/completed", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("completed room moves returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		completed := decodeJSON[roomMoveCompletedJobsTestResponse](t, rec)
+		var appliedJobID string
+		for _, job := range completed.Jobs {
+			if job.SourceDraftID == applyDraft.Draft.ID {
+				appliedJobID = job.ID
+				if !job.CanRevert || job.RowCount != 1 {
+					t.Fatalf("applied completed job = %#v, want one reversible row", job)
+				}
+			}
+		}
+		if appliedJobID == "" {
+			t.Fatalf("completed jobs %#v did not include source draft %q", completed.Jobs, applyDraft.Draft.ID)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/completed/"+appliedJobID+"/revert", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("revert completed job returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		revert := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if revert.Draft.Status != "scheduled" || len(revert.Draft.Rows) != 1 || revert.Draft.Rows[0].DestinationRoomID == "" {
+			t.Fatalf("revert draft = %#v, want scheduled reversal rows", revert.Draft)
 		}
 	})
 

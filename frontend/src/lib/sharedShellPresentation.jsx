@@ -170,6 +170,7 @@ const DEFAULT_HELP_BY_NAV_KEY = {
           "Use Create Room Move for one-person corrections, Bulk Site Roster for summer room updates across a site, and Build Move List when you only need to add selected people.",
           "Five or fewer reviewed moves may run immediately after final review. More than five moves use a batch cutover. Non-IT cutovers run off-hours between 8:00 PM and 4:00 AM Pacific; IT may schedule broader multi-site windows when needed.",
           "If a person is moving sites, the destination room should be set to none until the destination site confirms the room.",
+          "IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.",
         ],
       },
     ],

@@ -95,6 +95,25 @@ type roomMoveDraftPayload struct {
 	CanManageDistrict bool               `json:"can_manage_district"`
 }
 
+type roomMoveCompletedJobPayload struct {
+	ID            string             `json:"id"`
+	SourceDraftID string             `json:"source_draft_id"`
+	Mode          string             `json:"mode"`
+	ScopeSiteID   string             `json:"scope_site_id"`
+	ScopeSite     string             `json:"scope_site"`
+	CompletedAt   string             `json:"completed_at"`
+	CompletedBy   string             `json:"completed_by"`
+	RowCount      int                `json:"row_count"`
+	Rows          []roomMoveDraftRow `json:"rows"`
+	CanRevert     bool               `json:"can_revert"`
+	RevertDraftID string             `json:"revert_draft_id,omitempty"`
+	RevertStatus  string             `json:"revert_status,omitempty"`
+}
+
+type roomMoveCompletedJobsResponse struct {
+	Jobs []roomMoveCompletedJobPayload `json:"jobs"`
+}
+
 type roomMoveDraftRow struct {
 	ID                string `json:"id"`
 	PersonID          string `json:"person_id"`
@@ -152,14 +171,22 @@ type devRoomMoveStoreState struct {
 	nextID    int
 	drafts    map[string]roomMoveDraftPayload
 	completed map[string]bool
+	canceled  map[string]bool
+	jobs      map[string]roomMoveCompletedJobPayload
 }
 
 func newDevRoomMoveStore() *devRoomMoveStoreState {
-	return &devRoomMoveStoreState{
+	store := &devRoomMoveStoreState{
 		nextID:    100,
 		drafts:    map[string]roomMoveDraftPayload{},
 		completed: map[string]bool{},
+		canceled:  map[string]bool{},
+		jobs:      map[string]roomMoveCompletedJobPayload{},
 	}
+	for _, job := range seedCompletedRoomMoveJobs() {
+		store.jobs[job.ID] = job
+	}
+	return store
 }
 
 func handleDevRoomMovesPage(w http.ResponseWriter, r *http.Request) {
@@ -267,6 +294,13 @@ func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, roomMoveDraftResponse{Draft: draft})
+	case r.Method == http.MethodPost && action == "cancel":
+		draft, status, errors := devRoomMoveStore.cancelDraft(config, draftID)
+		if status != http.StatusOK {
+			writeJSON(w, status, map[string]any{"code": "room_move_draft_rejected", "message": "The room move draft could not be canceled.", "errors": errors})
+			return
+		}
+		writeJSON(w, http.StatusOK, roomMoveDraftResponse{Draft: draft})
 	case r.Method == http.MethodPost && (action == "schedule" || action == "apply"):
 		draft, status, errors := devRoomMoveStore.transitionDraft(config, draftID, action)
 		if status != http.StatusOK {
@@ -286,6 +320,41 @@ func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleDevRoomMoveCompletedJobs(w http.ResponseWriter, r *http.Request) {
+	if !devModeEnabled() || r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	config, ok := authenticatedRoomMoveRevertPersona(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, roomMoveCompletedJobsResponse{Jobs: devRoomMoveStore.completedJobs(config)})
+}
+
+func handleDevRoomMoveCompletedJob(w http.ResponseWriter, r *http.Request) {
+	if !devModeEnabled() {
+		http.NotFound(w, r)
+		return
+	}
+	config, ok := authenticatedRoomMoveRevertPersona(w, r)
+	if !ok {
+		return
+	}
+	path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/dev/room-moves/completed/"), "/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] != "revert" || r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
+	draft, status, errors := devRoomMoveStore.scheduleRevert(config, parts[0])
+	if status != http.StatusOK {
+		writeJSON(w, status, map[string]any{"code": "room_move_revert_rejected", "message": "The room move job could not be reverted.", "errors": errors})
+		return
+	}
+	writeJSON(w, http.StatusOK, roomMoveDraftResponse{Draft: draft})
+}
+
 func authenticatedRoomMovesPersona(w http.ResponseWriter, r *http.Request) (devPersonaConfig, bool) {
 	config, ok := resolveAuthenticatedDevPersona(r)
 	if !ok {
@@ -294,6 +363,19 @@ func authenticatedRoomMovesPersona(w http.ResponseWriter, r *http.Request) (devP
 	}
 	if !routeAllowed(config, "/room-moves") {
 		writeJSON(w, http.StatusForbidden, map[string]any{"code": "forbidden", "message": "Room Moves is not available for this role.", "persona": config.Persona})
+		return devPersonaConfig{}, false
+	}
+	return config, true
+}
+
+func authenticatedRoomMoveRevertPersona(w http.ResponseWriter, r *http.Request) (devPersonaConfig, bool) {
+	config, ok := resolveAuthenticatedDevPersona(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"code": "not_authorized", "message": "You need to sign in before you can view this page."})
+		return devPersonaConfig{}, false
+	}
+	if !canManageDistrictRoomMoves(config) || !routeAllowed(config, "/admin") {
+		writeJSON(w, http.StatusForbidden, map[string]any{"code": "forbidden", "message": "Only IT Admin can revert completed room move jobs.", "persona": config.Persona})
 		return devPersonaConfig{}, false
 	}
 	return config, true
@@ -328,7 +410,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, draft := range s.drafts {
-		if s.completed[draft.ID] {
+		if s.completed[draft.ID] || s.canceled[draft.ID] {
 			continue
 		}
 		if !canAccessRoomMoveSite(config, draft.ScopeSiteID) {
@@ -376,7 +458,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 
 	filtered := base[:0]
 	for _, row := range base {
-		if canAccessRoomMoveSite(config, row.CurrentSiteID) {
+		if canAccessRoomMoveSite(config, row.CurrentSiteID) && !s.canceled[row.DraftID] {
 			filtered = append(filtered, row)
 		}
 	}
@@ -403,6 +485,41 @@ func seedRoomMoveReviewRow(id string, draftID string, moveType string, person st
 		Warning:         warning,
 		WarningLevel:    warningLevel(warning),
 	}
+}
+
+func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
+	for _, row := range []roomMoveReviewRow{
+		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Ready", ""),
+		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Review", "Primary conflict"),
+		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone", "Review", "Null-room outcome"),
+		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Ready", ""),
+	} {
+		if row.DraftID == draftID {
+			return row, true
+		}
+	}
+	return roomMoveReviewRow{}, false
+}
+
+func seedCompletedRoomMoveJobs() []roomMoveCompletedJobPayload {
+	alex, _ := roomMovePersonByID("alex-ramirez")
+	morgan, _ := roomMovePersonByID("morgan-lee")
+	rows := []roomMoveDraftRow{
+		draftRowFromPerson(alex, "clover-hs", "cla-a108"),
+		draftRowFromPerson(morgan, "clover-hs", "cla-b204"),
+	}
+	return []roomMoveCompletedJobPayload{{
+		ID:            "rm-job-090",
+		SourceDraftID: "rm-draft-090",
+		Mode:          roomMoveTypeBulkRoster,
+		ScopeSiteID:   "clover-hs",
+		ScopeSite:     siteByID("clover-hs").Name,
+		CompletedAt:   "May 10, 2026 8:30 PM PT",
+		CompletedBy:   "IT Admin",
+		RowCount:      len(rows),
+		Rows:          rows,
+		CanRevert:     true,
+	}}
 }
 
 func (s *devRoomMoveStoreState) createDraft(config devPersonaConfig, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
@@ -453,15 +570,75 @@ func (s *devRoomMoveStoreState) transitionDraft(config devPersonaConfig, draftID
 	if !canAccessRoomMoveSite(config, draft.ScopeSiteID) {
 		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot update another site's room move draft."}
 	}
+	if s.canceled[draft.ID] {
+		return roomMoveDraftPayload{}, http.StatusConflict, map[string]string{"draft": "Canceled drafts cannot be scheduled or applied."}
+	}
 	if action == "schedule" {
 		draft.Status = "scheduled"
 		draft.ScheduledFor = "2026-07-27T20:00:00-07:00"
 	} else {
 		draft.Status = "complete"
 		s.completed[draft.ID] = true
+		jobID := "rm-job-" + strings.TrimPrefix(draft.ID, "rm-draft-")
+		s.jobs[jobID] = roomMoveCompletedJobPayload{
+			ID:            jobID,
+			SourceDraftID: draft.ID,
+			Mode:          draft.Mode,
+			ScopeSiteID:   draft.ScopeSiteID,
+			ScopeSite:     draft.ScopeSite,
+			CompletedAt:   "May 11, 2026 9:30 AM PT",
+			CompletedBy:   config.Persona.Label,
+			RowCount:      len(draft.Rows),
+			Rows:          draft.Rows,
+			CanRevert:     true,
+		}
 	}
 	s.drafts[draft.ID] = draft
 	return draft, http.StatusOK, nil
+}
+
+func (s *devRoomMoveStoreState) cancelDraft(config devPersonaConfig, draftID string) (roomMoveDraftPayload, int, map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.completed[draftID] {
+		return roomMoveDraftPayload{}, http.StatusConflict, map[string]string{"draft": "This room move already ran and must be reverted from Admin."}
+	}
+	if draft, ok := s.drafts[draftID]; ok {
+		if !canAccessRoomMoveSite(config, draft.ScopeSiteID) {
+			return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot cancel another site's room move draft."}
+		}
+		draft.Status = "canceled"
+		s.drafts[draft.ID] = draft
+		s.canceled[draft.ID] = true
+		return draft, http.StatusOK, nil
+	}
+	if seed, ok := seedRoomMoveReviewRowByDraftID(draftID); ok {
+		if !canAccessRoomMoveSite(config, seed.CurrentSiteID) {
+			return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot cancel another site's room move draft."}
+		}
+		s.canceled[draftID] = true
+		return roomMoveDraftPayload{
+			ID:          draftID,
+			Mode:        seed.MoveType,
+			Status:      "canceled",
+			ScopeSiteID: seed.CurrentSiteID,
+			ScopeSite:   seed.CurrentSite,
+			Rows: []roomMoveDraftRow{{
+				ID:              seed.ID,
+				Person:          seed.Person,
+				Email:           seed.Email,
+				EmployeeID:      seed.EmployeeID,
+				CurrentSiteID:   seed.CurrentSiteID,
+				CurrentSite:     seed.CurrentSite,
+				CurrentRoom:     seed.CurrentRoom,
+				DestinationSite: seed.DestinationSite,
+				DestinationRoom: seed.DestinationRoom,
+				Phone:           seed.Phone,
+			}},
+			CanManageDistrict: canManageDistrictRoomMoves(config),
+		}, http.StatusOK, nil
+	}
+	return roomMoveDraftPayload{}, http.StatusNotFound, map[string]string{"draft": "Draft not found."}
 }
 
 func (s *devRoomMoveStoreState) deleteDraft(config devPersonaConfig, draftID string) (int, map[string]string) {
@@ -476,7 +653,68 @@ func (s *devRoomMoveStoreState) deleteDraft(config devPersonaConfig, draftID str
 	}
 	delete(s.drafts, draftID)
 	delete(s.completed, draftID)
+	delete(s.canceled, draftID)
 	return http.StatusNoContent, nil
+}
+
+func (s *devRoomMoveStoreState) completedJobs(config devPersonaConfig) []roomMoveCompletedJobPayload {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	jobs := make([]roomMoveCompletedJobPayload, 0, len(s.jobs))
+	for _, job := range s.jobs {
+		if canAccessRoomMoveSite(config, job.ScopeSiteID) {
+			jobs = append(jobs, job)
+		}
+	}
+	slices.SortFunc(jobs, func(a, b roomMoveCompletedJobPayload) int {
+		return strings.Compare(a.ID, b.ID)
+	})
+	return jobs
+}
+
+func (s *devRoomMoveStoreState) scheduleRevert(config devPersonaConfig, jobID string) (roomMoveDraftPayload, int, map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return roomMoveDraftPayload{}, http.StatusNotFound, map[string]string{"job": "Completed room move job not found."}
+	}
+	if !canAccessRoomMoveSite(config, job.ScopeSiteID) {
+		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot revert another site's room move job."}
+	}
+	if job.RevertDraftID != "" {
+		if draft, ok := s.drafts[job.RevertDraftID]; ok {
+			return draft, http.StatusOK, nil
+		}
+	}
+	s.nextID++
+	revertID := fmt.Sprintf("rm-draft-%03d", s.nextID)
+	rows := make([]roomMoveDraftRow, 0, len(job.Rows))
+	for _, row := range job.Rows {
+		rows = append(rows, roomMoveDraftRow{
+			ID:                "revert-" + row.ID,
+			PersonID:          row.PersonID,
+			DestinationSiteID: row.CurrentSiteID,
+			DestinationRoomID: row.CurrentRoomID,
+			Action:            "revert",
+		})
+	}
+	draft, status, errors := buildRoomMoveDraft(config, revertID, roomMoveDraftRequest{
+		Mode:          job.Mode,
+		ScopeSiteID:   job.ScopeSiteID,
+		EffectiveDate: "2026-05-11",
+		Rows:          rows,
+	})
+	if status != http.StatusOK {
+		return roomMoveDraftPayload{}, status, errors
+	}
+	draft.Status = "scheduled"
+	draft.ScheduledFor = "2026-05-11T20:00:00-07:00"
+	s.drafts[draft.ID] = draft
+	job.RevertDraftID = draft.ID
+	job.RevertStatus = draft.Status
+	s.jobs[jobID] = job
+	return draft, http.StatusOK, nil
 }
 
 func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID string, defaultMode string) roomMoveDraftPayload {

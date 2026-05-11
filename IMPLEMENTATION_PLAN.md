@@ -522,6 +522,9 @@
   - room-move drafts can be created and validated ahead of execution without requiring the transfer engine to be live yet, with IT able to create district-wide drafts at the same time site-scoped users create site drafts
   - the Room Moves DEV runtime must support one-person correction drafts, whole-site roster drafts, and manually built bulk move lists against deterministic mock people and IncidentIQ room inventory data
   - non-IT Room Moves users can create and manage only drafts for their own site; IT Admin can create district-wide or inter-site drafts through an additional destination-site control
+  - pending Room Moves rows can be canceled until the job actually runs; once a draft is applied, cancellation is blocked and IT must use the completed-job reversal flow
+  - the Admin dashboard exposes an IT Admin-only Room Move Reversal section that lists completed room-move jobs and schedules a new reversal draft after explicit confirmation
+  - the reversal flow is full-job only; partial reversal is intentionally modeled as a new Room Move draft for the affected employees
   - review-only security and mismatch queues operate with correct ownership and no unauthorized data exposure
 - Failure gates:
   - operators still need legacy sheets to understand current state for in-scope workflows
@@ -773,6 +776,13 @@
     - Execution Rules and Cutover Controls copy belongs in the Room Moves help drawer
     - single-move warnings belong in right-drawer details
     - bulk-draft warnings belong in a top warning bar above the bulk table
+    - Room Moves help text must include: `IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.`
+  - cancellation and reversal rules:
+    - every pending Room Moves table row exposes `Cancel Move`
+    - cancellation is allowed only before the job runs
+    - completed jobs appear in an IT Admin-only Admin dashboard reversal section
+    - confirming `Revert` schedules a new reversal job that reverses all changes from the completed job
+    - partial reversal is performed by creating a new Room Move draft, not by editing the completed-job reversal
   - author-scope rule for batch move sets:
     - if the batch is authored by `IT`, it may span multiple sites
     - if the batch is authored by any non-IT role, it is limited to the author's own site scope

@@ -118,7 +118,7 @@ function RoomMovesStatusBadge({ status }) {
   return <span className={statusClass(status)}>{status}</span>;
 }
 
-function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow }) {
+function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow, cancelingDraftId }) {
   const table = useRuntimeTableData(rows, ROOM_MOVES_TABLE_COLUMNS, {
     defaultSort: { key: "person", direction: "asc" },
   });
@@ -141,24 +141,37 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow }) {
             <RuntimeSortableHeader column={column} sortState={table.sortState} onSort={table.toggleSort} />
           </div>
         ))}
+        <div>Cancel</div>
       </div>
       <div className="room-moves-runtime__table-body">
         {table.visibleRows.map((row) => (
-          <button
+          <div
             key={row.id}
-            type="button"
             className={`room-moves-runtime__row ${
               selectedRowId === row.id ? "room-moves-runtime__row--selected" : ""
             }`}
-            aria-label={`Open room move row for ${row.person}`}
-            onClick={() => onSelectRow(row)}
           >
-            <div>{row.person}</div>
-            <div>{row.current_room}</div>
-            <div>{row.destination_room}</div>
-            <div>{row.phone}</div>
-            <div><RoomMovesStatusBadge status={row.state} /></div>
-          </button>
+            <button
+              type="button"
+              className="room-moves-runtime__row-open"
+              aria-label={`Open room move row for ${row.person}`}
+              onClick={() => onSelectRow(row)}
+            >
+              <div>{row.person}</div>
+              <div>{row.current_room}</div>
+              <div>{row.destination_room}</div>
+              <div>{row.phone}</div>
+              <div><RoomMovesStatusBadge status={row.state} /></div>
+            </button>
+            <button
+              type="button"
+              className="room-moves-runtime__delete room-moves-runtime__cancel-row"
+              onClick={() => onCancelRow(row)}
+              disabled={cancelingDraftId === row.draft_id}
+            >
+              Cancel Move
+            </button>
+          </div>
         ))}
       </div>
     </section>
@@ -439,6 +452,13 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
     setDirty(true);
   }
 
+  async function cancelRow(rowId) {
+    const nextRows = rows.filter((candidate) => candidate.id !== rowId);
+    setRows(nextRows);
+    setDirty(true);
+    await save(nextRows, effectiveDate);
+  }
+
   if (!bounds) {
     return null;
   }
@@ -539,11 +559,10 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
               type="button"
               className="room-moves-runtime__delete"
               onClick={() => {
-                setRows(rows.filter((candidate) => candidate.id !== row.id));
-                setDirty(true);
+                void cancelRow(row.id);
               }}
             >
-              Remove
+              Cancel Move
             </button>
           </div>
         ))}
@@ -569,6 +588,7 @@ export function RoomMovesPage({
   const [showCreateDrawer, setShowCreateDrawer] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [cancelingDraftId, setCancelingDraftId] = useState("");
 
   const isBulk = routeKind === "room-moves-bulk-draft";
   const artboard = generatedArtboards[artboardKey];
@@ -695,6 +715,27 @@ export function RoomMovesPage({
     onNavigate("/room-moves");
   }
 
+  async function cancelMove(row) {
+    if (!row?.draft_id) {
+      return;
+    }
+    setCancelingDraftId(row.draft_id);
+    try {
+      await readJSON(
+        await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${row.draft_id}/cancel`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+      );
+      setSelectedRow(null);
+      setShowCreateDrawer(false);
+      refresh();
+    } finally {
+      setCancelingDraftId("");
+    }
+  }
+
   const renderOverlay = useMemo(
     () =>
       createSharedShellRenderOverlay({
@@ -736,6 +777,8 @@ export function RoomMovesPage({
                 bounds={tableBounds}
                 rows={page.rows}
                 selectedRowId={selectedRow?.id}
+                cancelingDraftId={cancelingDraftId}
+                onCancelRow={cancelMove}
                 onSelectRow={(row) => {
                   if (row.move_type === "mid_year_targeted_move") {
                     setSelectedRow(row);
@@ -758,7 +801,7 @@ export function RoomMovesPage({
         </>
       );
     },
-    [busy, createDraft, deleteBulkDraft, isBulk, onNavigate, pageState, payload, renderOverlay, saveBulkDraft, selectedRow, transitionBulkDraft]
+    [busy, cancelMove, cancelingDraftId, createDraft, deleteBulkDraft, isBulk, onNavigate, pageState, payload, renderOverlay, saveBulkDraft, selectedRow, transitionBulkDraft]
   );
 
   if (!artboard) {
