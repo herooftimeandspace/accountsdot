@@ -951,7 +951,7 @@ input {
   position: absolute;
   z-index: 4;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -971,6 +971,7 @@ input {
 
 .room-moves-runtime__actions button {
   padding: 8px 10px;
+  white-space: nowrap;
 }
 
 .room-moves-runtime__delete {
@@ -1203,6 +1204,21 @@ input {
 .room-moves-runtime__bulk-body {
   display: grid;
   overflow: visible;
+}
+
+.room-moves-runtime__bulk-empty {
+  display: grid;
+  gap: 4px;
+  min-height: 86px;
+  align-content: center;
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px dashed var(--color-canvas);
+  border-radius: 8px;
+  background: rgba(221, 226, 227, 0.32);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .room-moves-runtime__bulk-row {

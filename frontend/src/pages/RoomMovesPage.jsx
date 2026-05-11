@@ -30,14 +30,32 @@ const BULK_COLUMNS = [
   { key: "destination_room", label: "Destination Room", value: (row) => row.destination_room },
   { key: "action", label: "Action", value: (row) => row.action },
 ];
-const HIDDEN_ROOM_MOVES_NODE_IDS = [
-  "room-moves__f92", "room-moves__t93", "room-moves__t94", "room-moves__t95", "room-moves__t96", "room-moves__t97",
-  "room-moves__f142", "room-moves__t143", "room-moves__p144", "room-moves__p145", "room-moves__t146", "room-moves__t147",
-  "room-moves__t148", "room-moves__t149", "room-moves__t150", "room-moves__t151", "room-moves__t152", "room-moves__t153",
-  "room-moves__t154", "room-moves__t155", "room-moves__l156", "room-moves__f157", "room-moves__t158",
-  "room-moves__f159", "room-moves__t160", "room-moves__f161", "room-moves__p162", "room-moves__p163", "room-moves__t164",
-  "room-moves__f300", "room-moves__t301", "room-moves__f302", "room-moves__t303", "room-moves__f304", "room-moves__t305",
+const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
+  "f92", "t93", "t94", "t95", "t96", "t97",
+  "f142", "t143", "p144", "p145", "t146", "t147",
+  "t148", "t149", "t150", "t151", "t152", "t153",
+  "t154", "t155", "l156", "f157", "t158",
+  "f159", "t160", "f161", "p162", "p163", "t164",
+  "f300", "t301", "f302", "t303", "f304", "t305",
 ];
+const HIDDEN_BULK_DRAFT_NODE_SUFFIXES = [
+  "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
+  "t109", "t110", "t111", "t112", "t113", "f114", "t115", "l116",
+  "t117", "t118", "t119", "t120", "t121", "f122", "t123", "l124",
+  "t125", "t126", "t127", "t128", "t129", "f130", "t131", "l132",
+  "t133", "t134", "t135", "t136", "t137", "f138", "t139", "l140",
+];
+
+function nodeIdForSuffix(artboardKey, suffix) {
+  return `${artboardKey}__${suffix}`;
+}
+
+function hiddenRoomMovesNodeIds(artboardKey, isBulk) {
+  const suffixes = isBulk
+    ? [...HIDDEN_ROOM_MOVES_NODE_SUFFIXES, ...HIDDEN_BULK_DRAFT_NODE_SUFFIXES]
+    : HIDDEN_ROOM_MOVES_NODE_SUFFIXES;
+  return suffixes.map((suffix) => nodeIdForSuffix(artboardKey, suffix));
+}
 
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
@@ -151,10 +169,12 @@ function RoomMovesActions({ bounds, onCreateSingle, onCreateBulkRoster, onCreate
   if (!bounds) {
     return null;
   }
+  const width = 220;
+  const left = Math.min(bounds.left + bounds.width + 12, 1440 - width - 36);
   return (
     <div
       className="room-moves-runtime__actions"
-      style={{ left: bounds.left + bounds.width + 12, top: bounds.top + 52, width: 360 }}
+      style={{ left, top: bounds.top + 52, width }}
     >
       <button type="button" onClick={onCreateSingle} disabled={busy}>Create Room Move</button>
       <button type="button" onClick={onCreateBulkRoster} disabled={busy}>Bulk Site Roster</button>
@@ -473,6 +493,12 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
         <div>Remove</div>
       </div>
       <div className="room-moves-runtime__bulk-body">
+        {table.visibleRows.length === 0 ? (
+          <div className="room-moves-runtime__bulk-empty" role="status">
+            <strong>No draft rows yet</strong>
+            <span>Use Add to start a manual move list. Selecting a person fills in the current room and default destination.</span>
+          </div>
+        ) : null}
         {table.visibleRows.map((row) => (
           <div key={row.id} className="room-moves-runtime__bulk-row">
             <select value={row.person_id} onChange={(event) => updateRow(row.id, { person_id: event.target.value })}>
@@ -598,9 +624,9 @@ export function RoomMovesPage({
         hideSearchPlaceholder: true,
         hideAllNavGroups: true,
       }),
-      ...(isBulk ? [] : HIDDEN_ROOM_MOVES_NODE_IDS),
+      ...hiddenRoomMovesNodeIds(artboardKey, isBulk),
     ],
-    [isBulk, session]
+    [artboardKey, isBulk, session]
   );
   const imageNodeOverrides = useMemo(() => buildSharedShellImageOverrides(session), [session]);
 
