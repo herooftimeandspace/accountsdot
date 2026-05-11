@@ -57,6 +57,16 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
     return () => document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
   }, [onClose]);
 
+  function handleCloseButtonPointerDown(event) {
+    event.stopPropagation();
+    onClose();
+  }
+
+  function handleCloseButtonClick(event) {
+    event.stopPropagation();
+    onClose();
+  }
+
   return (
     <aside
       className={`runtime-drawer ${bounds ? "runtime-drawer--bounded" : ""} ${className}`.trim()}
@@ -71,7 +81,8 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
             type="button"
             className="runtime-drawer__close"
             aria-label={`Close ${titleText.toLowerCase()} drawer`}
-            onClick={onClose}
+            onPointerDown={handleCloseButtonPointerDown}
+            onClick={handleCloseButtonClick}
           >
             &times;
           </button>
