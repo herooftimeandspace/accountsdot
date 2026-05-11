@@ -406,7 +406,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Avery Shah", "Review", "Primary conflict"),
 		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
-		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone", "Alex Ramirez", "Review", "Null-room outcome"),
+		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Convert to shared line group", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
 	}
 	baseDraftIDs := map[string]bool{}
@@ -505,7 +505,7 @@ func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Avery Shah", "Review", "Primary conflict"),
 		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
-		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone", "Alex Ramirez", "Review", "Null-room outcome"),
+		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Convert to shared line group", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
 	} {
 		if row.DraftID == draftID {

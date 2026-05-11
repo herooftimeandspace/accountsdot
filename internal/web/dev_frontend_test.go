@@ -274,6 +274,7 @@ type roomMovesResponse struct {
 			MoveType      string `json:"move_type"`
 			Person        string `json:"person"`
 			CurrentSiteID string `json:"current_site_id"`
+			Phone         string `json:"phone"`
 			Author        string `json:"author"`
 			State         string `json:"state"`
 			Warning       string `json:"warning"`
@@ -1833,6 +1834,18 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if !foundSeedBulkMove {
 			t.Fatalf("it room moves rows = %#v, want seeded bulk move row", itRoomMoves.Page.Rows)
+		}
+		foundJamieReed := false
+		for _, row := range itRoomMoves.Page.Rows {
+			if row.DraftID == "single-jamie-reed" {
+				foundJamieReed = true
+				if row.State != "Ready" || row.Phone != "Convert to shared line group" || row.Warning != "" {
+					t.Fatalf("Jamie Reed room move row = %#v, want ready shared-line conversion without review warning", row)
+				}
+			}
+		}
+		if !foundJamieReed {
+			t.Fatalf("it room moves rows = %#v, want Jamie Reed seed row", itRoomMoves.Page.Rows)
 		}
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id=rm-draft-103", nil)
 		req.AddCookie(itCookie)
