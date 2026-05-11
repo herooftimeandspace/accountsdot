@@ -47,11 +47,17 @@ type errorResponse struct {
 type phoneDirectoryResponse struct {
 	PageID string `json:"page_id"`
 	Page   struct {
-		Mode            string `json:"mode"`
-		Query           string `json:"query"`
-		CurrentSiteID   string `json:"current_site_id"`
-		CurrentSiteName string `json:"current_site_name"`
-		SelectedResult  *struct {
+		Mode                  string `json:"mode"`
+		Query                 string `json:"query"`
+		CurrentSiteID         string `json:"current_site_id"`
+		CurrentSiteName       string `json:"current_site_name"`
+		DirectoryScopeID      string `json:"directory_scope_id"`
+		DirectoryScopeLabel   string `json:"directory_scope_label"`
+		DirectoryScopeOptions []struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+		} `json:"directory_scope_options"`
+		SelectedResult *struct {
 			ID string `json:"id"`
 		} `json:"selected_result,omitempty"`
 		Results []struct {
@@ -59,6 +65,7 @@ type phoneDirectoryResponse struct {
 			Type            string `json:"type"`
 			TypeLabel       string `json:"type_label"`
 			SiteID          string `json:"site_id"`
+			SiteName        string `json:"site_name"`
 			Title           string `json:"title"`
 			Extension       string `json:"extension"`
 			ExtensionLength int    `json:"extension_length"`
@@ -433,6 +440,12 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if payload.Page.CurrentSiteName != "Clover High School" {
 			t.Fatalf("current site name = %q, want Clover High School", payload.Page.CurrentSiteName)
 		}
+		if payload.Page.DirectoryScopeID != "clover-hs" {
+			t.Fatalf("directory scope id = %q, want clover-hs", payload.Page.DirectoryScopeID)
+		}
+		if len(payload.Page.DirectoryScopeOptions) < 2 || payload.Page.DirectoryScopeOptions[0].ID != "district-wide" {
+			t.Fatalf("directory scope options = %#v, want district-wide first", payload.Page.DirectoryScopeOptions)
+		}
 		if payload.Page.SelectedResult != nil {
 			t.Fatalf("selected result = %#v, want nil on initial load", payload.Page.SelectedResult)
 		}
@@ -452,6 +465,16 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if !hasCommonArea {
 			t.Fatal("expected at least one common area result in person mode")
+		}
+		hasOutOfSiteResult := false
+		for _, result := range payload.Page.Results {
+			if result.SiteID != "clover-hs" {
+				hasOutOfSiteResult = true
+				break
+			}
+		}
+		if !hasOutOfSiteResult {
+			t.Fatal("expected person mode to include out-of-site district results")
 		}
 		if payload.Page.Results[0].SiteID != "clover-hs" || payload.Page.Results[0].Type != "person" {
 			t.Fatalf("unexpected first person result: %#v", payload.Page.Results[0])
@@ -1264,8 +1287,12 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if len(payload.Page.Results) < 4 {
 			t.Fatalf("expected at least 4 room-mode results, got %d", len(payload.Page.Results))
 		}
+		if payload.Page.DirectoryScopeID != "clover-hs" {
+			t.Fatalf("directory scope id = %q, want clover-hs", payload.Page.DirectoryScopeID)
+		}
 
 		hasClassroomSharedLine := false
+		hasOutOfSiteResult := false
 		for _, result := range payload.Page.Results {
 			switch result.Type {
 			case "common_area":
@@ -1274,9 +1301,15 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			default:
 				t.Fatalf("room mode returned disallowed result type %q for %#v", result.Type, result)
 			}
+			if result.SiteID != "clover-hs" {
+				hasOutOfSiteResult = true
+			}
 		}
 		if !hasClassroomSharedLine {
 			t.Fatal("expected at least one classroom shared line result in room mode")
+		}
+		if !hasOutOfSiteResult {
+			t.Fatal("expected room mode to include out-of-site district results")
 		}
 		if payload.Page.Results[0].Type != "common_area" || payload.Page.Results[0].SiteID != "clover-hs" {
 			t.Fatalf("unexpected first room result: %#v", payload.Page.Results[0])
@@ -1300,6 +1333,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if payload.Page.Mode != "department" {
 			t.Fatalf("mode = %q, want department", payload.Page.Mode)
+		}
+		if payload.Page.DirectoryScopeID != "district-wide" {
+			t.Fatalf("directory scope id = %q, want district-wide", payload.Page.DirectoryScopeID)
 		}
 		if payload.Page.SelectedResult != nil {
 			t.Fatalf("selected result = %#v, want nil on initial load", payload.Page.SelectedResult)
@@ -1329,6 +1365,102 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if payload.Page.Results[0].Type != "department_slg" || payload.Page.Results[0].SiteID != "district-office" {
 			t.Fatalf("unexpected first department result: %#v", payload.Page.Results[0])
+		}
+	})
+
+	t.Run("phone directory site id boosts the focused site without excluding district rows", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-person?site_id=clover-hs", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("phone directory focused site request returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[phoneDirectoryResponse](t, rec)
+		if payload.Page.DirectoryScopeID != "clover-hs" {
+			t.Fatalf("directory scope id = %q, want clover-hs", payload.Page.DirectoryScopeID)
+		}
+		if len(payload.Page.Results) < 4 {
+			t.Fatalf("expected district-wide focused results, got %d", len(payload.Page.Results))
+		}
+		if payload.Page.Results[0].SiteID != "clover-hs" {
+			t.Fatalf("first focused result site = %q, want clover-hs", payload.Page.Results[0].SiteID)
+		}
+
+		hasOutOfSiteResult := false
+		for _, result := range payload.Page.Results {
+			if result.SiteID != "clover-hs" {
+				hasOutOfSiteResult = true
+				break
+			}
+		}
+		if !hasOutOfSiteResult {
+			t.Fatal("expected focused directory results to include non-focused district sites")
+		}
+	})
+
+	t.Run("phone directory invalid site id falls back to persona default directory scope", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		itReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-person?site_id=unknown-site", nil)
+		itReq.AddCookie(itCookie)
+		itRec := httptest.NewRecorder()
+		handler.ServeHTTP(itRec, itReq)
+		if itRec.Code != http.StatusOK {
+			t.Fatalf("it admin invalid site request returned %d", itRec.Code)
+		}
+		itPayload := decodeJSON[phoneDirectoryResponse](t, itRec)
+		if itPayload.Page.DirectoryScopeID != "district-wide" {
+			t.Fatalf("it admin invalid scope fallback = %q, want district-wide", itPayload.Page.DirectoryScopeID)
+		}
+
+		secretaryCookie := loginAsPersona(t, handler, "site_secretary")
+		secretaryReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-room?site_id=unknown-site", nil)
+		secretaryReq.AddCookie(secretaryCookie)
+		secretaryRec := httptest.NewRecorder()
+		handler.ServeHTTP(secretaryRec, secretaryReq)
+		if secretaryRec.Code != http.StatusOK {
+			t.Fatalf("site secretary invalid site request returned %d", secretaryRec.Code)
+		}
+		secretaryPayload := decodeJSON[phoneDirectoryResponse](t, secretaryRec)
+		if secretaryPayload.Page.DirectoryScopeID != "clover-hs" {
+			t.Fatalf("site secretary invalid scope fallback = %q, want clover-hs", secretaryPayload.Page.DirectoryScopeID)
+		}
+	})
+
+	t.Run("faculty staff phone directory returns all district person rows with home site first", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "faculty_staff")
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-person", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("faculty phone directory request returned %d", rec.Code)
+		}
+
+		payload := decodeJSON[phoneDirectoryResponse](t, rec)
+		if payload.Page.DirectoryScopeID != "clover-hs" {
+			t.Fatalf("directory scope id = %q, want clover-hs", payload.Page.DirectoryScopeID)
+		}
+		if len(payload.Page.Results) < 4 {
+			t.Fatalf("expected faculty district-wide results, got %d", len(payload.Page.Results))
+		}
+		if payload.Page.Results[0].SiteID != "clover-hs" {
+			t.Fatalf("first faculty result site = %q, want clover-hs", payload.Page.Results[0].SiteID)
+		}
+
+		hasOutOfSiteResult := false
+		for _, result := range payload.Page.Results {
+			if result.SiteID != "clover-hs" {
+				hasOutOfSiteResult = true
+				break
+			}
+		}
+		if !hasOutOfSiteResult {
+			t.Fatal("expected faculty directory results to include other district sites")
 		}
 	})
 

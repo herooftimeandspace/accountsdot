@@ -113,15 +113,23 @@ type devShellPayload struct {
 }
 
 type phoneDirectoryContentPayload struct {
-	Mode            string                       `json:"mode"`
-	Title           string                       `json:"title"`
-	Description     string                       `json:"description"`
-	LastRefreshed   string                       `json:"last_refreshed"`
-	Query           string                       `json:"query"`
-	CurrentSiteID   string                       `json:"current_site_id"`
-	CurrentSiteName string                       `json:"current_site_name"`
-	Results         []phoneDirectorySearchResult `json:"results"`
-	SelectedResult  *phoneDirectorySearchResult  `json:"selected_result,omitempty"`
+	Mode                  string                       `json:"mode"`
+	Title                 string                       `json:"title"`
+	Description           string                       `json:"description"`
+	LastRefreshed         string                       `json:"last_refreshed"`
+	Query                 string                       `json:"query"`
+	CurrentSiteID         string                       `json:"current_site_id"`
+	CurrentSiteName       string                       `json:"current_site_name"`
+	DirectoryScopeID      string                       `json:"directory_scope_id"`
+	DirectoryScopeLabel   string                       `json:"directory_scope_label"`
+	DirectoryScopeOptions []directoryScopeOption       `json:"directory_scope_options"`
+	Results               []phoneDirectorySearchResult `json:"results"`
+	SelectedResult        *phoneDirectorySearchResult  `json:"selected_result,omitempty"`
+}
+
+type directoryScopeOption struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
 }
 
 type dataQualityContentPayload struct {
@@ -233,6 +241,15 @@ var devSiteCatalog = map[string]devSiteContext{
 	"highland-es":     {ID: "highland-es", Name: "Highland Elementary"},
 	"franklin-ms":     {ID: "franklin-ms", Name: "Franklin Middle School"},
 	"business-office": {ID: "business-office", Name: "Business Office"},
+}
+
+var devSiteOrder = []string{
+	"district-office",
+	"business-office",
+	"clover-hs",
+	"desert-view",
+	"franklin-ms",
+	"highland-es",
 }
 
 var devPersonaConfigs = map[string]devPersonaConfig{
@@ -817,7 +834,8 @@ func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode str
 	}
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	results := searchPhoneDirectory(config, query, mode)
+	directoryScopeID, directoryScopeLabel := resolvePhoneDirectoryScope(config, strings.TrimSpace(r.URL.Query().Get("site_id")))
+	results := searchPhoneDirectory(query, mode, directoryScopeID)
 
 	writeJSON(w, http.StatusOK, phoneDirectoryPagePayload{
 		PageID:      "phone-directory-by-" + mode,
@@ -825,14 +843,17 @@ func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode str
 		Shell:       config.Shell,
 		GeneratedAt: "2026-05-03T12:00:00Z",
 		Page: phoneDirectoryContentPayload{
-			Mode:            mode,
-			Title:           "Phone Directory",
-			Description:     phoneDirectoryDescription(mode),
-			LastRefreshed:   "Last refreshed:\nMay 3, 2026\n9:00 AM PT",
-			Query:           query,
-			CurrentSiteID:   config.CurrentSite.ID,
-			CurrentSiteName: config.CurrentSite.Name,
-			Results:         results,
+			Mode:                  mode,
+			Title:                 "Phone Directory",
+			Description:           phoneDirectoryDescription(mode),
+			LastRefreshed:         "Last refreshed:\nMay 3, 2026\n9:00 AM PT",
+			Query:                 query,
+			CurrentSiteID:         config.CurrentSite.ID,
+			CurrentSiteName:       config.CurrentSite.Name,
+			DirectoryScopeID:      directoryScopeID,
+			DirectoryScopeLabel:   directoryScopeLabel,
+			DirectoryScopeOptions: phoneDirectoryScopeOptions(),
+			Results:               results,
 		},
 	})
 }
@@ -1102,26 +1123,76 @@ func syntheticEmail(localPart string) string {
 func phoneDirectoryDescription(mode string) string {
 	switch mode {
 	case "room":
-		return "Search common area phones and classroom shared lines. Results from your current site appear first."
+		return "Search common area phones and classroom shared lines across the district. Directory scope changes result order only."
 	case "department":
-		return "Search department shared lines and call queues. Results from your current site appear first."
+		return "Search department shared lines and call queues across the district. Directory scope changes result order only."
 	default:
-		return "Search people and common area phones. Results from your current site appear first."
+		return "Search people and common area phones across the district. Directory scope changes result order only."
 	}
 }
 
-func searchPhoneDirectory(config devPersonaConfig, query string, mode string) []phoneDirectorySearchResult {
-	visibleSiteOrder := map[string]int{}
-	for index, site := range config.VisibleSites {
-		visibleSiteOrder[site.ID] = index
+const devDirectoryScopeDistrictWide = "district-wide"
+
+func defaultPhoneDirectoryScopeID(config devPersonaConfig) string {
+	switch config.Persona.ID {
+	case "it_admin", "human_resources":
+		return devDirectoryScopeDistrictWide
+	default:
+		if config.CurrentSite.ID != "" {
+			return config.CurrentSite.ID
+		}
+		return config.DefaultSite.ID
+	}
+}
+
+func resolvePhoneDirectoryScope(config devPersonaConfig, requestedScopeID string) (string, string) {
+	scopeID := strings.TrimSpace(requestedScopeID)
+	if scopeID == "" {
+		scopeID = defaultPhoneDirectoryScopeID(config)
+	}
+	if scopeID == devDirectoryScopeDistrictWide {
+		return devDirectoryScopeDistrictWide, "District-wide"
+	}
+	if site, ok := devSiteCatalog[scopeID]; ok {
+		return site.ID, site.Name
 	}
 
+	defaultScopeID := defaultPhoneDirectoryScopeID(config)
+	if defaultScopeID == devDirectoryScopeDistrictWide {
+		return devDirectoryScopeDistrictWide, "District-wide"
+	}
+	site := devSiteCatalog[defaultScopeID]
+	return site.ID, site.Name
+}
+
+func phoneDirectoryScopeOptions() []directoryScopeOption {
+	options := []directoryScopeOption{{ID: devDirectoryScopeDistrictWide, Label: "District-wide"}}
+	for _, siteID := range devSiteOrder {
+		site, ok := devSiteCatalog[siteID]
+		if !ok {
+			continue
+		}
+		options = append(options, directoryScopeOption{ID: site.ID, Label: site.Name})
+	}
+	return options
+}
+
+func phoneDirectorySiteOrder() map[string]int {
+	siteOrder := make(map[string]int, len(devSiteOrder))
+	for index, siteID := range devSiteOrder {
+		siteOrder[siteID] = index
+	}
+	return siteOrder
+}
+
+func searchPhoneDirectory(query string, mode string, directoryScopeID string) []phoneDirectorySearchResult {
+	siteOrderByID := phoneDirectorySiteOrder()
 	normalizedQuery := normalizeSearchValue(query)
 	ranked := make([]rankedPhoneDirectoryResult, 0, len(devPhoneDirectoryEntries))
 	for _, entry := range devPhoneDirectoryEntries {
-		siteOrder, visible := visibleSiteOrder[entry.SiteID]
-		if !visible {
-			continue
+		siteOrder, ok := siteOrderByID[entry.SiteID]
+		if !ok {
+			siteOrder = len(siteOrderByID) + 1
 		}
 		if !phoneDirectoryModeAllows(mode, entry.Type) {
 			continue
@@ -1138,7 +1209,7 @@ func searchPhoneDirectory(config devPersonaConfig, query string, mode string) []
 		}
 
 		siteRank := 1
-		if entry.SiteID == config.CurrentSite.ID {
+		if directoryScopeID != devDirectoryScopeDistrictWide && entry.SiteID == directoryScopeID {
 			siteRank = 0
 		}
 
@@ -1176,14 +1247,14 @@ func searchPhoneDirectory(config devPersonaConfig, query string, mode string) []
 		if left.SiteRank != right.SiteRank {
 			return left.SiteRank < right.SiteRank
 		}
+		if left.SiteOrder != right.SiteOrder {
+			return left.SiteOrder < right.SiteOrder
+		}
 		if left.TypeRank != right.TypeRank {
 			return left.TypeRank < right.TypeRank
 		}
 		if left.MatchRank != right.MatchRank {
 			return left.MatchRank < right.MatchRank
-		}
-		if left.SiteOrder != right.SiteOrder {
-			return left.SiteOrder < right.SiteOrder
 		}
 		if left.NormalizedKey != right.NormalizedKey {
 			return left.NormalizedKey < right.NormalizedKey

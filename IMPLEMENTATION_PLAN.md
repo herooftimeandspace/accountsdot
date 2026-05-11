@@ -2164,8 +2164,8 @@
 - The current Google Sheet-derived phone directory and exported HTML bundle are design references for required user-facing functionality, not the long-term runtime architecture.
 - The phone directory dashboard must:
 - be available to all logged-in dashboard user types, with scope and field visibility still constrained by role
-- default its landing view or tab to the current user's site
-- allow lookups across any site
+- default site-level users to their current or assigned site as a result-ordering focus, while keeping all district results eligible
+- keep phone-directory site focus separate from normal shared-header site scoping so a locked site header never prevents cross-district directory lookup
 - preserve the legacy directory mental models with a user-switchable view mode:
   - by person
   - by room
@@ -2176,8 +2176,14 @@
   - `/phone-directory/by-person`
   - `/phone-directory/by-room`
   - `/phone-directory/by-department`
-- preserve only the shared query parameter `q` when switching directory modes and reset all mode-specific filters on every mode change
-- keep the shared header search routing unchanged so it still lands on `Phone Directory / By Person`, while the local in-page phone-directory search field searches the currently active directory mode
+- preserve only the shared query parameter `q` when switching directory modes and reset all mode-specific filters, including directory focus, on every mode change
+- keep the shared header search routing unchanged so it still lands on `Phone Directory / By Person`, while the reusable table search/sort primitive searches the currently active directory mode
+- use the DEV-only directory focus dropdown only for result ordering:
+  - `IT Admin` and `Human Resources` default to `District-wide`
+  - site-level and staff personas default to their current or assigned site
+  - `site_id=district-wide` disables site boosting
+  - a known site id ranks that site first and then returns the rest of the district in stable site/name order
+  - an invalid site id falls back to the persona default directory focus
 - never show person and room directories side by side in the same main view
 - treat the phone-directory detail surface as a closed-by-default overlay drawer in all three modes so no permanent right-side blank rail remains in the base page layout
 - open the directory drawer only after a row is selected, give it a visible `X` close control, and clear the current selection whenever the user switches directory modes

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards } from "../generated/artboards.generated.js";
+import { generatedArtboards, sharedShellSpec } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
 import {
   buildSharedShellHiddenNodeIds,
@@ -23,6 +23,14 @@ const MODE_CONFIG = {
     resultsFrameId: "f110",
     detailRailId: "f159",
     hiddenStaticNodeIds: [
+      "f99",
+      "t100",
+      "f102",
+      "t103",
+      "f105",
+      "t106",
+      "f108",
+      "t109",
       "t111",
       "t112",
       "t113",
@@ -106,6 +114,14 @@ const MODE_CONFIG = {
     resultsFrameId: "f110",
     detailRailId: "f153",
     hiddenStaticNodeIds: [
+      "f99",
+      "t100",
+      "f102",
+      "t103",
+      "f105",
+      "t106",
+      "f108",
+      "t109",
       "t111",
       "t112",
       "t113",
@@ -182,6 +198,21 @@ const MODE_CONFIG = {
     resultsFrameId: "f116",
     detailRailId: "f166",
     hiddenStaticNodeIds: [
+      "f95",
+      "p96",
+      "p97",
+      "t99",
+      "f101",
+      "p103",
+      "t104",
+      "f105",
+      "t106",
+      "f108",
+      "t109",
+      "f111",
+      "t112",
+      "f114",
+      "t115",
       "t117",
       "t118",
       "t119",
@@ -279,7 +310,11 @@ const MODE_PAGE_TITLES = {
   department: "Phone Directory by Department",
 };
 const SHARED_LINE_RESULT_COLUMNS = [
-  { key: "subtitle", label: "Details", render: (result) => result.subtitle || "—" },
+  {
+    key: "details",
+    label: "Details",
+    render: (result) => result.department || result.location || result.role || "—",
+  },
   { key: "phone", label: "Phone", render: (result) => result.phone || "—" },
   { key: "extension", label: "Extension", render: (result) => result.extension || "—" },
   { key: "site", label: "Site", render: (result) => result.site_name || "—" },
@@ -430,7 +465,7 @@ function PhoneDirectoryResultsOverlay({
 
   const columns = resultsColumnsForMode(mode);
   const table = useRuntimeTableData(results, columns, {
-    defaultSort: { key: "title", direction: "asc" },
+    defaultSort: { key: null, direction: "none" },
   });
   const resultsTitleId = `phone-directory-${mode}-results-title`;
 
@@ -486,9 +521,6 @@ function PhoneDirectoryResultsOverlay({
                   return (
                     <div key={column.key}>
                       <div className="phone-directory-runtime__primary">{primaryValue}</div>
-                      {result.subtitle ? (
-                        <div className="phone-directory-runtime__secondary">{result.subtitle}</div>
-                      ) : null}
                     </div>
                   );
                 }
@@ -578,21 +610,18 @@ function PhoneDirectoryModeToggleOverlay({ nodeIndex, config, activeMode, search
   return buttons.filter(Boolean);
 }
 
-function PhoneDirectorySearchOverlay({ bounds, initialQuery, onSubmit }) {
-  const [value, setValue] = useState(initialQuery ?? "");
+function PhoneDirectoryScopeOverlay({ bounds, payload, mode, searchQuery, onNavigate }) {
+  const options = payload?.page?.directory_scope_options ?? [];
+  const selectedScope = payload?.page?.directory_scope_id ?? "district-wide";
 
-  useEffect(() => {
-    setValue(initialQuery ?? "");
-  }, [initialQuery]);
-
-  if (!bounds || typeof onSubmit !== "function") {
+  if (!bounds || options.length === 0 || typeof onNavigate !== "function") {
     return null;
   }
 
   return (
-    // WCAG 1.3.1/3.3.2/4.1.2: the local mode search uses native search semantics and a visible focus target.
-    <form
-      className="phone-directory-runtime__local-search"
+    // WCAG 1.3.1/3.3.2/4.1.2: the DEV directory scope selector uses native form semantics and an accessible label.
+    <label
+      className="phone-directory-runtime__scope"
       style={{
         position: "absolute",
         left: bounds.left,
@@ -601,21 +630,28 @@ function PhoneDirectorySearchOverlay({ bounds, initialQuery, onSubmit }) {
         height: bounds.height,
         zIndex: 3,
       }}
-      role="search"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit(value.trim());
-      }}
     >
-      <input
-        type="search"
-        className="phone-directory-runtime__local-search-input"
-        aria-label="Search phone directory"
-        placeholder="Search phone directory"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-      />
-    </form>
+      <span className="sr-only">Directory scope</span>
+      <select
+        className="phone-directory-runtime__scope-select"
+        aria-label="Directory scope"
+        value={selectedScope}
+        onChange={(event) => {
+          const params = new URLSearchParams();
+          if (searchQuery.trim()) {
+            params.set("q", searchQuery.trim());
+          }
+          params.set("site_id", event.target.value);
+          onNavigate(`/phone-directory/by-${mode}?${params.toString()}`);
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -645,6 +681,7 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
   }
 
   pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.descriptionId));
+  pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.searchFieldId));
   pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, config.searchIconId));
   pushDuplicateIds(
     hiddenNodeIds,
@@ -702,6 +739,7 @@ export function PhoneDirectoryPage({
   onNavigate,
   onSearch,
   searchQuery = "",
+  currentSearch = "",
   onUnauthorized,
   onForbidden,
 }) {
@@ -735,6 +773,10 @@ export function PhoneDirectoryPage({
         const requestUrl = new URL(modeConfig.endpoint, window.location.origin);
         if (searchQuery.trim()) {
           requestUrl.searchParams.set("q", searchQuery.trim());
+        }
+        const directoryScopeQuery = new URLSearchParams(currentSearch).get("site_id");
+        if (directoryScopeQuery?.trim()) {
+          requestUrl.searchParams.set("site_id", directoryScopeQuery.trim());
         }
 
         const response = await fetch(requestUrl, {
@@ -787,7 +829,7 @@ export function PhoneDirectoryPage({
 
     void loadPage();
     return () => controller.abort();
-  }, [modeConfig, onForbidden, onUnauthorized, searchQuery, session]);
+  }, [currentSearch, modeConfig, onForbidden, onUnauthorized, searchQuery, session]);
 
   const textOverrides = useMemo(
     () => buildTextOverrides(session, payload, modeConfig, searchQuery),
@@ -821,12 +863,10 @@ export function PhoneDirectoryPage({
       const detailBounds = nodeBounds(
         nodeIndex.get(resolvePaneId(nodeIndex, modeConfig, modeConfig.detailRailId))
       );
-      const searchBounds = nodeBounds(
-        nodeIndex.get(resolvePaneId(nodeIndex, modeConfig, modeConfig.searchFieldId))
-      );
       const resultsBounds = nodeBounds(
         nodeIndex.get(resolvePaneId(nodeIndex, modeConfig, modeConfig.resultsFrameId))
       );
+      const scopeBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.scopeField));
       const results = payload?.page?.results ?? [];
       const selected = selectedResultForPayload(payload, selectedResultId);
 
@@ -839,14 +879,13 @@ export function PhoneDirectoryPage({
           searchQuery,
           onNavigate,
         }),
-        <PhoneDirectorySearchOverlay
-          key="phone-directory-local-search"
-          bounds={searchBounds}
-          initialQuery={payload?.page?.query ?? searchQuery}
-          onSubmit={(query) => {
-            const href = `/phone-directory/by-${mode}${query ? `?q=${encodeURIComponent(query)}` : ""}`;
-            onNavigate(href);
-          }}
+        <PhoneDirectoryScopeOverlay
+          key="phone-directory-scope"
+          bounds={scopeBounds}
+          payload={payload}
+          mode={mode}
+          searchQuery={searchQuery}
+          onNavigate={onNavigate}
         />,
         <PhoneDirectoryResultsOverlay
           key="phone-directory-results"
@@ -870,7 +909,6 @@ export function PhoneDirectoryPage({
     mode,
     modeConfig.detailRailId,
     modeConfig.resultsFrameId,
-    modeConfig.searchFieldId,
     nodeIndex,
     onNavigate,
     payload,

@@ -304,6 +304,7 @@ input {
 /* WCAG 2.4.7/2.4.11: transparent overlay controls expose a visible, unobscured focus ring. */
 .shared-shell-search:focus-within,
 .phone-directory-runtime__local-search:focus-within,
+.phone-directory-runtime__scope:focus-within,
 .phone-directory-runtime__row:focus-visible,
 .phone-directory-runtime__mode-button:focus-visible {
   outline: 3px solid var(--focus-ring);
@@ -1557,7 +1558,7 @@ input {
   cursor: pointer;
   font-size: 13px;
   line-height: 1.4;
-  min-height: 44px;
+  min-height: 48px;
   text-align: left;
 }
 
@@ -1657,28 +1658,27 @@ input {
   color: var(--color-text);
 }
 
-.phone-directory-runtime__local-search {
+.phone-directory-runtime__scope {
   display: flex;
   align-items: center;
 }
 
-.phone-directory-runtime__local-search-input {
+.phone-directory-runtime__scope-select {
   width: 100%;
   height: 100%;
-  border: 0;
-  background: transparent;
+  box-sizing: border-box;
+  border: 1px solid var(--color-canvas);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
   color: var(--color-text);
+  cursor: pointer;
   font-size: 14px;
+  font-weight: 700;
   line-height: 1.35;
-  padding: 0 16px 0 42px;
+  padding: 0 36px 0 14px;
 }
 
-.phone-directory-runtime__local-search-input::placeholder {
-  color: var(--color-accent-slate);
-  opacity: 1;
-}
-
-.phone-directory-runtime__local-search-input:focus {
+.phone-directory-runtime__scope-select:focus {
   outline: none;
 }
 

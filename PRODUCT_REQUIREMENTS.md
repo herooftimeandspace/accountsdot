@@ -599,8 +599,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 
 ### 6. Phone Directory Dashboard
 - Replace the current CSV and Google Sheet build process with direct provider-backed data.
-- Default the landing experience to the user’s site.
-- Allow district-wide lookup across sites.
+- Default site-level users to seeing their own site first while preserving district-wide lookup across all sites.
+- Treat phone-directory site focus separately from normal shared-header site scoping. The shared header can remain locked to a user’s assigned site while the phone-directory results still include the whole district.
 - Make the phone directory available to all logged-in dashboard user types.
 - Scope and field visibility in the phone directory must still follow each role's authorization rules.
 - Preserve the existing mental models from the legacy directory as a user-switchable alternate view:
@@ -613,8 +613,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/phone-directory/by-person`
   - `/phone-directory/by-room`
   - `/phone-directory/by-department`
-- Switching between phone-directory modes must preserve only the current query parameter `q` and must reset all mode-specific filters on every mode change.
-- The shared header search should continue to route to `Phone Directory / By Person`, while the in-page local search field should search the currently active phone-directory mode.
+- Switching between phone-directory modes must preserve only the current query parameter `q` and must reset all mode-specific filters, including directory focus, on every mode change.
+- The shared header search should continue to route to `Phone Directory / By Person`, while the reusable table search/sort primitive searches the currently active phone-directory mode.
+- The phone directory must expose a DEV-only directory focus dropdown for implemented mock pages:
+  - `IT Admin` and `Human Resources` default to `District-wide`
+  - site-level and staff personas default to their current or assigned site
+  - choosing a site only ranks that site’s people, rooms, and departments first
+  - choosing `District-wide` removes site boost without excluding any district result
 - The dashboard must never render person and room directories side by side in the same main view.
 - The right-side phone-directory detail surface should be a closed-by-default overlay drawer in all three modes:
   - it stays hidden until a row is selected
@@ -634,7 +639,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - `By Room` must exclude people and department shared line groups.
 - `By Department` must exclude people, common area phones, classroom shared line groups, and auto attendants.
 - Authorized site staff should be able to start a one-person room-move correction from directory details when a displayed room or phone assignment is wrong.
-- The `By Department` view should surface department and shared-service extensions for the current site.
+- The `By Department` view should surface department and shared-service extensions across the district, with the focused site ranked first when a site is selected.
 - In the `Assigned To / Destination` column for `By Department`:
   - shared line groups and call queues should show all current members
   - auto attendants should not show a person assignment

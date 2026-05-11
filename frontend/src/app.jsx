@@ -420,6 +420,7 @@ export function App() {
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}
+        currentSearch={currentSearch}
         onUnauthorized={handleUnauthorized}
         onForbidden={handleForbidden}
       />
