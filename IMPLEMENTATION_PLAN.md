@@ -1857,6 +1857,14 @@
   - IT should retain broader visibility for audit and support
   - the current legacy code's `> threshold` behavior and `ModifiedDate` filter are implementation artifacts, not product requirements
   - the product requirement is `>= 2` qualifying assignments within the configured lookback window
+  - the comparison operator is fixed at `>=`; the runtime control changes the threshold value, not the operator
+  - the first DEV runtime pass exposes a threshold dropdown from `1` through `10`, defaulting to `2`, plus a selector for whether the threshold applies to device assignments or linked IncidentIQ tickets
+  - the `Apply` action commits the selected threshold/type pair before the table filters, so users can adjust controls without silently changing the result set
+  - row-specific student, device, and ticket context belongs in the shared right-hand drawer; fixed page-local detail panels are layout artifacts and should be hidden in live runtime pages
+  - device history links should present serial number first, then device type, and route to deterministic DEV IncidentIQ asset URLs
+  - recent ticket rows should route to deterministic DEV IncidentIQ ticket URLs
+  - trend cells should render actual color-coded graph marks, not static placeholder glyphs
+  - the explanatory helper copy belongs in the shared help drawer so the help button stays the single end-user documentation entrypoint
   - the 90-day default exists because librarians requested a longer view to identify abuse patterns that 45 days did not surface reliably
   - Frequent Fliers must live on its own dedicated screen
   - Frequent Fliers must not share a single screen with student invalid-name review

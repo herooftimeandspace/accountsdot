@@ -586,6 +586,11 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Do not combine Frequent Fliers with student invalid-name review on the same screen.
 - Threshold and lookback must be IT-configurable later, with first-pass defaults of `2` and `90`.
 - The 90-day default exists because librarians requested a longer view to identify longer patterns of abuse than the earlier 45-day draft showed.
+- The comparison operator is fixed as greater-than-or-equal-to. Users may change the DEV threshold value from `1` through `10`, defaulting to `2`, and may choose whether the threshold applies to device assignments or IncidentIQ tickets.
+- Frequent Fliers row details must open in the shared right-hand drawer rather than a fixed side panel. Selecting a different row refreshes the drawer with that student's current device and ticket context.
+- Device history should show the serial number before the device type and link to the deterministic DEV IncidentIQ device target. Recent ticket rows should link to deterministic DEV IncidentIQ ticket targets.
+- The row trend should render as a real color-coded graph using the shared severity palette so users can scan whether the recent pattern is below threshold, at review level, or critical.
+- End-user explanation for how to interpret the page belongs in the shared help drawer, not in a persistent helper banner inside the page pane.
 
 ### 5. Room-Move Workflow
 - Support both:
@@ -928,6 +933,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Frequent Fliers uses an IT-configurable rolling window and threshold.
 - First-pass defaults are 90 days and 2 or more qualifying device assignments.
 - The product requirement is based on qualifying assignment events, not on incidental metadata such as a student's recent account modification date in Incident IQ.
+- The operator is always greater-than-or-equal-to. In the DEV UI, authorized users can apply the same `1` through `10` threshold to either device assignments or linked IncidentIQ tickets while keeping the 90-day first-pass window.
+- Frequent Fliers details use the shared right-hand drawer and page help uses the shared help drawer primitive.
 
 ### Preferred and Legal Name
 - Preferred/display name is separate from legal name.

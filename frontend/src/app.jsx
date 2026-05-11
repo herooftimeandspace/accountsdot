@@ -4,6 +4,7 @@ import { ErrorPage } from "./pages/ErrorPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DataQualityPage } from "./pages/DataQualityPage";
 import { DepartingSeniorsPage } from "./pages/DepartingSeniorsPage";
+import { FrequentFliersPage } from "./pages/FrequentFliersPage";
 import { OffboardingPage } from "./pages/OffboardingPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PhoneDirectoryPage } from "./pages/PhoneDirectoryPage";
@@ -57,6 +58,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Offboarding";
     case "departing-seniors":
       return "Departing Seniors";
+    case "frequent-fliers":
+      return "Frequent Fliers";
     case "phone-directory":
       return PHONE_DIRECTORY_TITLES[route.mode] || "Phone Directory";
     case "static":
@@ -491,6 +494,15 @@ export function App() {
         searchQuery={currentSearchQuery}
         onUnauthorized={handleUnauthorized}
         onForbidden={handleForbidden}
+      />
+    );
+  } else if (currentRoute?.kind === "frequent-fliers") {
+    page = (
+      <FrequentFliersPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
       />
     );
   } else if (currentRoute?.kind === "static") {

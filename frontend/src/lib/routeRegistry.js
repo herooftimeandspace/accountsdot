@@ -28,7 +28,7 @@ export const APP_ROUTES = [
     artboardKey: "phone-directory-by-room",
   },
   { path: "/data-quality", kind: "data-quality", artboardKey: "data-quality" },
-  { path: "/frequent-fliers", kind: "static", artboardKey: "frequent-fliers" },
+  { path: "/frequent-fliers", kind: "frequent-fliers", artboardKey: "frequent-fliers" },
   { path: "/student-data-cleanup", kind: "static", artboardKey: "student-data-cleanup" },
   { path: "/reports", kind: "static", artboardKey: "reports" },
   {
