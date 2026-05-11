@@ -89,7 +89,7 @@
           "fill": {
             "type": "image",
             "enabled": true,
-            "url": "/pen-assets/google-g.svg",
+            "url": "/pen-assets/google-g.png",
             "mode": "fit"
           }
         },

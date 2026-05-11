@@ -123,8 +123,8 @@ const stableAssets = new Map([
     "firefly.png",
   ],
   [
-    path.join(repoRoot, "docs", "reference-inputs", "branding", "google-g.svg"),
-    "google-g.svg",
+    path.join(repoRoot, "docs", "reference-inputs", "branding", "google-g.png"),
+    "google-g.png",
   ],
   [
     path.join(repoRoot, "docs", "mocks", "wireframes", "varsity_regular.ttf"),

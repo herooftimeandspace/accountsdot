@@ -92,7 +92,7 @@
               "fill": {
                 "type": "image",
                 "enabled": true,
-                "url": "docs/reference-inputs/branding/google-g.svg",
+                "url": "docs/reference-inputs/branding/google-g.png",
                 "mode": "fit"
               }
             },
