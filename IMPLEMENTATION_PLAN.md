@@ -1869,6 +1869,13 @@
   - Frequent Fliers must live on its own dedicated screen
   - Frequent Fliers must not share a single screen with student invalid-name review
 
+## Student Data Cleanup Runtime Notes
+- The live `/student-data-cleanup` page uses runtime table primitives over the shared `.pen` shell for page-local search, issue-type filtering, grade filtering, and three-way sortable column headers.
+- Static explanatory helper blocks from the artboard are hidden in the live page; the same end-user guidance belongs in the shared help drawer so the help icon remains the single documentation entry point.
+- The table height should be driven by the visible row count, including empty filtered states, rather than fixed artboard whitespace.
+- The page-level sync action is a runtime-owned Vegas Gold button. It is a DEV mock action in this slice and does not write student records.
+- Row selection opens the shared right-hand drawer with the raw Aeries values, normalized values, and a deterministic DEV Aeries link. The drawer remains informational; corrections must happen upstream in Aeries.
+
 ## Non-Deterministic Overrides
 - Certain fields are explicitly non-deterministic and may be updated by authorized users even when they are not authoritative in upstream systems.
 - Current examples include:

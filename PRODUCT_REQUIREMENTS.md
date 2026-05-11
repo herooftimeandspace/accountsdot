@@ -564,6 +564,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Provide a copy button next to each normalized first-name and last-name suggestion so a secretary can copy the corrected field value directly to the clipboard for pasting into Aeries.
 - Display invalid-character examples such as `Nuño` and the corresponding normalized correction.
 - Provide a link to Aeries so the user can correct the source data there.
+- The live page should use the shared runtime table primitives for page-local search, issue type filtering, grade filtering, and three-way sortable column headers.
+- The table should expand or collapse to the visible result count rather than leaving large empty fixed artboard space after the rows.
+- Informational copy explaining that corrections happen in Aeries belongs in the shared help drawer, not as persistent blue helper blocks inside the page pane.
+- The page-level sync action should be a real Vegas Gold button with text that fits at the configured control size.
 - Keep student invalid-name handling on its own dedicated screen.
 - Do not combine student invalid-name content with Frequent Fliers on the same screen.
 - No student writeback or student onboarding logic is part of this pass.
