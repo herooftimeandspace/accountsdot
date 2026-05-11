@@ -87,6 +87,16 @@
       ]
     },
     {
+      "key": "room-moves-bulk-draft",
+      "sourcePen": "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+      "mode": "merge-shell",
+      "activeNav": null,
+      "loggedInShell": true,
+      "standardPrimitives": [
+        "refresh"
+      ]
+    },
+    {
       "key": "phone-directory-by-person",
       "sourcePen": "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
       "mode": "merge-shell",

@@ -9,6 +9,7 @@ import { OffboardingPage } from "./pages/OffboardingPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PhoneDirectoryPage } from "./pages/PhoneDirectoryPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { RoomMovesPage } from "./pages/RoomMovesPage";
 import { SearchPage } from "./pages/SearchPage";
 import { StaticPenPage } from "./pages/StaticPenPage";
 import { StudentDataCleanupPage } from "./pages/StudentDataCleanupPage";
@@ -66,6 +67,9 @@ function pageTitleForRoute(route, currentPath) {
       return "Student Data Cleanup";
     case "reports":
       return "Reports";
+    case "room-moves":
+    case "room-moves-bulk-draft":
+      return "Room Moves";
     case "phone-directory":
       return PHONE_DIRECTORY_TITLES[route.mode] || "Phone Directory";
     case "static":
@@ -527,6 +531,20 @@ export function App() {
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}
+      />
+    );
+  } else if (currentRoute?.kind === "room-moves" || currentRoute?.kind === "room-moves-bulk-draft") {
+    page = (
+      <RoomMovesPage
+        session={session}
+        routeKind={currentRoute.kind}
+        artboardKey={currentRoute.artboardKey}
+        currentSearch={currentSearch}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
       />
     );
   } else if (currentRoute?.kind === "static") {

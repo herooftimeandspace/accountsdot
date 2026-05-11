@@ -520,6 +520,8 @@
   - phone directory data is API-driven without CSV upload dependence and is available to every logged-in authorized role with correct scope
   - Frequent Fliers is usable as a live dashboard surface in place of its legacy emailed/sheet-based visibility workflow
   - room-move drafts can be created and validated ahead of execution without requiring the transfer engine to be live yet, with IT able to create district-wide drafts at the same time site-scoped users create site drafts
+  - the Room Moves DEV runtime must support one-person correction drafts, whole-site roster drafts, and manually built bulk move lists against deterministic mock people and IncidentIQ room inventory data
+  - non-IT Room Moves users can create and manage only drafts for their own site; IT Admin can create district-wide or inter-site drafts through an additional destination-site control
   - review-only security and mismatch queues operate with correct ownership and no unauthorized data exposure
 - Failure gates:
   - operators still need legacy sheets to understand current state for in-scope workflows
@@ -755,6 +757,22 @@
   - execution-threshold rule for reviewed moves:
     - `5` or fewer moves may execute immediately once final review is passed
     - more than `5` moves must execute through a batch cutover window
+  - runtime draft modes:
+    - one-person corrections open from `Create Room Move` or a single-move row into the shared right-hand drawer
+    - `Bulk Site Roster` opens a bulk draft preloaded with every eligible employee and contractor at the scoped site
+    - `Build Move List` opens an empty bulk draft where `Add` appends searchable rows to the bottom of the table
+  - destination-site and destination-room controls:
+    - IT Admin sees a destination-site dropdown so inter-site moves can be planned
+    - non-IT users do not see destination-site controls and can choose only rooms from their own site
+    - destination room options are filtered to the selected destination site
+    - `None` appears first in every destination-room dropdown
+    - same-site moves default destination room to the person’s current room when available
+    - inter-site moves default destination room to `None`
+    - if a person is moving sites, the destination room should be set to none
+  - user-facing guidance placement:
+    - Execution Rules and Cutover Controls copy belongs in the Room Moves help drawer
+    - single-move warnings belong in right-drawer details
+    - bulk-draft warnings belong in a top warning bar above the bulk table
   - author-scope rule for batch move sets:
     - if the batch is authored by `IT`, it may span multiple sites
     - if the batch is authored by any non-IT role, it is limited to the author's own site scope
@@ -1703,6 +1721,7 @@
   - room-move workflow types:
     - `end_of_year_site_move` for whole-site rollover planning
     - `mid_year_targeted_move` for one-off or small staffing-change moves
+    - `manual_move_list` for a manually built bulk draft that starts empty and grows as the user adds rows
   - users must be able to choose the room-move type so targeted mid-year changes do not require loading the full site roster
   - allowed submitters:
     - site secretaries
@@ -1716,6 +1735,9 @@
   - room-copy affordances:
     - per-row copy current-room to new-room action
     - bulk copy-all current-room to new-room action
+  - the Room Moves bulk draft page must show scoped site context, bulk mode label, effective date, warning bar, inline `Save Draft` button, sortable/searchable table, and schedule/apply/discard actions
+  - manually built bulk drafts must support person lookup by email, name, or employee ID in each new row and must auto-populate the selected person’s current site, current room, destination site, and default destination room
+  - row-level `Remove` controls in bulk drafts must use the supported brand-red destructive styling
   - the phone-directory person-detail and room-detail surfaces must expose an authorized one-person corrective room-move entry point for site-scoped users when the current assignment is wrong
   - that corrective entry point must prefill the selected person, current room, current phone context, and site so the user can create a targeted correction without starting from the bulk editor
   - in Phase 1 this entry point creates or opens a targeted room-move draft only

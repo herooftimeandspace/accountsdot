@@ -250,6 +250,62 @@ type departingSeniorsResponse struct {
 	} `json:"page"`
 }
 
+type roomMovesResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		CanManageDistrict bool `json:"can_manage_district"`
+		ScopeSite         struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"scope_site"`
+		Rooms []struct {
+			ID     string `json:"id"`
+			Label  string `json:"label"`
+			SiteID string `json:"site_id"`
+		} `json:"rooms"`
+		People []struct {
+			ID            string `json:"id"`
+			SiteID        string `json:"site_id"`
+			CurrentRoomID string `json:"current_room_id"`
+		} `json:"people"`
+		Rows []struct {
+			ID            string `json:"id"`
+			DraftID       string `json:"draft_id"`
+			MoveType      string `json:"move_type"`
+			CurrentSiteID string `json:"current_site_id"`
+			Warning       string `json:"warning"`
+		} `json:"rows"`
+	} `json:"page"`
+}
+
+type roomMovesBulkDraftResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		CanManageDistrict bool                     `json:"can_manage_district"`
+		Draft             roomMoveDraftTestPayload `json:"draft"`
+	} `json:"page"`
+}
+
+type roomMoveDraftTestResponse struct {
+	Draft roomMoveDraftTestPayload `json:"draft"`
+}
+
+type roomMoveDraftTestPayload struct {
+	ID                string   `json:"id"`
+	Mode              string   `json:"mode"`
+	ScopeSiteID       string   `json:"scope_site_id"`
+	CanManageDistrict bool     `json:"can_manage_district"`
+	Warnings          []string `json:"warnings"`
+	Rows              []struct {
+		PersonID          string `json:"person_id"`
+		CurrentSiteID     string `json:"current_site_id"`
+		CurrentRoomID     string `json:"current_room_id"`
+		DestinationSiteID string `json:"destination_site_id"`
+		DestinationRoomID string `json:"destination_room_id"`
+		Warning           string `json:"warning"`
+	} `json:"rows"`
+}
+
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	t.Helper()
 	var payload T
@@ -1645,6 +1701,218 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		payload := decodeJSON[phoneDirectoryResponse](t, rec)
 		if !phoneDirectoryHasTitle(payload, "Riley Vale") {
 			t.Fatalf("expected Riley Vale in numeric extension search results, got %#v", payload.Page.Results)
+		}
+	})
+
+	t.Run("room moves enforce site scoped drafts and room defaults", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated room moves returned %d, want 401", rec.Code)
+		}
+
+		secretaryCookie := loginAsPersona(t, handler, "site_secretary")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("site secretary room moves returned %d, want 200", rec.Code)
+		}
+		sitePayload := decodeJSON[roomMovesResponse](t, rec)
+		if sitePayload.Page.CanManageDistrict {
+			t.Fatal("site secretary should not receive district room-move controls")
+		}
+		if sitePayload.Page.ScopeSite.ID != "clover-hs" {
+			t.Fatalf("scope site = %q, want clover-hs", sitePayload.Page.ScopeSite.ID)
+		}
+		for _, person := range sitePayload.Page.People {
+			if person.SiteID != "clover-hs" {
+				t.Fatalf("site secretary received out-of-site room move person %#v", person)
+			}
+		}
+		if len(sitePayload.Page.Rooms) == 0 || sitePayload.Page.Rooms[0].ID != "none" {
+			t.Fatalf("rooms = %#v, want None option first", sitePayload.Page.Rooms)
+		}
+		for _, room := range sitePayload.Page.Rooms {
+			if room.SiteID != "clover-hs" {
+				t.Fatalf("site secretary received out-of-site room option %#v", room)
+			}
+		}
+
+		createBody, err := json.Marshal(map[string]any{
+			"mode":      "mid_year_targeted_move",
+			"person_id": "morgan-lee",
+		})
+		if err != nil {
+			t.Fatalf("marshal single draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(createBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("site-scoped single draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		created := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if created.Draft.CanManageDistrict {
+			t.Fatal("site-scoped draft should not expose district controls")
+		}
+		if len(created.Draft.Rows) != 1 || created.Draft.Rows[0].DestinationRoomID != "cla-b210" {
+			t.Fatalf("created draft rows = %#v, want current room as same-site default", created.Draft.Rows)
+		}
+
+		crossSiteBody, err := json.Marshal(map[string]any{
+			"mode":      "mid_year_targeted_move",
+			"person_id": "taylor-quinn",
+		})
+		if err != nil {
+			t.Fatalf("marshal cross-site draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(crossSiteBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("cross-site site-secretary draft returned %d, want 403", rec.Code)
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		itBody, err := json.Marshal(map[string]any{
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{
+				{
+					"person_id":           "morgan-lee",
+					"destination_site_id": "desert-view",
+					"destination_room_id": "dve-c118",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal it draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(itBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it inter-site draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		itCreated := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if !itCreated.Draft.CanManageDistrict {
+			t.Fatal("it draft should expose district controls")
+		}
+		if len(itCreated.Draft.Rows) != 1 || itCreated.Draft.Rows[0].DestinationSiteID != "desert-view" || itCreated.Draft.Rows[0].DestinationRoomID != "none" {
+			t.Fatalf("it inter-site row = %#v, want destination site desert-view and room none", itCreated.Draft.Rows)
+		}
+		foundInterSiteWarning := false
+		for _, warning := range itCreated.Draft.Warnings {
+			if strings.Contains(warning, "Inter-site move") {
+				foundInterSiteWarning = true
+			}
+		}
+		if !foundInterSiteWarning {
+			t.Fatalf("it inter-site warnings = %#v, want inter-site warning", itCreated.Draft.Warnings)
+		}
+	})
+
+	t.Run("room moves bulk drafts support roster and manual list lifecycle", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+
+		createBody, err := json.Marshal(map[string]any{
+			"mode":          "end_of_year_site_move",
+			"scope_site_id": "clover-hs",
+		})
+		if err != nil {
+			t.Fatalf("marshal roster draft: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(createBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("bulk roster draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		roster := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if roster.Draft.Mode != "end_of_year_site_move" || len(roster.Draft.Rows) < 2 {
+			t.Fatalf("roster draft = %#v, want clover roster rows", roster.Draft)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id="+url.QueryEscape(roster.Draft.ID), nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("bulk draft page returned %d, want 200", rec.Code)
+		}
+		page := decodeJSON[roomMovesBulkDraftResponse](t, rec)
+		if page.Page.Draft.ID != roster.Draft.ID || len(page.Page.Draft.Rows) != len(roster.Draft.Rows) {
+			t.Fatalf("bulk page draft = %#v, want roster draft %q", page.Page.Draft, roster.Draft.ID)
+		}
+
+		buildBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+		})
+		if err != nil {
+			t.Fatalf("marshal build-list draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(buildBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("build-list draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		build := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if build.Draft.Mode != "manual_move_list" || len(build.Draft.Rows) != 0 {
+			t.Fatalf("build-list draft = %#v, want empty manual list", build.Draft)
+		}
+
+		updateBody, err := json.Marshal(map[string]any{
+			"mode":           build.Draft.Mode,
+			"scope_site_id":  build.Draft.ScopeSiteID,
+			"effective_date": "2026-07-27",
+			"rows": []map[string]string{
+				{"person_id": "alex-ramirez", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal build-list update: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/room-moves/drafts/"+build.Draft.ID, bytes.NewReader(updateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("build-list update returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		updated := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(updated.Draft.Rows) != 1 || updated.Draft.Rows[0].DestinationRoomID != "cla-a108" {
+			t.Fatalf("updated build-list rows = %#v, want selected destination room", updated.Draft.Rows)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+build.Draft.ID+"/schedule", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("schedule returned %d, want 200", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodDelete, "/api/v1/dev/room-moves/drafts/"+roster.Draft.ID, nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("delete roster draft returned %d, want 204", rec.Code)
 		}
 	})
 

@@ -1268,7 +1268,7 @@
         {
           "type": "text",
           "id": "t71",
-          "content": "Room Moves",
+          "content": "Bulk Room Move Draft",
           "x": 288,
           "y": 100,
           "fontFamily": "Arial",
@@ -1281,7 +1281,7 @@
         {
           "type": "text",
           "id": "t72",
-          "content": "Draft, review, schedule, and commit room and phone changes with warnings before automation writes.",
+          "content": "Update destination rooms for a site roster or a manually built room-move list.",
           "x": 288,
           "y": 147,
           "fontFamily": "Arial",
@@ -1341,7 +1341,7 @@
         {
           "type": "text",
           "id": "t77",
-          "content": "Draft Moves",
+          "content": "Draft Rows",
           "x": 306,
           "y": 195,
           "fontFamily": "Arial",
@@ -1509,7 +1509,7 @@
         {
           "type": "text",
           "id": "t89",
-          "content": "Batch Cutovers",
+          "content": "Warnings",
           "x": 1014,
           "y": 195,
           "fontFamily": "Arial",
@@ -1565,7 +1565,7 @@
         {
           "type": "text",
           "id": "t101",
-          "content": "Move Set Review",
+          "content": "Bulk Draft Rows",
           "x": 306,
           "y": 361,
           "fontFamily": "Arial",

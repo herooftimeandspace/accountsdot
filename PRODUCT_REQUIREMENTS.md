@@ -254,6 +254,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - phone directory visibility is API-driven rather than CSV-upload driven
   - Frequent Fliers is usable as a live dashboard replacement for its legacy emailed/sheet-based visibility workflow
   - room-move drafts are available as planning/validation artifacts before move execution automation is live, with IT able to create district-wide drafts in the same phase
+  - Room Moves provides a DEV mock runtime surface for one-person corrections, whole-site bulk roster drafts, and manually built bulk move lists. Site-level users may create and manage drafts only for their own site. IT Admin may create district-wide and inter-site drafts and receives an extra destination-site control.
 - Failure gates:
   - legacy sheets remain required to understand in-scope current state
   - upstream defects are hidden instead of surfaced
@@ -296,6 +297,19 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Execution threshold:
   - reviewed move sets of `5` or fewer may execute immediately
   - reviewed move sets of more than `5` must execute through a batch cutover window
+- Draft creation modes:
+  - `Create Room Move` opens a right-hand drawer for a one-person correction with employee ID, email, or name search, current room context, destination room, and IT-only destination-site control
+  - `Bulk Site Roster` creates a draft preloaded with every eligible employee or contractor at the scoped site
+  - `Build Move List` creates an empty draft where the user can add searchable rows one at a time
+- Destination-room defaults:
+  - `None` must appear first in destination-room dropdowns
+  - for same-site moves, the default destination room is the person’s current room when that room exists in the destination site
+  - for inter-site moves, the destination room defaults to `None`
+  - if a person is moving sites, the destination room should be set to none
+- Runtime detail placement:
+  - execution rules and cutover-control guidance live in the Room Moves help drawer, not as fixed page-side panels
+  - one-person move warnings appear in the right drawer
+  - bulk-draft warnings appear in a top warning bar on the bulk draft page
 - Batch author scope:
   - `IT` may author multi-site batches
   - non-IT authors are limited to batches within their own site scope

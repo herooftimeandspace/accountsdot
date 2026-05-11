@@ -8,7 +8,8 @@ export const APP_ROUTES = [
   { path: "/onboarding", kind: "onboarding", artboardKey: "onboarding" },
   { path: "/offboarding", kind: "offboarding", artboardKey: "offboarding" },
   { path: "/departing-seniors", kind: "departing-seniors", artboardKey: "offboarding" },
-  { path: "/room-moves", kind: "static", artboardKey: "room-moves" },
+  { path: "/room-moves", kind: "room-moves", artboardKey: "room-moves" },
+  { path: "/room-moves/bulk-draft", kind: "room-moves-bulk-draft", artboardKey: "room-moves-bulk-draft" },
   {
     path: "/phone-directory/by-person",
     kind: "phone-directory",
@@ -141,7 +142,7 @@ export function navGroupVisible(navKey, session) {
     case "departingSeniors":
       return allowedRoutes.includes("/departing-seniors");
     case "roomMoves":
-      return allowedRoutes.includes("/room-moves");
+      return allowedRoutes.includes("/room-moves") || allowedRoutes.includes("/room-moves/bulk-draft");
     case "frequentFliers":
       return allowedRoutes.includes("/frequent-fliers");
     case "studentDataCleanup":

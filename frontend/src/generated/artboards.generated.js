@@ -5,19 +5,20 @@ import artboard3 from "./dashboard-site-admin.artboard.json";
 import artboard4 from "./onboarding.artboard.json";
 import artboard5 from "./offboarding.artboard.json";
 import artboard6 from "./room-moves.artboard.json";
-import artboard7 from "./phone-directory-by-person.artboard.json";
-import artboard8 from "./phone-directory-by-room.artboard.json";
-import artboard9 from "./phone-directory-by-department.artboard.json";
-import artboard10 from "./frequent-fliers.artboard.json";
-import artboard11 from "./student-data-cleanup.artboard.json";
-import artboard12 from "./reports.artboard.json";
-import artboard13 from "./reports-sync-transparency.artboard.json";
-import artboard14 from "./reports-ticketing-human-work.artboard.json";
-import artboard15 from "./admin.artboard.json";
-import artboard16 from "./my-profile.artboard.json";
-import artboard17 from "./login.artboard.json";
-import artboard18 from "./error-logged-in.artboard.json";
-import artboard19 from "./error-logged-out.artboard.json";
+import artboard7 from "./room-moves-bulk-draft.artboard.json";
+import artboard8 from "./phone-directory-by-person.artboard.json";
+import artboard9 from "./phone-directory-by-room.artboard.json";
+import artboard10 from "./phone-directory-by-department.artboard.json";
+import artboard11 from "./frequent-fliers.artboard.json";
+import artboard12 from "./student-data-cleanup.artboard.json";
+import artboard13 from "./reports.artboard.json";
+import artboard14 from "./reports-sync-transparency.artboard.json";
+import artboard15 from "./reports-ticketing-human-work.artboard.json";
+import artboard16 from "./admin.artboard.json";
+import artboard17 from "./my-profile.artboard.json";
+import artboard18 from "./login.artboard.json";
+import artboard19 from "./error-logged-in.artboard.json";
+import artboard20 from "./error-logged-out.artboard.json";
 
 export const generatedArtboards = {
   "data-quality": artboard0,
@@ -27,19 +28,20 @@ export const generatedArtboards = {
   "onboarding": artboard4,
   "offboarding": artboard5,
   "room-moves": artboard6,
-  "phone-directory-by-person": artboard7,
-  "phone-directory-by-room": artboard8,
-  "phone-directory-by-department": artboard9,
-  "frequent-fliers": artboard10,
-  "student-data-cleanup": artboard11,
-  "reports": artboard12,
-  "reports-sync-transparency": artboard13,
-  "reports-ticketing-human-work": artboard14,
-  "admin": artboard15,
-  "my-profile": artboard16,
-  "login": artboard17,
-  "error-logged-in": artboard18,
-  "error-logged-out": artboard19,
+  "room-moves-bulk-draft": artboard7,
+  "phone-directory-by-person": artboard8,
+  "phone-directory-by-room": artboard9,
+  "phone-directory-by-department": artboard10,
+  "frequent-fliers": artboard11,
+  "student-data-cleanup": artboard12,
+  "reports": artboard13,
+  "reports-sync-transparency": artboard14,
+  "reports-ticketing-human-work": artboard15,
+  "admin": artboard16,
+  "my-profile": artboard17,
+  "login": artboard18,
+  "error-logged-in": artboard19,
+  "error-logged-out": artboard20,
 };
 
 export const generatedArtboardMeta = {
@@ -50,6 +52,7 @@ export const generatedArtboardMeta = {
   "onboarding": { key: "onboarding", sourcePen: "docs/mocks/wireframes/wireframe-onboarding-dashboard.pen", activeNav: "onboarding" },
   "offboarding": { key: "offboarding", sourcePen: "docs/mocks/wireframes/wireframe-offboarding-dashboard.pen", activeNav: "offboarding" },
   "room-moves": { key: "room-moves", sourcePen: "docs/mocks/wireframes/wireframe-room-moves.pen", activeNav: "roomMoves" },
+  "room-moves-bulk-draft": { key: "room-moves-bulk-draft", sourcePen: "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen", activeNav: null },
   "phone-directory-by-person": { key: "phone-directory-by-person", sourcePen: "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen", activeNav: "phoneDirectory" },
   "phone-directory-by-room": { key: "phone-directory-by-room", sourcePen: "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen", activeNav: "phoneDirectory" },
   "phone-directory-by-department": { key: "phone-directory-by-department", sourcePen: "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen", activeNav: "phoneDirectory" },
@@ -257,6 +260,16 @@ export const implementedPageDesignManifest = {
       "sourcePen": "docs/mocks/wireframes/wireframe-room-moves.pen",
       "mode": "merge-shell",
       "activeNav": "roomMoves",
+      "loggedInShell": true,
+      "standardPrimitives": [
+        "refresh"
+      ]
+    },
+    {
+      "key": "room-moves-bulk-draft",
+      "sourcePen": "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+      "mode": "merge-shell",
+      "activeNav": null,
       "loggedInShell": true,
       "standardPrimitives": [
         "refresh"

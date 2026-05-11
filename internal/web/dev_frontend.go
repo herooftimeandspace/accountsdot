@@ -35,6 +35,7 @@ var (
 		"/onboarding",
 		"/offboarding",
 		"/room-moves",
+		"/room-moves/bulk-draft",
 	}
 	devITOnlyRoutes = []string{
 		"/dashboard/it-admin",
@@ -347,6 +348,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 				"/onboarding",
 				"/offboarding",
 				"/room-moves",
+				"/room-moves/bulk-draft",
 			},
 			devPhoneDirectoryRoutes...,
 		),
@@ -378,6 +380,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 				devGlobalSearchRoute,
 				"/student-data-cleanup",
 				"/room-moves",
+				"/room-moves/bulk-draft",
 			},
 			devPhoneDirectoryRoutes...,
 		),

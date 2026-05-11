@@ -51,6 +51,11 @@ const artboardSpecs = [
     mode: "merge-shell",
   },
   {
+    key: "room-moves-bulk-draft",
+    source: "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+    mode: "merge-shell",
+  },
+  {
     key: "phone-directory-by-person",
     source: "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
     mode: "merge-shell",
