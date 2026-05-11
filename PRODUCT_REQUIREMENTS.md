@@ -30,7 +30,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 ## Phased Delivery Model
 - Delivery must proceed in iterative phases with explicit success/failure gates.
 - Before the promotable engineering phases begin, the project should use a `Pre-Phase 0` design-and-DEV implementation track to iterate on the frontend safely with mock data.
-- `Pre-Phase 0` is a preparation track only. It does not replace, weaken, or bypass the existing `Phase 0 -> Phase 5` promotion model.
+- `Pre-Phase 0` is a preparation track only. It does not replace, weaken, or bypass the existing `Phase 0 → Phase 5` promotion model.
 - Later phases must extend the foundations of earlier phases rather than substantially rewriting them.
 - A phase should not be promoted until its predecessor’s success gates are met and unresolved failure gates are fixed.
 - Within each phase, features should be delivered and validated individually rather than held for one large all-at-once release.
@@ -51,7 +51,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - When a UI artifact is required, a qualifying screenshot from either `dev` or `staging` is sufficient by default as long as both environments still have passing runtime evidence.
 - When UI artifacts are filed under environment-specific evidence sections, the screenshot itself does not need a separate explicit environment label.
 - Live execution tracking and signoff capture should stay outside the repo in an external IncidentIQ testing ticket.
-- That external IncidentIQ testing ticket should use one parent ticket per release and organize evidence inside it in `phase -> bucket -> dev/staging -> scenario` order, with `dev` listed before `staging` in every bucket.
+- That external IncidentIQ testing ticket should use one parent ticket per release and organize evidence inside it in `phase → bucket → dev/staging → scenario` order, with `dev` listed before `staging` in every bucket.
 - Promotion evidence should be retained for 90 days after the relevant phase promotion.
 - A workflow bucket is UI-heavy when acceptance depends on user-visible rendering or interaction, such as visible scoping, rendered content, review screens, drill-in state, or other operator-facing workflow behavior that cannot be proven from backend state alone.
 - The external promotion runbook/process should capture one implementation-signoff entry per workflow bucket, must reference the corresponding IncidentIQ testing-ticket evidence, and does not need to name a rollback owner.
@@ -129,12 +129,12 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/admin`
   - `/my-profile`
 - Role-based landing routes for the current foundation slice:
-  - `IT Admin` -> `/dashboard/it-admin`
-  - `Human Resources` -> `/dashboard/hr-lifecycle`
-  - `Site Admin` -> `/dashboard/site-admin`
-  - `Site Secretary` -> `/phone-directory/by-room`
-  - `Device Wrangler` -> `/frequent-fliers`
-  - `Faculty and Staff` -> `/phone-directory/by-person`
+  - `IT Admin` → `/dashboard/it-admin`
+  - `Human Resources` → `/dashboard/hr-lifecycle`
+  - `Site Admin` → `/dashboard/site-admin`
+  - `Site Secretary` → `/phone-directory/by-room`
+  - `Device Wrangler` → `/frequent-fliers`
+  - `Faculty and Staff` → `/phone-directory/by-person`
 - DEV persona-switch behavior for the current foundation slice:
   - the DEV persona switcher should replace the active mock session immediately so demo users can move between persona views without restarting the app shell
   - if the active route is `/dashboard`, switching personas should resolve `/dashboard` through the new persona's landing route
@@ -273,8 +273,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the app should poll for the user in `IncidentIQ` by email at most once per hour
   - once the user is found, the dashboard should locate and link only the earliest created matching `Aeries` ticket and the earliest created matching `Verkada` ticket
   - matching means requestor email plus ticket category
-  - the matching `Aeries` category is `Aeries (Asset Tag: AERIES) -> User Rights -> Add User`
-  - the matching `Verkada` category is `Security Systems -> Alarm Codes -> Add Alarm Code`
+  - the matching `Aeries` category is `Aeries (Asset Tag: AERIES) → User Rights → Add User`
+  - the matching `Verkada` category is `Security Systems → Alarm Codes → Add Alarm Code`
   - the dashboard should continue to prefer the earliest matching ticket even if that ticket is closed and a later matching ticket is still open
   - if that earliest matching ticket is later deleted or becomes inaccessible, the dashboard should show no linked ticket rather than falling forward, and do so silently without warning text
   - the dashboard should show the full raw ticket number as a clickable link plus the current status value as secondary workflow information rather than as the primary workflow driver
@@ -422,11 +422,11 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Aeries remains a read-only API source whose data is converged into local projections for runtime use rather than queried live for every operator interaction.
 - Active Directory / LDAP should use a hybrid approach: retain only the minimal local identity and account facts needed for joins and workflow planning, while using live reads for collision-sensitive and write-sensitive operations.
 - Operational site-alias mapping that affects phone and permission scope currently includes:
-  - `MOT` -> site code `1`
-  - `WELL` -> site code `1`
-  - `WOA` -> site code `5`
-  - `SOCOVA` -> site code `7`
-  - `WCR` -> defunct campus with no active site code
+  - `MOT` → site code `1`
+  - `WELL` → site code `1`
+  - `WOA` → site code `5`
+  - `SOCOVA` → site code `7`
+  - `WCR` → defunct campus with no active site code
 - Official logo and wordmark assets for the dashboard should be sourced from:
   - `docs/reference-inputs/branding/`
   - note: `CLA` is currently not present in that shared asset structure
@@ -695,6 +695,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Undocumented keyboard-hint pills or other non-feature shortcut badges should not appear in the live shell.
 - When the header scope selector already conveys the page scope, do not duplicate that scope as a separate badge beside the page title.
 - The header scope selector should be a real dropdown that can list all visible sites, and the field should be wide enough to keep the selected site label on one line.
+- The live header scope selector must use one shared runtime dropdown primitive across implemented pages so static `.pen` scope text never shows through or sits behind the functional control. Page-specific scope behavior, such as Phone Directory's DEV-only district/site focus ordering, may pass page-specific options and change handlers into the primitive without changing the shared shell site scope for other pages.
 - Implemented pages using the current shared shell should render a white page background inside the app frame rather than the neutral canvas gray.
 - When persona-based route filtering removes sidebar rows, the remaining allowed rows must reflow upward in canonical order with no blank gaps left behind by hidden items.
 - In the shared sidebar, the active-row label and icon must render above the selected highlight so the current destination remains readable while selected.
@@ -789,7 +790,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Tie related work back to the parent lifecycle flow wherever possible.
 - Use Incident IQ subtickets or subtasks when SDK support is available.
 - Treat `Aeries` access and `Verkada` follow-up ticket automation as external `IncidentIQ` configuration TODOs rather than app-owned workflow behavior in the current pass.
-- The dashboard should still poll IncidentIQ by email at most once per hour and link only the earliest created matching externally created `Aeries` and `Verkada` tickets into workflow status once the affected user exists there. Matching means requestor email plus ticket category, using `Aeries (Asset Tag: AERIES) -> User Rights -> Add User` and `Security Systems -> Alarm Codes -> Add Alarm Code` respectively. The earliest match remains authoritative even if a later matching ticket is still open, and if that earliest match later disappears or becomes inaccessible the dashboard should show no linked ticket rather than falling forward, silently without warning text. When linked, the dashboard should show the full raw ticket number link plus current status value.
+- The dashboard should still poll IncidentIQ by email at most once per hour and link only the earliest created matching externally created `Aeries` and `Verkada` tickets into workflow status once the affected user exists there. Matching means requestor email plus ticket category, using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code` respectively. The earliest match remains authoritative even if a later matching ticket is still open, and if that earliest match later disappears or becomes inaccessible the dashboard should show no linked ticket rather than falling forward, silently without warning text. When linked, the dashboard should show the full raw ticket number link plus current status value.
 
 ## Business Rules
 
@@ -806,14 +807,14 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - `FTEUsed` and `PrimaryPos` are weighting signals when multiple assignments overlap.
 - When two top-category assignments disagree on site, use `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet` as the initial site-resolution heuristic.
 - Initial site-resolution aliases are:
-  - `CCLA` -> `CLA`
-  - `NCC` -> `DO`
-  - `MAIL` -> ignore
-  - `TRAN` -> `MOT`
-  - `DW` -> `DO` by default
-  - `MNT` -> `MOT`
-  - `NBMA` -> `BPL`
-  - `WTCH` -> `MOT`
+  - `CCLA` → `CLA`
+  - `NCC` → `DO`
+  - `MAIL` → ignore
+  - `TRAN` → `MOT`
+  - `DW` → `DO` by default
+  - `MNT` → `MOT`
+  - `NBMA` → `BPL`
+  - `WTCH` → `MOT`
 - If those site fields disagree, the product should surface an HR data-quality issue instead of silently choosing a site.
 - HR must be able to set a temporary manual site override while the upstream Escape data is being corrected.
 - HR may also include room/location details in that temporary override when known, but room/location is optional and should not be required to continue.
@@ -842,9 +843,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - base Google memberships
   - Aeries access request
 - Device mapping rules:
-  - `Basic Device` -> `Chromebook`
-  - `Full OS Computer` -> `Windows or Mac`
-  - `No Device` -> `none`
+  - `Basic Device` → `Chromebook`
+  - `Full OS Computer` → `Windows or Mac`
+  - `No Device` → `none`
 - When a row says `Full OS Computer`, HR chooses `Windows` or `Mac` during onboarding after confirming the preference with the new hire.
 - Monitor workflow rules:
   - if `Gets monitor = yes` and room is known:
@@ -884,10 +885,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Default SAML mapping does not assign Zoom Webinar / Large Meeting add-ons.
 - Default SAML mapping does not assign a Zoom user role.
 - Cohort-driven Zoom group mapping is:
-  - `Student - 2020` through `Student - 2025` -> `High School Students`
-  - `Student - 2026` through `Student - 2028` -> `Middle School Students`
-  - `Student - 2029` through `Student - 2040` -> `Elementary Students`
-  - `Student` -> `Students`
+  - `Student - 2020` through `Student - 2025` → `High School Students`
+  - `Student - 2026` through `Student - 2028` → `Middle School Students`
+  - `Student - 2029` through `Student - 2040` → `Elementary Students`
+  - `Student` → `Students`
 - Zoom SAML department/license and cohort/group mappings must be fully editable from the IT Admin UI.
 - Editing the Zoom SAML mapping must reconcile existing Zoom users on the next Zoom sync/reconcile cycle, not just future SAML logins.
 - Reconciliation attempts should occur only when the relevant Zoom SAML configuration has changed.
@@ -929,7 +930,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Direct restore/rollback from provisioning-profile history is a later-phase feature.
 - V1 may manually handle niche context such as department-specific intern access, but the profile system must remain flexible enough to model those distinctions later.
 - Future Meraki SAML mapping must be configurable from the IT Admin UI rather than hardcoded.
-- Initial Meraki default: `SASI -> OrgAdmin`.
+- Initial Meraki default: `SASI → OrgAdmin`.
 - All other users default to no Meraki SAML attribute / no Meraki access unless later rules are added.
 
 ### Student Name Normalization
@@ -937,7 +938,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Validation must use separate Aeries `FirstName` and `LastName` fields rather than a combined comma-delimited full-name string.
 - Missing commas are not a name-validation concern and must never be surfaced as invalid-name failures.
 - Suggested corrected names may include letters and spaces only.
-- Invalid-character examples should include transliteration cases such as `Nuño -> Nuno`.
+- Invalid-character examples should include transliteration cases such as `Nuño → Nuno`.
 - Digits are invalid in student names in the current pass.
 - Legacy Aeries AD sync evidence also treats leading and trailing spaces in either `FirstName` or `LastName` as invalid, even though internal spaces are allowed after normalization.
 
@@ -998,26 +999,26 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Only a material cadence change counts as schedule resolution for counter reset. In v1, that means a change to the interval or lookback window.
 - If overlaps continue after that material cadence change, keep updating the same open ticket rather than opening a new one.
 - When a material cadence change is made, automatically add a note to the existing overlap ticket describing the old and new interval values and the old and new lookback-window values.
-- Use IncidentIQ routing `Other Tech Requests -> Project -> Integrations` for that cadence-adjustment ticket.
+- Use IncidentIQ routing `Other Tech Requests → Project → Integrations` for that cadence-adjustment ticket.
 - IT Admins must be able to view and edit the schedule for each sync job from the admin UI.
 - If a provider-specific service account is not yet defined, default operational ticket ownership should fall back to `svc-incidentiq@it.wusd.org`.
 - Provider ownership locked so far:
-  - `Aeries` -> `ad-aeriessync@wusd.org`
-  - `Google` -> `svc-google-gam@it.wusd.org`
-  - `IncidentIQ` -> `svc-incidentiq@it.wusd.org`
-  - `InformedK12` -> `svc-incidentiq@it.wusd.org`
-  - `Verkada` -> `svc-verkada@it.wusd.org`
+  - `Aeries` → `ad-aeriessync@wusd.org`
+  - `Google` → `svc-google-gam@it.wusd.org`
+  - `IncidentIQ` → `svc-incidentiq@it.wusd.org`
+  - `InformedK12` → `svc-incidentiq@it.wusd.org`
+  - `Verkada` → `svc-verkada@it.wusd.org`
 - For `Aeries`, `Google`, `InformedK12`, and `Verkada`, v1 service-account ownership is only required for cadence-adjustment tickets. Broader service-account-owned operational ticketing is deferred to v2/v3.
 - Batch size and concurrency limits are v2 admin controls and do not need v1 UI exposure.
 - `Google Drive`, `Meraki`, `Mosyle`, and `Qualtrics` are out of scope for v1, but their service-account mappings should be retained for future implementation.
-- TODO future implementation: Google user SAML attribute update for Meraki, where Google SAML `extended_attributes.meraki_role` is configurable from the IT Admin UI, defaults to `SASI -> OrgAdmin`, and otherwise remains unset unless a later rule is added.
+- TODO future implementation: Google user SAML attribute update for Meraki, where Google SAML `extended_attributes.meraki_role` is configurable from the IT Admin UI, defaults to `SASI → OrgAdmin`, and otherwise remains unset unless a later rule is added.
 - TODO v3 future implementation: GitHub account lifecycle automation for selected district organizations, using GitHub organization invitation and membership APIs rather than SCIM in the current environment.
 - That future GitHub scope should initially focus on students enrolled in STEM courses and the teachers of those STEM courses.
 - Future GitHub STEM-course eligibility should be driven by specific Aeries course numbers.
 - Course-number conventions may be internally consistent within a site but not consistent across sites, so the future design must support school-specific STEM course-number mapping.
 - IT Admin should manage those school-specific STEM course-number lists.
 - Site teachers should be able to view their courses and see what extended permissions have been attached to a course.
-- Site teachers should have a submit-request action to request app assignment for a course, routed through IncidentIQ as `Other Tech Requests -> Procurement -> Software`.
+- Site teachers should have a submit-request action to request app assignment for a course, routed through IncidentIQ as `Other Tech Requests → Procurement → Software`.
 - That request flow should apply only to apps already known in the provisioning inventory; net-new/unknown apps are a separate future intake path.
 - Course-number mappings should support expiration by school year.
 - If a course-number mapping expires for a new school year and no replacement has been reviewed yet, the system should temporarily inherit the prior year's mapping until IT Admin reviews it. IT Admin needs a bulk-review workflow to accept or deny inherited mappings for the new school year.
@@ -1030,7 +1031,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - For staff only, manually reinstated or otherwise orphaned permissions that remain after district tenure should first appear in an IT-Admin-only manual-cleanup dashboard queue. V1 scope for that queue is limited to lingering Zoom account and Zoom license state only. GitHub, Google Groups, and other orphaned permissions are later-iteration TODO items.
 - The desired resolved Zoom end-state for that queue is: `Zoom Workplace` unassigned, `Zoom Phone Basic` unassigned, `Zoom Phone Customer Engagement Pack` unassigned, `Zoom Large Meeting` unassigned, and `Zoom Webinars` unassigned, with the Zoom user either `Deactivated` or `Removed`.
 - For implementation accuracy, `Deactivated` should be recognized as a Zoom `/users/{userId}` response with `status = "inactive"` plus a Zoom Phone `/phone/users/{userId}` response showing `code = 1001` / `User does not exist`. `Removed` means the user is no longer returned from Zoom user lookup.
-- If an orphaned-permission row remains unresolved for 30 days, the system should automatically create an IncidentIQ ticket routed to `Account & Login Problems -> Employee User Accounts -> Deactivate employee user account`. This ticketed orphaned-permission cleanup flow does not apply to students.
+- If an orphaned-permission row remains unresolved for 30 days, the system should automatically create an IncidentIQ ticket routed to `Account & Login Problems → Employee User Accounts → Deactivate employee user account`. This ticketed orphaned-permission cleanup flow does not apply to students.
 - The orphaned-permissions dashboard is informational only. IT Admin should do manual work in IncidentIQ tickets or the affected systems, not in a duplicate dashboard note system.
 - The unresolved timer should close only on actual resolution, not on notes or in-progress markers.
 - Resolution should be verified by polling the affected system data and confirming the desired deprovisioned end-state. The row remains unresolved until both the Zoom user state and all targeted Zoom entitlements match the desired end-state; `inactive` alone is not sufficient if any targeted license remains assigned. If a ticket has already been generated, the dashboard should monitor both the ticket state and the technical end-state together.
@@ -1064,11 +1065,11 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Apparent mismatches caused by explicitly external/manual grants should surface as warnings for manual intervention rather than being auto-removed by default.
 - Student offboarding in that future flow should deactivate WUSD-organization access and remind students to attach a personal email address before district account shutdown so they do not lose access to their Git history outside district ownership.
 - Current future GitHub org targets:
-  - `wusd-org` -> IT Department only
-  - `wusd-org-bpl` -> Teachers and students at BPL
-  - `wusd-org-cla` -> Teachers and students at CLA / CCLA
-  - `wusd-org-whs` -> Teachers and students at WHS
-  - `wusd-org-wms` -> Teachers and students at WMS
+  - `wusd-org` → IT Department only
+  - `wusd-org-bpl` → Teachers and students at BPL
+  - `wusd-org-cla` → Teachers and students at CLA / CCLA
+  - `wusd-org-whs` → Teachers and students at WHS
+  - `wusd-org-wms` → Teachers and students at WMS
 - Future student OU structure reference:
   - standard: `\\Users\\Students\\{site code}\\Grade {PK,TK,0-12}`
   - additional buckets: `Test Users`, `Unknown`
@@ -1080,7 +1081,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Google`: immediate refresh after local writes, delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
   - `IncidentIQ`: immediate refresh after local writes, delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
   - `InformedK12`: immediate refresh after local writes, delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
-- AD -> Entra propagation is managed outside this app and should be treated as complete within `1h` maximum for workflow timing.
+- AD → Entra propagation is managed outside this app and should be treated as complete within `1h` maximum for workflow timing.
 - Entra completion for app workflow timing means the user exists in Entra and these fields match expected state: `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled`.
 - If Entra convergence has not occurred after `1h`, the workflow continues with warning rather than blocking.
 - That warning is visible to anyone who can view the affected workflow status, and IT Admin gets a separate slow-convergence warning entry on the admin surface.

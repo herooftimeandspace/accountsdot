@@ -1,7 +1,7 @@
 # Test Matrix
 
 ## Purpose
-This document tracks the named mock scenarios and verification coverage required to promote each phase safely through `dev -> staging -> main`.
+This document tracks the named mock scenarios and verification coverage required to promote each phase safely through `dev → staging → main`.
 
 ## Rules
 - The scenario inventory here must stay synchronized with `IMPLEMENTATION_PLAN.md`.
@@ -28,7 +28,7 @@ This document tracks the named mock scenarios and verification coverage required
 - A workflow bucket is UI-heavy when acceptance depends on rendered or interactive operator-facing behavior that cannot be proven from backend state alone.
 - This document is a static definition artifact, not a live execution tracker. Do not add rolling status, evidence-link, or last-verified fields here.
 - Live execution tracking, evidence collection, and signoff capture live outside the repo in an external IncidentIQ testing ticket.
-- That external IncidentIQ testing ticket should use one parent ticket per release and organize evidence inside it in `phase -> bucket -> dev/staging -> scenario` order, with `dev` listed before `staging` in every bucket.
+- That external IncidentIQ testing ticket should use one parent ticket per release and organize evidence inside it in `phase → bucket → dev/staging → scenario` order, with `dev` listed before `staging` in every bucket.
 - Promotion evidence should be retained for 90 days after the relevant phase promotion.
 - The external promotion runbook/process must capture one implementation-signoff entry per workflow bucket and reference the corresponding IncidentIQ testing-ticket evidence; it does not need to name a rollback owner.
 - Each write-capable workflow bucket must have its concrete rollback path documented in a dedicated per-phase rollback subsection of the implementation plan and referenced during external promotion review.
@@ -195,7 +195,7 @@ This document tracks the named mock scenarios and verification coverage required
     - downstream action summary
     - `IncidentIQ` workflow-status evidence showing hourly-bounded user/ticket polling and dashboard linkage
     - evidence that live provider disagreement on a write path refreshes the local projection and prevents unsafe writes
-  - `2C` reactivation and AD -> Entra propagation warning handling
+  - `2C` reactivation and AD → Entra propagation warning handling
     - warning visibility evidence
     - resume/cancel/replan execution trace
     - baseline-restoration database state check
@@ -220,9 +220,9 @@ This document tracks the named mock scenarios and verification coverage required
   | `P2-2B-001` | New Staff Common Path Onboarding | Verify a new staff member reaches the baseline provisioned state end to end in mocks. | Confirm staging common-path onboarding produces auditable state transitions without manual spreadsheet steps. |
   | `P2-2B-002` | Staff Offboarding Baseline Deprovision | Verify offboarding removes baseline access and starts the expected reclaim/ticket side effects. | Confirm staging offboarding reaches the documented baseline deprovisioned state. |
   | `P2-2B-003` | Highest Category Re-Evaluation After Assignment Change | Verify a change in active Escape assignments recalculates the highest effective category correctly. | Confirm staging assignment changes preserve or reset baseline access according to category outcome. |
-  | `P2-2B-004` | IncidentIQ User Poll And External Ticket Status Linkage | Verify the workflow polls `IncidentIQ` for the user by email no more than once per hour and links only the earliest created matching externally created `Aeries` and `Verkada` tickets once the user exists there, where matching means requestor email plus ticket category using `Aeries (Asset Tag: AERIES) -> User Rights -> Add User` and `Security Systems -> Alarm Codes -> Add Alarm Code`. Verify the earliest match remains authoritative even if a later matching ticket is still open, that no linked ticket is shown if the earliest match later disappears or becomes inaccessible, and that this absence is silent with no warning text. Confirm linked results show the full raw ticket number as link plus current status value with no truncation. | Confirm staging surfaces linked `IncidentIQ` user and external ticket status without taking ownership of ticket creation. |
+  | `P2-2B-004` | IncidentIQ User Poll And External Ticket Status Linkage | Verify the workflow polls `IncidentIQ` for the user by email no more than once per hour and links only the earliest created matching externally created `Aeries` and `Verkada` tickets once the user exists there, where matching means requestor email plus ticket category using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code`. Verify the earliest match remains authoritative even if a later matching ticket is still open, that no linked ticket is shown if the earliest match later disappears or becomes inaccessible, and that this absence is silent with no warning text. Confirm linked results show the full raw ticket number as link plus current status value with no truncation. | Confirm staging surfaces linked `IncidentIQ` user and external ticket status without taking ownership of ticket creation. |
   | `P2-2B-005` | Live Provider Disagreement Refreshes Projection Before Write | Verify a write-capable lifecycle path re-reads live provider state, detects disagreement with the stored projection, refreshes the projection, and refuses the unsafe mutation until the planner has current source truth. | Confirm staging uses live provider disagreement as a safety stop rather than applying stale projected state blindly. |
-- `2C` reactivation and AD -> Entra propagation warning handling
+- `2C` reactivation and AD → Entra propagation warning handling
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
   | `P2-2C-001` | Reactivation Restores Baseline Not Extras | Verify reactivation restores only baseline profile access and surfaces prior extras as deltas. | Confirm staging reactivation behavior matches the documented baseline-first rule. |

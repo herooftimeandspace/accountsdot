@@ -2438,7 +2438,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t116",
-      "content": "Carlos -> Carlos",
+      "content": "Carlos → Carlos",
       "x": 546,
       "y": 466,
       "fontFamily": "Arial",
@@ -2451,7 +2451,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t118",
-      "content": "Nuno -> Nuno",
+      "content": "Nuno → Nuno",
       "x": 724,
       "y": 466,
       "fontFamily": "Arial",
@@ -2541,7 +2541,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t127",
-      "content": "Alex -> Alex",
+      "content": "Alex → Alex",
       "x": 546,
       "y": 520,
       "fontFamily": "Arial",
@@ -2554,7 +2554,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t129",
-      "content": "O'Neil -> ONeil",
+      "content": "O'Neil → ONeil",
       "x": 724,
       "y": 520,
       "fontFamily": "Arial",
@@ -2644,7 +2644,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t138",
-      "content": "Jose -> Jose",
+      "content": "Jose → Jose",
       "x": 546,
       "y": 574,
       "fontFamily": "Arial",
@@ -2657,7 +2657,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t140",
-      "content": "Martinez -> Martinez",
+      "content": "Martinez → Martinez",
       "x": 724,
       "y": 574,
       "fontFamily": "Arial",
@@ -2747,7 +2747,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t150",
-      "content": "Taylor -> Taylor",
+      "content": "Taylor → Taylor",
       "x": 546,
       "y": 628,
       "fontFamily": "Arial",
@@ -2760,7 +2760,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t152",
-      "content": "Smith-Jones -> SmithJones",
+      "content": "Smith-Jones → SmithJones",
       "x": 724,
       "y": 628,
       "fontFamily": "Arial",

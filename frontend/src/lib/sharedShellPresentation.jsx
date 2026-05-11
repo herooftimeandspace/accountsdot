@@ -59,6 +59,20 @@ const STATIC_PAGE_REFRESH_METADATA = {
   "my-profile": DEFAULT_STATIC_REFRESH_METADATA,
 };
 
+const SCOPE_STATIC_NODE_IDS = [
+  sharedShellSpec.sharedShellIds.scopeField,
+  sharedShellSpec.sharedShellIds.scopeTitle,
+  sharedShellSpec.sharedShellIds.scopeSubtitle,
+  "p14",
+  "p15",
+  "p16",
+  "p17",
+  "p18",
+  "p19",
+  "p20",
+  "p21",
+];
+
 const DEFAULT_HELP_BY_NAV_KEY = {
   dashboard: {
     title: "Dashboard help",
@@ -507,6 +521,8 @@ export function buildSharedShellHiddenNodeIds(session, options = {}) {
     hiddenNodeIds.push(sharedShellSpec.sharedShellIds.searchPlaceholder);
   }
 
+  hiddenNodeIds.push(...SCOPE_STATIC_NODE_IDS);
+
   return hiddenNodeIds;
 }
 
@@ -666,6 +682,53 @@ function SharedShellSearchOverlay({ bounds, iconBounds, initialQuery, placeholde
   );
 }
 
+export function SharedShellScopeDropdown({
+  bounds,
+  label = "Header scope",
+  value = "",
+  options = [],
+  onChange = null,
+}) {
+  if (!bounds) {
+    return null;
+  }
+
+  const normalizedOptions = options.length ? options : [{ id: value || "current", label: value || "Current scope" }];
+  const selectedValue =
+    normalizedOptions.some((option) => option.id === value) ? value : normalizedOptions[0]?.id ?? "";
+
+  return (
+    // WCAG 1.3.1/3.3.2/4.1.2: the shared scope selector is a native named form control.
+    <label
+      className="shared-shell-scope-dropdown"
+      style={{
+        position: "absolute",
+        left: bounds.left,
+        top: bounds.top,
+        width: Math.max(0, bounds.right - bounds.left),
+        height: Math.max(0, bounds.bottom - bounds.top),
+        zIndex: 3,
+      }}
+    >
+      <span className="sr-only">{label}</span>
+      <select
+        className="shared-shell-scope-dropdown__select"
+        aria-label={label}
+        value={selectedValue}
+        onChange={(event) => {
+          onChange?.(event.target.value);
+        }}
+      >
+        {normalizedOptions.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function SharedShellHelpOverlay({ bounds, helpContent }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -745,6 +808,7 @@ export function createSharedShellRenderOverlay({
   searchQuery = "",
   refreshMetadata = null,
   helpContent = null,
+  scopeDropdown = null,
 }) {
   if (
     !session?.authenticated ||
@@ -762,15 +826,34 @@ export function createSharedShellRenderOverlay({
       nodeIndex.get(sharedShellSpec.sharedShellIds.searchIcon),
       textOverrides
     );
+    const scopeBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.scopeField), textOverrides);
     const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
     const helpIconBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.helpIcon), textOverrides);
     const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey);
+    const resolvedScopeDropdown = scopeDropdown ?? {
+      label: "Header scope",
+      value: session?.shell?.scope_title ?? "",
+      options: [
+        {
+          id: session?.shell?.scope_title ?? "current",
+          label: session?.shell?.scope_title ?? "Current scope",
+        },
+      ],
+    };
 
     return [
       <SharedShellRefreshMetadataOverlay
         key="shared-shell-refresh-meta"
         buttonBounds={refreshButtonBounds}
         refreshMetadata={refreshMetadata}
+      />,
+      <SharedShellScopeDropdown
+        key="shared-shell-scope"
+        bounds={scopeBounds}
+        label={resolvedScopeDropdown.label}
+        value={resolvedScopeDropdown.value}
+        options={resolvedScopeDropdown.options}
+        onChange={resolvedScopeDropdown.onChange}
       />,
       <SharedShellSearchOverlay
         key="shared-shell-search"

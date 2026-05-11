@@ -50,10 +50,12 @@ This ledger is the default landing place for annotation-driven hardening work ac
 | UIH-043 | Student Data Cleanup | User feedback: fix the Sync button overflow/color, move helper copy into page help, remove static filter/helper clutter, and use page-level search/filter plus shared table sorting and auto-sized rows | docs/new behavior, runtime behavior | PRD/implementation docs, `StudentDataCleanupPage.jsx`, shared help/table/drawer primitives | completed | Runtime-owned Student Data Cleanup pane over the shared shell plus `npm run build:web`, `npm run a11y:check`, and browser verification on `/student-data-cleanup` |
 | UIH-044 | Reports | User feedback: move the fixed report detail card into the shared right-hand drawer, and make every report or refresh row open relevant row details through the shared open/close drawer primitive | docs/new behavior, runtime behavior | PRD/implementation docs, `ReportsPage.jsx`, shared drawer/table primitives | completed | Runtime-owned Reports pane over the shared shell plus `npm run build:web`, `npm run a11y:check`, and browser verification on `/reports` |
 | UIH-045 | Student Data Cleanup | User feedback: compare `Student_Aeries_AD_Sync.ps1` and ensure DEV mock rows cover every invalid-name variation the legacy checker catches or resolves | docs/new behavior, runtime behavior | PRD/implementation docs, `StudentDataCleanupPage.jsx` DEV mock rows | completed | Mock rows now cover diacritics, apostrophes, smart punctuation, hyphens, digits, symbols, and leading/trailing first/last-name whitespace plus `npm run build:web`, `npm run a11y:check`, and browser verification on `/student-data-cleanup` |
+| UIH-046 | All logged-in implemented pages | User feedback: header scope/site dropdown should become a shared runtime primitive, and Phone Directory should keep its existing directory-focus behavior through that primitive | docs/new behavior, runtime behavior | Shared shell scope dropdown primitive, `PhoneDirectoryPage.jsx`, PRD/implementation docs | completed | Shared dropdown style/behavior update plus `npm run build:web`, `npm run a11y:check`, and browser verification on `/student-data-cleanup`, `/phone-directory/by-person`, and `/admin` |
+| UIH-047 | Admin | User feedback: remove the title-adjacent empty gold pill and run the Admin Controls artboard cleanup pass without changing shared shell authority | pipeline, `.pen layout` | `wireframe-it-admin-admin-controls.pen`, generated Admin artboard | completed | Source `.pen` cleanup plus `npm run pen:sync`, `npm run pen:check`, `npm run pen:lint`, `npm run build:web`, `npm run a11y:check`, and browser verification on `/admin` |
 
 ## Page Index
 
-- `admin`: no additional active annotations captured yet.
+- `admin`: active shared-scope/dropdown and empty-title-pill annotations are captured in UIH-046 and UIH-047.
 - `dashboard-hr-lifecycle`: no additional active annotations captured yet.
 - `dashboard-it-admin`: no additional active annotations captured yet.
 - `dashboard-site-admin`: no additional active annotations captured yet.
@@ -64,10 +66,10 @@ This ledger is the default landing place for annotation-driven hardening work ac
 - `offboarding`: no additional active annotations captured yet.
 - `onboarding`: no additional active annotations captured yet.
 - `phone-directory-by-department`: no additional active annotations captured yet.
-- `phone-directory-by-person`: no additional active annotations captured yet.
+- `phone-directory-by-person`: active shared-header scope dropdown primitive reuse is captured in UIH-046.
 - `phone-directory-by-room`: no additional active annotations captured yet.
 - `reports`: no additional active annotations captured yet; latest runtime drawer feedback is captured in UIH-044.
 - `reports-sync-transparency`: no additional active annotations captured yet.
 - `reports-ticketing-human-work`: no additional active annotations captured yet.
 - `room-moves`: no additional active annotations captured yet.
-- `student-data-cleanup`: no additional active annotations captured yet; latest legacy invalid-name mock coverage is captured in UIH-045.
+- `student-data-cleanup`: active shared-header scope dropdown annotation is captured in UIH-046; latest legacy invalid-name mock coverage is captured in UIH-045.

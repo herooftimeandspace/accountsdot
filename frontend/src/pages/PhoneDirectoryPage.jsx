@@ -637,51 +637,6 @@ function PhoneDirectoryModeToggleOverlay({ nodeIndex, config, activeMode, search
   return buttons.filter(Boolean);
 }
 
-function PhoneDirectoryScopeOverlay({ bounds, payload, mode, searchQuery, onNavigate }) {
-  const options = payload?.page?.directory_scope_options ?? [];
-  const selectedScope = payload?.page?.directory_scope_id ?? "district-wide";
-
-  if (!bounds || options.length === 0 || typeof onNavigate !== "function") {
-    return null;
-  }
-
-  return (
-    // WCAG 1.3.1/3.3.2/4.1.2: the DEV directory scope selector uses native form semantics and an accessible label.
-    <label
-      className="phone-directory-runtime__scope"
-      style={{
-        position: "absolute",
-        left: bounds.left,
-        top: bounds.top,
-        width: bounds.width,
-        height: bounds.height,
-        zIndex: 3,
-      }}
-    >
-      <span className="sr-only">Directory scope</span>
-      <select
-        className="phone-directory-runtime__scope-select"
-        aria-label="Directory scope"
-        value={selectedScope}
-        onChange={(event) => {
-          const params = new URLSearchParams();
-          if (searchQuery.trim()) {
-            params.set("q", searchQuery.trim());
-          }
-          params.set("site_id", event.target.value);
-          onNavigate(`/phone-directory/by-${mode}?${params.toString()}`);
-        }}
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function buildTextOverrides(session, payload, config, searchQuery) {
   const overrides = buildSharedShellTextOverrides(session);
   if (!payload) {
@@ -898,8 +853,33 @@ export function PhoneDirectoryPage({
         searchQuery,
         activeNavKey: "phoneDirectory",
         refreshMetadata: payload?.page?.last_refreshed ?? null,
+        // WCAG 1.3.1/3.3.2/4.1.2: the DEV directory scope selector reuses the shared native dropdown primitive with an accessible label.
+        scopeDropdown: {
+          label: "Directory scope",
+          value: payload?.page?.directory_scope_id ?? "district-wide",
+          options: payload?.page?.directory_scope_options ?? [
+            { id: "district-wide", label: "District-wide" },
+          ],
+          onChange: (nextScope) => {
+            const params = new URLSearchParams();
+            if (searchQuery.trim()) {
+              params.set("q", searchQuery.trim());
+            }
+            params.set("site_id", nextScope);
+            onNavigate(`/phone-directory/by-${mode}?${params.toString()}`);
+          },
+        },
       }),
-    [onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
+    [
+      mode,
+      onNavigate,
+      onSearch,
+      payload?.page?.directory_scope_id,
+      payload?.page?.directory_scope_options,
+      payload?.page?.last_refreshed,
+      searchQuery,
+      session,
+    ]
   );
 
   const renderOverlay = useMemo(() => {
@@ -916,7 +896,6 @@ export function PhoneDirectoryPage({
         nodeIndex.get(resolvePaneId(nodeIndex, modeConfig, modeConfig.resultsFrameId))
       );
       const runtimeResultsBounds = phoneDirectoryResultsBounds(resultsBounds);
-      const scopeBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.scopeField));
       const results = payload?.page?.results ?? [];
       const selected = selectedResultForPayload(payload, selectedResultId);
 
@@ -929,14 +908,6 @@ export function PhoneDirectoryPage({
           searchQuery,
           onNavigate,
         }),
-        <PhoneDirectoryScopeOverlay
-          key="phone-directory-scope"
-          bounds={scopeBounds}
-          payload={payload}
-          mode={mode}
-          searchQuery={searchQuery}
-          onNavigate={onNavigate}
-        />,
         <PhoneDirectoryResultsOverlay
           key="phone-directory-results"
           bounds={runtimeResultsBounds}

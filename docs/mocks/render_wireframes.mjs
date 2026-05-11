@@ -1310,24 +1310,24 @@ function drawItOverview(scene) {
   metricCard(scene, MAIN_X + 220, y, cardW, "Sync Health (All Providers)", "Healthy", [
     "Last successful sync: 9:03 AM PT",
     "Next scheduled sync: 9:15 AM PT",
-  ], { valueColor: colors.green, link: "View sync health report ->" });
+  ], { valueColor: colors.green, link: "View sync health report →" });
   metricCard(scene, MAIN_X + 440, y, 240, "Provider Health", "Aeries SIS", [
     "Google Workspace  Healthy",
     "Zoom              Healthy",
     "IncidentIQ        Healthy",
     "InformedK12       Healthy",
-  ], { valueColor: colors.blue, valueSize: 14, link: "View provider details ->" });
+  ], { valueColor: colors.blue, valueSize: 14, link: "View provider details →" });
   metricCard(scene, MAIN_X + 696, y, 180, "Onboarding (All Sites)", "186", "New hires not fully provisioned", {
     valueColor: colors.green,
-    link: "View onboarding report ->",
+    link: "View onboarding report →",
   });
   metricCard(scene, MAIN_X + 892, y, 180, "Offboarding (All Sites)", "142", "Users not fully deprovisioned", {
     valueColor: colors.red,
-    link: "View offboarding report ->",
+    link: "View offboarding report →",
   });
   metricCard(scene, MAIN_X + 1088, y, 180, "Room Moves (All Sites)", "64", "Moves not yet completed", {
     valueColor: colors.blue,
-    link: "View room move report ->",
+    link: "View room move report →",
   });
 
   const queueY = 352;
@@ -1345,7 +1345,7 @@ function drawItOverview(scene) {
   ], {
     height: queueH,
     footerLeft: "Showing 1 to 4 of 18 sites",
-    footerRight: "View all 18 sites ->",
+    footerRight: "View all 18 sites →",
   });
   tableCard(scene, MAIN_X + 316, queueY, queueW, "Invalid Student Names Queue", [
     { label: "Site", key: "site", x: 18 },
@@ -1359,7 +1359,7 @@ function drawItOverview(scene) {
   ], {
     height: queueH,
     footerLeft: "Showing 1 to 4 of 32 sites",
-    footerRight: "View all 32 sites ->",
+    footerRight: "View all 32 sites →",
   });
   tableCard(scene, MAIN_X + 632, queueY, queueW, "Frequent Fliers (All Sites)", [
     { label: "Site", key: "site", x: 18 },
@@ -1373,7 +1373,7 @@ function drawItOverview(scene) {
   ], {
     height: queueH,
     footerLeft: "Showing 1 to 4 of 32 sites",
-    footerRight: "View all 32 sites ->",
+    footerRight: "View all 32 sites →",
   });
   tableCard(scene, MAIN_X + 948, queueY, 320, "Orphaned Zoom Cleanup", [
     { label: "Site", key: "site", x: 18 },
@@ -1387,7 +1387,7 @@ function drawItOverview(scene) {
   ], {
     height: queueH,
     footerLeft: "Showing 1 to 4 of 21 sites",
-    footerRight: "View all 21 sites ->",
+    footerRight: "View all 21 sites →",
   });
 
   tableCard(scene, MAIN_X, 672, 780, "Recent Warning Summary", [
@@ -1400,7 +1400,7 @@ function drawItOverview(scene) {
     { warning: "Slow Entra ID Convergence", details: "New user delay > 30 minutes", first: "May 2, 2025 8:31 AM PT", last: "May 2, 2025 9:01 AM PT", affected: ["Google Workspace", "Groups"] },
     { warning: "Schedule Overlap", details: "Overlapping sync windows detected", first: "May 2, 2025 8:50 AM PT", last: "May 2, 2025 9:05 AM PT", affected: ["Aeries SIS", "Onboarding"] },
     { warning: "Schedule Overlap", details: "Overlapping sync windows detected", first: "May 2, 2025 8:46 AM PT", last: "May 2, 2025 9:02 AM PT", affected: ["Google Workspace", "Groups"] },
-  ], { height: 210, footerRight: "View all warnings ->" });
+  ], { height: 210, footerRight: "View all warnings →" });
   tableCard(scene, MAIN_X + 796, 672, 472, "Schedules Running Next", [
     { label: "Source / Job", key: "job", x: 18 },
     { label: "Next Run", key: "next", x: 206 },
@@ -1411,7 +1411,7 @@ function drawItOverview(scene) {
     { job: "Google Workspace Sync", next: "May 2, 2025 9:15 AM PT", cadence: "5 minutes", status: { pill: "Scheduled", fill: colors.blueSoft, color: colors.blue } },
     { job: "Zoom User Sync", next: "May 2, 2025 9:17 AM PT", cadence: "15 minutes", status: { pill: "Scheduled", fill: colors.blueSoft, color: colors.blue } },
     { job: "IncidentIQ Sync", next: "May 2, 2025 9:20 AM PT", cadence: "30 minutes", status: { pill: "Scheduled", fill: colors.blueSoft, color: colors.blue } },
-  ], { height: 210, footerRight: "View all schedules and history ->" });
+  ], { height: 210, footerRight: "View all schedules and history →" });
 
   footerNote(scene, [
     "Times shown are in America / Los_Angeles (PT). Data is sourced from Aeries, Google Workspace, Zoom, IncidentIQ, and InformedK12.",
@@ -1445,7 +1445,7 @@ function drawHrLifecycle(scene) {
   ], [
     { name: "Alex Lee", start: "May 6", role: "Math Teacher", site: "Clover HS", blockers: { pill: "1", fill: colors.redSoft, color: colors.red, width: 30 } },
     { name: "Jordan Patel", start: "May 7", role: "Counselor", site: "District", blockers: { pill: "0", fill: colors.greenSoft, color: colors.green, width: 30 } },
-  ], { height: 210, rightLabel: "View all", footerRight: "View all onboarding (42) ->" });
+  ], { height: 210, rightLabel: "View all", footerRight: "View all onboarding (42) →" });
 
   tableCard(scene, MAIN_X + 458, rowOneY, 442, "Upcoming Offboarding", [
     { label: "Name", key: "name", x: 14 },
@@ -1456,7 +1456,7 @@ function drawHrLifecycle(scene) {
   ], [
     { name: "Sam Davis", day: "May 6", role: "3rd Grade", site: "Highland ES", exit: "Vol." },
     { name: "Riley Chen", day: "May 7", role: "Office Asst.", site: "Business", exit: "Ret." },
-  ], { height: 210, rightLabel: "View all", footerRight: "View all offboarding (18) ->" });
+  ], { height: 210, rightLabel: "View all", footerRight: "View all offboarding (18) →" });
 
   tableCard(scene, MAIN_X + 916, rowOneY, 352, "Manual Intake Queue", [
     { label: "Name", key: "name", x: 14 },
@@ -1466,7 +1466,7 @@ function drawHrLifecycle(scene) {
   ], [
     { name: "Jamie O'Neil", type: "Contractor", role: "Technology", status: { pill: "New", fill: colors.blueSoft, color: colors.blue, width: 52 } },
     { name: "Jordan Kim", type: "Volunteer", role: "Library", status: { pill: "In Review", fill: colors.orangeSoft, color: colors.orange, width: 78 } },
-  ], { height: 210, rightLabel: "Review all", footerRight: "View manual intake (27) ->" });
+  ], { height: 210, rightLabel: "Review all", footerRight: "View manual intake (27) →" });
 
   const rowTwoY = rowOneY + 226;
   tableCard(scene, MAIN_X, rowTwoY, 328, "Preferred Name Requests", [
@@ -1476,7 +1476,7 @@ function drawHrLifecycle(scene) {
   ], [
     { name: "Jordan Lee", requested: "Jordyn Lee", priority: { pill: "Normal", fill: colors.greenSoft, color: colors.green, width: 64 } },
     { name: "Taylor Smith", requested: "Tay Smith", priority: { pill: "Normal", fill: colors.greenSoft, color: colors.green, width: 64 } },
-  ], { height: 246, rightLabel: "View all", footerRight: "View all requests (6) ->" });
+  ], { height: 246, rightLabel: "View all", footerRight: "View all requests (6) →" });
 
   tableCard(scene, MAIN_X + 344, rowTwoY, 328, "Unmapped Title Blockers", [
     { label: "Job Title", key: "title", x: 14 },
@@ -1485,7 +1485,7 @@ function drawHrLifecycle(scene) {
     { title: "Instructional Coach", count: "4" },
     { title: "Behavior Tech", count: "3" },
     { title: "Site Administrator", count: "2" },
-  ], { height: 246, rightLabel: "View all", footerRight: "View mappings (11) ->" });
+  ], { height: 246, rightLabel: "View all", footerRight: "View mappings (11) →" });
 
   tableCard(scene, MAIN_X + 688, rowTwoY, 328, "Site Override Issues", [
     { label: "Issue", key: "issue", x: 14 },
@@ -1494,7 +1494,7 @@ function drawHrLifecycle(scene) {
     { issue: "Missing Manager", count: "9" },
     { issue: "Missing Work Email", count: "6" },
     { issue: "Invalid Location", count: "5" },
-  ], { height: 246, rightLabel: "View all", footerRight: "View overrides (24) ->" });
+  ], { height: 246, rightLabel: "View all", footerRight: "View overrides (24) →" });
 
   tableCard(scene, MAIN_X + 1032, rowTwoY, 236, "Orphan AD Accounts", [
     { label: "Type", key: "type", x: 14 },
@@ -1504,7 +1504,7 @@ function drawHrLifecycle(scene) {
     { type: "Retiree", count: "14", oldest: "Apr 18" },
     { type: "Service", count: "9", oldest: "Apr 19" },
     { type: "Student Teacher", count: "5", oldest: "Apr 21" },
-  ], { height: 246, rightLabel: "View all", footerRight: "View accounts (31) ->" });
+  ], { height: 246, rightLabel: "View all", footerRight: "View accounts (31) →" });
 }
 
 function drawOnboarding(scene) {
@@ -1512,7 +1512,7 @@ function drawOnboarding(scene) {
   metricCard(scene, MAIN_X + 236, 178, 220, "Blocked", "31", "Needs upstream fix", { valueColor: colors.orange });
   metricCard(scene, MAIN_X + 472, 178, 220, "IncidentIQ Follow-up", "22", "External status", { valueColor: colors.blue });
   metricCard(scene, MAIN_X + 708, 178, 220, "Manual Intake", "11", "Contractors / volunteers", { valueColor: colors.purple });
-  metricCard(scene, MAIN_X + 944, 178, 324, "Current Rules", "AD -> Google -> Zoom", [
+  metricCard(scene, MAIN_X + 944, 178, 324, "Current Rules", "AD → Google → Zoom", [
     "IncidentIQ user is polled hourly by email after the account exists.",
     "Earliest matching Aeries and Verkada tickets are linked when found.",
   ], { valueSize: 14, valueColor: colors.text });
@@ -1532,7 +1532,7 @@ function drawOnboarding(scene) {
   ], {
     height: 328,
     footerLeft: "Showing 1 to 4 of 42 upcoming people",
-    footerRight: "View all onboarding (42) ->",
+    footerRight: "View all onboarding (42) →",
   });
 
   railCard(scene, MAIN_X + 840, 346, 428, 328, "Selected Workflow", [
@@ -1575,7 +1575,7 @@ function drawOffboarding(scene) {
     { person: "Taylor Singh", site: "District Office", end: "May 9, 2025", status: { pill: "Scheduled", fill: colors.blueSoft, color: colors.blue, width: 80 }, action: "License reclaim queued", asset: "1 item" },
     { person: "Jamie Reed", site: "Desert View", end: "May 12, 2025", status: { pill: "Blocked", fill: colors.redSoft, color: colors.red, width: 72 }, action: "Exception review needed", asset: "0 items" },
     { person: "Robin Hall", site: "Franklin MS", end: "May 18, 2025", status: { pill: "Ready", fill: colors.greenSoft, color: colors.green, width: 64 }, action: "All provider checks passed", asset: "3 items" },
-  ], { height: 328, footerRight: "View all offboarding (58) ->" });
+  ], { height: 328, footerRight: "View all offboarding (58) →" });
 
   railCard(scene, MAIN_X + 840, 346, 428, 328, "Queue Actions", [
     { type: "kv", label: "Scheduled leaves", value: "Site tasks and closeout tracking" },
@@ -1720,23 +1720,23 @@ function drawFrequentFliers(scene) {
 function drawSiteAdmin(scene) {
   metricCard(scene, MAIN_X, 182, 204, "Today's Onboarding", "5", "People starting today", {
     valueColor: colors.green,
-    link: "View all onboarding ->",
+    link: "View all onboarding →",
   });
   metricCard(scene, MAIN_X + 220, 182, 204, "Pending Offboarding", "3", "People exiting", {
     valueColor: colors.red,
-    link: "View all offboarding ->",
+    link: "View all offboarding →",
   });
   metricCard(scene, MAIN_X + 440, 182, 204, "Room Move Drafts", "4", "Drafts in progress", {
     valueColor: colors.blue,
-    link: "View all drafts ->",
+    link: "View all drafts →",
   });
   metricCard(scene, MAIN_X + 660, 182, 204, "Room Corrections", "2", "Rooms need attention", {
     valueColor: colors.orange,
-    link: "View corrections ->",
+    link: "View corrections →",
   });
   metricCard(scene, MAIN_X + 880, 182, 204, "Phone Directory Sync", "98%", "Coverage", {
     valueColor: colors.purple,
-    link: "View directory ->",
+    link: "View directory →",
   });
   railCard(scene, MAIN_X + 1104, 182, 164, 212, "Quick Actions", [
     { type: "text", lines: ["Get started with common tasks."], color: colors.subtext },
@@ -1754,7 +1754,7 @@ function drawSiteAdmin(scene) {
     { name: "Jordan Patel", start: "May 2, 2025", role: "School Counselor", manager: "Lindsey Carter" },
     { name: "Morgan Rivera", start: "May 2, 2025", role: "Admin Assistant", manager: "Patricia Diaz" },
     { name: "Taylor Garcia", start: "May 2, 2025", role: "PE Teacher", manager: "Michael Johnson" },
-  ], { height: 248, rightLabel: "View all", footerRight: "View all onboarding (12) ->" });
+  ], { height: 248, rightLabel: "View all", footerRight: "View all onboarding (12) →" });
 
   tableCard(scene, MAIN_X + 408, 410, 340, "Pending Offboarding (3)", [
     { label: "Name", key: "name", x: 14 },
@@ -1765,7 +1765,7 @@ function drawSiteAdmin(scene) {
     { name: "Sam Davis", day: "May 6, 2025", department: "3rd Grade", status: { pill: "Pending", fill: colors.orangeSoft, color: colors.orange, width: 70 } },
     { name: "Riley Chen", day: "May 7, 2025", department: "Business Office", status: { pill: "Pending", fill: colors.orangeSoft, color: colors.orange, width: 70 } },
     { name: "Drew Martinez", day: "May 9, 2025", department: "Science", status: { pill: "Pending", fill: colors.orangeSoft, color: colors.orange, width: 70 } },
-  ], { height: 248, rightLabel: "View all", footerRight: "View all offboarding (9) ->" });
+  ], { height: 248, rightLabel: "View all", footerRight: "View all offboarding (9) →" });
 
   tableCard(scene, MAIN_X + 764, 410, 340, "Room Move Drafts (4)", [
     { label: "Draft Name", key: "name", x: 14 },
@@ -1776,7 +1776,7 @@ function drawSiteAdmin(scene) {
     { name: "Science Dept Move", moves: "7", status: { pill: "In Progress", fill: colors.blueSoft, color: colors.blue, width: 90 } },
     { name: "End of Year Clean Up", moves: "12", status: { pill: "In Progress", fill: colors.blueSoft, color: colors.blue, width: 90 } },
     { name: "PE Equipment Rooms", moves: "4", status: { pill: "In Progress", fill: colors.blueSoft, color: colors.blue, width: 90 } },
-  ], { height: 248, rightLabel: "View all", footerRight: "View all drafts (12) ->" });
+  ], { height: 248, rightLabel: "View all", footerRight: "View all drafts (12) →" });
 
   railCard(scene, MAIN_X + 1120, 412, 148, 498, "Site Scope", [
     { type: "text", lines: ["You are viewing data for", "Clover High School (CLA) only.", "District-wide views and IT", "administration tools are not", "available in this role."], color: colors.subtext },
@@ -1793,7 +1793,7 @@ function drawSiteAdmin(scene) {
   ], [
     { room: "B204", issue: "Invalid Capacity", details: "Capacity is 0", identified: "May 1, 2025" },
     { room: "GYM", issue: "Missing Room Type", details: "Room type not set", identified: "Apr 30, 2025" },
-  ], { height: 236, rightLabel: "View all", footerRight: "View all corrections (5) ->" });
+  ], { height: 236, rightLabel: "View all", footerRight: "View all corrections (5) →" });
   tableCard(scene, MAIN_X + 408, 674, 340, "Phone Directory Sync Status", [
     { label: "Metric", key: "metric", x: 14 },
     { label: "Value", key: "value", x: 172 },
@@ -1802,7 +1802,7 @@ function drawSiteAdmin(scene) {
     { metric: "Last successful sync", value: "May 2, 2025 9:03 AM PT" },
     { metric: "Source Systems", value: "Aeries SIS, AD, Telephony" },
     { metric: "Directory Entries", value: "284 people, 132 rooms" },
-  ], { height: 236, rightLabel: "Synced", footerRight: "View phone directory ->" });
+  ], { height: 236, rightLabel: "Synced", footerRight: "View phone directory →" });
   tableCard(scene, MAIN_X + 764, 674, 340, "Frequent Fliers (This Site)", [
     { label: "Name", key: "name", x: 14 },
     { label: "Incidents", key: "incidents", x: 146 },
@@ -1813,7 +1813,7 @@ function drawSiteAdmin(scene) {
     { name: "Aisha Patel", incidents: "3", tickets: "2", trend: "/\\", trendColor: colors.red },
     { name: "Marcus Wu", incidents: "3", tickets: "2", trend: "/\\", trendColor: colors.red },
     { name: "Luis Martinez", incidents: "2", tickets: "1", trend: "/\\", trendColor: colors.orange },
-  ], { height: 236, rightLabel: "View report", footerRight: "View full report (42 students) ->" });
+  ], { height: 236, rightLabel: "View report", footerRight: "View full report (42 students) →" });
 }
 
 function drawMyProfile(scene) {
@@ -1886,7 +1886,7 @@ function drawReports(scene) {
     metricCard(scene, x, y, row === 0 ? 190 : 286, card[0], card[1], card[2], {
       valueColor: card[3],
       height: 116,
-      link: "View report ->",
+      link: "View report →",
       valueSize: card[1] === "Healthy" ? 20 : 18,
     });
   });
@@ -1941,10 +1941,10 @@ function drawAdmin(scene) {
   metricCard(scene, MAIN_X + 608, 168, 356, "Admin Warnings", "2 Active", [
     "Slow Entra ID convergence  •  User sync delay > 30 minutes",
     "Repeated schedule overlap  •  Google Workspace - Groups",
-  ], { valueColor: colors.red, valueSize: 20, link: "View all warnings ->" });
+  ], { valueColor: colors.red, valueSize: 20, link: "View all warnings →" });
   metricCard(scene, MAIN_X + 980, 168, 288, "Sync Health (All Providers)", "Healthy", "Last successful sync: 9:03 AM PT", {
     valueColor: colors.green,
-    link: "View sync health report ->",
+    link: "View sync health report →",
   });
 
   tableCard(scene, MAIN_X, 392, 570, "Per-Job Sync Cadence", [
@@ -1959,7 +1959,7 @@ function drawAdmin(scene) {
     { job: "Zoom User Sync", cadence: "15 minutes", next: "9:20 AM PT", last: "9:07 AM PT", status: { pill: "Healthy", fill: colors.greenSoft, color: colors.green, width: 74 } },
     { job: "Google Workspace Sync", cadence: "5 minutes", next: "9:10 AM PT", last: "9:05 AM PT", status: { pill: "Healthy", fill: colors.greenSoft, color: colors.green, width: 74 } },
     { job: "IncidentIQ Sync", cadence: "30 minutes", next: "9:20 AM PT", last: "8:50 AM PT", status: { pill: "Healthy", fill: colors.greenSoft, color: colors.green, width: 74 } },
-  ], { height: 294, footerRight: "View sync schedules and history ->" });
+  ], { height: 294, footerRight: "View sync schedules and history →" });
 
   railCard(scene, MAIN_X + 586, 392, 330, 294, "Google-active / Aeries-inactive Defaults", [
     { type: "text", lines: ["Staff   |   Students"], color: colors.goldDeep },
@@ -2041,7 +2041,7 @@ function drawDataQuality(scene) {
     { issue: "Google-active / Aeries-inactive", source: "Google + Aeries", owner: "IT", impact: "Security review", action: "Schedule deprovision" },
     { issue: "Missing mandatory field", source: "HR intake", owner: "HR", impact: "Blocks onboarding", action: "Update record" },
     { issue: "Site mismatch", source: "Escape / Aeries", owner: "HR", impact: "Blocks baseline site selection", action: "Apply temporary override" },
-  ], { height: 520, footerRight: "View full queue ->" });
+  ], { height: 520, footerRight: "View full queue →" });
 
   railCard(scene, MAIN_X + 882, 374, 386, 520, "Issue Routing Rules", [
     { type: "kv", label: "HR queues", value: "Sensitive lifecycle or title issues" },
@@ -2088,7 +2088,7 @@ function drawSyncTransparency(scene) {
     { user: "Marisol Vega", type: "Student", step: "iiq_matched", issue: "Missing asset", date: "Apr 29", action: "Override" },
     { user: "Mika Ito", type: "Staff", step: "photo_processed", issue: "Rollover wait", date: "Apr 28", action: "Recheck" },
     { user: "Nia Brooks", type: "Staff", step: "ingested", issue: "Room mapping required", date: "Apr 28", action: "Open mapping" },
-  ], { height: 520, footerRight: "Open sync dashboard mappings ->" });
+  ], { height: 520, footerRight: "Open sync dashboard mappings →" });
 
   railCard(scene, MAIN_X + 888, 262, 380, 520, "Selected Sync Item", [
     { type: "kv", label: "User", value: "Alex Ramirez" },
@@ -2125,7 +2125,7 @@ function drawTicketingHumanWork(scene) {
     { flow: "Onboarding", user: "Nia Brooks", ticket: "MOT-4412", status: "Waiting", category: "Alarm Code", rule: "External IIQ config" },
     { flow: "Room Move", user: "Morgan Lee", ticket: "IT-13012", status: "Open", category: "Phone conflict", rule: "Manual fallback" },
     { flow: "Offboarding", user: "Chris Morgan", ticket: "IT-13044", status: "Closed", category: "Asset retrieval", rule: "Linked to lifecycle" },
-  ], { height: 500, footerRight: "View full queue ->" });
+  ], { height: 500, footerRight: "View full queue →" });
 
   railCard(scene, MAIN_X + 936, 348, 332, 500, "Selected Ticket Context", [
     { type: "kv", label: "Affected User", value: "Jordan Miles" },
@@ -2134,7 +2134,7 @@ function drawTicketingHumanWork(scene) {
     { type: "kv", label: "Displayed Ticket", value: "IT-12904" },
     { type: "kv", label: "Current Status", value: "Open" },
     { type: "divider" },
-    { type: "text", lines: ["Aeries (Asset Tag: AERIES) -> User Rights -> Add User", "Security Systems -> Alarm Codes -> Add Alarm Code"], color: colors.subtext },
+    { type: "text", lines: ["Aeries (Asset Tag: AERIES) → User Rights → Add User", "Security Systems → Alarm Codes → Add Alarm Code"], color: colors.subtext },
     { type: "note", lines: ["Only the earliest matching ticket is linked.", "If it disappears later, the dashboard shows no link silently."], fill: colors.blueSoft, color: colors.blue },
     { type: "button", label: "Open Linked Ticket", fill: colors.gold, stroke: colors.gold },
   ]);
@@ -2162,7 +2162,7 @@ function drawRoomMoves(scene) {
     { person: "Morgan Lee", current: "B-210", target: "B-204", phone: "Manual ticket", warning: "Primary conflict", state: { pill: "Review", fill: colors.orangeSoft, color: colors.orange, width: 72 } },
     { person: "Jamie Reed", current: "C-118", target: "No room", phone: "Remove phone", warning: "Null-room outcome", state: { pill: "Review", fill: colors.orangeSoft, color: colors.orange, width: 72 } },
     { person: "Nia Brooks", current: "D-102", target: "D-112", phone: "Assign line", warning: "Ready", state: { pill: "Ready", fill: colors.greenSoft, color: colors.green, width: 64 } },
-  ], { height: 480, footerRight: "View full draft set ->" });
+  ], { height: 480, footerRight: "View full draft set →" });
 
   railCard(scene, MAIN_X + 856, 348, 412, 480, "Cutover Controls", [
     { type: "kv", label: "5 or fewer moves", value: "Allowed immediately after final review" },

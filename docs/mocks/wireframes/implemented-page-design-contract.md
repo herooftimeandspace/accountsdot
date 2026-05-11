@@ -21,8 +21,9 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 ## Shared Primitives
 
 - `Refresh`: the standard header refresh action is a Vegas Gold primary action with black text, `8px` radius, and the canonical header location declared in the generated implemented-page design manifest. Pages that expose header refresh must use this primitive.
+- `Header Scope Dropdown`: implemented pages use one shared runtime dropdown primitive for the header scope field. The primitive owns the visible white control and focus ring so static `.pen` scope text cannot show behind it; pages with documented scope behavior, such as Phone Directory directory focus, provide their own options and change handler while preserving the shared style.
 - `Table`: tables use a shared top baseline across row cells. Multi-line cells grow the row downward; sparse cells and badges remain top-aligned.
-- `Table Controls`: runtime tables expose a shared table search field plus three-way sortable headers. Header sort cycles `None -> Ascending -> Descending -> None`; each page defines its own default sort column. The search field filters against data available in that table and must not include values hidden from users who lack permission.
+- `Table Controls`: runtime tables expose a shared table search field plus three-way sortable headers. Header sort cycles `None → Ascending → Descending → None`; each page defines its own default sort column. The search field filters against data available in that table and must not include values hidden from users who lack permission.
 - `Wrapper/Card/Rail`: bordered containers keep clean separation from neighboring bordered elements and reserve space for titles, badges, icons, and actions.
 - `Helper Paragraph`: a card, rail, notice, or table cell that conveys one logical paragraph uses one wrapping text node.
 - `Status Badge`: badges must fit their text without colliding with card headers, table content, or action controls. Reused status bubbles/buttons must use the canonical severity palette below rather than page-local colors.

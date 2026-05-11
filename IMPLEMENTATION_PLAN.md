@@ -136,8 +136,8 @@
 ## Delivery Phases and Gates
 - Pre-phase rule:
   - before the promotable engineering phases begin, the project uses a `Pre-Phase 0` frontend-design and DEV-implementation track to establish the UI shell, design authority model, and mock-backed page pattern
-  - `Pre-Phase 0` is preparatory only and does not replace or bypass the existing `Phase 0 -> Phase 5` promotion model
-- Every phase must be independently shippable through the required `dev -> staging -> main` promotion pipeline.
+  - `Pre-Phase 0` is preparatory only and does not replace or bypass the existing `Phase 0 → Phase 5` promotion model
+- Every phase must be independently shippable through the required `dev → staging → main` promotion pipeline.
 - Later phases must extend the schemas, workflows, and control surfaces established by earlier phases rather than substantially rewriting them. If a later phase would require a foundational rewrite, this plan must be amended explicitly before implementation proceeds.
 - Within each phase, features should be delivered and validated individually rather than held for one large all-at-once release inside that phase.
 - Entry rule for each phase:
@@ -173,7 +173,7 @@
   - runtime evidence must be sufficient to show both the expected positive outcome and the absence of the forbidden side effect or failure condition the scenario is meant to guard against
   - runtime evidence must identify the environment, the workflow bucket, and the scenario or scenario set it supports
   - live execution tracking, evidence collection, and signoff capture live outside this repo in an external IncidentIQ testing ticket
-  - that external IncidentIQ testing ticket must use one parent ticket per release and organize evidence in `phase -> bucket -> dev/staging -> scenario` order while still allowing promotion review by either bucket or scenario
+  - that external IncidentIQ testing ticket must use one parent ticket per release and organize evidence in `phase → bucket → dev/staging → scenario` order while still allowing promotion review by either bucket or scenario
   - within each bucket section of that external IncidentIQ testing ticket, the `dev` subsection must appear before the `staging` subsection
   - promotion evidence should be retained for 90 days after the relevant phase promotion
 - UI-heavy bucket definition:
@@ -216,7 +216,7 @@
   - each bucket entry must summarize which runtime evidence artifacts were reviewed, including the required UI artifact when the bucket is UI-heavy; screenshots are sufficient by default for UI artifacts
   - each write-capable bucket entry must confirm the documented fallback ownership and the applicable pause/rollback path were reviewed during promotion; a named rollback owner is not required
   - each write-capable bucket must document its concrete rollback path in a dedicated per-phase rollback subsection of this implementation plan as well as in the external promotion runbook/process
-  - the external IncidentIQ testing evidence should be maintained under one parent ticket per release, with internal organization in `phase -> bucket -> dev/staging -> scenario` order
+  - the external IncidentIQ testing evidence should be maintained under one parent ticket per release, with internal organization in `phase → bucket → dev/staging → scenario` order
   - each bucket's external evidence section must list `dev` before `staging`
   - if a rollback trigger blocks a bucket in `dev`, the external runbook/process must capture an explicit closure note describing how the trigger condition was resolved and linking to the replacement evidence that proved the bucket was clean again before `staging` verification may begin for that bucket
   - repository artifacts may define the rules, scenarios, and evidence expectations, but they must not become the live promotion status ledger
@@ -309,7 +309,7 @@
   - `Pre-Phase 0` is a design and DEV implementation track only
   - it is not a promotable production-readiness phase
   - it does not authorize real provider integrations or downstream writes
-  - it does not alter the existing `Phase 0 -> Phase 5` gate sequence
+  - it does not alter the existing `Phase 0 → Phase 5` gate sequence
 - In scope:
   - React + Vite as the frontend implementation target for DEV
   - the existing Go app remains the DEV mock/backend service
@@ -347,6 +347,7 @@
   - during the pre-phase 0 DEV pilot, `My Profile` should land on an internal mock-backed profile route implemented from its authoritative `.pen` and should allow preferred-name and pronoun edits against DEV-local mock state until real profile integration exists
   - during the pre-phase 0 DEV pilot, `Sign Out` should use a dedicated DEV sign-out flow that returns the browser to a signed-out DEV state representing the configured SAML/SSO exit path rather than just flipping the persona selector or clearing only local component state
   - the implemented header scope selector must become a real site-list dropdown and stay wide enough to keep the current selected site label on one line
+  - the implemented header scope selector is a shared runtime primitive rendered above the `.pen` shell source; page-specific controls such as Phone Directory's DEV-only directory focus dropdown must reuse the primitive while preserving their documented query behavior
   - implemented pages should not duplicate page-scope badges beside the title when the shell scope selector already communicates the same scope context
   - implemented pages using the current shared shell should render a white page background inside the app frame rather than the neutral canvas gray
   - row-level detail and context surfaces should use the shared right-hand runtime drawer primitive rather than fixed right-side static panels; the drawer is closed by default, opens after a row selection, updates when another row is selected, and closes from the drawer `X`
@@ -369,7 +370,7 @@
   - logout must return the browser to `/login`
   - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/room-moves`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/sync-transparency`, `/reports/ticketing-human-work`, `/admin`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
   - the user-facing `Invalid Student Names` page is renamed to `Student Data Cleanup` in title, route, sidebar label, and operator-facing queue/report references; technical invalid-name detection terminology may remain in source-data logic where needed
-  - role-based landing defaults for this slice are: `IT Admin` -> `/dashboard/it-admin`, `Human Resources` -> `/dashboard/hr-lifecycle`, `Site Admin` -> `/dashboard/site-admin`, `Site Secretary` -> `/phone-directory/by-room`, `Device Wrangler` -> `/frequent-fliers`, and `Faculty and Staff` -> `/phone-directory/by-person`
+  - role-based landing defaults for this slice are: `IT Admin` → `/dashboard/it-admin`, `Human Resources` → `/dashboard/hr-lifecycle`, `Site Admin` → `/dashboard/site-admin`, `Site Secretary` → `/phone-directory/by-room`, `Device Wrangler` → `/frequent-fliers`, and `Faculty and Staff` → `/phone-directory/by-person`
   - the DEV persona switcher is a live mock-session switch for demos rather than a static label preview; on switch, `/dashboard` re-resolves through the new persona's landing route, allowed routes stay in place and rerender, and disallowed current routes route to the new persona's landing route so demos do not strand users on `403`
   - direct-link enforcement remains strict: pages excluded from the active persona's allowed route set must still return `403` when visited directly
   - role-based route visibility for this slice is:
@@ -618,7 +619,7 @@
 - Recommended delivery buckets:
   - `2A` provisioning-profile and baseline bundle foundation
   - `2B` common-path onboarding and baseline update/deprovision lifecycle
-  - `2C` reactivation and AD -> Entra propagation warning handling
+  - `2C` reactivation and AD → Entra propagation warning handling
   - `2D` preferred-name self-service and downstream sync
   - `2E` actionable Google-active / Aeries-inactive queue controls, including bulk actions
 - In scope:
@@ -637,13 +638,13 @@
     - poll for the user in `IncidentIQ` by email address at most once per hour
     - once the user is found, look for and link only the earliest created matching `Aeries` ticket and the earliest created matching `Verkada` ticket in the dashboard
     - treat a ticket as matching only when both the requestor email and the ticket category match the expected follow-up type
-    - the matching `Aeries` category is `Aeries (Asset Tag: AERIES) -> User Rights -> Add User`
-    - the matching `Verkada` category is `Security Systems -> Alarm Codes -> Add Alarm Code`
+    - the matching `Aeries` category is `Aeries (Asset Tag: AERIES) → User Rights → Add User`
+    - the matching `Verkada` category is `Security Systems → Alarm Codes → Add Alarm Code`
     - continue to link only the earliest matching ticket even if that ticket is already closed and a later matching ticket remains open
     - if the earliest matching ticket is later deleted or becomes inaccessible, show no linked ticket rather than falling forward to a newer match, and do so silently without warning text
     - show the linked ticket number as a clickable link plus the current ticket status value as secondary workflow information rather than as the primary workflow driver
     - do not truncate the linked ticket number; always show the full raw ticket number
-  - AD -> Entra warning path and baseline reactivation/deprovision logic
+  - AD → Entra warning path and baseline reactivation/deprovision logic
   - actionable admin controls for the Google-active / Aeries-inactive queue, moving beyond the review-only Phase 1 surface
 - Pre-phase 0 DEV manual Non-Escape intake is implemented as a mock-only slice:
   - `/onboarding` renders a Vegas Gold `Add Non-Escape Record` action for HR and IT only
@@ -683,7 +684,7 @@
     - mock or staging output summary for downstream baseline actions taken
     - `IncidentIQ` workflow-status evidence showing hourly-bounded user/ticket polling and dashboard linking behavior
     - evidence that live provider disagreement on a write path refreshes projections and prevents unsafe mutation
-  - `2C` reactivation and AD -> Entra propagation warning handling
+  - `2C` reactivation and AD → Entra propagation warning handling
     - warning visibility evidence for workflow viewers and IT Admin
     - resume/cancel/replan execution trace
     - database state check confirming baseline-first restoration behavior
@@ -707,7 +708,7 @@
     - `P2-2B-003` Highest Category Re-Evaluation After Assignment Change
     - `P2-2B-004` IncidentIQ User Poll And External Ticket Status Linkage
     - `P2-2B-005` Live Provider Disagreement Refreshes Projection Before Write
-  - `2C` reactivation and AD -> Entra propagation warning handling
+  - `2C` reactivation and AD → Entra propagation warning handling
     - `P2-2C-001` Reactivation Restores Baseline Not Extras
     - `P2-2C-002` Entra Propagation Warning After One Hour
     - `P2-2C-003` Resume Cancels And Replans With Latest Profile
@@ -995,7 +996,7 @@
 - 2026-04-23: In-scope systems currently identified are Aeries, Incident IQ, Zoom, Escape/SFTP, Active Directory, Google Workspace, and InformedK12. In the current pass, student scope is limited to the explicitly documented exception, audit, and reporting workflows rather than general student lifecycle provisioning. Entra remains part of the identity propagation chain; Intune is acknowledged but may be out of scope for v1.
 - 2026-04-23: The app is for a single organization only; multitenancy is not required.
 - 2026-04-23: The application must normalize incomplete data across source systems and keep systems synchronized rather than assuming any single source contains all required data.
-- 2026-04-23: The `dev -> staging -> main` GitHub promotion pipeline defined in `docs/reference-inputs/pipeline/CODEX_GIST_DEV_STAGING_MAIN_PIPELINE.md` is a hard requirement for this project.
+- 2026-04-23: The `dev → staging → main` GitHub promotion pipeline defined in `docs/reference-inputs/pipeline/CODEX_GIST_DEV_STAGING_MAIN_PIPELINE.md` is a hard requirement for this project.
 - 2026-04-23: Student-account exception handling is a first-class v1 requirement, with invalid-name handling as the most urgent case because non-alphanumeric characters break CalPADS reporting and email normalization.
 - 2026-04-23: Baseline onboarding and reactivation must derive from the normalized job category first; permission deltas are surfaced for review but not automatically restored.
 - 2026-04-23: The current job-title/category mapping spreadsheets are authoritative seed inputs for baseline role design even though the access matrix remains incomplete and requires normalization.
@@ -1047,14 +1048,14 @@
 - 2026-04-24: Trivial raw job-title formatting differences must not be normalized away in v1. A recommendation to collapse whitespace, casing, or punctuation differences was explicitly rejected because the application should surface poor HR data quality and force correction upstream rather than silently masking it.
 - 2026-04-24: Zoom is the only provider currently known to deliver usable inbound webhooks in this environment. Other API-backed systems should stay on scheduled delta/full reconciliation until their event capabilities are proven in-tenant.
 - 2026-04-24: The Aeries Go and Python SDK repos are formal planning inputs and must be snapshotted into `docs/reference-inputs/vendor-code/` when they inform architecture or implementation behavior.
-- 2026-04-24: AD -> Entra propagation completion should be considered satisfied when the user exists in Entra and the following fields match expected state: `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled`. `proxyAddresses` is explicitly excluded because this environment does not use it for gating.
+- 2026-04-24: AD → Entra propagation completion should be considered satisfied when the user exists in Entra and the following fields match expected state: `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled`. `proxyAddresses` is explicitly excluded because this environment does not use it for gating.
 - 2026-04-24: Exact-match raw job-title blocker UX must expose invisible whitespace and control characters so HR can see why visually similar titles do not match.
 - 2026-04-24: Mandatory Aeries endpoint families for v1 are `staff`, `students`, `schools`, `teachers`, and `scheduling`.
 - 2026-04-24: Aeries access in all environments uses a read-only `base URL + certificate` credential model.
 - 2026-04-24: No dedicated Aeries sandbox or staging tenant is available. Non-production Aeries integration must use masked production-backed data, preferably by querying previous school years through the API `DatabaseYear=YYYY` parameter so test data is valid but stale.
-- 2026-04-24: If AD -> Entra propagation has not converged after 1 hour, the workflow should continue with warning rather than blocking outright.
+- 2026-04-24: If AD → Entra propagation has not converged after 1 hour, the workflow should continue with warning rather than blocking outright.
 - 2026-04-24: Staging should derive the current school year from Aeries School Info and default `DatabaseYear` to `current school year - 1`. Example: if Aeries School Info reports `2025-2026`, staging should default to `2024`.
-- 2026-04-24: Slow AD -> Entra convergence warnings are visible to everyone who can view that workflow status. IT Admin must also get a separate slow-convergence warning entry on the admin surface.
+- 2026-04-24: Slow AD → Entra convergence warnings are visible to everyone who can view that workflow status. IT Admin must also get a separate slow-convergence warning entry on the admin surface.
 - 2026-04-24: Aeries teacher data must use the distinct teacher-related API paths rather than being inferred only from staff data. The dashboard should converge `staff`, `teacher`, and schedule-derived context into a single internal person/entity view.
 - 2026-04-24: The join key between Aeries staff and teacher-related records is `StaffID`.
 - 2026-04-24: When Aeries `staff`, `teacher`, and `scheduling` disagree on a teacher's school or room before local overrides apply, the `staff` record wins.
@@ -1064,7 +1065,7 @@
 - 2026-04-24: Teacher classification must not rely on teacher records alone. A person is teaching staff when they have courses assigned to their Aeries staff record or when the job-title mapping classifies them as `TS`. A person with no courses and no `TS`-mapped teaching title should be treated as non-teaching staff.
 - 2026-04-24: Every business-decision mapping between data points must have IT Admin levers in the dashboard for add/change/remove operations so business-rule changes do not require recompiling or redeploying the app.
 - 2026-04-24: If a person is mapped as `TS` but has no course assignments yet, teaching-room-dependent workflows should wait until course data appears. Site Admin, Site Secretary, HR, and IT must have a manual inline room override that can unblock room-dependent workflows such as Incident IQ room assignment and Zoom phone assignment. Device Wranglers / Librarians must not be able to set this override.
-- 2026-04-24: Additional first-class title-mapping fields for v1 are device requirement and gets-monitor. Device mapping rules are `Basic Device -> Chromebook`, `Full OS Computer -> Windows or Mac`, and `No Device -> none`.
+- 2026-04-24: Additional first-class title-mapping fields for v1 are device requirement and gets-monitor. Device mapping rules are `Basic Device → Chromebook`, `Full OS Computer → Windows or Mac`, and `No Device → none`.
 - 2026-04-24: `Gets monitor` is a room-dependent workflow trigger, not a direct person-to-monitor assignment. If `Gets monitor = yes` and room is known, check whether the room already has a monitor; if not, create an IT ticket. If room is unknown, wait until room is known before evaluating monitor action.
 - 2026-04-24: Unmapped-title resolution is HR-primary but IT can always resolve. For Escape-backed users, the preferred path is correcting the title upstream in Escape and waiting for sync. For manual inputs such as contractors, job title selection must use a dropdown of known titles. Creating a brand-new title requires mapping permissions at the same time, with an option to copy an existing permission set as a starting point.
 - 2026-04-24: When a title-mapping row says `Full OS Computer`, HR must choose `Windows` or `Mac` during onboarding after asking the new hire.
@@ -1073,55 +1074,55 @@
 - 2026-04-24: Escape active-assignment evaluation for category calculation must use `FTEUsed`, `PrimaryPos`, `PayDtlAssignmentDateFrom`, and `PayDtlAssignmentDateThru`, informed by the vendored `PrioritizeEscapeRecords` diagnostic scripts. The payroll assignment date window determines whether an assignment is current enough to participate, while `FTEUsed` and `PrimaryPos` are weighting signals when multiple assignments overlap.
 - 2026-04-24: Position transfers must trigger re-evaluation of all active assignments. If the highest resulting staff category does not change, permissions and equipment remain unchanged. If the highest category changes, permissions reset to the new baseline and person-assigned equipment is reclaimed or re-evaluated.
 - 2026-04-24: InformedK12 position-change forms are early-warning inputs only. The app should derive likely category changes, surface them early, validate them against Escape, and execute only after the change is confirmed. HR is the preferred reviewer/approver for these changes.
-- 2026-04-24: When two active assignments share the same highest staff category but disagree on site, use `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet` as the site-resolution heuristic. Initial alias defaults are `CCLA -> CLA`, `NCC -> DO`, `MAIL -> ignore`, `TRAN -> MOT`, `DW -> DO` by default with manual reassignment allowed, `MNT -> MOT`, `NBMA -> BPL`, and `WTCH -> MOT`. If those fields disagree, raise an HR data-quality issue instead of silently choosing a winner. HR may set a temporary manual site override while the upstream Escape data is being corrected, and that override persists until HR fixes the source data or the person's job assignment changes. That override may also include room/location details, but room/location override is not required to continue when HR does not know it. Early rollout runs should favor dry-run issue surfacing until HR corrects the upstream Escape data.
+- 2026-04-24: When two active assignments share the same highest staff category but disagree on site, use `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet` as the site-resolution heuristic. Initial alias defaults are `CCLA → CLA`, `NCC → DO`, `MAIL → ignore`, `TRAN → MOT`, `DW → DO` by default with manual reassignment allowed, `MNT → MOT`, `NBMA → BPL`, and `WTCH → MOT`. If those fields disagree, raise an HR data-quality issue instead of silently choosing a winner. HR may set a temporary manual site override while the upstream Escape data is being corrected, and that override persists until HR fixes the source data or the person's job assignment changes. That override may also include room/location details, but room/location override is not required to continue when HR does not know it. Early rollout runs should favor dry-run issue surfacing until HR corrects the upstream Escape data.
 - 2026-04-24: HR needs a dedicated orphan-account view for people who are active in AD but have no associated Escape, Aeries, or local override employee record. HR must be able to set an end date, terminate immediately, and rely on a default scheduled end date derived from Aeries `systeminfo.DatabaseYear` plus `/api/v5/schools/{SchoolCode}/terms`, using the earliest `StartDate` and latest `EndDate` across schools to define the district year when no explicit date exists. Configured service-account OUs and username patterns must be excluded from this queue, and accounts with no Google activity for 30+ days should be eligible for deprovisioning. If an orphaned account has recent Google activity, treat it as a security risk, deprovision it across all systems, and flag it to IT as a potential breach. The automated deprovisioning exception list is IT Admin only, and each exception entry must require a reason, owner, and expiration or review date.
 - 2026-04-24: The product also needs a dedicated audit queue for students and staff who are active in Google but inactive in Aeries, because missed lifecycle actions are often discovered through that mismatch. This queue must remain distinct from orphaned AD-account handling so operators can see the exact reconciliation failure mode. IT owns this queue as a security control. V1 default behavior is review-only, but the IT Admin console must allow separate student and staff default flows to be switched to scheduled deprovision or immediate deprovision without code changes. For this queue, Google-active means the account is enabled and `lastLoginTime` from the Google Admin Directory API `GET /admin/directory/v1/users/{userKey}` shows a successful login within the last 30 days, using the `admin.directory.user.readonly` scope. The runtime should cache that 30-day lookback boundary for the whole day so multiple runs on the same day do not recompute it, using midnight in the configured app timezone as the day boundary. For staff, Aeries-inactive means `InactiveStatusCode` (`STF.TG`) is any non-blank value. For students, Aeries-inactive means `InactiveStatusCode` (`STU.TG`) from `/api/v5/schools/{SchoolCode}/students/{StudentID}` is any non-blank value. Graduated senior identification should use `SchoolCompletionDate` (`STU.DG`) from `/api/v5/schools/{SchoolCode}/students/{StudentID}/extended`, scoped to the current Aeries school year, and should ignore `SchoolCompletionStatusCode` (`STU.HSG`). `GraduationCohort` (`STU.CHT`) is irrelevant to this workflow and should not be surfaced for review. The graduated-senior exception exists only to preserve the identity path required for Google Takeout and Google login, so AD, Entra, and Google remain active until the end of the configured cutoff day while Zoom may still be deprovisioned. IncidentIQ access is not a student entitlement in this flow.
 - 2026-04-27: When an IT Admin edits the Zoom SAML mapping, the application must reconcile existing Zoom users to the new mapping on the next Zoom sync/reconcile cycle rather than waiting for future SAML logins only. That reconciliation should be best effort, with per-user failures logged rather than all-or-nothing failure for the changed mapping set, and when a mapping change affects many users the next Zoom sync should process the affected population in one batch. Failed rows retry automatically on the next Zoom sync, and the vendored Zoom SDK snapshot should be preferred for retry/backoff behavior because its documented client policy already retries transport errors, `429`, and `500/502/503/504` with exponential backoff, jitter, and `Retry-After` support. App-native retry logic should only be added where the SDK path does not cover the workflow. After 5 consecutive failed syncs for the same user the app must automatically create an IncidentIQ ticket on behalf of the failing user, or update the existing open auto-created ticket if one already exists for the same repeated-failure thread. That ticket must include the relevant user details, SAML configuration change details, endpoint, request intent, HTTP status, Zoom error code, Zoom message, user identifier, mapping diff, and a redacted JSON response either appended at the bottom of the ticket body or attached as a troubleshooting artifact when attachment support is available. Troubleshooting artifacts must never persist raw auth headers, bearer tokens, refresh tokens, client secrets, private keys, passwords, or other reusable credentials. To identify the credential set used, include non-secret identifiers such as provider account id, service-account owner, configured credential label, key id, token issuer/audience where non-sensitive, and a one-way fingerprint of the credential material. If IncidentIQ supports sensitive visibility on the ticket, set that sensitive attribute for these Zoom diagnostics because they can still contain sensitive user, configuration, and provider-error details after credential redaction. Zoom service-account ownership for these operational tickets should use `svc-zoom@it.wusd.org`. TODO: transfer the IncidentIQ app ownership to the Zoom service account so ticket ownership and automation identity are aligned. Use Asset Tag `ZOOMCONFERENCING`, Issue Category `Account settings`, and Issue Type `Account settings`. The consecutive-failure counter resets on successful Zoom reconciliation and also when an admin changes the user or mapping in a way that materially changes the next retry. Reconciliation attempts should occur only when the relevant Zoom SAML configuration has changed. The IT-admin editing model is current-state only in v1; no version-history or rollback UX is required in the first pass.
 - 2026-04-27: If a repeated Zoom sync failure thread already had an auto-created ticket that was later closed, and the same user begins failing again later, the next 5-consecutive-failure threshold should create a new ticket rather than trying to reopen or reuse the closed one. A closed ticket represents a completed prior incident, not a continuing failure thread.
-- 2026-04-27: Long-running sync jobs must continue until their current work is complete even if the next scheduled cadence window arrives while they are still running, but the sync engine must prevent conflicting overlapping runs for the same provider/job family. This anti-clobber rule applies to the entire sync engine, not just Zoom. The scheduler must be aware of previously started jobs that have not yet finished, avoid launching conflicting duplicate runs, and carry deferred work forward cleanly without race conditions. If schedule overlap for a given job happens 5 times within 7 days, the application must generate or update an operational IncidentIQ ticket on behalf of the affected service account recommending cadence adjustment using `Other Tech Requests -> Project -> Integrations`. The overlap counter should keep counting until a material cadence change is made, rather than resetting on ticket creation alone. If overlaps continue after that material cadence change, keep updating the same open ticket rather than creating a new one. The per-job schedule must be exposed and editable in the IT Admin UI.
+- 2026-04-27: Long-running sync jobs must continue until their current work is complete even if the next scheduled cadence window arrives while they are still running, but the sync engine must prevent conflicting overlapping runs for the same provider/job family. This anti-clobber rule applies to the entire sync engine, not just Zoom. The scheduler must be aware of previously started jobs that have not yet finished, avoid launching conflicting duplicate runs, and carry deferred work forward cleanly without race conditions. If schedule overlap for a given job happens 5 times within 7 days, the application must generate or update an operational IncidentIQ ticket on behalf of the affected service account recommending cadence adjustment using `Other Tech Requests → Project → Integrations`. The overlap counter should keep counting until a material cadence change is made, rather than resetting on ticket creation alone. If overlaps continue after that material cadence change, keep updating the same open ticket rather than creating a new one. The per-job schedule must be exposed and editable in the IT Admin UI.
 - 2026-04-27: For cadence-adjustment overlap handling, only a material cadence change should count as resolution for counter reset. In this context, a material cadence change means a change to the job interval or lookback window. Mere saves with no effective schedule change must not reset the overlap counter or auto-close the open overlap ticket. If a material cadence change is made but overlaps still continue afterward, keep the same open ticket and continue updating it rather than creating a new one.
 - 2026-04-27: When a material cadence change is made, the application should automatically add a note to the existing overlap ticket that records the old and new interval values and the old and new lookback-window values.
 - 2026-04-27: If a Zoom diagnostics ticket was manually downgraded or edited in IncidentIQ, the next app update must not force the `sensitive` flag back on. Sensitive marking is applied on creation/update by default, but manual IncidentIQ changes remain authoritative afterward. Credential redaction remains mandatory regardless of the ticket's current sensitive marking.
 - 2026-04-30: Security review superseded the earlier secret-bearing diagnostics override. Persistent app logs, tickets, attachments, audit rows, and troubleshooting artifacts must not contain reusable credential material in plaintext. Diagnostic workflows that need to prove which credential set was used must rely on non-secret labels, service-account ownership, key ids, token metadata that is not itself sensitive, and one-way fingerprints instead of raw secrets.
 - 2026-04-27: Provider service-account ownership locked so far:
-  - `Zoom` -> `svc-zoom@it.wusd.org`
-  - `Aeries` -> `ad-aeriessync@wusd.org`
-  - `Google` -> `svc-google-gam@it.wusd.org`
-  - `IncidentIQ` -> `svc-incidentiq@it.wusd.org`
-  - `InformedK12` -> `svc-incidentiq@it.wusd.org`
-  - `Verkada` -> `svc-verkada@it.wusd.org`
+  - `Zoom` → `svc-zoom@it.wusd.org`
+  - `Aeries` → `ad-aeriessync@wusd.org`
+  - `Google` → `svc-google-gam@it.wusd.org`
+  - `IncidentIQ` → `svc-incidentiq@it.wusd.org`
+  - `InformedK12` → `svc-incidentiq@it.wusd.org`
+  - `Verkada` → `svc-verkada@it.wusd.org`
 - 2026-04-27: For `Aeries`, `Google`, `InformedK12`, and `Verkada`, v1 service-account ownership is only required for cadence-adjustment tickets. Any broader service-account-owned operational ticketing for those providers is deferred as TODO for v2/v3.
 - 2026-04-27: Remove app-owned `Phase 2` downstream `Aeries` access and `Verkada` follow-up ticket buckets. Archive those follow-ups as external `IncidentIQ` configuration TODOs rather than in-app workflow steps.
-- 2026-04-29: Restore a read-side `Phase 2` dependency surface for `IncidentIQ` propagation. The app does not create `Aeries` or `Verkada` follow-up tickets, but it should poll `IncidentIQ` by email at most once per hour and link the earliest created matching externally created `Aeries` and `Verkada` tickets in dashboard workflow status once that `IncidentIQ` user exists. Matching is defined by requestor email plus ticket category, using `Aeries (Asset Tag: AERIES) -> User Rights -> Add User` and `Security Systems -> Alarm Codes -> Add Alarm Code` respectively. The app should continue to prefer the earliest match even if a later matching ticket is still open, and if that earliest ticket later disappears or becomes inaccessible the dashboard should show no linked ticket rather than falling forward, silently with no warning text. When linked, the dashboard should show the full raw ticket number as a clickable link plus the current status value.
+- 2026-04-29: Restore a read-side `Phase 2` dependency surface for `IncidentIQ` propagation. The app does not create `Aeries` or `Verkada` follow-up tickets, but it should poll `IncidentIQ` by email at most once per hour and link the earliest created matching externally created `Aeries` and `Verkada` tickets in dashboard workflow status once that `IncidentIQ` user exists. Matching is defined by requestor email plus ticket category, using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code` respectively. The app should continue to prefer the earliest match even if a later matching ticket is still open, and if that earliest ticket later disappears or becomes inaccessible the dashboard should show no linked ticket rather than falling forward, silently with no warning text. When linked, the dashboard should show the full raw ticket number as a clickable link plus the current status value.
 - 2026-04-27: For providers without a locked owner yet, default operational ticket ownership should fall back to IncidentIQ service-account ownership using `svc-incidentiq@it.wusd.org`. Partial inventory currently captured from the user should remain implementation data only for now and does not need a v1 IT Admin UI surface:
-  - `GAM Project - gam-project-rt229 (4-2-2026)` -> `svc-google-gam@it.wusd.org`
-  - `Meraki` -> `svc-meraki@it.wusd.org`
-  - `Mosyle` -> `svc-mosyle@it.wusd.org`
-  - `Qualtrics Data import` -> `svc-qualtrics-import@wusd.org`
-  - `Quickbooks Online` -> `svc-quickbooks@wusd.org`
-  - `Informed K12 API access` -> `svc-incidentiq@it.wusd.org`
-  - `Verkada` -> `svc-verkada@it.wusd.org`
-  - `XMedius Fax Solution` -> `svc-xmedius@it.wusd.org`
-  - `Zoom` -> `svc-zoom@it.wusd.org`
-  - `Google Drive` -> `filemanager@wusd.org`
-  - `Sonoma County Library Student Data upload` -> `svc-sonomalibraryupload@wusd.org`
-  - `Google Drive review` -> `svc-gdrivereview@wusd.org`
-  - `Clever ↔ Active Directory` -> `svc-clever@it.wusd.org`
-  - `Incident IQ` -> `svc-incidentiq@it.wusd.org`
-  - `Github Education (Enterprise)` -> `svc-github@it.wusd.org`
-  - `Certificate alert emails` -> `svc-cert-alerts@wusd.org`
-  - `Communicates account onboarding/offboarding` -> `accountservices@wusd.org`
+  - `GAM Project - gam-project-rt229 (4-2-2026)` → `svc-google-gam@it.wusd.org`
+  - `Meraki` → `svc-meraki@it.wusd.org`
+  - `Mosyle` → `svc-mosyle@it.wusd.org`
+  - `Qualtrics Data import` → `svc-qualtrics-import@wusd.org`
+  - `Quickbooks Online` → `svc-quickbooks@wusd.org`
+  - `Informed K12 API access` → `svc-incidentiq@it.wusd.org`
+  - `Verkada` → `svc-verkada@it.wusd.org`
+  - `XMedius Fax Solution` → `svc-xmedius@it.wusd.org`
+  - `Zoom` → `svc-zoom@it.wusd.org`
+  - `Google Drive` → `filemanager@wusd.org`
+  - `Sonoma County Library Student Data upload` → `svc-sonomalibraryupload@wusd.org`
+  - `Google Drive review` → `svc-gdrivereview@wusd.org`
+  - `Clever ↔ Active Directory` → `svc-clever@it.wusd.org`
+  - `Incident IQ` → `svc-incidentiq@it.wusd.org`
+  - `Github Education (Enterprise)` → `svc-github@it.wusd.org`
+  - `Certificate alert emails` → `svc-cert-alerts@wusd.org`
+  - `Communicates account onboarding/offboarding` → `accountservices@wusd.org`
 - 2026-04-27: `Google Drive`, `Meraki`, `Mosyle`, and `Qualtrics` are out of scope for v1. Retain their service-account mappings as future-implementation inputs for v2 or later.
-- 2026-04-27: TODO for future implementation: Google user SAML attribute update for Meraki. Google SAML `extended_attributes.meraki_role` must be configurable from the IT Admin UI. The initial default is `SASI -> OrgAdmin`; all other users get no Meraki attribute / no Meraki access unless later rules are configured.
+- 2026-04-27: TODO for future implementation: Google user SAML attribute update for Meraki. Google SAML `extended_attributes.meraki_role` must be configurable from the IT Admin UI. The initial default is `SASI → OrgAdmin`; all other users get no Meraki attribute / no Meraki access unless later rules are configured.
 - 2026-04-27: TODO for v3 future implementation: GitHub account lifecycle automation. GitHub is behind Google SSO today and is not currently provisioned by this system. Future support should use GitHub organization invitation and organization membership APIs to invite or manage teachers and students in selected organizations, deactivate WUSD-organization access during offboarding, and remind students to attach personal email addresses before district account loss. Current target organizations captured from the user:
-  - `wusd-org` -> IT Department only
-  - `wusd-org-bpl` -> Teachers and students at BPL
-  - `wusd-org-cla` -> Teachers and students at CLA / CCLA
-  - `wusd-org-whs` -> Teachers and students at WHS
-  - `wusd-org-wms` -> Teachers and students at WMS
+  - `wusd-org` → IT Department only
+  - `wusd-org-bpl` → Teachers and students at BPL
+  - `wusd-org-cla` → Teachers and students at CLA / CCLA
+  - `wusd-org-whs` → Teachers and students at WHS
+  - `wusd-org-wms` → Teachers and students at WMS
 - 2026-04-27: Future GitHub lifecycle scope should initially focus on students enrolled in STEM courses and the teachers of those STEM courses. Students continue to rely on `@stu.wusd.org` for WUSD org access, so offboarding must include a reminder to attach a personal email address before district account shutdown to preserve access to their Git history outside district ownership.
 - 2026-04-27: Future GitHub STEM-course eligibility should be driven by specific Aeries course numbers. The district does not currently have a master STEM-course list, and course-number conventions are internally consistent within a site but not consistent across sites. The future design should therefore support school-specific course-number mapping rather than assuming one district-wide numeric pattern.
-- 2026-04-27: School-specific STEM course-number lists are managed by IT Admin only. Site teachers may view their courses and see any extended permissions attached to those courses, but they do not directly edit the mapping. Instead, they need a submit-request action to request app assignment for a course, creating an IncidentIQ ticket routed to `Other Tech Requests -> Procurement -> Software`.
+- 2026-04-27: School-specific STEM course-number lists are managed by IT Admin only. Site teachers may view their courses and see any extended permissions attached to those courses, but they do not directly edit the mapping. Instead, they need a submit-request action to request app assignment for a course, creating an IncidentIQ ticket routed to `Other Tech Requests → Procurement → Software`.
 - 2026-04-27: That site-teacher course app-assignment request flow applies only to apps already known in the provisioning inventory. Requests for brand-new or unknown apps should follow a separate future intake/procurement path rather than silently entering the provisioning map.
 - 2026-04-27: Future course-number mappings must support expiration by school year so reused course numbers can take on different meanings in later years without mutating historical mapping intent.
 - 2026-04-27: If a school-year-specific course-number mapping expires and nobody has refreshed it yet for the new school year, the system should temporarily inherit the prior year's mapping until an IT Admin reviews it. IT Admin must have a bulk-review workflow to accept or deny inherited mappings for the new school year rather than handling each course one by one.
@@ -1129,7 +1130,7 @@
 - 2026-04-27: Future GitHub student access should follow the same graduated-senior grace-period concept as broader student identity access rather than cutting off immediately at graduation. The offboarding reminder to add a personal email address should occur before that grace period ends.
 - 2026-04-27: Future GitHub profile assignment should apply only to teachers and should be independent of course-number mapping. Staff GitHub access should not expire merely because a course ends; once granted, it remains until the staff member leaves the district or is reclassified into a different employee type. Student profiles remain out of scope for v1 and should be treated as a later-version TODO.
 - 2026-04-27: If a teacher is reclassified into a different employee type and should lose GitHub access, removal should queue for an end-of-day cutoff window rather than happening immediately. If IT manually reinstates that access outside this dashboard, automated GitHub deprovisioning should not run again until the user is terminated at the end of district tenure.
-- 2026-04-27: For staff only, permissions that remain manually reinstated or otherwise orphaned after district tenure should surface first in an IT-Admin-only manual-cleanup dashboard queue. V1 scope for that queue is limited to lingering Zoom account and Zoom license state only; GitHub, Google Groups, and other orphaned permissions are later-iteration TODO items. The desired resolved Zoom end-state is: `Zoom Workplace` unassigned, `Zoom Phone Basic` unassigned, `Zoom Phone Customer Engagement Pack` unassigned, `Zoom Large Meeting` unassigned, and `Zoom Webinars` unassigned, with the Zoom user either `Deactivated` or `Removed`. For Zoom API modeling, `Deactivated` should be recognized as `/users/{userId}` returning a user object with `status = "inactive"` and `/phone/users/{userId}` returning `code = 1001` with a `User does not exist` message. `Removed` should be recognized as the user no longer being returned from Zoom user lookup at all. If a row in that queue remains unresolved for 30 days, the system should automatically create an IncidentIQ ticket routed to `Account & Login Problems -> Employee User Accounts -> Deactivate employee user account`. Student orphaned-permission cleanup should not use this ticket flow.
+- 2026-04-27: For staff only, permissions that remain manually reinstated or otherwise orphaned after district tenure should surface first in an IT-Admin-only manual-cleanup dashboard queue. V1 scope for that queue is limited to lingering Zoom account and Zoom license state only; GitHub, Google Groups, and other orphaned permissions are later-iteration TODO items. The desired resolved Zoom end-state is: `Zoom Workplace` unassigned, `Zoom Phone Basic` unassigned, `Zoom Phone Customer Engagement Pack` unassigned, `Zoom Large Meeting` unassigned, and `Zoom Webinars` unassigned, with the Zoom user either `Deactivated` or `Removed`. For Zoom API modeling, `Deactivated` should be recognized as `/users/{userId}` returning a user object with `status = "inactive"` and `/phone/users/{userId}` returning `code = 1001` with a `User does not exist` message. `Removed` should be recognized as the user no longer being returned from Zoom user lookup at all. If a row in that queue remains unresolved for 30 days, the system should automatically create an IncidentIQ ticket routed to `Account & Login Problems → Employee User Accounts → Deactivate employee user account`. Student orphaned-permission cleanup should not use this ticket flow.
 - 2026-04-27: The orphaned-permissions queue is informational only. IT Admin should do manual work in IncidentIQ tickets or the affected systems, not by maintaining parallel notes in this dashboard. The unresolved timer should close only on actual resolution, not on note entry or an in-progress marker.
 - 2026-04-27: Resolution of an orphaned-permissions row should be verified by polling the affected system data and checking for the desired deprovisioned end-state. The row remains unresolved until both the Zoom user state and all targeted Zoom entitlements match the desired end-state; `status = "inactive"` alone is not sufficient if any targeted license remains assigned. If the user data reaches the full end-state within the 30-day window, the dashboard should auto-resolve the warning. If a ticket has already been created, the dashboard should monitor both ticket resolution and the technical deprovisioned end-state together rather than assuming the ticket alone means the issue is fixed. If the technical end-state is later verified before the ticket is manually closed, the dashboard should auto-resolve the row and try to close the IncidentIQ ticket with this standard automation comment template: `Automation closing ticket: verified Zoom deprovisioned end-state for {user_email}. Confirmed removed/unassigned: Zoom user account={state}, Zoom Workplace={state}, Zoom Phone Basic={state}, Zoom Phone Customer Engagement Pack={state}, Zoom Large Meeting={state}, Zoom Webinars={state}.` State labels may render as `unassigned`, `deactivated`, `removed`, or `deprovisioned`, whichever is clearest for the specific field. If ticket close fails, the row should remain resolved and surface a separate ticket-sync warning with a link to the ticket rather than reopening the cleanup issue.
 - 2026-04-27: Auto-created orphaned-Zoom cleanup tickets must be created on behalf of the affected user, not a service account. The ticket description should enumerate which Zoom entitlements or account states are still provisioned and should include a direct link to the general Zoom admin user-management page for that user when that link can be constructed reliably, using the affected person's first name, last name, and the final stored district email from the local canonical user record as the preferred lookup/display context. If no reliable direct link can be built, the ticket should still include first name, last name, that final stored district email, the current Zoom email when present, and Zoom `userId` when known.
@@ -1297,9 +1298,9 @@
   - niche cases such as department-specific intern access may be handled manually in v1
   - the profile system must still be designed so those distinctions can be modeled later
 - Hardware bundle normalization rules:
-  - `Basic Device` -> `Computer: Chromebook`
-  - `Full OS Computer` -> `Computer: Windows` or `Computer: Mac`
-  - `No Device` -> `none`
+  - `Basic Device` → `Computer: Chromebook`
+  - `Full OS Computer` → `Computer: Windows` or `Computer: Mac`
+  - `No Device` → `none`
   - only emit a hardware bundle when the resolved staff category is `BCS` or higher
   - when the row says `Full OS Computer`, HR chooses `Windows` or `Mac` during onboarding
 - Monitor workflow rules:
@@ -1321,10 +1322,10 @@
   - default SAML mapping does not assign Zoom Webinar / Large Meeting add-ons
   - default SAML mapping does not assign a Zoom user role
   - cohort-driven Zoom group mapping is:
-    - `Student - 2020` through `Student - 2025` -> `High School Students`
-    - `Student - 2026` through `Student - 2028` -> `Middle School Students`
-    - `Student - 2029` through `Student - 2040` -> `Elementary Students`
-    - `Student` -> `Students`
+    - `Student - 2020` through `Student - 2025` → `High School Students`
+    - `Student - 2026` through `Student - 2028` → `Middle School Students`
+    - `Student - 2029` through `Student - 2040` → `Elementary Students`
+    - `Student` → `Students`
   - Zoom SAML department/license and cohort/group mappings must be fully editable from the IT Admin UI
   - editing the Zoom SAML mapping must trigger reconciliation of existing Zoom users to the new mapping on the next Zoom sync/reconcile cycle, not just future SAML logins
   - that reconciliation is best effort and must log per-user failures rather than aborting the full changed mapping set
@@ -1347,7 +1348,7 @@
   - v1 supports current-state editing only; version history and rollback are out of scope for the first pass
   - Zoom SAML mapping must support exclusions for specific users and groups so they do not follow the default mapping rules
   - future Meraki SAML mapping must be configurable from the IT Admin UI rather than hardcoded
-  - the initial Meraki default is `SASI -> OrgAdmin`
+  - the initial Meraki default is `SASI → OrgAdmin`
   - all other users default to no Meraki SAML attribute / no Meraki access unless later rules are added
 - Baseline normalization should use as much reliable data as possible from the employee-category matrix and catchall inputs while excluding deprecated GoFMX-related assignments.
 - Baseline bundle rule:
@@ -1400,7 +1401,7 @@
 - Manual identifier rule:
   - sideloaded people need a non-colliding generated identifier
   - contractor IDs currently use prefix `66` plus a zero-padded five-digit number
-- Requested Aeries access should be captured as workflow data in the application. Any resulting IncidentIQ ticket creation is an external `IncidentIQ` configuration TODO rather than an app-owned workflow step in this phase, but the dashboard should poll IncidentIQ by email at most once per hour and link the resulting earliest created matching ticket status once the user exists there. Matching is defined by requestor email plus ticket category, specifically `Aeries (Asset Tag: AERIES) -> User Rights -> Add User`.
+- Requested Aeries access should be captured as workflow data in the application. Any resulting IncidentIQ ticket creation is an external `IncidentIQ` configuration TODO rather than an app-owned workflow step in this phase, but the dashboard should poll IncidentIQ by email at most once per hour and link the resulting earliest created matching ticket status once the user exists there. Matching is defined by requestor email plus ticket category, specifically `Aeries (Asset Tag: AERIES) → User Rights → Add User`.
 - If a sideloaded contractor later appears in Escape:
   - the Escape record becomes the active replacement record
   - the manual contractor record becomes inactive and remains in the database
@@ -1520,7 +1521,7 @@
   - use `FTEUsed` and `PrimaryPos` as weighting signals when multiple assignments overlap
   - if the highest category does not change, do not reset permissions or equipment
   - if the highest category changes, reset permissions to the new baseline and reclaim or re-evaluate person-assigned equipment
-  - if two same-category top assignments disagree on site, resolve using `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet`, with initial alias defaults of `CCLA -> CLA`, `NCC -> DO`, `MAIL -> ignore`, `TRAN -> MOT`, `DW -> DO`, `MNT -> MOT`, `NBMA -> BPL`, and `WTCH -> MOT`
+  - if two same-category top assignments disagree on site, resolve using `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet`, with initial alias defaults of `CCLA → CLA`, `NCC → DO`, `MAIL → ignore`, `TRAN → MOT`, `DW → DO`, `MNT → MOT`, `NBMA → BPL`, and `WTCH → MOT`
   - when site fields disagree, surface an HR data-quality issue rather than silently choosing a site
   - HR may apply a temporary manual site override while the upstream data is being corrected
   - HR may include room/location details in that temporary override, but room/location is optional and should not block continuation if unknown
@@ -1615,11 +1616,11 @@
 - District phone names use operational site abbreviations, which are distinct from the numeric extension site code:
   - examples include `DO`, `BES`, `CLA`, `WMS`, `WHS`, `MWE`, `BPL`, `MOT`, `WCR`, `WOA`, `SOCOVA`
 - Current operational-alias mapping into the numeric site-code model is:
-  - `MOT` -> site code `1`
-  - `WELL` -> site code `1`
-  - `WOA` -> site code `5`
-  - `SOCOVA` -> site code `7`
-  - `WCR` -> defunct campus with no active site code; keep only for historical reference and do not use for new assignments or active authorization scopes
+  - `MOT` → site code `1`
+  - `WELL` → site code `1`
+  - `WOA` → site code `5`
+  - `SOCOVA` → site code `7`
+  - `WCR` → defunct campus with no active site code; keep only for historical reference and do not use for new assignments or active authorization scopes
 - Destination-room conflict rules:
   - for bulk end-of-year changes, affected phones should be unassigned first and then reassigned so the cutover is effectively simultaneous
   - if the destination room has a common-area phone, assign the moving user without special conflict handling
@@ -1637,7 +1638,7 @@
     - model path: `Asset Serial Number (Poly VVX250/450)`
     - category path: `Move user(s) or Add a user/phone`
   - permission restoration or group changes:
-    - category path: `Account & Login Problems -> [Employee User Accounts, Student User Accounts, Contractor Access] -> Group Membership Changes`
+    - category path: `Account & Login Problems → [Employee User Accounts, Student User Accounts, Contractor Access] → Group Membership Changes`
 - Secretarial bulk room-move entry is a first-class workflow:
   - Incident IQ is the source of truth for location and room names
   - the page should include a campus-map reference link where available
@@ -1790,9 +1791,9 @@
 - Ticket actor rules:
   - create tickets on behalf of the affected user, not the service account and not the operator who triggered the workflow
   - do not create tickets on behalf of a user until that user exists in Incident IQ
-  - the safe ticket-creation point is after account propagation reaches Incident IQ from the AD -> Entra -> Google -> Incident IQ chain
+  - the safe ticket-creation point is after account propagation reaches Incident IQ from the AD → Entra → Google → Incident IQ chain
   - for externally configured `Aeries` and `Verkada` follow-up work, the dashboard should poll for the user's `IncidentIQ` presence by email at most once per hour and link only the earliest created matching ticket for each follow-up type into workflow status once found
-  - match those tickets by requestor email plus ticket category using `Aeries (Asset Tag: AERIES) -> User Rights -> Add User` and `Security Systems -> Alarm Codes -> Add Alarm Code`, continue to prefer the earliest match even if a later matching ticket remains open, show no linked ticket if that earliest match later disappears or becomes inaccessible, and present linked results as full raw ticket number link plus current status
+  - match those tickets by requestor email plus ticket category using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code`, continue to prefer the earliest match even if a later matching ticket remains open, show no linked ticket if that earliest match later disappears or becomes inaccessible, and present linked results as full raw ticket number link plus current status
 - Verkada integration rules:
   - user accounts in Verkada are expected to arrive through SCIM rather than bespoke provisioning in this application
   - Facilities may still need a ticket to create campus alarm codes for a new employee
@@ -1823,11 +1824,11 @@
   - suggest corrected first-name and last-name values independently using a simple configurable allowlist plus transliteration table
   - provide field-level copy affordances so a secretary can copy the normalized first-name or last-name correction directly to the clipboard for pasting into Aeries
   - example normalization patterns include:
-    - `José` -> `Jose`
-    - `Nuño` -> `Nuno`
-    - `O'Neil` -> `ONeil`
-    - `Smith-Jones` -> `SmithJones`
-    - leading or trailing spaces in either `FirstName` or `LastName` -> trimmed field value
+    - `José` → `Jose`
+    - `Nuño` → `Nuno`
+    - `O'Neil` → `ONeil`
+    - `Smith-Jones` → `SmithJones`
+    - leading or trailing spaces in either `FirstName` or `LastName` → trimmed field value
   - spaces remain allowed in suggested corrected names
   - digits in student first and last names are treated as invalid in v1
   - DEV mock data should cover the legacy `Student_Aeries_AD_Sync.ps1` invalid-name gate: diacritics, ASCII apostrophes, smart punctuation, hyphens, digits, other non-letter symbols, leading first-name spaces, trailing first-name spaces, leading last-name spaces, and trailing last-name spaces
@@ -1938,12 +1939,12 @@
   - synchronize to Google, Entra, and Active Directory display-name fields
   - synchronize preferred/display name to Zoom user naming through both `/users/{userId}` and `/phone/users/{userId}` because the phone-facing name must not rely on the regular Zoom user update alone
 - AD field mapping requirements:
-  - legal first name -> `GivenName`
-  - legal last name -> `Surname`
-  - legal full name -> `Name` as `FirstName LastName`
-  - preferred/display name -> `DisplayName` as `PreferredFirstName PreferredLastName`
-  - seeded staff category -> `staffCategoryCode`
-  - seeded employee type -> `employeeTypeCode`
+  - legal first name → `GivenName`
+  - legal last name → `Surname`
+  - legal full name → `Name` as `FirstName LastName`
+  - preferred/display name → `DisplayName` as `PreferredFirstName PreferredLastName`
+  - seeded staff category → `staffCategoryCode`
+  - seeded employee type → `employeeTypeCode`
 - Aeries is currently read-only from this application.
 - For writable identity storage of overrideable fields, AD and Google location/profile fields may be viable intermediate persistence targets and need explicit design.
 - Authorized override changes should propagate to downstream systems such as Incident IQ, Zoom, and identity providers where appropriate.
@@ -2078,7 +2079,7 @@
 ## Allocation and Resource Safety
 - `extension_inventory` is the only extension allocator.
 - Allocation is two-phase:
-  - `available -> reserved_for_job_id -> assigned_to_person_id`
+  - `available → reserved_for_job_id → assigned_to_person_id`
   - canceled or expired reservations are reclaimed by a cleanup worker
 - Same-site transfer keeps the human extension.
 - Site-to-site transfer allocates a new extension from `extension_inventory`.
@@ -2326,7 +2327,7 @@
   - `InformedK12`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
 - Projection-backed list and queue surfaces should show `Last synced` or equivalent freshness context.
 - Explicit UI refresh actions should prefer targeted live provider reads for the selected surface instead of indiscriminately rebuilding every projection.
-- AD is managed directly by this application where applicable; downstream AD -> Entra propagation is externally managed and should be treated as complete within `1h` maximum for workflow timing.
+- AD is managed directly by this application where applicable; downstream AD → Entra propagation is externally managed and should be treated as complete within `1h` maximum for workflow timing.
 - Entra propagation is considered complete for app workflow gating when the user exists in Entra and `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled` match expected state.
 - If Entra convergence has not occurred after `1h`, continue the workflow with warning rather than blocking the entire run.
 - Slow Entra convergence warning visibility:
@@ -2391,7 +2392,7 @@
 - `/health/ready` must validate DB connectivity, sequence access, local import-staging path read/write access, configured SFTP reachability in integration mode, and Google service-account token acquisition.
 
 ## Provider Protection
-- Circuit breakers use exponential backoff `1s -> 2s -> 4s`, then pause only the affected queue for 15 minutes before a half-open probe.
+- Circuit breakers use exponential backoff `1s → 2s → 4s`, then pause only the affected queue for 15 minutes before a half-open probe.
 
 ## Orchestration Loops and Provider Workflows
 - Orchestration is durable:
@@ -2436,7 +2437,7 @@
   - do not reset the overlap counter on ticket creation; keep counting and keep updating the open ticket until a material cadence change is made
   - only a material cadence change counts as schedule resolution for counter reset
   - if overlaps continue after that material cadence change, keep updating the same open ticket rather than opening a new one
-  - use IncidentIQ ticket routing `Other Tech Requests -> Project -> Integrations` for those cadence-adjustment tickets
+  - use IncidentIQ ticket routing `Other Tech Requests → Project → Integrations` for those cadence-adjustment tickets
   - per-job schedule configuration must be visible and editable from the IT Admin UI
   - batch size and concurrency limits are v2 admin controls and do not need v1 UI exposure
 - Approval-gated destructive actions:
@@ -2446,13 +2447,13 @@
   - Zoom deprovision/license removal
   - extension release after leave/termination
 - Provider contracts:
-  - `ReadExisting(ctx, ref) -> ProviderSnapshot`
-  - `ApplyIntent(ctx, intent) -> ApplyResult`
-  - `ClassifyError(err) -> transient | blocked | manual | fatal`
+  - `ReadExisting(ctx, ref) → ProviderSnapshot`
+  - `ApplyIntent(ctx, intent) → ApplyResult`
+  - `ClassifyError(err) → transient | blocked | manual | fatal`
   - Sheets-specific:
-    - `StageWorkbook(ctx, publishSpec) -> StageResult`
-    - `ValidateSentinel(ctx, stageRef) -> ValidationResult`
-    - `ApplyPointers(ctx, pointerSpec) -> ApplyResult`
+    - `StageWorkbook(ctx, publishSpec) → StageResult`
+    - `ValidateSentinel(ctx, stageRef) → ValidationResult`
+    - `ApplyPointers(ctx, pointerSpec) → ApplyResult`
 
 ## Sync Transparency Dashboard
 - Data sync is a first-class subsystem inside the workflow engine, not a sidecar report.

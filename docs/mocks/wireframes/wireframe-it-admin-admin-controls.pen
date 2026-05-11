@@ -1850,23 +1850,6 @@
           "textGrowth": "auto"
         },
         {
-          "type": "frame",
-          "id": "f100",
-          "name": "Rect",
-          "x": 398,
-          "y": 102,
-          "width": 110,
-          "height": 28,
-          "fill": "#CEB770",
-          "cornerRadius": 7,
-          "layout": "none",
-          "stroke": {
-            "thickness": 1,
-            "fill": "#CEB770",
-            "align": "inside"
-          }
-        },
-        {
           "type": "text",
           "id": "t102",
           "content": "Manage system controls, integrations, mappings, and provisioning behavior.",

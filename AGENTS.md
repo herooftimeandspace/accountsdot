@@ -72,7 +72,7 @@ This file applies to the whole repository. It condenses durable repo-specific in
 - Strict ordering must use sequence-backed `global_tick`, never UUID sort order.
 - Database retry behavior belongs in `internal/db.WithRetry(ctx, pool, fn)` with jittered exponential backoff for serialization and deadlock-class failures.
 - Provider writes must be idempotent and backed by deterministic idempotency keys plus `external_request_log`.
-- Resource allocation is two-phase where applicable, such as `available -> reserved_for_job_id -> assigned_to_person_id`.
+- Resource allocation is two-phase where applicable, such as `available → reserved_for_job_id → assigned_to_person_id`.
 - Long-running sync jobs may finish even if the next cadence window arrives. Prevent conflicting overlapping runs for the same provider or job family.
 - IncidentIQ tickets are the standard fallback for work automation cannot complete directly. Ticket descriptions must be complete enough for the assignee to act without reopening the parent workflow.
 

@@ -197,12 +197,12 @@ const STUDENT_COLUMNS = [
   {
     key: "firstNameClean",
     label: "FirstName",
-    value: (row) => `${row.firstNameRaw} -> ${row.firstNameClean}`,
+    value: (row) => `${row.firstNameRaw} → ${row.firstNameClean}`,
   },
   {
     key: "lastNameClean",
     label: "LastName",
-    value: (row) => `${row.lastNameRaw} -> ${row.lastNameClean}`,
+    value: (row) => `${row.lastNameRaw} → ${row.lastNameClean}`,
   },
   { key: "issueType", label: "Issue Type", value: (row) => row.issueType },
   { key: "grade", label: "Grade", value: (row) => row.grade, sortValue: (row) => Number(row.grade) },
@@ -381,8 +381,8 @@ function StudentDataOverlay({
             >
               <div>{row.studentId}</div>
               <div>{row.studentName}</div>
-              <div>{row.firstNameRaw} -&gt; {row.firstNameClean}</div>
-              <div>{row.lastNameRaw} -&gt; {row.lastNameClean}</div>
+              <div>{row.firstNameRaw} → {row.firstNameClean}</div>
+              <div>{row.lastNameRaw} → {row.lastNameClean}</div>
               <div>{row.issueType}</div>
               <div>{row.grade}</div>
               <div>{row.submitted}</div>

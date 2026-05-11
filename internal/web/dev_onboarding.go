@@ -1122,7 +1122,7 @@ func devSeedOnboardingRows(now time.Time) []onboardingRowPayload {
 			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-06", EffectiveDate: "2025-05-06", Person: "Jordan Miles", Site: "Clover HS", CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", LateStart: isLateStart("2025-05-06", now), ScheduledFor: scheduledFor, AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
 			WorkflowSteps: []onboardingWorkflowStep{
 				{Name: "Google account", Status: "Complete", Detail: "The account exists and baseline profile planning has completed."},
-				{Name: "Entra convergence", Status: "Running", Detail: "AD -> Entra propagation is still inside the expected one-hour window."},
+				{Name: "Entra convergence", Status: "Running", Detail: "AD → Entra propagation is still inside the expected one-hour window."},
 				{Name: "IncidentIQ user sync", Status: "Waiting", Detail: "IncidentIQ is expected to sync from Google and Aeries on its normal cadence."},
 			},
 		},
