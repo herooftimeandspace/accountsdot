@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -71,6 +72,26 @@ type phoneDirectoryResponse struct {
 			ExtensionLength int    `json:"extension_length"`
 			ExtensionValid  bool   `json:"extension_valid"`
 		} `json:"results"`
+	} `json:"page"`
+}
+
+type globalSearchResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		Query  string `json:"query"`
+		Groups []struct {
+			ID      string `json:"id"`
+			Title   string `json:"title"`
+			Results []struct {
+				ID          string `json:"id"`
+				Type        string `json:"type"`
+				Title       string `json:"title"`
+				Subtitle    string `json:"subtitle"`
+				Context     string `json:"context"`
+				Destination string `json:"destination"`
+				Source      string `json:"source"`
+			} `json:"results"`
+		} `json:"groups"`
 	} `json:"page"`
 }
 
@@ -265,6 +286,29 @@ func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.
 		t.Fatalf("login %s did not set session cookie", personaID)
 	}
 	return cookie
+}
+
+func globalSearchHasResult(payload globalSearchResponse, groupID string, titleMatch string) bool {
+	for _, group := range payload.Page.Groups {
+		if group.ID != groupID {
+			continue
+		}
+		for _, result := range group.Results {
+			if strings.Contains(result.Title, titleMatch) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func phoneDirectoryHasTitle(payload phoneDirectoryResponse, title string) bool {
+	for _, result := range payload.Page.Results {
+		if result.Title == title {
+			return true
+		}
+	}
+	return false
 }
 
 func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cookie *http.Cookie, firstName string, lastName string) string {
@@ -1522,6 +1566,88 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
+	t.Run("global search covers accessible search types", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+		cases := []struct {
+			name       string
+			query      string
+			groupID    string
+			titleMatch string
+		}{
+			{name: "name", query: "Riley Vale", groupID: "people", titleMatch: "Riley Vale"},
+			{name: "email", query: "riley.vale@mock.wusd.invalid", groupID: "people", titleMatch: "Riley Vale"},
+			{name: "phone", query: "555-4017", groupID: "people", titleMatch: "Riley Vale"},
+			{name: "extension", query: "34017", groupID: "people", titleMatch: "Riley Vale"},
+			{name: "employee id", query: "EMP-MOCK-1002", groupID: "people", titleMatch: "Riley Vale"},
+			{name: "student id", query: "S-2026-10088", groupID: "departing-seniors", titleMatch: "Luis Alvarez"},
+			{name: "asset id", query: "IIQ-109284", groupID: "devices-assets", titleMatch: "IIQ-109284"},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/search?q="+url.QueryEscape(tc.query), nil)
+				req.AddCookie(cookie)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("global search returned %d, want 200", rec.Code)
+				}
+				payload := decodeJSON[globalSearchResponse](t, rec)
+				if payload.PageID != "global-search" {
+					t.Fatalf("page id = %q, want global-search", payload.PageID)
+				}
+				if !globalSearchHasResult(payload, tc.groupID, tc.titleMatch) {
+					t.Fatalf("expected %q in group %q for query %q, got %#v", tc.titleMatch, tc.groupID, tc.query, payload.Page.Groups)
+				}
+			})
+		}
+	})
+
+	t.Run("global search does not leak hidden employee id results", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "site_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/search?q=103118", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("global search returned %d, want 200", rec.Code)
+		}
+		payload := decodeJSON[globalSearchResponse](t, rec)
+		if globalSearchHasResult(payload, "offboarding", "Chris Morgan") {
+			t.Fatalf("site admin global search leaked an HR/IT-only employee ID match: %#v", payload.Page.Groups)
+		}
+	})
+
+	t.Run("global search returns an empty payload for no matches", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/search?q=no-such-search-token", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("global search returned %d, want 200", rec.Code)
+		}
+		payload := decodeJSON[globalSearchResponse](t, rec)
+		if len(payload.Page.Groups) != 0 {
+			t.Fatalf("expected empty search groups, got %#v", payload.Page.Groups)
+		}
+	})
+
+	t.Run("phone directory numeric extension search returns the matching row", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/phone-directory/by-person?q=34017", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("phone directory search returned %d, want 200", rec.Code)
+		}
+		payload := decodeJSON[phoneDirectoryResponse](t, rec)
+		if !phoneDirectoryHasTitle(payload, "Riley Vale") {
+			t.Fatalf("expected Riley Vale in numeric extension search results, got %#v", payload.Page.Results)
+		}
+	})
+
 	t.Run("logout clears dev session", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "site_admin")
 
@@ -1554,6 +1680,7 @@ func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
 		"/api/v1/dev/session",
 		"/api/v1/dev/login",
 		"/api/v1/dev/logout",
+		"/api/v1/dev/search",
 		"/api/v1/dev/pages/onboarding",
 		"/api/v1/dev/onboarding/manual-drafts",
 		"/api/v1/dev/pages/data-quality",
@@ -1579,6 +1706,7 @@ func TestDevFrontendRoutesDisabledWhenAppEnvUnset(t *testing.T) {
 		"/api/v1/dev/session",
 		"/api/v1/dev/login",
 		"/api/v1/dev/logout",
+		"/api/v1/dev/search",
 		"/api/v1/dev/pages/onboarding",
 		"/api/v1/dev/onboarding/manual-drafts",
 		"/api/v1/dev/pages/data-quality",

@@ -22,6 +22,7 @@ const (
 )
 
 var (
+	devGlobalSearchRoute     = "/search"
 	devDepartingSeniorsRoute = "/departing-seniors"
 	devPhoneDirectoryRoutes  = []string{
 		"/phone-directory/by-person",
@@ -267,6 +268,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 				"/dashboard/hr-lifecycle",
 				"/dashboard/site-admin",
 				"/my-profile",
+				devGlobalSearchRoute,
 				devDepartingSeniorsRoute,
 			},
 			devPhoneDirectoryRoutes,
@@ -303,6 +305,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			[]string{
 				"/dashboard/hr-lifecycle",
 				"/my-profile",
+				devGlobalSearchRoute,
 				"/onboarding",
 				"/offboarding",
 			},
@@ -338,6 +341,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			[]string{
 				"/dashboard/site-admin",
 				"/my-profile",
+				devGlobalSearchRoute,
 				"/student-data-cleanup",
 				"/frequent-fliers",
 				"/onboarding",
@@ -371,6 +375,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 		Allowed: append(
 			[]string{
 				"/my-profile",
+				devGlobalSearchRoute,
 				"/student-data-cleanup",
 				"/room-moves",
 			},
@@ -401,6 +406,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 		Allowed: append(
 			[]string{
 				"/my-profile",
+				devGlobalSearchRoute,
 				"/frequent-fliers",
 				devDepartingSeniorsRoute,
 			},
@@ -431,6 +437,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 		Allowed: append(
 			[]string{
 				"/my-profile",
+				devGlobalSearchRoute,
 			},
 			devPhoneDirectoryRoutes...,
 		),

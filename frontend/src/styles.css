@@ -1682,6 +1682,126 @@ input {
   outline: none;
 }
 
+.global-search-runtime {
+  position: relative;
+}
+
+.global-search-runtime__panel {
+  position: absolute;
+  box-sizing: border-box;
+  display: grid;
+  gap: 18px;
+  min-height: 660px;
+  padding: 0;
+}
+
+.global-search-runtime__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.global-search-runtime__header h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.global-search-runtime__header p,
+.global-search-runtime__empty p {
+  margin: 6px 0 0;
+  color: var(--color-accent-deep-navy);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.global-search-runtime__groups {
+  display: grid;
+  gap: 16px;
+}
+
+.global-search-runtime__group {
+  display: grid;
+  gap: 10px;
+}
+
+.global-search-runtime__group h3,
+.global-search-runtime__empty h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.global-search-runtime__results {
+  display: grid;
+  gap: 8px;
+}
+
+.global-search-runtime__result {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(360px, 1.5fr) minmax(150px, 0.45fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 58px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--color-text);
+  cursor: pointer;
+  font: 400 13px/1.4 var(--font-ui);
+  text-align: left;
+}
+
+.global-search-runtime__result:hover,
+.global-search-runtime__result:focus-visible {
+  border-color: var(--color-highlight);
+  background: rgba(206, 183, 112, 0.14);
+}
+
+.global-search-runtime__result:focus-visible {
+  outline: 3px solid rgba(45, 126, 210, 0.5);
+  outline-offset: 2px;
+}
+
+.global-search-runtime__result-main,
+.global-search-runtime__result-context,
+.global-search-runtime__result-source {
+  min-width: 0;
+}
+
+.global-search-runtime__result-main {
+  display: grid;
+  gap: 2px;
+}
+
+.global-search-runtime__result-main strong {
+  overflow-wrap: anywhere;
+}
+
+.global-search-runtime__result-main span,
+.global-search-runtime__result-source {
+  color: var(--color-accent-slate);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.global-search-runtime__result-context {
+  color: var(--color-accent-deep-navy);
+}
+
+.global-search-runtime__empty {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 12px;
+  background: rgba(221, 226, 227, 0.18);
+}
+
 .dev-toolbar__meta {
   display: flex;
   justify-content: space-between;

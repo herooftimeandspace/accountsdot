@@ -7,6 +7,7 @@ import { DepartingSeniorsPage } from "./pages/DepartingSeniorsPage";
 import { OffboardingPage } from "./pages/OffboardingPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { PhoneDirectoryPage } from "./pages/PhoneDirectoryPage";
+import { SearchPage } from "./pages/SearchPage";
 import { StaticPenPage } from "./pages/StaticPenPage";
 import { isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
 
@@ -50,6 +51,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Dashboard";
     case "data-quality":
       return "Data Quality";
+    case "global-search":
+      return "Global Search";
     case "offboarding":
       return "Offboarding";
     case "departing-seniors":
@@ -317,12 +320,19 @@ export function App() {
     (query) => {
       const trimmed = query.trim();
       if (!trimmed) {
-        navigate("/phone-directory/by-person");
+        if (currentRoute?.kind === "global-search") {
+          navigate("/dashboard");
+          return;
+        }
+        const params = new URLSearchParams(currentSearch);
+        params.delete("q");
+        const nextSearch = params.toString();
+        navigate(`${currentPath}${nextSearch ? `?${nextSearch}` : ""}`);
         return;
       }
-      navigate(`/phone-directory/by-person?q=${encodeURIComponent(trimmed)}`);
+      navigate(`/search?q=${encodeURIComponent(trimmed)}`);
     },
-    [navigate]
+    [currentPath, currentRoute?.kind, currentSearch, navigate]
   );
 
   const redirectTarget = useMemo(() => {
@@ -425,6 +435,17 @@ export function App() {
         onForbidden={handleForbidden}
       />
     );
+  } else if (currentRoute?.kind === "global-search") {
+    page = (
+      <SearchPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
   } else if (currentRoute?.kind === "phone-directory") {
     page = (
       <PhoneDirectoryPage
@@ -434,6 +455,7 @@ export function App() {
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}
+        currentSearch={currentSearch}
         onUnauthorized={handleUnauthorized}
         onForbidden={handleForbidden}
       />

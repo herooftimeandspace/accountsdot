@@ -113,6 +113,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/dashboard/it-admin`
   - `/dashboard/hr-lifecycle`
   - `/dashboard/site-admin`
+  - `/search`
   - `/onboarding`
   - `/offboarding`
   - `/room-moves`
@@ -145,6 +146,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     - all routes
   - `Human Resources`
     - `/dashboard/hr-lifecycle`
+    - `/search`
     - `/phone-directory/by-person`
     - `/phone-directory/by-room`
     - `/phone-directory/by-department`
@@ -153,6 +155,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     - `/offboarding`
   - `Site Admin`
     - `/dashboard/site-admin`
+    - `/search`
     - `/phone-directory/by-person`
     - `/phone-directory/by-room`
     - `/phone-directory/by-department`
@@ -163,6 +166,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     - `/offboarding`
     - `/room-moves`
   - `Site Secretary`
+    - `/search`
     - `/phone-directory/by-person`
     - `/phone-directory/by-room`
     - `/phone-directory/by-department`
@@ -170,12 +174,14 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     - `/student-data-cleanup`
     - `/room-moves`
   - `Device Wrangler`
+    - `/search`
     - `/phone-directory/by-person`
     - `/phone-directory/by-room`
     - `/phone-directory/by-department`
     - `/my-profile`
     - `/frequent-fliers`
   - `Faculty and Staff`
+    - `/search`
     - `/phone-directory/by-person`
     - `/phone-directory/by-room`
     - `/phone-directory/by-department`
@@ -196,18 +202,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/reports/ticketing-human-work`
   - `/admin`
 - Shared-header search behavior for the current foundation slice:
-  - the shared header search is a real phone-directory search entrypoint rather than placeholder chrome
-  - submitting a query from any logged-in page should route the user to `Phone Directory / By Person`
-  - the shared header search should accept name, email, phone, extension, and ID input
-  - until the live site-selector behavior exists, `current site` for shared-header search ranking means the persona's default or home site from the session contract
-  - shared-header search results should be mixed and rank in this order:
-    - current-site people matches
-    - current-site room-extension matches
-    - current-site department or shared-line matches
-    - other-site people matches
-    - other-site room-extension matches
-    - other-site department or shared-line matches
-  - within each typed result bucket, exact matches should rank above prefix matches, prefix matches should rank above substring matches, and remaining ties should sort deterministically
+  - the shared header search is a global search entrypoint rather than Phone Directory-only chrome
+  - submitting a query from any logged-in page should route the user to `/search?q=...`
+  - the shared header search should accept name, email, phone, extension, employee ID, student ID, asset ID, serial number, and workflow/action text input
+  - global results should group matches by accessible source projection, including people, rooms/extensions, departments/lines, onboarding, offboarding, departing seniors, devices/assets, and workflow/action records where DEV mock data exists
+  - global search must respect persona route access and field visibility; for example, employee IDs remain visible and searchable only for `IT Admin` and `Human Resources`
+  - Phone Directory table search/sort remains page-local filtering for the currently active directory mode
+  - within each grouped result bucket, exact matches should rank above prefix matches, prefix matches should rank above substring matches, and remaining ties should sort deterministically
 - Implemented error-page requirements for the current foundation slice:
   - the application should support explicit first-pass error views for `401`, `403`, `404`, `500`, `502`, and `503`, plus a generic fallback for other supported HTTP codes
   - logged-out error pages should render without sidebar or header
@@ -614,7 +615,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/phone-directory/by-room`
   - `/phone-directory/by-department`
 - Switching between phone-directory modes must preserve only the current query parameter `q` and must reset all mode-specific filters, including directory focus, on every mode change.
-- The shared header search should continue to route to `Phone Directory / By Person`, while the reusable table search/sort primitive searches the currently active phone-directory mode.
+- The shared header search should route to the global `/search` page, while the reusable table search/sort primitive searches the currently active phone-directory mode.
 - The phone directory must expose a DEV-only directory focus dropdown for implemented mock pages:
   - `IT Admin` and `Human Resources` default to `District-wide`
   - site-level and staff personas default to their current or assigned site

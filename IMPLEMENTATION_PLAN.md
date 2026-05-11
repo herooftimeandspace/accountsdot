@@ -367,18 +367,18 @@
   - DEV-only mock auth, session, and page routes must require `APP_ENV=development` explicitly so missing `APP_ENV` fails closed outside development
   - the DEV login flow is mock-only in this slice: clicking `Log in with Google` establishes a signed-in DEV session and redirects to `/dashboard`, while a user who is already authenticated and authorized skips `/login` and goes directly to `/dashboard`
   - logout must return the browser to `/login`
-  - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/onboarding`, `/offboarding`, `/room-moves`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/sync-transparency`, `/reports/ticketing-human-work`, `/admin`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
+  - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/room-moves`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/sync-transparency`, `/reports/ticketing-human-work`, `/admin`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
   - the user-facing `Invalid Student Names` page is renamed to `Student Data Cleanup` in title, route, sidebar label, and operator-facing queue/report references; technical invalid-name detection terminology may remain in source-data logic where needed
   - role-based landing defaults for this slice are: `IT Admin` -> `/dashboard/it-admin`, `Human Resources` -> `/dashboard/hr-lifecycle`, `Site Admin` -> `/dashboard/site-admin`, `Site Secretary` -> `/phone-directory/by-room`, `Device Wrangler` -> `/frequent-fliers`, and `Faculty and Staff` -> `/phone-directory/by-person`
   - the DEV persona switcher is a live mock-session switch for demos rather than a static label preview; on switch, `/dashboard` re-resolves through the new persona's landing route, allowed routes stay in place and rerender, and disallowed current routes route to the new persona's landing route so demos do not strand users on `403`
   - direct-link enforcement remains strict: pages excluded from the active persona's allowed route set must still return `403` when visited directly
   - role-based route visibility for this slice is:
     - `IT Admin`: all routes
-    - `Human Resources`: `/dashboard/hr-lifecycle`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/offboarding`
-    - `Site Admin`: `/dashboard/site-admin`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`
-    - `Site Secretary`: all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`
-    - `Device Wrangler`: all three phone-directory routes, `/my-profile`, `/frequent-fliers`
-    - `Faculty and Staff`: all three phone-directory routes, `/my-profile`
+    - `Human Resources`: `/dashboard/hr-lifecycle`, `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/offboarding`
+    - `Site Admin`: `/dashboard/site-admin`, `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`
+    - `Site Secretary`: `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`
+    - `Device Wrangler`: `/search`, all three phone-directory routes, `/my-profile`, `/frequent-fliers`
+    - `Faculty and Staff`: `/search`, all three phone-directory routes, `/my-profile`
   - scope rules for this slice are:
     - `IT Admin` sees all sites on all allowed pages
     - `Human Resources` sees district-wide data on all allowed pages
@@ -388,16 +388,11 @@
   - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
   - unauthenticated access to any route other than `/login` must return `401`
   - the routes currently reserved to `IT Admin` only are `/dashboard/it-admin`, `/data-quality`, `/reports`, `/reports/sync-transparency`, `/reports/ticketing-human-work`, and `/admin`
-  - the shared header search is implemented as a real phone-directory entrypoint; submitting from any logged-in page routes into `/phone-directory/by-person?q=...`
-  - shared header search accepts name, email, phone, extension, and ID input and uses the session's default/home site as `current site` until the live site-selector slice exists
-  - shared header search result ranking is:
-    - current-site people matches
-    - current-site room-extension matches
-    - current-site department/shared-line matches
-    - other-site people matches
-    - other-site room-extension matches
-    - other-site department/shared-line matches
-  - within each typed result bucket, exact matches outrank prefix matches, prefix matches outrank substring matches, and remaining ties sort deterministically
+  - the shared header search is implemented as a real global-search entrypoint; submitting from any logged-in page routes into `/search?q=...`
+  - shared header search accepts name, email, phone, extension, employee ID, student ID, asset ID, serial number, and workflow/action text input across the DEV projections the current persona can access
+  - shared header search groups results by source/type, including people, rooms/extensions, departments/lines, onboarding, offboarding, departing seniors, devices/assets, and workflow/action records where mock data exists
+  - global search must respect persona route access and field visibility; employee IDs are included only for `IT Admin` and `Human Resources`
+  - within each grouped result bucket, exact matches outrank prefix matches, prefix matches outrank substring matches, and remaining ties sort deterministically
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Purpose:
@@ -2177,7 +2172,7 @@
   - `/phone-directory/by-room`
   - `/phone-directory/by-department`
 - preserve only the shared query parameter `q` when switching directory modes and reset all mode-specific filters, including directory focus, on every mode change
-- keep the shared header search routing unchanged so it still lands on `Phone Directory / By Person`, while the reusable table search/sort primitive searches the currently active directory mode
+- route shared header search to the global `/search` page, while the reusable table search/sort primitive searches the currently active directory mode
 - use the DEV-only directory focus dropdown only for result ordering:
   - `IT Admin` and `Human Resources` default to `District-wide`
   - site-level and staff personas default to their current or assigned site

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
@@ -781,6 +781,7 @@ export function PhoneDirectoryPage({
   const [payload, setPayload] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedResultId, setSelectedResultId] = useState("");
+  const activeRequestKeyRef = useRef("");
 
   useEffect(() => {
     setSelectedResultId("");
@@ -793,6 +794,15 @@ export function PhoneDirectoryPage({
     return nextArtboard;
   }, [artboardKey, resultCount]);
   const nodeIndex = useMemo(() => buildNodeIndex(artboard), [artboard]);
+  const requestKey = useMemo(() => {
+    const params = new URLSearchParams(currentSearch);
+    return JSON.stringify({
+      endpoint: modeConfig?.endpoint ?? "",
+      personaId: session?.current_persona?.id ?? "",
+      q: searchQuery.trim(),
+      siteId: params.get("site_id")?.trim() ?? "",
+    });
+  }, [currentSearch, modeConfig?.endpoint, searchQuery, session?.current_persona?.id]);
 
   useEffect(() => {
     if (!session?.authenticated || !session?.authorized || !modeConfig) {
@@ -800,18 +810,19 @@ export function PhoneDirectoryPage({
     }
 
     const controller = new AbortController();
+    activeRequestKeyRef.current = requestKey;
+    const request = JSON.parse(requestKey);
 
     async function loadPage() {
       setPageState("loading");
       setErrorMessage("");
       try {
         const requestUrl = new URL(modeConfig.endpoint, window.location.origin);
-        if (searchQuery.trim()) {
-          requestUrl.searchParams.set("q", searchQuery.trim());
+        if (request.q) {
+          requestUrl.searchParams.set("q", request.q);
         }
-        const directoryScopeQuery = new URLSearchParams(currentSearch).get("site_id");
-        if (directoryScopeQuery?.trim()) {
-          requestUrl.searchParams.set("site_id", directoryScopeQuery.trim());
+        if (request.siteId) {
+          requestUrl.searchParams.set("site_id", request.siteId);
         }
 
         const response = await fetch(requestUrl, {
@@ -831,6 +842,9 @@ export function PhoneDirectoryPage({
           throw new Error(`Phone Directory request failed with ${response.status}`);
         }
         const nextPayload = await response.json();
+        if (controller.signal.aborted || activeRequestKeyRef.current !== requestKey) {
+          return;
+        }
         setPayload(nextPayload);
         setSelectedResultId((current) => {
           const results = nextPayload?.page?.results ?? [];
@@ -851,7 +865,7 @@ export function PhoneDirectoryPage({
         });
         setPageState("ready");
       } catch (error) {
-        if (controller.signal.aborted) {
+        if (controller.signal.aborted || activeRequestKeyRef.current !== requestKey) {
           return;
         }
         setPayload(null);
@@ -864,7 +878,7 @@ export function PhoneDirectoryPage({
 
     void loadPage();
     return () => controller.abort();
-  }, [currentSearch, modeConfig, onForbidden, onUnauthorized, searchQuery, session]);
+  }, [modeConfig, onForbidden, onUnauthorized, requestKey, session?.authenticated, session?.authorized]);
 
   const textOverrides = useMemo(
     () => buildTextOverrides(session, payload, modeConfig, searchQuery),
