@@ -16,6 +16,8 @@ const warningChecks = [
   "bordered-wrapper-gap",
   "text-overflow",
   "table-baseline",
+  "runtime-hidden-node-debt",
+  "source-shell-overlap",
 ];
 
 function readJSON(absolutePath) {
@@ -298,12 +300,62 @@ function warnTableBaseline(nodes, page, warnings) {
   }
 }
 
+function warnRuntimeHiddenNodeDebt(warnings) {
+  const pagesDir = path.join(repoRoot, "frontend", "src", "pages");
+  const pageFiles = fs.readdirSync(pagesDir).filter((file) => file.endsWith(".jsx")).sort();
+  let emitted = 0;
+  for (const file of pageFiles) {
+    if (emitted >= maxWarningsPerCheck) {
+      return;
+    }
+    const source = fs.readFileSync(path.join(pagesDir, file), "utf8");
+    const explicitHiddenConstants = (source.match(/\b(?:HIDDEN|STATIC)_[A-Z0-9_]*NODE[A-Z0-9_]*\b/g) ?? []).length;
+    const hiddenPushes = (source.match(/hiddenNodeIds\.push/g) ?? []).length;
+    const generatedPaneCollectors = (source.match(/collect(?:Generated)?PaneNodeIds|collectPaneNodeIds/g) ?? []).length;
+    const score = explicitHiddenConstants + hiddenPushes + generatedPaneCollectors;
+    if (score >= 3) {
+      warnings.push(
+        `${file}: runtime hides generated artboard nodes in ${score} places; prefer removing never-visible nodes from the authoritative PEN`
+      );
+      emitted += 1;
+    }
+  }
+}
+
+function sourceShellNodeCount(page) {
+  if (page.mode !== "merge-shell" || !page.sourcePen) {
+    return 0;
+  }
+  const sourcePath = path.join(repoRoot, page.sourcePen);
+  if (!fs.existsSync(sourcePath)) {
+    return 0;
+  }
+  const root = readJSON(sourcePath).children?.[0];
+  if (!root) {
+    return 0;
+  }
+  return flattenNodes(root)
+    .filter((node) => node.id !== root.id)
+    .filter((node) => (node.x ?? 0) < 264 || (node.y ?? 0) < 76)
+    .length;
+}
+
+function warnSourceShellOverlap(page, warnings) {
+  const count = sourceShellNodeCount(page);
+  if (count > 0) {
+    warnings.push(
+      `${page.key}: source PEN includes ${count} shell-region nodes ignored by merge-shell; keep shared shell changes in wireframe-shared-shell.pen`
+    );
+  }
+}
+
 function runArtboardWarnings(nodes, page, artboard, warnings) {
   warnFragmentedParagraphs(nodes, page, warnings);
   warnTextDividerGap(nodes, page, warnings);
   warnBorderedWrapperGap(nodes, page, warnings);
   warnTextOverflow(nodes, page, artboard, warnings);
   warnTableBaseline(nodes, page, warnings);
+  warnSourceShellOverlap(page, warnings);
 }
 
 function loadManifest() {
@@ -324,6 +376,7 @@ function runLint({ includeDriftCheck = true } = {}) {
 
   const manifest = loadManifest();
   assertRoleNavReflowSource(failures);
+  warnRuntimeHiddenNodeDebt(warnings);
 
   for (const page of manifest.artboards) {
     const artboardPath = path.join(generatedDir, `${page.key}.artboard.json`);
