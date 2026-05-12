@@ -221,13 +221,14 @@ func handleDevRoomMovesBulkDraftPage(w http.ResponseWriter, r *http.Request) {
 	}
 	draftID := strings.TrimSpace(r.URL.Query().Get("draft_id"))
 	draft := devRoomMoveStore.ensureBulkDraft(config, draftID, roomMoveTypeBulkRoster)
+	title := roomMoveBulkDraftTitle(draft.Mode)
 	writeJSON(w, http.StatusOK, roomMovesBulkDraftPayload{
 		PageID:      "room-moves-bulk-draft",
 		Persona:     config.Persona,
 		Shell:       config.Shell,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		Page: roomMovesBulkDraftContent{
-			Title:             "Bulk Room Move Draft",
+			Title:             title,
 			Description:       "Draft, review, schedule, and commit room changes for employees and contractors.",
 			LastRefreshed:     "Last refreshed:\nMay 3, 2026 9:00 AM PT",
 			CanManageDistrict: canManageDistrictRoomMoves(config),
@@ -238,6 +239,13 @@ func handleDevRoomMovesBulkDraftPage(w http.ResponseWriter, r *http.Request) {
 			Draft:             draft,
 		},
 	})
+}
+
+func roomMoveBulkDraftTitle(mode string) string {
+	if mode == roomMoveTypeBuildList {
+		return "Batch Move"
+	}
+	return "Site Rollover"
 }
 
 func handleDevRoomMoveDrafts(w http.ResponseWriter, r *http.Request) {

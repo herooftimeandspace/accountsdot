@@ -172,6 +172,10 @@ function RoomMovesStatusBadge({ status }) {
   return <span className={statusClass(status)}>{status}</span>;
 }
 
+function bulkDraftModeLabel(mode) {
+  return mode === "manual_move_list" ? "Batch Move" : "Site Rollover";
+}
+
 function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow, cancelingDraftId }) {
   const table = useRuntimeTableData(rows, ROOM_MOVES_TABLE_COLUMNS, {
     defaultSort: { key: "person", direction: "asc" },
@@ -529,7 +533,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
     >
       <div className="room-moves-runtime__bulk-toolbar">
         <div>
-          <strong>{draft.mode === "manual_move_list" ? "Build Move List" : "Bulk Site Roster"}</strong>
+          <strong>{bulkDraftModeLabel(draft.mode)}</strong>
           <span>{draft.scope_site}</span>
         </div>
         <label htmlFor="room-move-effective-date">
@@ -694,7 +698,13 @@ export function RoomMovesPage({
     return () => controller.abort();
   }, [endpoint, onForbidden, onUnauthorized, reloadKey, session]);
 
-  const textOverrides = useMemo(() => buildSharedShellTextOverrides(session), [session]);
+  const textOverrides = useMemo(() => {
+    const overrides = buildSharedShellTextOverrides(session);
+    if (isBulk) {
+      overrides[nodeIdForSuffix(artboardKey, "t71")] = payload?.page?.title || "Site Rollover";
+    }
+    return overrides;
+  }, [artboardKey, isBulk, payload?.page?.title, session]);
   const hiddenNodeIds = useMemo(
     () => [
       ...buildSharedShellHiddenNodeIds(session, {
@@ -869,7 +879,7 @@ export function RoomMovesPage({
 
   return (
     <main id="main-content" className="page-canvas" aria-busy={pageState === "loading"}>
-      <h1 id={ROOM_MOVES_HEADING_ID} className="sr-only">{isBulk ? "Bulk Room Move Draft" : "Room Moves"}</h1>
+      <h1 id={ROOM_MOVES_HEADING_ID} className="sr-only">{isBulk ? payload?.page?.title || "Site Rollover" : "Room Moves"}</h1>
       <div className="page-canvas__frame">
         <PenArtboard
           artboard={artboard}
