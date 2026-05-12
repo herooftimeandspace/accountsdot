@@ -46,6 +46,7 @@ const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
   "f300", "t301", "f302", "t303", "f304", "t305",
 ];
 const HIDDEN_BULK_DRAFT_NODE_SUFFIXES = [
+  "t72",
   "f76", "t77", "t78", "t79", "f80", "t81", "t82", "t83",
   "f84", "t85", "t86", "t87", "f88", "t89", "t90", "t91",
   "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
@@ -170,10 +171,6 @@ function defaultDestinationRoom(person, destinationSiteId) {
 
 function RoomMovesStatusBadge({ status }) {
   return <span className={statusClass(status)}>{status}</span>;
-}
-
-function bulkDraftModeLabel(mode) {
-  return mode === "manual_move_list" ? "Batch Move" : "Site Rollover";
 }
 
 function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow, cancelingDraftId }) {
@@ -533,7 +530,6 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
     >
       <div className="room-moves-runtime__bulk-toolbar">
         <div>
-          <strong>{bulkDraftModeLabel(draft.mode)}</strong>
           <span>{draft.scope_site}</span>
         </div>
         <label htmlFor="room-move-effective-date">
