@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
 } from "../lib/sharedShellPresentation";
+import { devMeasureAsync } from "../lib/devPerformance";
 
 const DEPARTING_SENIORS_ENDPOINT = "/api/v1/dev/pages/departing-seniors";
 const DEPARTING_SENIORS_RECORDS_ENDPOINT = "/api/v1/dev/departing-seniors/records";
@@ -223,17 +224,19 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
   const [savingRowId, setSavingRowId] = useState("");
   const [error, setError] = useState("");
 
-  const artboard = generatedArtboards.offboarding;
+  const { artboard, status: artboardStatus } = useGeneratedArtboard("offboarding");
 
   const loadPage = useCallback(async () => {
     setPageState("loading");
     setError("");
     try {
-      const nextPayload = await readJSON(
-        await fetch(DEPARTING_SENIORS_ENDPOINT, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        })
+      const nextPayload = await devMeasureAsync("page-payload-fetch", { page: "departing-seniors" }, async () =>
+        readJSON(
+          await fetch(DEPARTING_SENIORS_ENDPOINT, {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+          })
+        )
       );
       setPayload(nextPayload);
       setPageState("ready");
@@ -296,22 +299,30 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
     }
   }, [loadPage]);
 
-  const textOverrides = buildSharedShellTextOverrides(session);
-  const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
-    hideNavHighlight: true,
-    hideSearchPlaceholder: true,
-    hideAllNavGroups: true,
-  });
-  hiddenNodeIds.push(...collectGeneratedPaneNodeIds(artboard));
-  const imageNodeOverrides = buildSharedShellImageOverrides(session);
-  const sharedShellRenderOverlay = createSharedShellRenderOverlay({
-    session,
-    onNavigate,
-    onSearch,
-    searchQuery,
-    activeNavKey: "departingSeniors",
-    refreshMetadata: payload?.page?.last_refreshed,
-  });
+  const generatedPaneNodeIds = useMemo(() => artboard ? collectGeneratedPaneNodeIds(artboard) : [], [artboard]);
+  const textOverrides = useMemo(() => buildSharedShellTextOverrides(session), [session]);
+  const hiddenNodeIds = useMemo(() => {
+    const ids = buildSharedShellHiddenNodeIds(session, {
+      hideNavHighlight: true,
+      hideSearchPlaceholder: true,
+      hideAllNavGroups: true,
+    });
+    ids.push(...generatedPaneNodeIds);
+    return ids;
+  }, [generatedPaneNodeIds, session]);
+  const imageNodeOverrides = useMemo(() => buildSharedShellImageOverrides(session), [session]);
+  const sharedShellRenderOverlay = useMemo(
+    () =>
+      createSharedShellRenderOverlay({
+        session,
+        onNavigate,
+        onSearch,
+        searchQuery,
+        activeNavKey: "departingSeniors",
+        refreshMetadata: payload?.page?.last_refreshed,
+      }),
+    [onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
+  );
 
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (
     <>
@@ -339,7 +350,7 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
     </>
   ), [error, handleDeprovision, handleSaveEndDate, payload, savingRowId, sharedShellRenderOverlay]);
 
-  if (pageState === "loading") {
+  if (artboardStatus === "loading" || pageState === "loading") {
     return (
       <main id="main-content" className="page-status" aria-live="polite">
         <section className="page-status__card">
@@ -359,6 +370,10 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
         </section>
       </main>
     );
+  }
+
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Departing Seniors unavailable</h1></main>;
   }
 
   return (

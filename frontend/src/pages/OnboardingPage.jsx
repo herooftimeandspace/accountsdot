@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
@@ -821,7 +822,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   const activeDraftRef = useRef(null);
   const draftFormRef = useRef(EMPTY_DRAFT_FORM);
 
-  const artboard = generatedArtboards.onboarding;
+  const { artboard, status: artboardStatus } = useGeneratedArtboard("onboarding");
   const meta = generatedArtboardMeta.onboarding;
   const personaId = session?.current_persona?.id ?? "";
 
@@ -1028,10 +1029,12 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard("onboarding"),
     helpContent: ONBOARDING_HELP_CONTENT,
   });
-  const semanticSummary = buildArtboardSemanticSummary(artboard, {
-    fallbackTitle: "Onboarding Dashboard",
-    textOverrides,
-  });
+  const semanticSummary = artboard
+    ? buildArtboardSemanticSummary(artboard, {
+        fallbackTitle: "Onboarding Dashboard",
+        textOverrides,
+      })
+    : { title: "Onboarding Dashboard", items: [] };
 
   const rows = payload?.page?.rows ?? [];
   const formOptions = payload?.form ?? {
@@ -1100,7 +1103,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     sharedShellRenderOverlay,
   ]);
 
-  if (pageState === "loading") {
+  if (artboardStatus === "loading" || pageState === "loading") {
     return (
       <main id="main-content" className="page-status" aria-live="polite">
         <section className="page-status__card">
@@ -1120,6 +1123,10 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
         </section>
       </main>
     );
+  }
+
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Onboarding unavailable</h1></main>;
   }
 
   return (

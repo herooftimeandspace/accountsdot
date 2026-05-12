@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
@@ -404,14 +405,14 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
  * FrequentFliersPage renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
 export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery }) {
-  const artboard = generatedArtboards[ARTBOARD_KEY];
+  const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
   const [filters, setFilters] = useState({ threshold: 2, metric: "devices" });
   const [pendingFilters, setPendingFilters] = useState({ threshold: 2, metric: "devices" });
   const [selectedRow, setSelectedRow] = useState(null);
 
   const textOverrides = buildSharedShellTextOverrides(session);
-  const paneNodeIds = useMemo(() => collectPaneNodeIds(artboard), [artboard]);
+  const paneNodeIds = useMemo(() => artboard ? collectPaneNodeIds(artboard) : [], [artboard]);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
     hideNavHighlight: true,
     hideSearchPlaceholder: true,
@@ -428,10 +429,12 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
     refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
     helpContent: FREQUENT_FLIERS_HELP_CONTENT,
   });
-  const semanticSummary = buildArtboardSemanticSummary(artboard, {
-    fallbackTitle: "Frequent Fliers",
-    textOverrides,
-  });
+  const semanticSummary = artboard
+    ? buildArtboardSemanticSummary(artboard, {
+        fallbackTitle: "Frequent Fliers",
+        textOverrides,
+      })
+    : { title: "Frequent Fliers", items: [] };
   const selectedPayloadRow = selectedRow
     ? FREQUENT_FLIER_ROWS.find((row) => row.id === selectedRow.id) || selectedRow
     : null;
@@ -464,6 +467,20 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
       />
     </>
   ), [filters, handleApply, handlePendingChange, pendingFilters, selectedPayloadRow, sharedShellRenderOverlay]);
+
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading Frequent Fliers</h1>
+          <p>Preparing the generated Frequent Fliers artboard.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Frequent Fliers unavailable</h1></main>;
+  }
 
   return (
     <main id="main-content" className="page-canvas page-canvas--static" aria-labelledby={FREQUENT_FLIERS_HEADING_ID}>

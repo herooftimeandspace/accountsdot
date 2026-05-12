@@ -92,9 +92,7 @@
       "mode": "merge-shell",
       "activeNav": null,
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "phone-directory-by-person",
@@ -185,6 +183,14 @@
       "standardPrimitives": [
         "refresh"
       ]
+    },
+    {
+      "key": "admin-feature-flags",
+      "sourcePen": "docs/mocks/wireframes/wireframe-admin-feature-flags.pen",
+      "mode": "merge-shell",
+      "activeNav": "admin",
+      "loggedInShell": true,
+      "standardPrimitives": []
     },
     {
       "key": "my-profile",
