@@ -35,6 +35,7 @@ export function RuntimeDetailList({ items }) {
 export function RuntimeDrawer({ title, onClose, children, bounds = null, className = "", ariaLive = "polite" }) {
   const titleText = String(title);
   const titleId = `runtime-drawer-title-${titleText.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const devToolbarClass = import.meta.env.DEV ? "runtime-drawer--dev-toolbar-offset" : "";
   const boundedStyle = bounds
     ? {
         position: "absolute",
@@ -69,7 +70,7 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
 
   return (
     <aside
-      className={`runtime-drawer ${bounds ? "runtime-drawer--bounded" : ""} ${className}`.trim()}
+      className={`runtime-drawer ${bounds ? "runtime-drawer--bounded" : ""} ${devToolbarClass} ${className}`.trim()}
       aria-labelledby={titleId}
       aria-live={ariaLive}
       style={boundedStyle}

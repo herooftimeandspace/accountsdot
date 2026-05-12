@@ -1725,6 +1725,7 @@
       - if another user is moving into that room, follow that user's assignment process instead
     - Zoom SLG:
       - remove the user from all shared line groups
+    - the null-room `removal` path is considered a normal automation path when those planned writes can be verified; it should not be sent to manual review merely because the user ends with no room
   - inter-site transfer rules:
     - changing sites requires the user's personal extension to change according to the Zoom phone design
     - remove all SLGs on inter-site moves before reapplying the correct state for the destination

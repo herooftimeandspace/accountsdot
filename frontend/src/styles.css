@@ -399,6 +399,10 @@ input {
   font-family: var(--font-ui);
 }
 
+.runtime-drawer--dev-toolbar-offset:not(.runtime-drawer--bounded) {
+  right: 320px;
+}
+
 .runtime-drawer--bounded {
   display: flex;
   justify-content: flex-end;
@@ -2872,6 +2876,10 @@ input {
     width: auto;
     margin: 12px;
     border-radius: 8px;
+  }
+
+  .runtime-drawer--dev-toolbar-offset:not(.runtime-drawer--bounded) {
+    right: 0;
   }
 
   .page-canvas {

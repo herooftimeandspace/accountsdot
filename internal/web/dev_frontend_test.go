@@ -1839,8 +1839,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		for _, row := range itRoomMoves.Page.Rows {
 			if row.DraftID == "single-jamie-reed" {
 				foundJamieReed = true
-				if row.State != "Ready" || row.Phone != "Convert to shared line group" || row.Warning != "" {
-					t.Fatalf("Jamie Reed room move row = %#v, want ready shared-line conversion without review warning", row)
+				if row.State != "Ready" || row.Phone != "Remove phone and SLGs; convert room to common area" || row.Warning != "" {
+					t.Fatalf("Jamie Reed room move row = %#v, want ready null-room automation without review warning", row)
 				}
 			}
 		}

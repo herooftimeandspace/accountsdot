@@ -318,7 +318,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   }
 
   return (
-    <RuntimeDrawer title={row ? row.person : "Create Room Move"} onClose={onClose}>
+    <RuntimeDrawer title={row ? row.person : "Move Person"} onClose={onClose}>
       {row?.warning ? (
         <div className="room-moves-runtime__warning-bar">
           <strong>Warning</strong>

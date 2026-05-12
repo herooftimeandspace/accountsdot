@@ -633,6 +633,11 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Allow draft save, review, scheduling, and commit.
 - Support add, change, and removal actions per person.
 - Support warnings, primary-teacher selection, null-room outcomes, and manual ticket fallback when automation cannot complete a phone assignment safely.
+- Null-room outcomes are an automation path, not a manual review path:
+  - remove the user from all assigned phones
+  - remove the user from all shared line groups
+  - when the user is the last active user in the source room, convert that room phone to a common area phone according to the Zoom phone documentation in `docs`
+  - create manual review only when the provider write cannot be planned or verified safely
 
 ### 6. Phone Directory Dashboard
 - Replace the current CSV and Google Sheet build process with direct provider-backed data.
