@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_DB: provisioner
       POSTGRES_USER: provisioner
-      POSTGRES_PASSWORD: provisioner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -16,11 +16,13 @@ services:
       retries: 10
 
   app:
-    image: golang:1.26.1
+    image: golang:1.26.2
     working_dir: /workspace
     command: sleep infinity
+    environment:
+      PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     env_file:
-      - .env.example
+      - .env
     volumes:
       - .:/workspace
     ports:
@@ -30,11 +32,13 @@ services:
         condition: service_healthy
 
   worker:
-    image: golang:1.26.1
+    image: golang:1.26.2
     working_dir: /workspace
     command: sleep infinity
+    environment:
+      PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     env_file:
-      - .env.example
+      - .env
     volumes:
       - .:/workspace
     depends_on:

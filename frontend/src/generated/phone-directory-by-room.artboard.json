@@ -1,0 +1,3033 @@
+{
+  "type": "frame",
+  "id": "root",
+  "x": 0,
+  "y": 0,
+  "name": "Phone Directory",
+  "width": 1672,
+  "height": 1080,
+  "fill": "#FFFFFF",
+  "layout": "none",
+  "children": [
+    {
+      "type": "frame",
+      "id": "f2",
+      "x": 0,
+      "y": 0,
+      "name": "Rect",
+      "width": 1672,
+      "height": 1080,
+      "fill": "#FFFFFF",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#FFFFFF"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "f3",
+      "x": 264,
+      "y": 0,
+      "name": "Rect",
+      "width": 1408,
+      "height": 76,
+      "fill": "#FFFFFF",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#DDE2E3"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "f4",
+      "x": 0,
+      "y": 0,
+      "name": "Rect",
+      "width": 264,
+      "height": 1080,
+      "fill": "#FFFFFF",
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#DDE2E3"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "img5",
+      "x": 16,
+      "y": 10,
+      "name": "Image",
+      "width": 64,
+      "height": 64,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "/pen-assets/firefly.png",
+        "mode": "fit"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "t6",
+      "x": 88,
+      "y": 10,
+      "fill": "#01161E",
+      "content": "The WIZARD",
+      "fontFamily": "Arial",
+      "fontSize": 24,
+      "fontWeight": "800"
+    },
+    {
+      "type": "text",
+      "id": "t7",
+      "x": 88,
+      "y": 42,
+      "fill": "#01161E",
+      "textGrowth": "fixed-width-height",
+      "width": 153,
+      "height": 32,
+      "content": "Windsor Identity Zync, Access, & Retirement Dashboard",
+      "fontFamily": "Arial",
+      "fontSize": 10,
+      "fontWeight": "600"
+    },
+    {
+      "type": "text",
+      "id": "t9",
+      "x": 16,
+      "y": 94,
+      "fill": "#CEB770",
+      "content": "Have you checked with The WIZARD?",
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "800"
+    },
+    {
+      "type": "frame",
+      "id": "l10",
+      "x": 16,
+      "y": 122,
+      "name": "Line",
+      "width": 232,
+      "height": 1,
+      "fill": "#DDE2E3",
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "f11",
+      "x": 555,
+      "y": 10,
+      "name": "Rect",
+      "width": 347,
+      "height": 50,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#DDE2E3"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "t12",
+      "x": 607,
+      "y": 19,
+      "fill": "#01161E",
+      "content": "District-wide",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "700"
+    },
+    {
+      "type": "text",
+      "id": "t13",
+      "x": 607,
+      "y": 40,
+      "fill": "#01161E",
+      "content": "All Sites",
+      "fontFamily": "Arial",
+      "fontSize": 12
+    },
+    {
+      "type": "path",
+      "id": "p14",
+      "x": 869,
+      "y": 30,
+      "geometry": "M6 9l6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 8,
+      "height": 8,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p15",
+      "x": 575,
+      "y": 31,
+      "geometry": "M6 22v-18a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p16",
+      "x": 575,
+      "y": 31,
+      "geometry": "M6 12h-2a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p17",
+      "x": 575,
+      "y": 31,
+      "geometry": "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p18",
+      "x": 575,
+      "y": 31,
+      "geometry": "M10 6h4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p19",
+      "x": 575,
+      "y": 31,
+      "geometry": "M10 10h4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p20",
+      "x": 575,
+      "y": 31,
+      "geometry": "M10 14h4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p21",
+      "x": 575,
+      "y": 31,
+      "geometry": "M10 18h4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "f22",
+      "x": 907,
+      "y": 10,
+      "name": "Rect",
+      "width": 500,
+      "height": 50,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#DDE2E3"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "path",
+      "id": "p23",
+      "x": 923,
+      "y": 27,
+      "geometry": "M21 21l-4.34-4.34",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p24",
+      "x": 923,
+      "y": 27,
+      "geometry": "M19 11a8 8 0 1 1-16 0 8 8 0 1 1 16 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t25",
+      "x": 955,
+      "y": 28,
+      "fill": "#01161E",
+      "content": "Search by name, email, phone, extension, or ID...",
+      "fontFamily": "Arial",
+      "fontSize": 12
+    },
+    {
+      "type": "path",
+      "id": "p28",
+      "x": 1412,
+      "y": 19,
+      "geometry": "M10.268 21a2 2 0 0 0 3.464 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 32,
+      "height": 32,
+      "stroke": {
+        "align": "center",
+        "thickness": 2.1,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p29",
+      "x": 1412,
+      "y": 19,
+      "geometry": "M3.262 15.326a1 1 0 0 0 0.738 1.674h16a1 1 0 0 0 0.74-1.673c-1.33-1.371-2.74-2.828-2.74-7.327a6 6 0 0 0-12 0c0 4.499-1.411 5.956-2.738 7.326",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 32,
+      "height": 32,
+      "stroke": {
+        "align": "center",
+        "thickness": 2.1,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "f30",
+      "x": 1432,
+      "y": 15,
+      "name": "Rect",
+      "width": 16,
+      "height": 16,
+      "fill": "#CEB770",
+      "cornerRadius": 8,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#CEB770"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "t31",
+      "x": 1437,
+      "y": 17,
+      "fill": "#01161E",
+      "content": "3",
+      "textAlign": "center",
+      "fontFamily": "Arial",
+      "fontSize": 9,
+      "fontWeight": "700"
+    },
+    {
+      "type": "path",
+      "id": "p32",
+      "x": 1449,
+      "y": 19,
+      "geometry": "M22 12a10 10 0 1 1-20 0 10 10 0 1 1 20 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 32,
+      "height": 32,
+      "stroke": {
+        "align": "center",
+        "thickness": 2.1,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p33",
+      "x": 1449,
+      "y": 19,
+      "geometry": "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 32,
+      "height": 32,
+      "stroke": {
+        "align": "center",
+        "thickness": 2.1,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p34",
+      "x": 1449,
+      "y": 19,
+      "geometry": "M12 17h0.01",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 32,
+      "height": 32,
+      "stroke": {
+        "align": "center",
+        "thickness": 2.1,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "f35",
+      "x": 1486,
+      "y": 10,
+      "name": "Rect",
+      "width": 170,
+      "height": 50,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#DDE2E3"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "ellipse",
+      "id": "e36",
+      "x": 1498,
+      "y": 19,
+      "fill": "#CEB770",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "type": "text",
+      "id": "t37",
+      "x": 1504,
+      "y": 27,
+      "fill": "#01161E",
+      "content": "AR",
+      "textAlign": "center",
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": "800"
+    },
+    {
+      "type": "text",
+      "id": "t38",
+      "x": 1536,
+      "y": 16,
+      "fill": "#01161E",
+      "content": "Alex Ramirez",
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": "700"
+    },
+    {
+      "type": "text",
+      "id": "t39",
+      "x": 1536,
+      "y": 36,
+      "fill": "#01161E",
+      "content": "IT Admin",
+      "fontFamily": "Arial",
+      "fontSize": 12
+    },
+    {
+      "type": "path",
+      "id": "p40",
+      "x": 1630,
+      "y": 31,
+      "geometry": "M6 9l6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 8,
+      "height": 8,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p41",
+      "x": 21,
+      "y": 130,
+      "geometry": "M3 3h7v7h-7z",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p42",
+      "x": 21,
+      "y": 130,
+      "geometry": "M14 3h7v7h-7z",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p43",
+      "x": 21,
+      "y": 130,
+      "geometry": "M14 14h7v7h-7z",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p44",
+      "x": 21,
+      "y": 130,
+      "geometry": "M3 14h7v7h-7z",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t45",
+      "x": 58,
+      "y": 128,
+      "fill": "#01161E",
+      "content": "Dashboard",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p46",
+      "x": 21,
+      "y": 179,
+      "geometry": "M16 21v-2a4 4 0 0 0-4-4h-6a4 4 0 0 0-4 4v2",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p47",
+      "x": 21,
+      "y": 179,
+      "geometry": "M13 7a4 4 0 1 1-8 0 4 4 0 1 1 8 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p48",
+      "x": 21,
+      "y": 179,
+      "geometry": "M19 8l0 6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p49",
+      "x": 21,
+      "y": 179,
+      "geometry": "M22 11l-6 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t50",
+      "x": 58,
+      "y": 177,
+      "fill": "#01161E",
+      "content": "Onboarding",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p51",
+      "x": 224,
+      "y": 184,
+      "geometry": "M6 9l6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 8,
+      "height": 8,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p52",
+      "x": 21,
+      "y": 228,
+      "geometry": "M16 21v-2a4 4 0 0 0-4-4h-6a4 4 0 0 0-4 4v2",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p53",
+      "x": 21,
+      "y": 228,
+      "geometry": "M13 7a4 4 0 1 1-8 0 4 4 0 1 1 8 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p54",
+      "x": 21,
+      "y": 228,
+      "geometry": "M22 11l-6 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t55",
+      "x": 58,
+      "y": 226,
+      "fill": "#01161E",
+      "content": "Offboarding",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p56",
+      "x": 224,
+      "y": 233,
+      "geometry": "M6 9l6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 8,
+      "height": 8,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p57",
+      "x": 21,
+      "y": 277,
+      "geometry": "M8 3l-4 4 4 4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p58",
+      "x": 21,
+      "y": 277,
+      "geometry": "M4 7h16",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p59",
+      "x": 21,
+      "y": 277,
+      "geometry": "M16 21l4-4-4-4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p60",
+      "x": 21,
+      "y": 277,
+      "geometry": "M20 17h-16",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t61",
+      "x": 58,
+      "y": 275,
+      "fill": "#01161E",
+      "content": "Room Moves",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p62",
+      "x": 21,
+      "y": 326,
+      "geometry": "M13.832 16.568a1 1 0 0 0 1.213-0.303l0.355-0.465a2 2 0 0 1 1.6-0.8h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2 18 18 0 0 1-18-18 2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-0.8 1.6l-0.468 0.351a1 1 0 0 0-0.292 1.233 14 14 0 0 0 6.392 6.384",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t63",
+      "x": 58,
+      "y": 324,
+      "fill": "#01161E",
+      "content": "Phone Directory",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "frame",
+      "id": "f64",
+      "x": 12,
+      "y": 363,
+      "name": "Rect",
+      "width": 236,
+      "height": 42,
+      "fill": "#CEB770",
+      "cornerRadius": 8,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "#CEB770"
+      },
+      "layout": "none"
+    },
+    {
+      "type": "path",
+      "id": "p65",
+      "x": 21,
+      "y": 375,
+      "geometry": "M21.73 18l-8-14a2 2 0 0 0-3.48 0l-8 14a2 2 0 0 0 1.75 3h16a2 2 0 0 0 1.73-3",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p66",
+      "x": 21,
+      "y": 375,
+      "geometry": "M12 9v4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p67",
+      "x": 21,
+      "y": 375,
+      "geometry": "M12 17h0.01",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t68",
+      "x": 58,
+      "y": 373,
+      "fill": "#01161E",
+      "content": "Data Quality",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "700"
+    },
+    {
+      "type": "path",
+      "id": "p69",
+      "x": 21,
+      "y": 424,
+      "geometry": "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p70",
+      "x": 21,
+      "y": 424,
+      "geometry": "M20 2v4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p71",
+      "x": 21,
+      "y": 424,
+      "geometry": "M22 4h-4",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p72",
+      "x": 21,
+      "y": 424,
+      "geometry": "M6 20a2 2 0 1 1-4 0 2 2 0 1 1 4 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t73",
+      "x": 58,
+      "y": 422,
+      "fill": "#01161E",
+      "content": "Frequent Fliers",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p74",
+      "x": 21,
+      "y": 473,
+      "geometry": "M10 11v6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p75",
+      "x": 21,
+      "y": 473,
+      "geometry": "M14 11v6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p76",
+      "x": 21,
+      "y": 473,
+      "geometry": "M19 6v14a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2v-14",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p77",
+      "x": 21,
+      "y": 473,
+      "geometry": "M3 6h18",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p78",
+      "x": 21,
+      "y": 473,
+      "geometry": "M8 6v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t79",
+      "x": 58,
+      "y": 471,
+      "fill": "#01161E",
+      "content": "Student Data Cleanup",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p80",
+      "x": 21,
+      "y": 522,
+      "geometry": "M3 3v16a2 2 0 0 0 2 2h16",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p81",
+      "x": 21,
+      "y": 522,
+      "geometry": "M18 17v-8",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p82",
+      "x": 21,
+      "y": 522,
+      "geometry": "M13 17v-12",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p83",
+      "x": 21,
+      "y": 522,
+      "geometry": "M8 17v-3",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t84",
+      "x": 58,
+      "y": 520,
+      "fill": "#01161E",
+      "content": "Reports",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p85",
+      "x": 224,
+      "y": 527,
+      "geometry": "M6 9l6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 8,
+      "height": 8,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p86",
+      "x": 21,
+      "y": 571,
+      "geometry": "M14 17h-9",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p87",
+      "x": 21,
+      "y": 571,
+      "geometry": "M19 7h-9",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p88",
+      "x": 21,
+      "y": 571,
+      "geometry": "M20 17a3 3 0 1 1-6 0 3 3 0 1 1 6 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p89",
+      "x": 21,
+      "y": 571,
+      "geometry": "M10 7a3 3 0 1 1-6 0 3 3 0 1 1 6 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t90",
+      "x": 58,
+      "y": 569,
+      "fill": "#01161E",
+      "content": "Admin",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "500"
+    },
+    {
+      "type": "path",
+      "id": "p91",
+      "x": 224,
+      "y": 576,
+      "geometry": "M6 9l6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 8,
+      "height": 8,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#6E7E85"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p92",
+      "x": 22,
+      "y": 930,
+      "geometry": "M22 12a10 10 0 1 1-20 0 10 10 0 1 1 20 0",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p93",
+      "x": 22,
+      "y": 930,
+      "geometry": "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "path",
+      "id": "p94",
+      "x": 22,
+      "y": 930,
+      "geometry": "M12 17h0.01",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "width": 18,
+      "height": 18,
+      "stroke": {
+        "align": "center",
+        "thickness": 2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#01161E"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t95",
+      "x": 46,
+      "y": 930,
+      "fill": "#01161E",
+      "content": "Support",
+      "fontFamily": "Arial",
+      "fontSize": 14
+    },
+    {
+      "type": "text",
+      "id": "t96",
+      "x": 22,
+      "y": 956,
+      "fill": "#01161E",
+      "content": "Platform Status",
+      "fontFamily": "Arial",
+      "fontSize": 14,
+      "fontWeight": "700"
+    },
+    {
+      "type": "ellipse",
+      "id": "e97",
+      "x": 22,
+      "y": 981,
+      "fill": "#00A878",
+      "width": 10,
+      "height": 10
+    },
+    {
+      "type": "text",
+      "id": "t98",
+      "x": 38,
+      "y": 978,
+      "fill": "#01161E",
+      "content": "All Systems Operational",
+      "fontFamily": "Arial",
+      "fontSize": 12
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t83",
+      "content": "Phone Directory",
+      "x": 288,
+      "y": 100,
+      "fontFamily": "Arial",
+      "fontSize": 32,
+      "fontWeight": "800",
+      "fill": "#01161E",
+      "width": 940,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t84",
+      "content": "Provider-synced directory for one site.",
+      "x": 288,
+      "y": 147,
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 1000,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t85",
+      "content": "Last refreshed: May 2, 2025 9:05 AM PT",
+      "x": 1362,
+      "y": 98,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 247,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f86",
+      "name": "Rect",
+      "x": 1546,
+      "y": 90,
+      "width": 106,
+      "height": 38,
+      "fill": "#CEB770",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#CEB770",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t87",
+      "content": "Refresh",
+      "x": 1574,
+      "y": 101,
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 50,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f88",
+      "name": "Rect",
+      "x": 288,
+      "y": 182,
+      "width": 560,
+      "height": 42,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f89",
+      "name": "Rect",
+      "x": 298,
+      "y": 188,
+      "width": 174,
+      "height": 30,
+      "fill": "#FFFFFF",
+      "cornerRadius": 7,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t90",
+      "content": "By Person",
+      "x": 356,
+      "y": 196,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 59,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f91",
+      "name": "Rect",
+      "x": 482,
+      "y": 188,
+      "width": 174,
+      "height": 30,
+      "fill": "#CEB770",
+      "cornerRadius": 7,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#CEB770",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t92",
+      "content": "By Room",
+      "x": 546,
+      "y": 196,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 46,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f93",
+      "name": "Rect",
+      "x": 666,
+      "y": 188,
+      "width": 194,
+      "height": 30,
+      "fill": "#FFFFFF",
+      "cornerRadius": 7,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t94",
+      "content": "By Department",
+      "x": 721,
+      "y": 196,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 85,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f95",
+      "name": "Rect",
+      "x": 288,
+      "y": 250,
+      "width": 376,
+      "height": 42,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "path",
+      "id": "phone-directory-by-room__p96",
+      "x": 308,
+      "y": 264,
+      "width": 16,
+      "height": 16,
+      "geometry": "m21 21-4.34-4.34",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "stroke": {
+        "thickness": 2,
+        "fill": "#01161E",
+        "align": "center",
+        "cap": "round",
+        "join": "round"
+      }
+    },
+    {
+      "type": "path",
+      "id": "phone-directory-by-room__p97",
+      "x": 308,
+      "y": 264,
+      "width": 16,
+      "height": 16,
+      "geometry": "M 19 11 A 8 8 0 1 1 3 11 A 8 8 0 1 1 19 11",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "stroke": {
+        "thickness": 2,
+        "fill": "#01161E",
+        "align": "center",
+        "cap": "round",
+        "join": "round"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t98",
+      "content": "Search rooms, department, or staff...",
+      "x": 336,
+      "y": 264,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 312,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f99",
+      "name": "Rect",
+      "x": 690,
+      "y": 250,
+      "width": 110,
+      "height": 42,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t100",
+      "content": "Depart...",
+      "x": 707,
+      "y": 264,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 59,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "path",
+      "id": "phone-directory-by-room__p101",
+      "x": 778,
+      "y": 266,
+      "width": 8,
+      "height": 8,
+      "geometry": "m6 9 6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "stroke": {
+        "thickness": 2,
+        "fill": "#01161E",
+        "align": "center",
+        "cap": "round",
+        "join": "round"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f102",
+      "name": "Rect",
+      "x": 816,
+      "y": 250,
+      "width": 110,
+      "height": 42,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t103",
+      "content": "SLG",
+      "x": 852,
+      "y": 264,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 20,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "path",
+      "id": "phone-directory-by-room__p104",
+      "x": 904,
+      "y": 266,
+      "width": 8,
+      "height": 8,
+      "geometry": "m6 9 6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "stroke": {
+        "thickness": 2,
+        "fill": "#01161E",
+        "align": "center",
+        "cap": "round",
+        "join": "round"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f105",
+      "name": "Rect",
+      "x": 942,
+      "y": 250,
+      "width": 110,
+      "height": 42,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t106",
+      "content": "State",
+      "x": 972,
+      "y": 264,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 33,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "path",
+      "id": "phone-directory-by-room__p107",
+      "x": 1030,
+      "y": 266,
+      "width": 8,
+      "height": 8,
+      "geometry": "m6 9 6 6 6-6",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "stroke": {
+        "thickness": 2,
+        "fill": "#01161E",
+        "align": "center",
+        "cap": "round",
+        "join": "round"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f108",
+      "name": "Rect",
+      "x": 1068,
+      "y": 250,
+      "width": 120,
+      "height": 42,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t109",
+      "content": "Clear filters",
+      "x": 1086,
+      "y": 264,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 85,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f110",
+      "name": "Rect",
+      "x": 288,
+      "y": 308,
+      "width": 1268,
+      "height": 520,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t111",
+      "content": "Directory Results - By Room",
+      "x": 306,
+      "y": 321,
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 944,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t112",
+      "content": "Room",
+      "x": 302,
+      "y": 354,
+      "fontFamily": "Arial",
+      "fontSize": 10,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 166,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t113",
+      "content": "Extension",
+      "x": 486,
+      "y": 354,
+      "fontFamily": "Arial",
+      "fontSize": 10,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 76,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t114",
+      "content": "Phone",
+      "x": 580,
+      "y": 354,
+      "fontFamily": "Arial",
+      "fontSize": 10,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 164,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t115",
+      "content": "Assigned To",
+      "x": 762,
+      "y": 354,
+      "fontFamily": "Arial",
+      "fontSize": 10,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 250,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t116",
+      "content": "State",
+      "x": 1030,
+      "y": 354,
+      "fontFamily": "Arial",
+      "fontSize": 10,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 98,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t117",
+      "content": "Action",
+      "x": 1146,
+      "y": 354,
+      "fontFamily": "Arial",
+      "fontSize": 10,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 86,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__l118",
+      "name": "Line",
+      "x": 306,
+      "y": 380,
+      "width": 944,
+      "height": 1,
+      "fill": "#DDE2E3",
+      "cornerRadius": 0,
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t119",
+      "content": "100A - Main Office",
+      "x": 302,
+      "y": 378,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 166,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t120",
+      "content": "350000",
+      "x": 486,
+      "y": 378,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 76,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t121",
+      "content": "(707) 555-1000 x1000",
+      "x": 580,
+      "y": 378,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 164,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t122",
+      "content": "Maria Torres",
+      "x": 762,
+      "y": 378,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 250,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f123",
+      "name": "Rect",
+      "x": 1046,
+      "y": 375,
+      "width": 82,
+      "height": 24,
+      "fill": "#00A878",
+      "cornerRadius": 7,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#00A878",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t124",
+      "content": "Assigned",
+      "x": 1061,
+      "y": 380,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 52,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t125",
+      "content": "Create Room",
+      "x": 1146,
+      "y": 378,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 86,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t126",
+      "content": "Move",
+      "x": 1146,
+      "y": 396,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 86,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__l127",
+      "name": "Line",
+      "x": 306,
+      "y": 434,
+      "width": 944,
+      "height": 1,
+      "fill": "#DDE2E3",
+      "cornerRadius": 0,
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t128",
+      "content": "120 - Library",
+      "x": 302,
+      "y": 432,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 166,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t129",
+      "content": "350120",
+      "x": 486,
+      "y": 432,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 76,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t130",
+      "content": "(707) 555-1000 x1200",
+      "x": 580,
+      "y": 432,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 164,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t131",
+      "content": "James Nguyen",
+      "x": 762,
+      "y": 432,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 250,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f132",
+      "name": "Rect",
+      "x": 1046,
+      "y": 429,
+      "width": 82,
+      "height": 24,
+      "fill": "#00A878",
+      "cornerRadius": 7,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#00A878",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t133",
+      "content": "Assigned",
+      "x": 1061,
+      "y": 434,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 52,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t134",
+      "content": "Open Details",
+      "x": 1146,
+      "y": 432,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 86,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__l135",
+      "name": "Line",
+      "x": 306,
+      "y": 476,
+      "width": 944,
+      "height": 1,
+      "fill": "#DDE2E3",
+      "cornerRadius": 0,
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t136",
+      "content": "220 - Nurse Office",
+      "x": 302,
+      "y": 474,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 166,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t137",
+      "content": "350220",
+      "x": 486,
+      "y": 474,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 76,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t138",
+      "content": "(707) 555-1000 x2200",
+      "x": 580,
+      "y": 474,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 164,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t139",
+      "content": "<empty>",
+      "x": 762,
+      "y": 474,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 250,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f140",
+      "name": "Rect",
+      "x": 1034,
+      "y": 471,
+      "width": 94,
+      "height": 24,
+      "fill": "#89B6E7",
+      "cornerRadius": 7,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#89B6E7",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t141",
+      "content": "Unassigned",
+      "x": 1049,
+      "y": 476,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 65,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t142",
+      "content": "Assign",
+      "x": 1146,
+      "y": 474,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 86,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__l143",
+      "name": "Line",
+      "x": 306,
+      "y": 518,
+      "width": 944,
+      "height": 1,
+      "fill": "#DDE2E3",
+      "cornerRadius": 0,
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t144",
+      "content": "300 - Gymnasium",
+      "x": 302,
+      "y": 516,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 166,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t145",
+      "content": "350300",
+      "x": 486,
+      "y": 516,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 76,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t146",
+      "content": "(707) 555-1000 x3000",
+      "x": 580,
+      "y": 516,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 164,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t147",
+      "content": "Michael Johnson",
+      "x": 762,
+      "y": 516,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 250,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f148",
+      "name": "Rect",
+      "x": 1030,
+      "y": 513,
+      "width": 110,
+      "height": 24,
+      "fill": "#FE5E41",
+      "cornerRadius": 7,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#FE5E41",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t149",
+      "content": "Pending Change",
+      "x": 1040,
+      "y": 518,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 91,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t150",
+      "content": "Review Change",
+      "x": 1146,
+      "y": 516,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 86,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__l151",
+      "name": "Line",
+      "x": 306,
+      "y": 560,
+      "width": 944,
+      "height": 1,
+      "fill": "#DDE2E3",
+      "cornerRadius": 0,
+      "layout": "none"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t152",
+      "content": "Showing 1 to 4 entries",
+      "x": 306,
+      "y": 798,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 143,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f153",
+      "name": "Rect",
+      "x": 1288,
+      "y": 160,
+      "width": 268,
+      "height": 676,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      },
+      "opacity": 0
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t154",
+      "content": "100A - Main Office",
+      "x": 1306,
+      "y": 174,
+      "fontFamily": "Arial",
+      "fontSize": 16,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 198,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "path",
+      "id": "phone-directory-by-room__p155",
+      "x": 1526,
+      "y": 178,
+      "width": 16,
+      "height": 16,
+      "geometry": "M18 6 6 18",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "stroke": {
+        "thickness": 2,
+        "fill": "#01161E",
+        "align": "center",
+        "cap": "round",
+        "join": "round"
+      }
+    },
+    {
+      "type": "path",
+      "id": "phone-directory-by-room__p156",
+      "x": 1526,
+      "y": 178,
+      "width": 16,
+      "height": 16,
+      "geometry": "m6 6 12 12",
+      "viewBox": [
+        0,
+        0,
+        24,
+        24
+      ],
+      "stroke": {
+        "thickness": 2,
+        "fill": "#01161E",
+        "align": "center",
+        "cap": "round",
+        "join": "round"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t157",
+      "content": "Display Name",
+      "x": 1306,
+      "y": 206,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 102,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t158",
+      "content": "Main Office",
+      "x": 1422,
+      "y": 206,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 108,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t159",
+      "content": "Phone / Extension",
+      "x": 1306,
+      "y": 234,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 102,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t161",
+      "content": "(707) 555-1000 x1000",
+      "x": 1422,
+      "y": 234,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 108,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t163",
+      "content": "Assigned To",
+      "x": 1306,
+      "y": 280,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 102,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t164",
+      "content": "Maria Torres",
+      "x": 1422,
+      "y": 280,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 108,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t165",
+      "content": "Current State",
+      "x": 1306,
+      "y": 308,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 102,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t166",
+      "content": "Assigned",
+      "x": 1422,
+      "y": 308,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 108,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__l167",
+      "name": "Line",
+      "x": 1306,
+      "y": 348,
+      "width": 232,
+      "height": 1,
+      "fill": "#DDE2E3",
+      "cornerRadius": 0,
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f168",
+      "name": "Rect",
+      "x": 1306,
+      "y": 366,
+      "width": 232,
+      "height": 40,
+      "fill": "#CEB770",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#CEB770",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t169",
+      "content": "Create Room Move",
+      "x": 1324,
+      "y": 376,
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 196,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f170",
+      "name": "Rect",
+      "x": 1306,
+      "y": 418,
+      "width": 232,
+      "height": 40,
+      "fill": "#FFFFFF",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#DDE2E3",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t171",
+      "content": "View Assignment History",
+      "x": 1324,
+      "y": 428,
+      "fontFamily": "Arial",
+      "fontSize": 13,
+      "fontWeight": "700",
+      "fill": "#01161E",
+      "width": 196,
+      "textGrowth": "auto"
+    },
+    {
+      "type": "frame",
+      "id": "phone-directory-by-room__f172",
+      "name": "Rect",
+      "x": 1306,
+      "y": 470,
+      "width": 232,
+      "height": 92,
+      "fill": "#89B6E7",
+      "cornerRadius": 8,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#89B6E7",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "phone-directory-by-room__t173",
+      "content": "For one-person corrections, site staff can launch a prefilled room-move workflow directly from this panel.",
+      "x": 1320,
+      "y": 480,
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "400",
+      "fill": "#01161E",
+      "width": 200,
+      "textGrowth": "auto"
+    }
+  ]
+}

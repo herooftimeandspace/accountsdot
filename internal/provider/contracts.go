@@ -48,9 +48,20 @@ type PointerSpec struct {
 	StageID    string
 }
 
+type SyncEvaluation struct {
+	Matched bool
+	Payload map[string]any
+	Issues  []string
+}
+
 type WorkflowProvider interface {
 	ReadExisting(context.Context, ProviderReference) (ProviderSnapshot, error)
 	ApplyIntent(context.Context, ProviderIntent) (ApplyResult, error)
+}
+
+type SyncProvider interface {
+	ReadExisting(context.Context, ProviderReference) (ProviderSnapshot, error)
+	Evaluate(context.Context, ProviderReference) (SyncEvaluation, error)
 }
 
 type SheetPublisher interface {

@@ -11,6 +11,7 @@ import (
 func TestPlanWorkflowPersonOnboardWithRoom(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType: core.WorkflowTypePersonOnboard,
+		ChangeReason: core.WorkflowChangeReasonReactivateRoleChange,
 		SubjectKind:  core.SubjectKindPerson,
 		SubjectID:    "person-1",
 		RoomKnown:    true,
@@ -21,6 +22,9 @@ func TestPlanWorkflowPersonOnboardWithRoom(t *testing.T) {
 
 	if result.WorkflowType != core.WorkflowTypePersonOnboard {
 		t.Fatalf("expected workflow type %q, got %q", core.WorkflowTypePersonOnboard, result.WorkflowType)
+	}
+	if result.ChangeReason != core.WorkflowChangeReasonReactivateRoleChange {
+		t.Fatalf("expected change reason %q, got %q", core.WorkflowChangeReasonReactivateRoleChange, result.ChangeReason)
 	}
 
 	want := []string{

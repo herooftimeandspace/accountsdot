@@ -8,13 +8,15 @@ import (
 )
 
 type PlanInput struct {
-	WorkflowType         core.WorkflowType
-	SubjectKind          core.SubjectKind
-	SubjectID            string
-	RoomKnown            bool
-	OldRoomBecomesVacant bool
-	RoomCoverageRequired bool
-	Now                  time.Time
+	WorkflowType              core.WorkflowType
+	ChangeReason              core.WorkflowChangeReason
+	SubjectKind               core.SubjectKind
+	SubjectID                 string
+	RoomKnown                 bool
+	OldRoomBecomesVacant      bool
+	RoomCoverageRequired      bool
+	PrimaryAssignmentRequired bool
+	Now                       time.Time
 }
 
 type FollowUpWorkflow struct {
@@ -25,6 +27,7 @@ type FollowUpWorkflow struct {
 
 type PlanResult struct {
 	WorkflowType core.WorkflowType
+	ChangeReason core.WorkflowChangeReason
 	SubjectKind  core.SubjectKind
 	SubjectID    string
 	Jobs         []core.WorkflowJob
@@ -46,6 +49,7 @@ type plannedStep struct {
 func PlanWorkflow(input PlanInput) (PlanResult, error) {
 	result := PlanResult{
 		WorkflowType: input.WorkflowType,
+		ChangeReason: input.ChangeReason,
 		SubjectKind:  input.SubjectKind,
 		SubjectID:    input.SubjectID,
 	}
@@ -121,6 +125,35 @@ func PlanWorkflow(input PlanInput) (PlanResult, error) {
 	case core.WorkflowTypePersonUpdate, core.WorkflowTypeContextRefresh:
 		result.Jobs = buildJobs([]plannedStep{
 			{provider: core.ProviderKindInternal, operation: "internal.reconcile_subject"},
+		})
+	case core.WorkflowTypeStaffSyncDryRun:
+		steps := []plannedStep{
+			{provider: core.ProviderKindInternal, operation: "internal.sync_ingest_subject"},
+			{provider: core.ProviderKindPhoto, operation: "photo.check_delta"},
+			{provider: core.ProviderKindIncidentIQ, operation: "incident_iq.resolve_room"},
+			{provider: core.ProviderKindIncidentIQ, operation: "incident_iq.resolve_room_asset"},
+			{provider: core.ProviderKindZoom, operation: "zoom.validate_room_membership"},
+		}
+		if input.PrimaryAssignmentRequired {
+			steps = append(steps, plannedStep{provider: core.ProviderKindZoom, operation: "zoom.validate_primary_phone_assignment"})
+		}
+		steps = append(steps, plannedStep{provider: core.ProviderKindInternal, operation: "internal.sync_update_projection"})
+		result.Jobs = buildJobs(steps)
+	case core.WorkflowTypeStudentSyncDryRun:
+		result.Jobs = buildJobs([]plannedStep{
+			{provider: core.ProviderKindInternal, operation: "internal.sync_ingest_subject"},
+			{provider: core.ProviderKindPhoto, operation: "photo.check_delta"},
+			{provider: core.ProviderKindIncidentIQ, operation: "incident_iq.match_person"},
+			{provider: core.ProviderKindInternal, operation: "internal.sync_update_projection"},
+		})
+	case core.WorkflowTypeSyncRecheck:
+		result.Jobs = buildJobs([]plannedStep{
+			{provider: core.ProviderKindInternal, operation: "internal.sync_recheck_subject"},
+		})
+	case core.WorkflowTypeAnnualResetArchive:
+		result.Jobs = buildJobs([]plannedStep{
+			{provider: core.ProviderKindInternal, operation: "internal.archive_completed_sync_rows"},
+			{provider: core.ProviderKindInternal, operation: "internal.clear_sync_exception_overrides"},
 		})
 	default:
 		return PlanResult{}, fmt.Errorf("unsupported workflow type %q", input.WorkflowType)

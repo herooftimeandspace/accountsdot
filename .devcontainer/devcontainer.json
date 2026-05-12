@@ -3,6 +3,7 @@
   "dockerComposeFile": "../compose.yaml",
   "service": "app",
   "workspaceFolder": "/workspace",
+  "postCreateCommand": "go install golang.org/x/vuln/cmd/govulncheck@latest",
   "customizations": {
     "vscode": {
       "extensions": [

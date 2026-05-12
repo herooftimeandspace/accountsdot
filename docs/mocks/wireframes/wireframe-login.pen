@@ -1,0 +1,118 @@
+{
+  "version": "2.11",
+  "children": [
+    {
+      "type": "frame",
+      "id": "root",
+      "name": "Login",
+      "x": 0,
+      "y": 0,
+      "width": 1672,
+      "height": 1080,
+      "fill": "#FFFFFF",
+      "cornerRadius": 0,
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "f2",
+          "name": "Background",
+          "x": 0,
+          "y": 0,
+          "width": 1672,
+          "height": 1080,
+          "fill": "#FFFFFF",
+          "cornerRadius": 0,
+          "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "img3",
+          "name": "Firefly",
+          "x": 386,
+          "y": 90,
+          "width": 900,
+          "height": 900,
+          "cornerRadius": 0,
+          "layout": "none",
+          "opacity": 0.25,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "docs/reference-inputs/branding/Firefly.png",
+            "mode": "fit"
+          }
+        },
+        {
+          "type": "text",
+          "id": "t4",
+          "content": "the wizard",
+          "x": 336,
+          "y": 338,
+          "fontFamily": "Varsity",
+          "fontSize": 88,
+          "fontWeight": "700",
+          "fill": "#CEB770",
+          "width": 1000,
+          "textAlign": "center",
+          "textGrowth": "auto",
+          "stroke": {
+            "thickness": 1,
+            "fill": "#01161E",
+            "align": "outside"
+          }
+        },
+        {
+          "type": "frame",
+          "id": "f5",
+          "name": "Login Button",
+          "x": 536,
+          "y": 568,
+          "width": 600,
+          "height": 74,
+          "fill": "#FFFFFF",
+          "cornerRadius": 18,
+          "layout": "none",
+          "stroke": {
+            "thickness": 2,
+            "fill": "#01161E",
+            "align": "inside"
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "img6",
+              "name": "Google Mark",
+              "x": 24,
+              "y": 19,
+              "width": 36,
+              "height": 36,
+              "cornerRadius": 0,
+              "layout": "none",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "docs/reference-inputs/branding/google-g.png",
+                "mode": "fit"
+              }
+            },
+            {
+              "type": "text",
+              "id": "t7",
+              "content": "Log in with Google",
+              "x": 78,
+              "y": 22,
+              "fontFamily": "Arial",
+              "fontSize": 28,
+              "fontWeight": "700",
+              "fill": "#01161E",
+              "width": 498,
+              "textAlign": "center",
+              "textGrowth": "auto"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -2,3 +2,8 @@
 .gocache/
 .gomodcache/
 coverage.out
+node_modules/
+.DS_Store
+docs/reference-inputs
+docs/sales-assets
+vendor/

@@ -1,0 +1,113 @@
+{
+  "type": "frame",
+  "id": "root",
+  "name": "HTTP Error",
+  "x": 0,
+  "y": 0,
+  "width": 1672,
+  "height": 1080,
+  "fill": "#DDE2E3",
+  "cornerRadius": 0,
+  "layout": "none",
+  "children": [
+    {
+      "type": "frame",
+      "id": "error_background",
+      "name": "Background",
+      "x": 0,
+      "y": 0,
+      "width": 1672,
+      "height": 1080,
+      "fill": "#FFFFFF",
+      "cornerRadius": 0,
+      "layout": "none",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#FFFFFF",
+        "align": "inside"
+      }
+    },
+    {
+      "type": "frame",
+      "id": "f2",
+      "name": "Background",
+      "x": 132,
+      "y": 38,
+      "width": 1408,
+      "height": 1004,
+      "fill": "#FFFFFF",
+      "cornerRadius": 0,
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "img3",
+      "name": "Firefly",
+      "x": 386,
+      "y": 140,
+      "width": 900,
+      "height": 900,
+      "cornerRadius": 0,
+      "layout": "none",
+      "opacity": 0.25,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "/pen-assets/firefly.png",
+        "mode": "fit"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t4",
+      "content": "401",
+      "x": 436,
+      "y": 304,
+      "fontFamily": "Varsity",
+      "fontSize": 160,
+      "fontWeight": "700",
+      "fill": "#CEB770",
+      "width": 800,
+      "textAlign": "center",
+      "textGrowth": "auto",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#01161E",
+        "align": "outside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t5",
+      "content": "not authorized",
+      "x": 386,
+      "y": 492,
+      "fontFamily": "Varsity",
+      "fontSize": 52,
+      "fontWeight": "700",
+      "fill": "#CEB770",
+      "width": 900,
+      "textAlign": "center",
+      "textGrowth": "auto",
+      "stroke": {
+        "thickness": 1,
+        "fill": "#01161E",
+        "align": "outside"
+      }
+    },
+    {
+      "type": "text",
+      "id": "t6",
+      "content": "You need to sign in before you can view this page.",
+      "x": 446,
+      "y": 586,
+      "fontFamily": "Arial",
+      "fontSize": 24,
+      "fontWeight": "600",
+      "fill": "#01161E",
+      "width": 780,
+      "textAlign": "center",
+      "textGrowth": "auto"
+    }
+  ]
+}
