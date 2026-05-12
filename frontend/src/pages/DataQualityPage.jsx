@@ -29,10 +29,16 @@ const DATA_QUALITY_QUEUE_COLUMNS = Object.entries(QUEUE_SORT_HEADERS).map(([key,
   value: (row) => readableLine(row?.[config.field]),
 }));
 
+/**
+ * readableLine loads or decodes data for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function readableLine(value) {
   return String(value ?? "").replaceAll("\n", " ");
 }
 
+/**
+ * assignValue documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function assignValue(overrides, slotId, value) {
   if (!slotId || value == null) {
     return;
@@ -40,6 +46,9 @@ function assignValue(overrides, slotId, value) {
   overrides[slotId] = String(value);
 }
 
+/**
+ * assignLines documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function assignLines(overrides, slotIds, value) {
   const values = Array.isArray(value) ? value : String(value ?? "").split("\n");
   slotIds.forEach((slotId, index) => {
@@ -47,6 +56,9 @@ function assignLines(overrides, slotIds, value) {
   });
 }
 
+/**
+ * queueHeaderLabel documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function queueHeaderLabel(key, sortState) {
   const config = QUEUE_SORT_HEADERS[key];
   if (!config) {
@@ -58,6 +70,9 @@ function queueHeaderLabel(key, sortState) {
   return `${config.label} ${sortState.direction === "asc" ? "↑" : "↓"}`;
 }
 
+/**
+ * buildDataQualityTextOverrides builds derived data for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function buildDataQualityTextOverrides(session, payload, sortState) {
   const overrides = buildSharedShellTextOverrides(session);
   if (!payload) {
@@ -129,6 +144,9 @@ function buildDataQualityTextOverrides(session, payload, sortState) {
   return overrides;
 }
 
+/**
+ * DataQualitySemanticContent renders the UI surface for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function DataQualitySemanticContent({ payload, onRefresh, mappingHref, table }) {
   if (!payload) {
     return null;
@@ -210,6 +228,9 @@ function DataQualitySemanticContent({ payload, onRefresh, mappingHref, table }) 
   );
 }
 
+/**
+ * DataQualityPage renders the UI surface for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function DataQualityPage({
   session,
   onNavigate,
@@ -233,6 +254,9 @@ export function DataQualityPage({
 
     const controller = new AbortController();
 
+    /**
+     * loadPage loads or decodes data for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     */
     async function loadPage() {
       setPageState("loading");
       setErrorMessage("");
@@ -358,6 +382,9 @@ export function DataQualityPage({
     [onNavigate, onSearch, searchQuery, session, viewPayload?.page?.last_refreshed]
   );
 
+  /**
+   * overlay documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   const overlay = (() => {
     if (pageState === "loading") {
       return (

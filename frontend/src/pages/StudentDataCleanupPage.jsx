@@ -209,6 +209,9 @@ const STUDENT_COLUMNS = [
   { key: "submitted", label: "Submitted", value: (row) => row.submitted },
 ];
 
+/**
+ * collectAllNodeIds builds derived data for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectAllNodeIds(node, ids) {
   ids.push(node.id);
   for (const child of node.children || []) {
@@ -216,6 +219,9 @@ function collectAllNodeIds(node, ids) {
   }
 }
 
+/**
+ * collectPaneNodeIds builds derived data for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectPaneNodeIds(node, ids = []) {
   const isPaneNode = (node.x ?? 0) >= 280 && (node.y ?? 0) >= 88;
   if (isPaneNode) {
@@ -228,16 +234,25 @@ function collectPaneNodeIds(node, ids = []) {
   return ids;
 }
 
+/**
+ * aeriesLink documents runtime data flow for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function aeriesLink(studentId) {
   return `${AERIES_LINK_BASE}/${encodeURIComponent(studentId)}`;
 }
 
+/**
+ * uniqueValues documents runtime data flow for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function uniqueValues(rows, key) {
   return [...new Set(rows.map((row) => row[key]))].sort((left, right) =>
     String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" })
   );
 }
 
+/**
+ * StudentDataDrawer renders the UI surface for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function StudentDataDrawer({ row, onClose }) {
   if (!row) {
     return null;
@@ -269,6 +284,9 @@ function StudentDataDrawer({ row, onClose }) {
   );
 }
 
+/**
+ * StudentDataOverlay renders the UI surface for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function StudentDataOverlay({
   rows,
   selectedRowId,
@@ -400,6 +418,9 @@ function StudentDataOverlay({
   );
 }
 
+/**
+ * StudentDataCleanupPage renders the UI surface for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQuery }) {
   const artboard = generatedArtboards[ARTBOARD_KEY];
   const meta = generatedArtboardMeta[ARTBOARD_KEY];

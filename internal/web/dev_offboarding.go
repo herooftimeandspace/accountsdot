@@ -102,10 +102,12 @@ type offboardingSeedRecord struct {
 	ExternalReference string
 }
 
+// newDevOffboardingStore builds the value used by internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func newDevOffboardingStore() *devOffboardingStoreState {
 	return &devOffboardingStoreState{endDates: map[string]string{}}
 }
 
+// handleDevOffboardingPage handles the request path for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -152,6 +154,7 @@ func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleDevOffboardingRecord handles the request path for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevOffboardingRecord(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() {
 		http.NotFound(w, r)
@@ -209,14 +212,17 @@ func handleDevOffboardingRecord(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, offboardingEndDateResponse{Row: row})
 }
 
+// canManageOffboardingEndDates resolves decision data for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func canManageOffboardingEndDates(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin" || config.Persona.ID == "human_resources"
 }
 
+// canSeeOffboardingEmployeeIDs resolves decision data for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func canSeeOffboardingEmployeeIDs(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin" || config.Persona.ID == "human_resources"
 }
 
+// rows documents the data flow for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devOffboardingStoreState) rows(config devPersonaConfig) []offboardingRowPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -231,6 +237,7 @@ func (s *devOffboardingStoreState) rows(config devPersonaConfig) []offboardingRo
 	return rows
 }
 
+// updateEndDate documents the data flow for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devOffboardingStoreState) updateEndDate(id string, value string, config devPersonaConfig) (offboardingRowPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -258,6 +265,7 @@ func (s *devOffboardingStoreState) updateEndDate(id string, value string, config
 	return s.rowPayloadLocked(record, config), http.StatusOK, nil
 }
 
+// rowPayloadLocked documents the data flow for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devOffboardingStoreState) rowPayloadLocked(record offboardingSeedRecord, config devPersonaConfig) offboardingRowPayload {
 	endDate := record.EndDate
 	if override, ok := s.endDates[record.ID]; ok {
@@ -287,6 +295,7 @@ func (s *devOffboardingStoreState) rowPayloadLocked(record offboardingSeedRecord
 	return payload
 }
 
+// offboardingRecordVisible documents the data flow for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func offboardingRecordVisible(record offboardingSeedRecord, config devPersonaConfig) bool {
 	if config.Persona.ID != "site_admin" {
 		return true
@@ -299,6 +308,7 @@ func offboardingRecordVisible(record offboardingSeedRecord, config devPersonaCon
 	})
 }
 
+// findOffboardingSeedRecord resolves decision data for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func findOffboardingSeedRecord(id string) (offboardingSeedRecord, bool) {
 	for _, record := range devOffboardingSeedRecords {
 		if record.ID == id {

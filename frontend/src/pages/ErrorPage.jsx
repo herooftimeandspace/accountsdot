@@ -34,6 +34,9 @@ const ERROR_COPY = {
   },
 };
 
+/**
+ * errorCopyFor documents runtime data flow for frontend/src/pages/ErrorPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function errorCopyFor(code, details) {
   const fallback = {
     title: "unexpected error",
@@ -48,10 +51,16 @@ function errorCopyFor(code, details) {
   };
 }
 
+/**
+ * cloneArtboard documents runtime data flow for frontend/src/pages/ErrorPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function cloneArtboard(artboard) {
   return JSON.parse(JSON.stringify(artboard));
 }
 
+/**
+ * estimateWrappedTextHeight documents runtime data flow for frontend/src/pages/ErrorPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function estimateWrappedTextHeight(content, width, fontSize) {
   const normalized = String(content ?? "");
   const resolvedFontSize = fontSize ?? 14;
@@ -68,12 +77,18 @@ function estimateWrappedTextHeight(content, width, fontSize) {
   return Math.ceil(lineCount * lineHeight);
 }
 
+/**
+ * updateErrorArtboard documents runtime data flow for frontend/src/pages/ErrorPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function updateErrorArtboard(baseArtboard, copy, loggedIn) {
   const artboard = cloneArtboard(baseArtboard);
   const codeIds = new Set(loggedIn ? ["error__t4"] : ["t4"]);
   const titleIds = new Set(loggedIn ? ["error__t5"] : ["t5"]);
   const bodyIds = new Set(loggedIn ? ["error__t6"] : ["t6"]);
 
+  /**
+   * visit documents runtime data flow for frontend/src/pages/ErrorPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   function visit(node) {
     if (node?.type === "text") {
       if (codeIds.has(node.id)) {
@@ -97,6 +112,9 @@ function updateErrorArtboard(baseArtboard, copy, loggedIn) {
   return artboard;
 }
 
+/**
+ * ErrorPage renders the UI surface for frontend/src/pages/ErrorPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "", details = "" }) {
   const copy = errorCopyFor(code, details);
   const loggedIn = Boolean(session?.authenticated && session?.authorized);
@@ -141,6 +159,9 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
   const recoveryTarget = loggedIn ? "/dashboard" : "/login";
   const recoveryLabel = loggedIn ? "Return to Dashboard" : "Go to Login";
   const semanticTitleId = `error-page-${code}-title`;
+  /**
+   * renderOverlay documents runtime data flow for frontend/src/pages/ErrorPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   const renderOverlay = ({ nodeIndex, textOverrides: overlayTextOverrides }) => {
     const sharedShell = typeof sharedShellOverlay === "function"
       ? sharedShellOverlay({ nodeIndex, textOverrides: overlayTextOverrides })

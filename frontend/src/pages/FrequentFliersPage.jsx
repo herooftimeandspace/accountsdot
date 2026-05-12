@@ -166,6 +166,9 @@ const FREQUENT_FLIERS_COLUMNS = [
   { key: "trend", label: "Trend", value: (row) => row.trend.join(" "), sortValue: (row) => row.trend.at(-1) ?? 0 },
 ];
 
+/**
+ * collectPaneNodeIds builds derived data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectPaneNodeIds(node, ids = []) {
   const children = node.children || [];
   const isPaneNode = (node.x ?? 0) >= 280 && (node.y ?? 0) >= 88;
@@ -182,6 +185,9 @@ function collectPaneNodeIds(node, ids = []) {
   return ids;
 }
 
+/**
+ * collectAllNodeIds builds derived data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectAllNodeIds(node, ids) {
   ids.push(node.id);
   for (const child of node.children || []) {
@@ -189,14 +195,23 @@ function collectAllNodeIds(node, ids) {
   }
 }
 
+/**
+ * linkForDevice formats display data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function linkForDevice(serial) {
   return `${DEVICE_LINK_BASE}/${encodeURIComponent(serial)}`;
 }
 
+/**
+ * linkForTicket formats display data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function linkForTicket(ticketId) {
   return `${TICKET_LINK_BASE}/${encodeURIComponent(ticketId)}`;
 }
 
+/**
+ * trendClass documents runtime data flow for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function trendClass(value, threshold) {
   if (value >= threshold + 2) {
     return "frequent-fliers-runtime__trend-bar frequent-fliers-runtime__trend-bar--critical";
@@ -207,6 +222,9 @@ function trendClass(value, threshold) {
   return "frequent-fliers-runtime__trend-bar frequent-fliers-runtime__trend-bar--ready";
 }
 
+/**
+ * TrendGraph renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function TrendGraph({ values, threshold }) {
   const maxValue = Math.max(threshold, ...values, 1);
   return (
@@ -224,6 +242,9 @@ function TrendGraph({ values, threshold }) {
   );
 }
 
+/**
+ * FrequentFliersDrawer renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function FrequentFliersDrawer({ row, threshold, metric, onClose }) {
   if (!row) {
     return null;
@@ -276,6 +297,9 @@ function FrequentFliersDrawer({ row, threshold, metric, onClose }) {
   );
 }
 
+/**
+ * FrequentFliersOverlay renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ */
 function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, onPendingChange, onApply, onSelectRow }) {
   const columns = useMemo(() => FREQUENT_FLIERS_COLUMNS, []);
   const tableRows = useMemo(() => {
@@ -376,6 +400,9 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
   );
 }
 
+/**
+ * FrequentFliersPage renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery }) {
   const artboard = generatedArtboards[ARTBOARD_KEY];
   const meta = generatedArtboardMeta[ARTBOARD_KEY];

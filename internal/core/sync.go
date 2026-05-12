@@ -46,6 +46,7 @@ type SyncProjectionInput struct {
 	Issues                 []SyncIssueCode
 }
 
+// Valid documents the data flow for internal/core/sync.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v SyncSubjectType) Valid() bool {
 	switch v {
 	case SyncSubjectTypeStaff, SyncSubjectTypeStudent:
@@ -55,6 +56,7 @@ func (v SyncSubjectType) Valid() bool {
 	}
 }
 
+// Valid documents the data flow for internal/core/sync.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v SyncPhase) Valid() bool {
 	switch v {
 	case SyncPhaseIngested,
@@ -68,6 +70,7 @@ func (v SyncPhase) Valid() bool {
 	}
 }
 
+// Valid documents the data flow for internal/core/sync.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v SyncOverallStatus) Valid() bool {
 	switch v {
 	case SyncOverallStatusPending,
@@ -80,6 +83,7 @@ func (v SyncOverallStatus) Valid() bool {
 	}
 }
 
+// Valid documents the data flow for internal/core/sync.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v SyncIssueCode) Valid() bool {
 	switch v {
 	case SyncIssueCodeRoomMappingRequired,
@@ -93,6 +97,7 @@ func (v SyncIssueCode) Valid() bool {
 	}
 }
 
+// ProjectSyncProgress documents the data flow for internal/core/sync.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func ProjectSyncProgress(input SyncProjectionInput) (SyncPhase, SyncOverallStatus) {
 	phase := SyncPhaseIngested
 	status := SyncOverallStatusPending
@@ -135,6 +140,7 @@ func ProjectSyncProgress(input SyncProjectionInput) (SyncPhase, SyncOverallStatu
 	return phase, status
 }
 
+// AnnualResetDisposition documents the data flow for internal/core/sync.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func AnnualResetDisposition(status SyncOverallStatus) (archive bool, clearOverrides bool) {
 	return status == SyncOverallStatusCompleted, true
 }

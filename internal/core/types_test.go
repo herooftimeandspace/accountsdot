@@ -9,6 +9,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/core"
 )
 
+// TestUUIDv7Generation exercises and documents internal/core/types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestUUIDv7Generation(t *testing.T) {
 	id, err := core.NewPersonUUID()
 	if err != nil {
@@ -26,6 +27,7 @@ func TestUUIDv7Generation(t *testing.T) {
 	}
 }
 
+// TestPersonStatesValidate exercises and documents internal/core/types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPersonStatesValidate(t *testing.T) {
 	valid := []core.PersonState{
 		core.PersonStateIntakePending,
@@ -43,6 +45,7 @@ func TestPersonStatesValidate(t *testing.T) {
 	}
 }
 
+// TestJobStatesValidate exercises and documents internal/core/types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestJobStatesValidate(t *testing.T) {
 	valid := []core.JobState{
 		core.JobStateQueued,
@@ -61,6 +64,7 @@ func TestJobStatesValidate(t *testing.T) {
 	}
 }
 
+// TestDuplicateReasonCodesValidate exercises and documents internal/core/types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestDuplicateReasonCodesValidate(t *testing.T) {
 	valid := []core.DuplicateReasonCode{
 		core.DuplicateReasonMatchNameNoDOB,

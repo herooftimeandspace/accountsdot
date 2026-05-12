@@ -4,6 +4,9 @@ import { generatedArtboards } from "../generated/artboards.generated.js";
 const LOGIN_ARTBOARD_KEY = "login";
 const LOGIN_BUTTON_NODE_ID = "f5";
 
+/**
+ * LoginPage renders the UI surface for frontend/src/pages/LoginPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ */
 export function LoginPage({ personaId, onLogin }) {
   const artboard = generatedArtboards[LOGIN_ARTBOARD_KEY];
 

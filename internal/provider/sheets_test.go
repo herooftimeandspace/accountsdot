@@ -7,6 +7,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 )
 
+// TestChecksumIsStable exercises and documents internal/provider/sheets_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestChecksumIsStable(t *testing.T) {
 	rows := [][]string{
 		{"Email", "First Name"},
@@ -19,6 +20,7 @@ func TestChecksumIsStable(t *testing.T) {
 	}
 }
 
+// TestBuildSentinelRow exercises and documents internal/provider/sheets_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestBuildSentinelRow(t *testing.T) {
 	row := provider.BuildSentinelRow(2, "abc123", 42)
 	if row[0] != provider.SentinelMarker {
@@ -29,6 +31,7 @@ func TestBuildSentinelRow(t *testing.T) {
 	}
 }
 
+// TestSyncConfigCellForTab exercises and documents internal/provider/sheets_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestSyncConfigCellForTab(t *testing.T) {
 	tests := map[string]string{
 		"Zoom_SLG":        "B2",
@@ -48,6 +51,7 @@ func TestSyncConfigCellForTab(t *testing.T) {
 	}
 }
 
+// TestVisibleTabFormula exercises and documents internal/provider/sheets_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestVisibleTabFormula(t *testing.T) {
 	got, err := provider.VisibleTabFormula("Zoom_Users")
 	if err != nil {
@@ -61,6 +65,7 @@ func TestVisibleTabFormula(t *testing.T) {
 	}
 }
 
+// TestUnknownSheetTabReturnsError exercises and documents internal/provider/sheets_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestUnknownSheetTabReturnsError(t *testing.T) {
 	if _, err := provider.SyncConfigCell("bogus"); err == nil {
 		t.Fatal("expected unknown tab to return an error")

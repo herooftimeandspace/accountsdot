@@ -177,6 +177,7 @@ type devRoomMoveStoreState struct {
 	jobs      map[string]roomMoveCompletedJobPayload
 }
 
+// newDevRoomMoveStore builds the value used by internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func newDevRoomMoveStore() *devRoomMoveStoreState {
 	store := &devRoomMoveStoreState{
 		nextID:    100,
@@ -191,6 +192,7 @@ func newDevRoomMoveStore() *devRoomMoveStoreState {
 	return store
 }
 
+// handleDevRoomMovesPage handles the request path for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevRoomMovesPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -210,6 +212,7 @@ func handleDevRoomMovesPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleDevRoomMovesBulkDraftPage handles the request path for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevRoomMovesBulkDraftPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -241,6 +244,7 @@ func handleDevRoomMovesBulkDraftPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// roomMoveBulkDraftTitle documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMoveBulkDraftTitle(mode string) string {
 	if mode == roomMoveTypeBuildList {
 		return "Batch Move"
@@ -248,6 +252,7 @@ func roomMoveBulkDraftTitle(mode string) string {
 	return "Site Rollover"
 }
 
+// handleDevRoomMoveDrafts handles the request path for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevRoomMoveDrafts(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -270,6 +275,7 @@ func handleDevRoomMoveDrafts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, roomMoveDraftResponse{Draft: draft})
 }
 
+// handleDevRoomMoveDraft handles the request path for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() {
 		http.NotFound(w, r)
@@ -330,6 +336,7 @@ func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleDevRoomMoveCompletedJobs handles the request path for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevRoomMoveCompletedJobs(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -342,6 +349,7 @@ func handleDevRoomMoveCompletedJobs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, roomMoveCompletedJobsResponse{Jobs: devRoomMoveStore.completedJobs(config)})
 }
 
+// handleDevRoomMoveCompletedJob handles the request path for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevRoomMoveCompletedJob(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() {
 		http.NotFound(w, r)
@@ -365,6 +373,7 @@ func handleDevRoomMoveCompletedJob(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, roomMoveDraftResponse{Draft: draft})
 }
 
+// authenticatedRoomMovesPersona documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func authenticatedRoomMovesPersona(w http.ResponseWriter, r *http.Request) (devPersonaConfig, bool) {
 	config, ok := resolveAuthenticatedDevPersona(r)
 	if !ok {
@@ -378,6 +387,7 @@ func authenticatedRoomMovesPersona(w http.ResponseWriter, r *http.Request) (devP
 	return config, true
 }
 
+// authenticatedRoomMoveRevertPersona documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func authenticatedRoomMoveRevertPersona(w http.ResponseWriter, r *http.Request) (devPersonaConfig, bool) {
 	config, ok := resolveAuthenticatedDevPersona(r)
 	if !ok {
@@ -391,6 +401,7 @@ func authenticatedRoomMoveRevertPersona(w http.ResponseWriter, r *http.Request) 
 	return config, true
 }
 
+// page documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devRoomMoveStoreState) page(config devPersonaConfig) roomMovesPageContent {
 	rows := s.reviewRows(config)
 	return roomMovesPageContent{
@@ -409,6 +420,7 @@ func (s *devRoomMoveStoreState) page(config devPersonaConfig) roomMovesPageConte
 	}
 }
 
+// reviewRows documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveReviewRow {
 	base := []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
@@ -485,6 +497,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 	return filtered
 }
 
+// seedRoomMoveReviewRow documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func seedRoomMoveReviewRow(id string, draftID string, moveType string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, phone string, author string, state string, warning string) roomMoveReviewRow {
 	currentSite := siteByID(currentSiteID)
 	destinationSite := siteByID(destinationSiteID)
@@ -508,6 +521,7 @@ func seedRoomMoveReviewRow(id string, draftID string, moveType string, person st
 	}
 }
 
+// seedRoomMoveReviewRowByDraftID documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	for _, row := range []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
@@ -523,6 +537,7 @@ func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	return roomMoveReviewRow{}, false
 }
 
+// seedCompletedRoomMoveJobs documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func seedCompletedRoomMoveJobs() []roomMoveCompletedJobPayload {
 	alex, _ := roomMovePersonByID("alex-ramirez")
 	morgan, _ := roomMovePersonByID("morgan-lee")
@@ -544,6 +559,7 @@ func seedCompletedRoomMoveJobs() []roomMoveCompletedJobPayload {
 	}}
 }
 
+// createDraft documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devRoomMoveStoreState) createDraft(config devPersonaConfig, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -557,6 +573,7 @@ func (s *devRoomMoveStoreState) createDraft(config devPersonaConfig, request roo
 	return draft, http.StatusOK, nil
 }
 
+// updateDraft documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID string, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -582,6 +599,7 @@ func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID str
 	return draft, http.StatusOK, nil
 }
 
+// transitionDraft documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devRoomMoveStoreState) transitionDraft(config devPersonaConfig, draftID string, action string) (roomMoveDraftPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -619,6 +637,7 @@ func (s *devRoomMoveStoreState) transitionDraft(config devPersonaConfig, draftID
 	return draft, http.StatusOK, nil
 }
 
+// cancelDraft resolves decision data for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devRoomMoveStoreState) cancelDraft(config devPersonaConfig, draftID string) (roomMoveDraftPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -663,6 +682,7 @@ func (s *devRoomMoveStoreState) cancelDraft(config devPersonaConfig, draftID str
 	return roomMoveDraftPayload{}, http.StatusNotFound, map[string]string{"draft": "Draft not found."}
 }
 
+// deleteDraft documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devRoomMoveStoreState) deleteDraft(config devPersonaConfig, draftID string) (int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -679,6 +699,7 @@ func (s *devRoomMoveStoreState) deleteDraft(config devPersonaConfig, draftID str
 	return http.StatusNoContent, nil
 }
 
+// completedJobs documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devRoomMoveStoreState) completedJobs(config devPersonaConfig) []roomMoveCompletedJobPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -694,6 +715,7 @@ func (s *devRoomMoveStoreState) completedJobs(config devPersonaConfig) []roomMov
 	return jobs
 }
 
+// scheduleRevert documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devRoomMoveStoreState) scheduleRevert(config devPersonaConfig, jobID string) (roomMoveDraftPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -739,6 +761,7 @@ func (s *devRoomMoveStoreState) scheduleRevert(config devPersonaConfig, jobID st
 	return draft, http.StatusOK, nil
 }
 
+// ensureBulkDraft documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID string, defaultMode string) roomMoveDraftPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -764,6 +787,7 @@ func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID
 	return draft
 }
 
+// buildRoomMoveDraft builds the value used by internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
 	mode := strings.TrimSpace(request.Mode)
 	if mode == "" {
@@ -816,6 +840,7 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 	}, http.StatusOK, nil
 }
 
+// normalizeRoomMoveRows normalizes source data for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, rows []roomMoveDraftRow) ([]roomMoveDraftRow, []string, int, map[string]string) {
 	normalized := make([]roomMoveDraftRow, 0, len(rows))
 	warnings := []string{}
@@ -877,6 +902,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 	return normalized, warnings, http.StatusOK, nil
 }
 
+// roomMoveSummaryCards documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMoveSummaryCards(rows []roomMoveReviewRow) []summaryCardPayload {
 	warnings := 0
 	immediate := 0
@@ -899,10 +925,12 @@ func roomMoveSummaryCards(rows []roomMoveReviewRow) []summaryCardPayload {
 	}
 }
 
+// canManageDistrictRoomMoves resolves decision data for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func canManageDistrictRoomMoves(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin"
 }
 
+// roomMovesScopeSite documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMovesScopeSite(config devPersonaConfig) devSiteContext {
 	if canManageDistrictRoomMoves(config) {
 		return config.DefaultSite
@@ -910,6 +938,7 @@ func roomMovesScopeSite(config devPersonaConfig) devSiteContext {
 	return config.CurrentSite
 }
 
+// resolveRoomMoveScopeSite resolves decision data for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func resolveRoomMoveScopeSite(config devPersonaConfig, siteID string) devSiteContext {
 	if siteID == "" {
 		return roomMovesScopeSite(config)
@@ -920,6 +949,7 @@ func resolveRoomMoveScopeSite(config devPersonaConfig, siteID string) devSiteCon
 	return roomMovesScopeSite(config)
 }
 
+// canAccessRoomMoveSite resolves decision data for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func canAccessRoomMoveSite(config devPersonaConfig, siteID string) bool {
 	if canManageDistrictRoomMoves(config) {
 		return true
@@ -927,6 +957,7 @@ func canAccessRoomMoveSite(config devPersonaConfig, siteID string) bool {
 	return roomMovesScopeSite(config).ID == siteID
 }
 
+// roomMoveVisibleSites documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMoveVisibleSites(config devPersonaConfig) []devSiteContext {
 	if canManageDistrictRoomMoves(config) {
 		return sitesByID(devSiteOrder...)
@@ -934,6 +965,7 @@ func roomMoveVisibleSites(config devPersonaConfig) []devSiteContext {
 	return []devSiteContext{roomMovesScopeSite(config)}
 }
 
+// roomMovePeopleForConfig documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMovePeopleForConfig(config devPersonaConfig) []roomMovePersonOption {
 	people := []roomMovePersonOption{}
 	for _, person := range roomMovePeopleSeed() {
@@ -944,6 +976,7 @@ func roomMovePeopleForConfig(config devPersonaConfig) []roomMovePersonOption {
 	return people
 }
 
+// roomMovePeopleForSite documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMovePeopleForSite(siteID string) []roomMovePersonOption {
 	people := []roomMovePersonOption{}
 	for _, person := range roomMovePeopleSeed() {
@@ -954,6 +987,7 @@ func roomMovePeopleForSite(siteID string) []roomMovePersonOption {
 	return people
 }
 
+// roomMoveRoomsForConfig documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMoveRoomsForConfig(config devPersonaConfig) []roomMoveRoomOption {
 	rooms := []roomMoveRoomOption{}
 	seen := map[string]bool{}
@@ -973,6 +1007,7 @@ func roomMoveRoomsForConfig(config devPersonaConfig) []roomMoveRoomOption {
 	return rooms
 }
 
+// roomMoveRoomsForSite documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMoveRoomsForSite(siteID string) []roomMoveRoomOption {
 	site := siteByID(siteID)
 	rooms := []roomMoveRoomOption{{ID: "none", Label: "None", SiteID: site.ID, Site: site.Name}}
@@ -1000,6 +1035,7 @@ func roomMoveRoomsForSite(siteID string) []roomMoveRoomOption {
 	return rooms
 }
 
+// roomMovePeopleSeed documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMovePeopleSeed() []roomMovePersonOption {
 	return []roomMovePersonOption{
 		{ID: "alex-ramirez", Name: "Alex Ramirez", Email: "alex.ramirez@wusd.org", EmployeeID: "103118", Role: "IT Admin", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-a104", CurrentRoom: "A-104", Phone: "51042"},
@@ -1010,6 +1046,7 @@ func roomMovePeopleSeed() []roomMovePersonOption {
 	}
 }
 
+// roomMovePersonByID documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMovePersonByID(id string) (roomMovePersonOption, bool) {
 	for _, person := range roomMovePeopleSeed() {
 		if person.ID == id {
@@ -1019,6 +1056,7 @@ func roomMovePersonByID(id string) (roomMovePersonOption, bool) {
 	return roomMovePersonOption{}, false
 }
 
+// roomMoveRoomByID documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomMoveRoomByID(roomID string, siteID string) roomMoveRoomOption {
 	for _, room := range roomMoveRoomsForSite(siteID) {
 		if room.ID == roomID {
@@ -1028,6 +1066,7 @@ func roomMoveRoomByID(roomID string, siteID string) roomMoveRoomOption {
 	return roomMoveRoomsForSite(siteID)[0]
 }
 
+// draftRowFromPerson documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func draftRowFromPerson(person roomMovePersonOption, destinationSiteID string, destinationRoomID string) roomMoveDraftRow {
 	destinationSite := siteByID(destinationSiteID)
 	room := roomMoveRoomByID(destinationRoomID, destinationSiteID)
@@ -1050,6 +1089,7 @@ func draftRowFromPerson(person roomMovePersonOption, destinationSiteID string, d
 	}
 }
 
+// draftStatusLabel documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func draftStatusLabel(status string) string {
 	switch status {
 	case "scheduled":
@@ -1061,6 +1101,7 @@ func draftStatusLabel(status string) string {
 	}
 }
 
+// warningLevel documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func warningLevel(warning string) string {
 	if warning == "" {
 		return ""
@@ -1071,6 +1112,7 @@ func warningLevel(warning string) string {
 	return "warning"
 }
 
+// appendUniqueString documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func appendUniqueString(values []string, value string) []string {
 	if value == "" || slices.Contains(values, value) {
 		return values

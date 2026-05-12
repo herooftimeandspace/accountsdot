@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// NewAppHandler builds the value used by internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func NewAppHandler(deps HealthDependencies) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handleIndex))
@@ -52,6 +53,7 @@ func NewAppHandler(deps HealthDependencies) http.Handler {
 	return mux
 }
 
+// handleIndex handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -70,6 +72,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 </html>`))
 }
 
+// handleSyncDashboard handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleSyncDashboard(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/sync-dashboard" || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -109,6 +112,7 @@ setInterval(function () { window.__syncDashboardLastRefresh = Date.now(); }, 150
 </html>`))
 }
 
+// handleSyncDashboardMappings handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleSyncDashboardMappings(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/sync-dashboard/mappings" || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -128,11 +132,13 @@ func handleSyncDashboardMappings(w http.ResponseWriter, r *http.Request) {
 </html>`))
 }
 
+// handleMetrics handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	_, _ = w.Write([]byte("# TYPE app_up gauge\napp_up 1\n"))
 }
 
+// handleEventStream handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleEventStream(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -140,6 +146,7 @@ func handleEventStream(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("event: ready\ndata: {\"status\":\"connected\"}\n\n"))
 }
 
+// handleSessionMe handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleSessionMe(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authenticated": false,
@@ -147,6 +154,7 @@ func handleSessionMe(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+// handleWorkflowList handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleWorkflowList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -157,6 +165,7 @@ func handleWorkflowList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleWorkflowRoutes handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleWorkflowRoutes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/workflows/")
 	if path == "" {
@@ -187,6 +196,7 @@ func handleWorkflowRoutes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleApprovalList handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleApprovalList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -197,6 +207,7 @@ func handleApprovalList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleApprovalRoutes handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleApprovalRoutes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -221,6 +232,7 @@ func handleApprovalRoutes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleSyncStatusRoutes handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleSyncStatusRoutes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/sync-status/")
 	switch {
@@ -272,6 +284,7 @@ func handleSyncStatusRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleRoomMappings handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleRoomMappings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -288,6 +301,7 @@ func handleRoomMappings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleAnnualReset handles the request path for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleAnnualReset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -299,6 +313,7 @@ func handleAnnualReset(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// writeSyncTabResponse writes the response payload for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func writeSyncTabResponse(w http.ResponseWriter, tab string, values url.Values) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"tab": tab,
@@ -311,6 +326,7 @@ func writeSyncTabResponse(w http.ResponseWriter, tab string, values url.Values) 
 	})
 }
 
+// writeJSON writes the response payload for internal/web/app.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -1,5 +1,8 @@
 import { useEffect } from "react";
 
+/**
+ * shouldCloseDrawerForPointerTarget documents runtime data flow for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function shouldCloseDrawerForPointerTarget(target) {
   if (!(target instanceof Element)) {
     return false;
@@ -13,6 +16,9 @@ function shouldCloseDrawerForPointerTarget(target) {
   return true;
 }
 
+/**
+ * RuntimeDetailList renders the UI surface for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function RuntimeDetailList({ items }) {
   const visibleItems = items.filter((item) => item && item.value !== undefined && item.value !== null && item.value !== "");
 
@@ -32,6 +38,9 @@ export function RuntimeDetailList({ items }) {
   );
 }
 
+/**
+ * RuntimeDrawer renders the UI surface for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function RuntimeDrawer({ title, onClose, children, bounds = null, className = "", ariaLive = "polite" }) {
   const titleText = String(title);
   const titleId = `runtime-drawer-title-${titleText.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -48,6 +57,9 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
     : undefined;
 
   useEffect(() => {
+    /**
+     * handleDocumentPointerDown handles the user or network event for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     */
     function handleDocumentPointerDown(event) {
       if (shouldCloseDrawerForPointerTarget(event.target)) {
         onClose();
@@ -58,11 +70,17 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
     return () => document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
   }, [onClose]);
 
+  /**
+   * handleCloseButtonPointerDown handles the user or network event for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   function handleCloseButtonPointerDown(event) {
     event.stopPropagation();
     onClose();
   }
 
+  /**
+   * handleCloseButtonClick handles the user or network event for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   function handleCloseButtonClick(event) {
     event.stopPropagation();
     onClose();
@@ -94,6 +112,9 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
   );
 }
 
+/**
+ * RowHotspotOverlay renders the UI surface for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function RowHotspotOverlay({ rows, selectedId, onSelect, ariaLabel }) {
   return (
     <div aria-label={ariaLabel}>

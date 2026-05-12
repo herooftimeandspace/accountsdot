@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 
+/**
+ * nextSortState documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function nextSortState(current, key) {
   if (current.key !== key || current.direction === "none") {
     return { key, direction: "asc" };
@@ -10,6 +13,9 @@ export function nextSortState(current, key) {
   return { key: null, direction: "none" };
 }
 
+/**
+ * stringifyValue documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function stringifyValue(value) {
   if (value === undefined || value === null) {
     return "";
@@ -23,6 +29,9 @@ function stringifyValue(value) {
   return String(value);
 }
 
+/**
+ * columnValue documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function columnValue(row, column, purpose) {
   if (purpose === "sort" && typeof column.sortValue === "function") {
     return column.sortValue(row);
@@ -39,6 +48,9 @@ function columnValue(row, column, purpose) {
   return row?.[column.key];
 }
 
+/**
+ * searchableRowText documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function searchableRowText(row, columns) {
   return columns
     .map((column) => stringifyValue(columnValue(row, column, "search")))
@@ -46,6 +58,9 @@ function searchableRowText(row, columns) {
     .toLowerCase();
 }
 
+/**
+ * compareRows documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function compareRows(left, right, column, direction) {
   const leftValue = stringifyValue(columnValue(left.row, column, "sort"));
   const rightValue = stringifyValue(columnValue(right.row, column, "sort"));
@@ -59,6 +74,9 @@ function compareRows(left, right, column, direction) {
   return left.index - right.index;
 }
 
+/**
+ * useRuntimeTableData derives reusable React state for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function useRuntimeTableData(rows, columns, { defaultSort = { key: null, direction: "none" } } = {}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortState, setSortState] = useState(defaultSort);
@@ -94,6 +112,9 @@ export function useRuntimeTableData(rows, columns, { defaultSort = { key: null, 
   };
 }
 
+/**
+ * RuntimeTableSearch renders the UI surface for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function RuntimeTableSearch({ value, onChange, label = "Search table", placeholder = "Search this table..." }) {
   return (
     <label className="runtime-table-search">
@@ -108,6 +129,9 @@ export function RuntimeTableSearch({ value, onChange, label = "Search table", pl
   );
 }
 
+/**
+ * RuntimeSortableHeader renders the UI surface for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function RuntimeSortableHeader({ column, sortState, onSort }) {
   const activeDirection = sortState?.key === column.key ? sortState.direction : "none";
   const indicator = activeDirection === "asc" ? "↑" : activeDirection === "desc" ? "↓" : "↕";

@@ -57,10 +57,16 @@ const HIDDEN_BULK_DRAFT_NODE_SUFFIXES = [
   "t162",
 ];
 
+/**
+ * nodeIdForSuffix documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function nodeIdForSuffix(artboardKey, suffix) {
   return `${artboardKey}__${suffix}`;
 }
 
+/**
+ * hiddenRoomMovesNodeIds documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function hiddenRoomMovesNodeIds(artboardKey, isBulk) {
   const suffixes = isBulk
     ? [...HIDDEN_ROOM_MOVES_NODE_SUFFIXES, ...HIDDEN_BULK_DRAFT_NODE_SUFFIXES]
@@ -68,6 +74,9 @@ function hiddenRoomMovesNodeIds(artboardKey, isBulk) {
   return suffixes.map((suffix) => nodeIdForSuffix(artboardKey, suffix));
 }
 
+/**
+ * readJSON loads or decodes data for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -79,6 +88,9 @@ async function readJSON(response) {
   return payload;
 }
 
+/**
+ * nodeBox documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function nodeBox(node, fallback) {
   if (!node) {
     return fallback;
@@ -91,6 +103,9 @@ function nodeBox(node, fallback) {
   };
 }
 
+/**
+ * statusClass formats display data for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function statusClass(status) {
   if (["Ready", "Complete", "Allowed"].includes(status)) {
     return "room-moves-runtime__status room-moves-runtime__status--ready";
@@ -104,9 +119,15 @@ function statusClass(status) {
   return "room-moves-runtime__status room-moves-runtime__status--neutral";
 }
 
+/**
+ * roomOptionsForSite documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function roomOptionsForSite(rooms, siteId) {
   const options = [];
   const seen = new Set();
+  /**
+   * addOption documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   const addOption = (room) => {
     if (!room) {
       return;
@@ -132,6 +153,9 @@ function roomOptionsForSite(rooms, siteId) {
   return options;
 }
 
+/**
+ * personMatchesQuery documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function personMatchesQuery(person, query) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
@@ -142,10 +166,16 @@ function personMatchesQuery(person, query) {
   );
 }
 
+/**
+ * personAutocompleteLabel documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function personAutocompleteLabel(person) {
   return `${person.name} · ${person.email} · ${person.employee_id}`;
 }
 
+/**
+ * findPersonFromAutocompleteValue documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function findPersonFromAutocompleteValue(people, value) {
   const normalized = value.trim().toLowerCase();
   if (!normalized) {
@@ -162,6 +192,9 @@ function findPersonFromAutocompleteValue(people, value) {
   }) || null;
 }
 
+/**
+ * defaultDestinationRoom builds derived data for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function defaultDestinationRoom(person, destinationSiteId) {
   if (!person) {
     return "none";
@@ -169,10 +202,16 @@ function defaultDestinationRoom(person, destinationSiteId) {
   return destinationSiteId === person.site_id ? person.current_room_id || "none" : "none";
 }
 
+/**
+ * RoomMovesStatusBadge renders the UI surface for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function RoomMovesStatusBadge({ status }) {
   return <span className={statusClass(status)}>{status}</span>;
 }
 
+/**
+ * RoomMovesTable renders the UI surface for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ */
 function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow, cancelingDraftId }) {
   const table = useRuntimeTableData(rows, ROOM_MOVES_TABLE_COLUMNS, {
     defaultSort: { key: "person", direction: "asc" },
@@ -234,6 +273,9 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
   );
 }
 
+/**
+ * RoomMovesActions renders the UI surface for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function RoomMovesActions({ bounds, onMovePerson, onBatchMove, onSiteRollover, busy }) {
   if (!bounds) {
     return null;
@@ -252,6 +294,9 @@ function RoomMovesActions({ bounds, onMovePerson, onBatchMove, onSiteRollover, b
   );
 }
 
+/**
+ * SingleMoveDrawer renders the UI surface for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ */
 function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClose, onSaved }) {
   const initialPerson = people.find((person) => person.email === row?.email) || null;
   const [query, setQuery] = useState(initialPerson?.email || "");
@@ -277,6 +322,9 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   const autocompleteOptions = people.filter((person) => personMatchesQuery(person, query));
   const availableRooms = roomOptionsForSite(rooms, destinationSiteId);
 
+  /**
+   * applyPersonValue documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   function applyPersonValue(value) {
     setQuery(value);
     const person = findPersonFromAutocompleteValue(people, value);
@@ -289,6 +337,9 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
     setDestinationSiteId(person.site_id);
   }
 
+  /**
+   * saveDraft documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function saveDraft(action = "save") {
     if (!selectedPerson) {
       setError("Select a person before saving the draft.");
@@ -335,6 +386,9 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
     }
   }
 
+  /**
+   * cancelDraft documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function cancelDraft() {
     if (createdDraftId) {
       try {
@@ -423,6 +477,9 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   );
 }
 
+/**
+ * BulkDraftTable renders the UI surface for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ */
 function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
   const draft = page.draft;
   const [rows, setRows] = useState(draft.rows || []);
@@ -439,6 +496,9 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
     setDirty(false);
   }, [draft]);
 
+  /**
+   * save documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function save(nextRows = rows, nextEffectiveDate = effectiveDate) {
     setSaving(true);
     try {
@@ -459,6 +519,9 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
     return () => window.clearInterval(timer);
   }, [dirty, effectiveDate, rows]);
 
+  /**
+   * updateRow documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   function updateRow(rowId, patch) {
     const nextRows = rows.map((row) => {
       if (row.id !== rowId) {
@@ -491,6 +554,9 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
     setDirty(true);
   }
 
+  /**
+   * addRow documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   function addRow() {
     const nextRows = [
       ...rows,
@@ -511,6 +577,9 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
     setDirty(true);
   }
 
+  /**
+   * cancelRow documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function cancelRow(rowId) {
     const nextRows = rows.filter((candidate) => candidate.id !== rowId);
     setRows(nextRows);
@@ -629,6 +698,9 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
   );
 }
 
+/**
+ * RoomMovesPage renders the UI surface for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function RoomMovesPage({
   session,
   routeKind,
@@ -664,6 +736,9 @@ export function RoomMovesPage({
       return undefined;
     }
     const controller = new AbortController();
+    /**
+     * loadPage loads or decodes data for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     */
     async function loadPage() {
       setPageState("loading");
       try {
@@ -716,6 +791,9 @@ export function RoomMovesPage({
 
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
 
+  /**
+   * createDraft builds derived data for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   async function createDraft(mode) {
     setBusy(true);
     try {
@@ -733,6 +811,9 @@ export function RoomMovesPage({
     }
   }
 
+  /**
+   * saveBulkDraft documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function saveBulkDraft(draft) {
     const response = await readJSON(
       await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${draft.id}`, {
@@ -751,6 +832,9 @@ export function RoomMovesPage({
     return response.draft;
   }
 
+  /**
+   * transitionBulkDraft documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function transitionBulkDraft(action) {
     const draftID = payload?.page?.draft?.id;
     if (!draftID) {
@@ -766,6 +850,9 @@ export function RoomMovesPage({
     setPayload((current) => current ? { ...current, page: { ...current.page, draft: response.draft } } : current);
   }
 
+  /**
+   * deleteBulkDraft documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function deleteBulkDraft() {
     const draftID = payload?.page?.draft?.id;
     if (!draftID) {
@@ -779,6 +866,9 @@ export function RoomMovesPage({
     onNavigate("/room-moves");
   }
 
+  /**
+   * cancelMove documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   async function cancelMove(row) {
     if (!row?.draft_id) {
       return;

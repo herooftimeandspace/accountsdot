@@ -2,13 +2,22 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 const ACCESSIBLE_UI_FONT_STACK = '"Atkinson Hyperlegible", Arial, Helvetica, sans-serif';
 
+/**
+ * clone documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * uniquifyNodeIds documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function uniquifyNodeIds(artboard) {
   const seen = new Map();
 
+  /**
+   * visit documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   function visit(node) {
     const count = (seen.get(node.id) ?? 0) + 1;
     seen.set(node.id, count);
@@ -24,6 +33,9 @@ function uniquifyNodeIds(artboard) {
   return artboard;
 }
 
+/**
+ * resolveFontFamily builds derived data for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function resolveFontFamily(fontFamily) {
   if (!fontFamily || /arial|helvetica/i.test(fontFamily)) {
     return ACCESSIBLE_UI_FONT_STACK;
@@ -31,6 +43,9 @@ function resolveFontFamily(fontFamily) {
   return `${fontFamily}, ${ACCESSIBLE_UI_FONT_STACK}`;
 }
 
+/**
+ * buildNodeIndex builds derived data for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function buildNodeIndex(node, map = new Map()) {
   map.set(node.id, node);
   for (const child of node.children || []) {
@@ -39,12 +54,18 @@ function buildNodeIndex(node, map = new Map()) {
   return map;
 }
 
+/**
+ * resolveTextContent builds derived data for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function resolveTextContent(node, textOverrides) {
   return Object.prototype.hasOwnProperty.call(textOverrides, node.id)
     ? textOverrides[node.id]
     : node.content ?? "";
 }
 
+/**
+ * estimateTextNodeBox documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function estimateTextNodeBox(node, textOverrides) {
   const content = String(resolveTextContent(node, textOverrides) ?? "");
   const fontSize = node.fontSize ?? 14;
@@ -63,6 +84,9 @@ function estimateTextNodeBox(node, textOverrides) {
   };
 }
 
+/**
+ * drawPath documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function drawPath(node) {
   const stroke = node.stroke?.fill;
   const strokeWidth = node.stroke?.thickness ?? 0;
@@ -96,6 +120,9 @@ function drawPath(node) {
   );
 }
 
+/**
+ * renderNode documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
   if (hiddenNodeIds.has(node.id)) {
     return null;
@@ -204,6 +231,9 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
   return null;
 }
 
+/**
+ * PenArtboard renders the UI surface for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function PenArtboard({
   artboard,
   textOverrides = {},

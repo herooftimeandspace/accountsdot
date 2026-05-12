@@ -9,6 +9,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
 )
 
+// TestHealthRoutes exercises and documents internal/web/health_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestHealthRoutes(t *testing.T) {
 	handler := web.NewHealthHandler(web.HealthDependencies{
 		DBReady:         func() error { return nil },
@@ -43,6 +44,7 @@ func TestHealthRoutes(t *testing.T) {
 	}
 }
 
+// TestHealthReadyFailsDependency exercises and documents internal/web/health_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestHealthReadyFailsDependency(t *testing.T) {
 	handler := web.NewHealthHandler(web.HealthDependencies{
 		DBReady:         func() error { return nil },
@@ -60,6 +62,7 @@ func TestHealthReadyFailsDependency(t *testing.T) {
 	}
 }
 
+// TestHealthReadyAllowsMissingOptionalCheck exercises and documents internal/web/health_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestHealthReadyAllowsMissingOptionalCheck(t *testing.T) {
 	handler := web.NewHealthHandler(web.HealthDependencies{
 		DBReady:         func() error { return nil },
@@ -77,4 +80,5 @@ func TestHealthReadyAllowsMissingOptionalCheck(t *testing.T) {
 
 type errBoom struct{}
 
+// Error documents the data flow for internal/web/health_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (errBoom) Error() string { return "boom" }

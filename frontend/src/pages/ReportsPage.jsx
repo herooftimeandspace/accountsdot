@@ -185,6 +185,9 @@ const REFRESH_COLUMNS = [
   { key: "status", label: "Status", value: (row) => row.status },
 ];
 
+/**
+ * collectAllNodeIds builds derived data for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectAllNodeIds(node, ids) {
   ids.push(node.id);
   for (const child of node.children || []) {
@@ -192,6 +195,9 @@ function collectAllNodeIds(node, ids) {
   }
 }
 
+/**
+ * collectPaneNodeIds builds derived data for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectPaneNodeIds(node, ids = []) {
   const isPaneNode = (node.x ?? 0) >= 280 && (node.y ?? 0) >= 88;
   if (isPaneNode) {
@@ -204,6 +210,9 @@ function collectPaneNodeIds(node, ids = []) {
   return ids;
 }
 
+/**
+ * reportStatusClass documents runtime data flow for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function reportStatusClass(status) {
   if (status === "Healthy" || status === "Up to date") {
     return "reports-runtime__status reports-runtime__status--ready";
@@ -214,6 +223,9 @@ function reportStatusClass(status) {
   return "reports-runtime__status reports-runtime__status--neutral";
 }
 
+/**
+ * ReportsDrawer renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function ReportsDrawer({ item, onClose, onNavigate }) {
   if (!item) {
     return null;
@@ -256,6 +268,9 @@ function ReportsDrawer({ item, onClose, onNavigate }) {
   );
 }
 
+/**
+ * SummaryCards renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function SummaryCards() {
   const cards = [
     ["Onboarding", "186", "Pending"],
@@ -281,6 +296,9 @@ function SummaryCards() {
   );
 }
 
+/**
+ * ReportsTable renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function ReportsTable({ selectedId, onSelect }) {
   const columns = useMemo(() => REPORT_COLUMNS, []);
   const table = useRuntimeTableData(REPORT_ROWS, columns, {
@@ -324,6 +342,9 @@ function ReportsTable({ selectedId, onSelect }) {
   );
 }
 
+/**
+ * RefreshTable renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function RefreshTable({ selectedId, onSelect }) {
   const columns = useMemo(() => REFRESH_COLUMNS, []);
   const table = useRuntimeTableData(REFRESH_ROWS, columns, {
@@ -361,6 +382,9 @@ function RefreshTable({ selectedId, onSelect }) {
   );
 }
 
+/**
+ * ReportsOverlay renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function ReportsOverlay({ selectedItem, onSelect }) {
   return (
     <section
@@ -387,6 +411,9 @@ function ReportsOverlay({ selectedItem, onSelect }) {
   );
 }
 
+/**
+ * ReportsPage renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function ReportsPage({ session, onNavigate, onSearch, searchQuery }) {
   const artboard = generatedArtboards[ARTBOARD_KEY];
   const meta = generatedArtboardMeta[ARTBOARD_KEY];

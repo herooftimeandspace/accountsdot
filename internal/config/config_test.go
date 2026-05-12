@@ -6,6 +6,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/config"
 )
 
+// TestLoadDefaults exercises and documents internal/config/config_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestLoadDefaults(t *testing.T) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -22,6 +23,7 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
+// TestLoadOverridesFromEnvironment exercises and documents internal/config/config_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestLoadOverridesFromEnvironment(t *testing.T) {
 	t.Setenv("APP_ENV", "test")
 	t.Setenv("APP_PORT", "9090")
@@ -46,6 +48,7 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadFallsBackOnInvalidIntegerValues exercises and documents internal/config/config_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestLoadFallsBackOnInvalidIntegerValues(t *testing.T) {
 	t.Setenv("ZOOM_SLG_MAX_MEMBERS", "bogus")
 	t.Setenv("REPLAY_EVENT_LIMIT", "bogus")

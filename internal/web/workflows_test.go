@@ -9,6 +9,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
 )
 
+// TestWorkflowAndApprovalRoutes exercises and documents internal/web/workflows_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestWorkflowAndApprovalRoutes(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
@@ -42,6 +43,7 @@ func TestWorkflowAndApprovalRoutes(t *testing.T) {
 	}
 }
 
+// TestWorkflowAndApprovalRoutesRejectInvalidMethodsAndPaths exercises and documents internal/web/workflows_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestWorkflowAndApprovalRoutesRejectInvalidMethodsAndPaths(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 

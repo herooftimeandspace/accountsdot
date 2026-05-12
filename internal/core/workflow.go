@@ -82,6 +82,7 @@ type WorkflowJob struct {
 	ApprovalRequired bool
 }
 
+// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v WorkflowType) Valid() bool {
 	switch v {
 	case WorkflowTypePersonOnboard,
@@ -103,6 +104,7 @@ func (v WorkflowType) Valid() bool {
 	}
 }
 
+// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v WorkflowChangeReason) Valid() bool {
 	switch v {
 	case WorkflowChangeReasonAssignmentAdd,
@@ -119,6 +121,7 @@ func (v WorkflowChangeReason) Valid() bool {
 	}
 }
 
+// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v WorkflowRunState) Valid() bool {
 	switch v {
 	case WorkflowRunStatePlanned,
@@ -135,6 +138,7 @@ func (v WorkflowRunState) Valid() bool {
 	}
 }
 
+// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v ApprovalState) Valid() bool {
 	switch v {
 	case ApprovalStateNotRequired,
@@ -148,6 +152,7 @@ func (v ApprovalState) Valid() bool {
 	}
 }
 
+// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (v ProviderKind) Valid() bool {
 	switch v {
 	case ProviderKindHRSFTP,

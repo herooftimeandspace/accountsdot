@@ -7,6 +7,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 )
 
+// TestClassifyError exercises and documents internal/provider/contracts_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestClassifyError(t *testing.T) {
 	tests := []struct {
 		name string
@@ -25,6 +26,7 @@ func TestClassifyError(t *testing.T) {
 	}
 }
 
+// TestProviderErrorErrorAndUnwrap exercises and documents internal/provider/contracts_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestProviderErrorErrorAndUnwrap(t *testing.T) {
 	err := errors.New("inner")
 	providerErr := provider.ProviderError{Class: provider.ErrorClassManual, Err: err}

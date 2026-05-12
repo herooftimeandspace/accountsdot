@@ -668,6 +668,7 @@ var devPersonaOrder = []string{
 	"faculty_staff",
 }
 
+// handleDevSession handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevSession(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -688,6 +689,7 @@ func handleDevSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, buildDevSessionPayload(config))
 }
 
+// handleDevLogin handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -716,6 +718,7 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, buildDevSessionPayload(config))
 }
 
+// handleDevLogout handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -731,6 +734,7 @@ func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleDevDataQualityPage handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -807,18 +811,22 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleDevPhoneDirectoryByPersonPage handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevPhoneDirectoryByPersonPage(w http.ResponseWriter, r *http.Request) {
 	writeDevPhoneDirectoryPage(w, r, "person")
 }
 
+// handleDevPhoneDirectoryByRoomPage handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevPhoneDirectoryByRoomPage(w http.ResponseWriter, r *http.Request) {
 	writeDevPhoneDirectoryPage(w, r, "room")
 }
 
+// handleDevPhoneDirectoryByDepartmentPage handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevPhoneDirectoryByDepartmentPage(w http.ResponseWriter, r *http.Request) {
 	writeDevPhoneDirectoryPage(w, r, "department")
 }
 
+// writeDevPhoneDirectoryPage writes the response payload for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode string) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -868,6 +876,7 @@ func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode str
 	})
 }
 
+// orderedDevPersonas documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func orderedDevPersonas() []devPersona {
 	personas := make([]devPersona, 0, len(devPersonaOrder))
 	for _, id := range devPersonaOrder {
@@ -878,6 +887,7 @@ func orderedDevPersonas() []devPersona {
 	return personas
 }
 
+// concatRoutes documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func concatRoutes(groups ...[]string) []string {
 	total := 0
 	for _, group := range groups {
@@ -891,6 +901,7 @@ func concatRoutes(groups ...[]string) []string {
 	return routes
 }
 
+// buildDevSessionPayload builds the value used by internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func buildDevSessionPayload(config devPersonaConfig) devSessionPayload {
 	persona := config.Persona
 	return devSessionPayload{
@@ -909,6 +920,7 @@ func buildDevSessionPayload(config devPersonaConfig) devSessionPayload {
 	}
 }
 
+// resolveAuthenticatedDevPersona resolves decision data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
 	cookie, err := r.Cookie(devSessionCookieName)
 	if err != nil {
@@ -922,10 +934,12 @@ func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
 	return config, true
 }
 
+// routeAllowed documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func routeAllowed(config devPersonaConfig, path string) bool {
 	return slices.Contains(config.Allowed, path)
 }
 
+// writeDevSessionCookie writes the response payload for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func writeDevSessionCookie(w http.ResponseWriter, personaID string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     devSessionCookieName,
@@ -937,6 +951,7 @@ func writeDevSessionCookie(w http.ResponseWriter, personaID string) {
 	})
 }
 
+// clearDevSessionCookie documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func clearDevSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     devSessionCookieName,
@@ -949,15 +964,18 @@ func clearDevSessionCookie(w http.ResponseWriter) {
 	})
 }
 
+// devModeEnabled documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func devModeEnabled() bool {
 	mode := strings.TrimSpace(os.Getenv("APP_ENV"))
 	return strings.EqualFold(mode, "development")
 }
 
+// siteByID documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func siteByID(id string) devSiteContext {
 	return devSiteCatalog[id]
 }
 
+// sitesByID documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func sitesByID(ids ...string) []devSiteContext {
 	sites := make([]devSiteContext, 0, len(ids))
 	for _, id := range ids {
@@ -966,6 +984,7 @@ func sitesByID(ids ...string) []devSiteContext {
 	return sites
 }
 
+// personDirectoryEntry documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func personDirectoryEntry(id string, site devSiteContext, name string, role string, department string, emailLocalPart string, extension string, identifier string) devPhoneDirectoryEntry {
 	email := syntheticEmail(emailLocalPart)
 	phone := syntheticPhoneNumber(extension)
@@ -987,6 +1006,7 @@ func personDirectoryEntry(id string, site devSiteContext, name string, role stri
 	})
 }
 
+// commonAreaDirectoryEntry documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func commonAreaDirectoryEntry(id string, site devSiteContext, title string, location string, extension string, identifier string) devPhoneDirectoryEntry {
 	phone := syntheticPhoneNumber(extension)
 	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
@@ -1005,6 +1025,7 @@ func commonAreaDirectoryEntry(id string, site devSiteContext, title string, loca
 	})
 }
 
+// classroomSLGDirectoryEntry documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func classroomSLGDirectoryEntry(id string, site devSiteContext, title string, location string, extension string, identifier string) devPhoneDirectoryEntry {
 	phone := syntheticPhoneNumber(extension)
 	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
@@ -1023,6 +1044,7 @@ func classroomSLGDirectoryEntry(id string, site devSiteContext, title string, lo
 	})
 }
 
+// departmentSLGDirectoryEntry documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func departmentSLGDirectoryEntry(id string, site devSiteContext, title string, classification string, department string, extension string, identifier string) devPhoneDirectoryEntry {
 	phone := syntheticPhoneNumber(extension)
 	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
@@ -1041,6 +1063,7 @@ func departmentSLGDirectoryEntry(id string, site devSiteContext, title string, c
 	})
 }
 
+// callQueueDirectoryEntry documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func callQueueDirectoryEntry(id string, site devSiteContext, title string, department string, extension string, identifier string) devPhoneDirectoryEntry {
 	phone := syntheticPhoneNumber(extension)
 	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
@@ -1059,6 +1082,7 @@ func callQueueDirectoryEntry(id string, site devSiteContext, title string, depar
 	})
 }
 
+// autoAttendantDirectoryEntry documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func autoAttendantDirectoryEntry(id string, site devSiteContext, title string, extension string, identifier string) devPhoneDirectoryEntry {
 	phone := syntheticPhoneNumber(extension)
 	return newPhoneDirectoryEntry(devPhoneDirectoryEntry{
@@ -1076,6 +1100,7 @@ func autoAttendantDirectoryEntry(id string, site devSiteContext, title string, e
 	})
 }
 
+// newPhoneDirectoryEntry builds the value used by internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func newPhoneDirectoryEntry(entry devPhoneDirectoryEntry) devPhoneDirectoryEntry {
 	length, valid := extensionMetadata(entry.Extension)
 	entry.ExtensionLength = length
@@ -1083,6 +1108,7 @@ func newPhoneDirectoryEntry(entry devPhoneDirectoryEntry) devPhoneDirectoryEntry
 	return entry
 }
 
+// buildSearchableValues builds the value used by internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func buildSearchableValues(values ...string) []string {
 	searchable := make([]string, 0, len(values))
 	for _, value := range values {
@@ -1095,12 +1121,14 @@ func buildSearchableValues(values ...string) []string {
 	return searchable
 }
 
+// extensionMetadata normalizes source data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func extensionMetadata(extension string) (int, bool) {
 	digits := extensionDigits(extension)
 	length := len(digits)
 	return length, length >= 4 && length <= 6
 }
 
+// extensionDigits normalizes source data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func extensionDigits(value string) string {
 	var builder strings.Builder
 	builder.Grow(len(value))
@@ -1112,6 +1140,7 @@ func extensionDigits(value string) string {
 	return builder.String()
 }
 
+// syntheticPhoneNumber normalizes source data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func syntheticPhoneNumber(extension string) string {
 	suffix := extensionDigits(extension)
 	if suffix == "" {
@@ -1126,10 +1155,12 @@ func syntheticPhoneNumber(extension string) string {
 	return "(707) 555-" + suffix
 }
 
+// syntheticEmail normalizes source data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func syntheticEmail(localPart string) string {
 	return localPart + "@mock.wusd.invalid"
 }
 
+// phoneDirectoryDescription documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func phoneDirectoryDescription(mode string) string {
 	switch mode {
 	case "room":
@@ -1143,6 +1174,7 @@ func phoneDirectoryDescription(mode string) string {
 
 const devDirectoryScopeDistrictWide = "district-wide"
 
+// defaultPhoneDirectoryScopeID builds the value used by internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func defaultPhoneDirectoryScopeID(config devPersonaConfig) string {
 	switch config.Persona.ID {
 	case "it_admin", "human_resources":
@@ -1155,6 +1187,7 @@ func defaultPhoneDirectoryScopeID(config devPersonaConfig) string {
 	}
 }
 
+// resolvePhoneDirectoryScope resolves decision data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func resolvePhoneDirectoryScope(config devPersonaConfig, requestedScopeID string) (string, string) {
 	scopeID := strings.TrimSpace(requestedScopeID)
 	if scopeID == "" {
@@ -1175,6 +1208,7 @@ func resolvePhoneDirectoryScope(config devPersonaConfig, requestedScopeID string
 	return site.ID, site.Name
 }
 
+// phoneDirectoryScopeOptions documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func phoneDirectoryScopeOptions() []directoryScopeOption {
 	options := []directoryScopeOption{{ID: devDirectoryScopeDistrictWide, Label: "District-wide"}}
 	for _, siteID := range devSiteOrder {
@@ -1187,6 +1221,7 @@ func phoneDirectoryScopeOptions() []directoryScopeOption {
 	return options
 }
 
+// phoneDirectorySiteOrder documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func phoneDirectorySiteOrder() map[string]int {
 	siteOrder := make(map[string]int, len(devSiteOrder))
 	for index, siteID := range devSiteOrder {
@@ -1195,6 +1230,7 @@ func phoneDirectorySiteOrder() map[string]int {
 	return siteOrder
 }
 
+// searchPhoneDirectory resolves decision data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func searchPhoneDirectory(query string, mode string, directoryScopeID string) []phoneDirectorySearchResult {
 	siteOrderByID := phoneDirectorySiteOrder()
 	normalizedQuery := normalizeSearchValue(query)
@@ -1279,6 +1315,7 @@ func searchPhoneDirectory(query string, mode string, directoryScopeID string) []
 	return results
 }
 
+// phoneDirectoryModeAllows documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func phoneDirectoryModeAllows(mode string, entryType string) bool {
 	switch mode {
 	case "room":
@@ -1290,6 +1327,7 @@ func phoneDirectoryModeAllows(mode string, entryType string) bool {
 	}
 }
 
+// bestPhoneDirectoryMatch documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func bestPhoneDirectoryMatch(entry devPhoneDirectoryEntry, normalizedQuery string) *phoneDirectorySearchMatch {
 	if normalizedQuery == "" {
 		return &phoneDirectorySearchMatch{Rank: 3}
@@ -1323,6 +1361,7 @@ func bestPhoneDirectoryMatch(entry devPhoneDirectoryEntry, normalizedQuery strin
 	return &phoneDirectorySearchMatch{Rank: bestRank}
 }
 
+// phoneDirectoryTypeRank documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func phoneDirectoryTypeRank(mode string, resultType string) int {
 	switch mode {
 	case "room":
@@ -1365,6 +1404,7 @@ func phoneDirectoryTypeRank(mode string, resultType string) int {
 	}
 }
 
+// normalizeSearchValue normalizes source data for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func normalizeSearchValue(value string) string {
 	var builder strings.Builder
 	builder.Grow(len(value))

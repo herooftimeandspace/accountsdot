@@ -12,6 +12,7 @@ type Config struct {
 	ReplayEventLimit  int
 }
 
+// Load documents the data flow for internal/config/config.go. Startup and configuration tests reach this function; debug it by checking environment variables, defaults, and fallback parsing. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func Load() (Config, error) {
 	return Config{
 		AppEnv:            getEnv("APP_ENV", "development"),
@@ -21,6 +22,7 @@ func Load() (Config, error) {
 	}, nil
 }
 
+// getEnv documents the data flow for internal/config/config.go. Startup and configuration tests reach this function; debug it by checking environment variables, defaults, and fallback parsing. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -28,6 +30,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+// getEnvInt documents the data flow for internal/config/config.go. Startup and configuration tests reach this function; debug it by checking environment variables, defaults, and fallback parsing. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func getEnvInt(key string, fallback int) int {
 	value := os.Getenv(key)
 	if value == "" {

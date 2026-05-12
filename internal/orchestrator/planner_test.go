@@ -8,6 +8,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/orchestrator"
 )
 
+// TestPlanWorkflowPersonOnboardWithRoom exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPlanWorkflowPersonOnboardWithRoom(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType: core.WorkflowTypePersonOnboard,
@@ -42,6 +43,7 @@ func TestPlanWorkflowPersonOnboardWithRoom(t *testing.T) {
 	}
 }
 
+// TestPlanWorkflowPersonOnboardWithoutRoomSkipsRoomSteps exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPlanWorkflowPersonOnboardWithoutRoomSkipsRoomSteps(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType: core.WorkflowTypePersonOnboard,
@@ -63,6 +65,7 @@ func TestPlanWorkflowPersonOnboardWithoutRoomSkipsRoomSteps(t *testing.T) {
 	assertOperations(t, result.Jobs, want)
 }
 
+// TestPlanWorkflowSameSiteTransferCreatesRoomCoverageFollowUp exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func TestPlanWorkflowSameSiteTransferCreatesRoomCoverageFollowUp(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType:         core.WorkflowTypePersonSameSiteTransfer,
@@ -86,6 +89,7 @@ func TestPlanWorkflowSameSiteTransferCreatesRoomCoverageFollowUp(t *testing.T) {
 	}
 }
 
+// TestPlanWorkflowSiteTransferRequiresApprovalOnCutover exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPlanWorkflowSiteTransferRequiresApprovalOnCutover(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType: core.WorkflowTypePersonSiteTransfer,
@@ -112,6 +116,7 @@ func TestPlanWorkflowSiteTransferRequiresApprovalOnCutover(t *testing.T) {
 	}
 }
 
+// TestPlanWorkflowTerminationWithCoverageCreatesCapFirst exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func TestPlanWorkflowTerminationWithCoverageCreatesCapFirst(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType:         core.WorkflowTypePersonTerminate,
@@ -139,6 +144,7 @@ func TestPlanWorkflowTerminationWithCoverageCreatesCapFirst(t *testing.T) {
 	}
 }
 
+// TestPlanWorkflowPersonLeaveWithoutCoverageIsDestructiveOnly exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPlanWorkflowPersonLeaveWithoutCoverageIsDestructiveOnly(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType: core.WorkflowTypePersonLeave,
@@ -158,6 +164,7 @@ func TestPlanWorkflowPersonLeaveWithoutCoverageIsDestructiveOnly(t *testing.T) {
 	assertOperations(t, result.Jobs, want)
 }
 
+// TestPlanWorkflowDirectoryPublishUsesDebounce exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPlanWorkflowDirectoryPublishUsesDebounce(t *testing.T) {
 	now := time.Date(2026, 3, 17, 12, 0, 0, 0, time.UTC)
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
@@ -181,6 +188,7 @@ func TestPlanWorkflowDirectoryPublishUsesDebounce(t *testing.T) {
 	}
 }
 
+// TestPlanWorkflowRoomCoverage exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPlanWorkflowRoomCoverage(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType: core.WorkflowTypeRoomCoverage,
@@ -198,6 +206,7 @@ func TestPlanWorkflowRoomCoverage(t *testing.T) {
 	assertOperations(t, result.Jobs, want)
 }
 
+// TestPlanWorkflowUpdateAndContextRefresh exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func TestPlanWorkflowUpdateAndContextRefresh(t *testing.T) {
 	for _, workflowType := range []core.WorkflowType{
 		core.WorkflowTypePersonUpdate,
@@ -215,6 +224,7 @@ func TestPlanWorkflowUpdateAndContextRefresh(t *testing.T) {
 	}
 }
 
+// TestPlanWorkflowUnsupportedTypeReturnsError exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestPlanWorkflowUnsupportedTypeReturnsError(t *testing.T) {
 	if _, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType: core.WorkflowType("bogus"),
@@ -225,6 +235,7 @@ func TestPlanWorkflowUnsupportedTypeReturnsError(t *testing.T) {
 	}
 }
 
+// TestDefaultLoopSpecs exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestDefaultLoopSpecs(t *testing.T) {
 	specs := orchestrator.DefaultLoopSpecs()
 	assertLoopCadence(t, specs, "hr_import_loop", 5*time.Minute)
@@ -235,6 +246,7 @@ func TestDefaultLoopSpecs(t *testing.T) {
 	assertLoopCadence(t, specs, "workflow_planner_loop", 30*time.Second)
 }
 
+// assertOperations documents the data flow for internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func assertOperations(t *testing.T, jobs []core.WorkflowJob, want []string) {
 	t.Helper()
 	if len(jobs) != len(want) {
@@ -247,6 +259,7 @@ func assertOperations(t *testing.T, jobs []core.WorkflowJob, want []string) {
 	}
 }
 
+// assertLoopCadence documents the data flow for internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func assertLoopCadence(t *testing.T, specs []orchestrator.LoopSpec, name string, want time.Duration) {
 	t.Helper()
 	for _, spec := range specs {

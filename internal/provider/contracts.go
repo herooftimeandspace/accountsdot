@@ -75,6 +75,7 @@ type ProviderError struct {
 	Err   error
 }
 
+// Error documents the data flow for internal/provider/contracts.go. Provider contract tests and future provider implementations reach this function; debug it by checking normalized payloads, error classes, and external-write safety notes. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (e ProviderError) Error() string {
 	if e.Err == nil {
 		return string(e.Class)
@@ -82,10 +83,12 @@ func (e ProviderError) Error() string {
 	return e.Err.Error()
 }
 
+// Unwrap documents the data flow for internal/provider/contracts.go. Provider contract tests and future provider implementations reach this function; debug it by checking normalized payloads, error classes, and external-write safety notes. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (e ProviderError) Unwrap() error {
 	return e.Err
 }
 
+// ClassifyError documents the data flow for internal/provider/contracts.go. Provider contract tests and future provider implementations reach this function; debug it by checking normalized payloads, error classes, and external-write safety notes. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func ClassifyError(err error) ErrorClass {
 	var providerErr ProviderError
 	if errors.As(err, &providerErr) {
