@@ -36,10 +36,12 @@ function StatusChip({ enabled, children }) {
   );
 }
 
-function TargetToggle({ flag, target, targetType, busy, onToggle }) {
+function TargetToggle({ flag, target, targetType, busyTargetKey, onToggle }) {
   if (target.read_only) {
     return <StatusChip enabled={target.enabled}>Always on</StatusChip>;
   }
+  const targetKey = `${flag.key}:${targetType}:${target.id}`;
+  const busy = busyTargetKey === targetKey;
 
   return (
     <label className="feature-flags-runtime__toggle">
@@ -54,10 +56,9 @@ function TargetToggle({ flag, target, targetType, busy, onToggle }) {
   );
 }
 
-function FeatureFlagCard({ flag, busyKey, onToggle }) {
+function FeatureFlagCard({ flag, busyTargetKey, onToggle }) {
   const activePersonaTargets = flag.persona_targets.filter((target) => target.enabled);
   const activeSiteTargets = flag.site_targets.filter((target) => target.enabled);
-  const busy = busyKey === flag.key;
 
   return (
     <article className="feature-flags-runtime__flag">
@@ -87,7 +88,7 @@ function FeatureFlagCard({ flag, busyKey, onToggle }) {
             {flag.persona_targets.map((target) => (
               <div key={target.id} className="feature-flags-runtime__target-row">
                 <span>{target.label}</span>
-                <TargetToggle flag={flag} target={target} targetType="persona" busy={busy} onToggle={onToggle} />
+                <TargetToggle flag={flag} target={target} targetType="persona" busyTargetKey={busyTargetKey} onToggle={onToggle} />
               </div>
             ))}
           </div>
@@ -98,7 +99,7 @@ function FeatureFlagCard({ flag, busyKey, onToggle }) {
             {flag.site_targets.map((target) => (
               <div key={target.id} className="feature-flags-runtime__target-row">
                 <span>{target.label}</span>
-                <TargetToggle flag={flag} target={target} targetType="site" busy={busy} onToggle={onToggle} />
+                <TargetToggle flag={flag} target={target} targetType="site" busyTargetKey={busyTargetKey} onToggle={onToggle} />
               </div>
             ))}
           </div>
@@ -108,7 +109,7 @@ function FeatureFlagCard({ flag, busyKey, onToggle }) {
   );
 }
 
-function FeatureFlagsOverlay({ payload, state, message, busyKey, onToggle }) {
+function FeatureFlagsOverlay({ payload, state, message, busyTargetKey, onToggle }) {
   return (
     <section
       className="feature-flags-runtime"
@@ -133,7 +134,7 @@ function FeatureFlagsOverlay({ payload, state, message, busyKey, onToggle }) {
       {payload?.flags?.length ? (
         <div className="feature-flags-runtime__grid">
           {payload.flags.map((flag) => (
-            <FeatureFlagCard key={flag.key} flag={flag} busyKey={busyKey} onToggle={onToggle} />
+            <FeatureFlagCard key={flag.key} flag={flag} busyTargetKey={busyTargetKey} onToggle={onToggle} />
           ))}
         </div>
       ) : null}
@@ -147,7 +148,7 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
   const [payload, setPayload] = useState(null);
   const [state, setState] = useState("loading");
   const [message, setMessage] = useState("");
-  const [busyKey, setBusyKey] = useState("");
+  const [busyTargetKey, setBusyTargetKey] = useState("");
   const textOverrides = buildSharedShellTextOverrides(session);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
     hideNavHighlight: true,
@@ -207,7 +208,7 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
   }, [loadFeatureFlags]);
 
   const handleToggle = useCallback(async (flag, targetType, targetId, enabled) => {
-    setBusyKey(flag.key);
+    setBusyTargetKey(`${flag.key}:${targetType}:${targetId}`);
     setMessage("");
     try {
       const updatedFlag = await readJSON(
@@ -240,16 +241,16 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
       }
       setMessage(error.payload?.message || error.message);
     } finally {
-      setBusyKey("");
+      setBusyTargetKey("");
     }
   }, [onForbidden, onUnauthorized]);
 
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (
     <>
       {sharedShellRenderOverlay?.({ nodeIndex, textOverrides: overlayTextOverrides })}
-      <FeatureFlagsOverlay payload={payload} state={state} message={message} busyKey={busyKey} onToggle={handleToggle} />
+      <FeatureFlagsOverlay payload={payload} state={state} message={message} busyTargetKey={busyTargetKey} onToggle={handleToggle} />
     </>
-  ), [busyKey, handleToggle, message, payload, sharedShellRenderOverlay, state]);
+  ), [busyTargetKey, handleToggle, message, payload, sharedShellRenderOverlay, state]);
 
   if (artboardStatus === "loading") {
     return (

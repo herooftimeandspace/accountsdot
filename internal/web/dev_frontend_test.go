@@ -26,9 +26,72 @@ type devSessionResponse struct {
 	} `json:"current_persona,omitempty"`
 	LandingPath   string   `json:"landing_path"`
 	AllowedRoutes []string `json:"allowed_routes"`
-	Personas      []struct {
+	FeatureFlags  []struct {
+		Key        string `json:"key"`
+		Label      string `json:"label"`
+		Enabled    bool   `json:"enabled"`
+		Indicators []struct {
+			TargetType  string `json:"target_type"`
+			TargetID    string `json:"target_id"`
+			TargetLabel string `json:"target_label"`
+			Enabled     bool   `json:"enabled"`
+			ReadOnly    bool   `json:"read_only"`
+		} `json:"indicators"`
+	} `json:"feature_flags"`
+	Personas []struct {
 		ID string `json:"id"`
 	} `json:"personas"`
+}
+
+type featureFlagsResponse struct {
+	PageID string `json:"page_id"`
+	Flags  []struct {
+		Key            string `json:"key"`
+		Label          string `json:"label"`
+		EffectiveForIT bool   `json:"effective_for_it_admin"`
+		PersonaTargets []struct {
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Enabled  bool   `json:"enabled"`
+			ReadOnly bool   `json:"read_only"`
+		} `json:"persona_targets"`
+		SiteTargets []struct {
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Enabled  bool   `json:"enabled"`
+			ReadOnly bool   `json:"read_only"`
+		} `json:"site_targets"`
+		ActiveIndicators []struct {
+			TargetType string `json:"target_type"`
+			TargetID   string `json:"target_id"`
+			Enabled    bool   `json:"enabled"`
+			ReadOnly   bool   `json:"read_only"`
+		} `json:"active_indicators"`
+	} `json:"flags"`
+}
+
+type featureFlagResponse struct {
+	Key            string `json:"key"`
+	Label          string `json:"label"`
+	EffectiveForIT bool   `json:"effective_for_it_admin"`
+	PersonaTargets []struct {
+		ID       string `json:"id"`
+		Label    string `json:"label"`
+		Enabled  bool   `json:"enabled"`
+		ReadOnly bool   `json:"read_only"`
+	} `json:"persona_targets"`
+	SiteTargets []struct {
+		ID       string `json:"id"`
+		Label    string `json:"label"`
+		Enabled  bool   `json:"enabled"`
+		ReadOnly bool   `json:"read_only"`
+	} `json:"site_targets"`
+	ActiveIndicators []struct {
+		TargetType string `json:"target_type"`
+		TargetID   string `json:"target_id"`
+		Enabled    bool   `json:"enabled"`
+		ReadOnly   bool   `json:"read_only"`
+	} `json:"active_indicators"`
 }
 
 type dataQualityResponse struct {
@@ -507,6 +570,273 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if pagePayload.Hotspots["refresh"].NodeID != "f104" {
 			t.Fatalf("refresh hotspot node = %q, want f104", pagePayload.Hotspots["refresh"].NodeID)
+		}
+	})
+
+	t.Run("feature flags are it admin only and include read only it override", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/feature-flags", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("anonymous feature flags returned %d, want 401", rec.Code)
+		}
+
+		siteCookie := loginAsPersona(t, handler, "site_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/feature-flags", nil)
+		req.AddCookie(siteCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site admin feature flags returned %d, want 403", rec.Code)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/onboarding", strings.NewReader(`{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":false}]}`))
+		updateReq.AddCookie(siteCookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusForbidden {
+			t.Fatalf("site admin feature flag update returned %d, want 403", updateRec.Code)
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/feature-flags", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it admin feature flags returned %d, want 200", rec.Code)
+		}
+		payload := decodeJSON[featureFlagsResponse](t, rec)
+		if payload.PageID != "feature-flags" || len(payload.Flags) == 0 {
+			t.Fatalf("unexpected feature flags payload: %#v", payload)
+		}
+		flagIndex := slices.IndexFunc(payload.Flags, func(flag struct {
+			Key            string `json:"key"`
+			Label          string `json:"label"`
+			EffectiveForIT bool   `json:"effective_for_it_admin"`
+			PersonaTargets []struct {
+				ID       string `json:"id"`
+				Label    string `json:"label"`
+				Enabled  bool   `json:"enabled"`
+				ReadOnly bool   `json:"read_only"`
+			} `json:"persona_targets"`
+			SiteTargets []struct {
+				ID       string `json:"id"`
+				Label    string `json:"label"`
+				Enabled  bool   `json:"enabled"`
+				ReadOnly bool   `json:"read_only"`
+			} `json:"site_targets"`
+			ActiveIndicators []struct {
+				TargetType string `json:"target_type"`
+				TargetID   string `json:"target_id"`
+				Enabled    bool   `json:"enabled"`
+				ReadOnly   bool   `json:"read_only"`
+			} `json:"active_indicators"`
+		}) bool {
+			return flag.Key == "frequent_fliers"
+		})
+		if flagIndex < 0 {
+			t.Fatalf("feature flags missing frequent_fliers: %#v", payload.Flags)
+		}
+		frequentFliers := payload.Flags[flagIndex]
+		if !frequentFliers.EffectiveForIT || len(frequentFliers.PersonaTargets) == 0 || frequentFliers.PersonaTargets[0].ID != "it_admin" || !frequentFliers.PersonaTargets[0].ReadOnly {
+			t.Fatalf("expected read-only IT Admin override first, got %#v", frequentFliers.PersonaTargets)
+		}
+		if len(frequentFliers.ActiveIndicators) == 0 || !frequentFliers.ActiveIndicators[0].ReadOnly || !frequentFliers.ActiveIndicators[0].Enabled {
+			t.Fatalf("expected active read-only indicators, got %#v", frequentFliers.ActiveIndicators)
+		}
+	})
+
+	t.Run("feature flags gate non it allowed routes while preserving it override", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		body, err := json.Marshal(map[string]any{
+			"targets": []map[string]any{
+				{"target_type": "persona", "target_id": "site_admin", "enabled": false},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal feature flag update: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/onboarding", bytes.NewReader(body))
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("feature flag update returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		defer func() {
+			restoreBody, err := json.Marshal(map[string]any{
+				"targets": []map[string]any{
+					{"target_type": "persona", "target_id": "site_admin", "enabled": true},
+				},
+			})
+			if err != nil {
+				t.Fatalf("marshal feature flag restore: %v", err)
+			}
+			restoreReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/onboarding", bytes.NewReader(restoreBody))
+			restoreReq.AddCookie(itCookie)
+			restoreRec := httptest.NewRecorder()
+			handler.ServeHTTP(restoreRec, restoreReq)
+			if restoreRec.Code != http.StatusOK {
+				t.Fatalf("feature flag restore returned %d, want 200: %s", restoreRec.Code, restoreRec.Body.String())
+			}
+		}()
+
+		siteCookie := loginAsPersona(t, handler, "site_admin")
+		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		sessionReq.AddCookie(siteCookie)
+		sessionRec := httptest.NewRecorder()
+		handler.ServeHTTP(sessionRec, sessionReq)
+		if sessionRec.Code != http.StatusOK {
+			t.Fatalf("site admin session returned %d", sessionRec.Code)
+		}
+		siteSession := decodeJSON[devSessionResponse](t, sessionRec)
+		if slices.Contains(siteSession.AllowedRoutes, "/onboarding") {
+			t.Fatalf("site admin allowed routes still include onboarding: %#v", siteSession.AllowedRoutes)
+		}
+		flagIndex := slices.IndexFunc(siteSession.FeatureFlags, func(flag struct {
+			Key        string `json:"key"`
+			Label      string `json:"label"`
+			Enabled    bool   `json:"enabled"`
+			Indicators []struct {
+				TargetType  string `json:"target_type"`
+				TargetID    string `json:"target_id"`
+				TargetLabel string `json:"target_label"`
+				Enabled     bool   `json:"enabled"`
+				ReadOnly    bool   `json:"read_only"`
+			} `json:"indicators"`
+		}) bool {
+			return flag.Key == "onboarding"
+		})
+		if flagIndex < 0 || siteSession.FeatureFlags[flagIndex].Enabled {
+			t.Fatalf("site admin onboarding feature = %#v, want disabled", siteSession.FeatureFlags)
+		}
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
+		pageReq.AddCookie(siteCookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusForbidden {
+			t.Fatalf("site admin onboarding page returned %d, want 403", pageRec.Code)
+		}
+
+		itSessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		itSessionReq.AddCookie(itCookie)
+		itSessionRec := httptest.NewRecorder()
+		handler.ServeHTTP(itSessionRec, itSessionReq)
+		itSession := decodeJSON[devSessionResponse](t, itSessionRec)
+		if !slices.Contains(itSession.AllowedRoutes, "/onboarding") {
+			t.Fatalf("it admin allowed routes lost onboarding: %#v", itSession.AllowedRoutes)
+		}
+	})
+
+	t.Run("feature flag target updates are independent and forced APIs are denied", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		updateTarget := func(targetType string, targetID string, enabled bool) featureFlagResponse {
+			t.Helper()
+			body, err := json.Marshal(map[string]any{
+				"targets": []map[string]any{
+					{"target_type": targetType, "target_id": targetID, "enabled": enabled},
+				},
+			})
+			if err != nil {
+				t.Fatalf("marshal feature flag update: %v", err)
+			}
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/onboarding", bytes.NewReader(body))
+			req.AddCookie(itCookie)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("feature flag update returned %d, want 200: %s", rec.Code, rec.Body.String())
+			}
+			return decodeJSON[featureFlagResponse](t, rec)
+		}
+		t.Cleanup(func() {
+			updateTarget("persona", "human_resources", true)
+			updateTarget("site", "district-office", true)
+		})
+
+		payload := updateTarget("persona", "human_resources", false)
+		if payload.Key != "onboarding" {
+			t.Fatalf("unexpected update payload: %#v", payload)
+		}
+		onboardingFlag := payload
+		humanResourcesIndex := slices.IndexFunc(onboardingFlag.PersonaTargets, func(target struct {
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Enabled  bool   `json:"enabled"`
+			ReadOnly bool   `json:"read_only"`
+		}) bool {
+			return target.ID == "human_resources"
+		})
+		siteAdminIndex := slices.IndexFunc(onboardingFlag.PersonaTargets, func(target struct {
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Enabled  bool   `json:"enabled"`
+			ReadOnly bool   `json:"read_only"`
+		}) bool {
+			return target.ID == "site_admin"
+		})
+		districtOfficeIndex := slices.IndexFunc(onboardingFlag.SiteTargets, func(target struct {
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Enabled  bool   `json:"enabled"`
+			ReadOnly bool   `json:"read_only"`
+		}) bool {
+			return target.ID == "district-office"
+		})
+		if humanResourcesIndex < 0 || onboardingFlag.PersonaTargets[humanResourcesIndex].Enabled {
+			t.Fatalf("human resources target = %#v, want independently disabled", onboardingFlag.PersonaTargets)
+		}
+		if siteAdminIndex < 0 || !onboardingFlag.PersonaTargets[siteAdminIndex].Enabled {
+			t.Fatalf("site admin target changed unexpectedly: %#v", onboardingFlag.PersonaTargets)
+		}
+		if districtOfficeIndex < 0 || !onboardingFlag.SiteTargets[districtOfficeIndex].Enabled {
+			t.Fatalf("district office site target changed unexpectedly: %#v", onboardingFlag.SiteTargets)
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		sessionReq.AddCookie(hrCookie)
+		sessionRec := httptest.NewRecorder()
+		handler.ServeHTTP(sessionRec, sessionReq)
+		if sessionRec.Code != http.StatusOK {
+			t.Fatalf("human resources session returned %d", sessionRec.Code)
+		}
+		hrSession := decodeJSON[devSessionResponse](t, sessionRec)
+		if slices.Contains(hrSession.AllowedRoutes, "/onboarding") {
+			t.Fatalf("human resources allowed routes still include onboarding: %#v", hrSession.AllowedRoutes)
+		}
+
+		forcedReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		forcedReq.AddCookie(hrCookie)
+		forcedRec := httptest.NewRecorder()
+		handler.ServeHTTP(forcedRec, forcedReq)
+		if forcedRec.Code != http.StatusForbidden {
+			t.Fatalf("forced manual onboarding API returned %d, want 403: %s", forcedRec.Code, forcedRec.Body.String())
+		}
+
+		payload = updateTarget("persona", "human_resources", true)
+		onboardingFlag = payload
+		humanResourcesIndex = slices.IndexFunc(onboardingFlag.PersonaTargets, func(target struct {
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Enabled  bool   `json:"enabled"`
+			ReadOnly bool   `json:"read_only"`
+		}) bool {
+			return target.ID == "human_resources"
+		})
+		districtOfficeIndex = slices.IndexFunc(onboardingFlag.SiteTargets, func(target struct {
+			ID       string `json:"id"`
+			Label    string `json:"label"`
+			Enabled  bool   `json:"enabled"`
+			ReadOnly bool   `json:"read_only"`
+		}) bool {
+			return target.ID == "district-office"
+		})
+		if humanResourcesIndex < 0 || !onboardingFlag.PersonaTargets[humanResourcesIndex].Enabled {
+			t.Fatalf("human resources target = %#v, want independently re-enabled", onboardingFlag.PersonaTargets)
+		}
+		if districtOfficeIndex < 0 || !onboardingFlag.SiteTargets[districtOfficeIndex].Enabled {
+			t.Fatalf("district office target changed during persona re-enable: %#v", onboardingFlag.SiteTargets)
 		}
 	})
 

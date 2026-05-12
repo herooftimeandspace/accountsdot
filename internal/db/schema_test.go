@@ -36,6 +36,9 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 		"completion_summary text",
 		"errors_warnings jsonb not null default '[]'::jsonb",
 		"create table if not exists room_mapping_overrides",
+		"create table if not exists feature_flags",
+		"create table if not exists feature_flag_targets",
+		"target_type text not null check (target_type in ('persona', 'site'))",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(strings.ToLower(text), strings.ToLower(snippet)) {
