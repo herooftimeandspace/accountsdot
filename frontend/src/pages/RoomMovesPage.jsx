@@ -141,6 +141,26 @@ function personMatchesQuery(person, query) {
   );
 }
 
+function personAutocompleteLabel(person) {
+  return `${person.name} · ${person.email} · ${person.employee_id}`;
+}
+
+function findPersonFromAutocompleteValue(people, value) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return people.find((person) => {
+    const exactValues = [
+      person.name,
+      person.email,
+      person.employee_id,
+      personAutocompleteLabel(person),
+    ];
+    return exactValues.some((candidate) => String(candidate || "").toLowerCase() === normalized);
+  }) || null;
+}
+
 function defaultDestinationRoom(person, destinationSiteId) {
   if (!person) {
     return "none";
@@ -253,8 +273,20 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
     setDestinationRoomId(defaultDestinationRoom(selectedPerson, destinationSiteId));
   }, [destinationSiteId, selectedPerson]);
 
-  const matches = people.filter((person) => personMatchesQuery(person, query)).slice(0, 6);
+  const autocompleteOptions = people.filter((person) => personMatchesQuery(person, query));
   const availableRooms = roomOptionsForSite(rooms, destinationSiteId);
+
+  function applyPersonValue(value) {
+    setQuery(value);
+    const person = findPersonFromAutocompleteValue(people, value);
+    if (!person) {
+      setSelectedPersonId("");
+      return;
+    }
+    setSelectedPersonId(person.id);
+    setQuery(person.email);
+    setDestinationSiteId(person.site_id);
+  }
 
   async function saveDraft(action = "save") {
     if (!selectedPerson) {
@@ -339,29 +371,19 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           <span>Employee ID, email, or name</span>
           <input
             id="room-move-person-search"
+            list="room-move-person-options"
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => applyPersonValue(event.target.value)}
+            onBlur={(event) => applyPersonValue(event.target.value)}
             placeholder="Search scoped people..."
           />
+          <datalist id="room-move-person-options">
+            {autocompleteOptions.map((person) => (
+              <option key={person.id} value={personAutocompleteLabel(person)} />
+            ))}
+          </datalist>
         </label>
-        <div className="room-moves-runtime__lookup-results">
-          {matches.map((person) => (
-            <button
-              key={person.id}
-              type="button"
-              className={person.id === selectedPersonId ? "room-moves-runtime__lookup-result--selected" : ""}
-              onClick={() => {
-                setSelectedPersonId(person.id);
-                setQuery(person.email);
-                setDestinationSiteId(person.site_id);
-              }}
-            >
-              <strong>{person.name}</strong>
-              <span>{person.email} · {person.employee_id}</span>
-            </button>
-          ))}
-        </div>
         {canManageDistrict ? (
           <label className="room-moves-runtime__field" htmlFor="room-move-destination-site">
             <span>Destination site</span>
