@@ -71,6 +71,17 @@ When documenting a write path, include:
 
 Keep `docs/external-write-inventory.md` synchronized whenever a write path changes. If a live SDK call is added later, document the exact provider method, idempotency key, request-log behavior, and staging validation requirement before merging.
 
+## High-Risk Workflow Walkthroughs
+
+Use the walkthroughs in `docs/code-paths/` when debugging or extending high-risk paths that cross frontend UI, route handlers, persona rules, and mutation boundaries:
+
+- [Manual onboarding drafts](code-paths/manual-onboarding-drafts.md)
+- [Room moves](code-paths/room-moves.md)
+- [Sync dashboard overrides](code-paths/sync-dashboard-overrides.md)
+- [Shared shell help content](code-paths/shared-shell-help-content.md)
+
+Each walkthrough names the frontend entrypoint, route, handler/store/helper chain, payload shape, authorization and persona behavior, mutation boundary, tests, and useful breakpoints. Keep those files aligned with `docs/external-write-inventory.md` whenever a route becomes write-capable, stops mutating state, or changes its external-write risk.
+
 ## VS Code Debugging
 
 Use the VS Code Dev Containers extension for the most predictable setup:
