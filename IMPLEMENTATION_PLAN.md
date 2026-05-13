@@ -419,6 +419,10 @@
   - the `/reports` route is a runtime-owned Reports hub over the shared `.pen` shell; the live page hides the fixed artboard detail card and renders report inventory plus recent refresh rows with shared table search/sort primitives
   - selecting any report or refresh row on `/reports` opens the shared right-hand drawer with row-specific scope, source, data-included, open-item, last-run or refresh, cadence, status, and explanation details
   - report rows may expose an `Open Report` drawer action that routes to the owning implemented page or report route; refresh rows remain informational and do not navigate
+  - each `devFeatureFlagRegistry` route must be covered by a Go regression test that proves the matching DEV page/API handler is registered, unless the route is explicitly documented as frontend/static-only for the current foundation slice
+  - Flagged route backend coverage exception: /dashboard/site-admin is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+  - Flagged route backend coverage exception: /student-data-cleanup is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+  - Flagged route backend coverage exception: /frequent-fliers is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Purpose:
