@@ -18,11 +18,19 @@ const warningChecks = [
   "fragmented-paragraph",
   "text-divider-gap",
   "bordered-wrapper-gap",
-  "text-overflow",
   "table-baseline",
   "runtime-hidden-node-debt",
   "source-shell-overlap",
 ];
+
+const warningCheckPrimitives = {
+  "fragmented-paragraph": "helper paragraph",
+  "text-divider-gap": "table",
+  "bordered-wrapper-gap": "wrapper/card/rail",
+  "table-baseline": "table",
+};
+
+const promotedBlockingChecks = ["text-overflow"];
 
 function readJSON(absolutePath) {
   return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
@@ -43,10 +51,12 @@ function readPenRoot(relativePath) {
 function flattenNodes(root) {
   const nodes = [];
 
-  function walk(node, parent = null) {
-    nodes.push({ ...node, parentId: parent?.id ?? null, parent });
+  function walk(node, parent = null, parentAbsoluteX = 0, parentAbsoluteY = 0) {
+    const absoluteX = parentAbsoluteX + (node.x ?? 0);
+    const absoluteY = parentAbsoluteY + (node.y ?? 0);
+    nodes.push({ ...node, parentId: parent?.id ?? null, parent, absoluteX, absoluteY });
     for (const child of node.children || []) {
-      walk(child, node);
+      walk(child, node, absoluteX, absoluteY);
     }
   }
 
@@ -54,27 +64,35 @@ function flattenNodes(root) {
   return nodes;
 }
 
+function nodeX(node) {
+  return node.absoluteX ?? node.x ?? 0;
+}
+
+function nodeY(node) {
+  return node.absoluteY ?? node.y ?? 0;
+}
+
 function nodeRight(node) {
-  return (node.x ?? 0) + (node.width ?? 0);
+  return nodeX(node) + (node.width ?? 0);
 }
 
 function nodeBottom(node) {
   const fallbackHeight = node.type === "text" ? Math.ceil((node.fontSize ?? 14) * 1.35) : 0;
-  return (node.y ?? 0) + (node.height ?? fallbackHeight);
+  return nodeY(node) + (node.height ?? fallbackHeight);
 }
 
 function nodeCenterX(node) {
-  return (node.x ?? 0) + (node.width ?? 0) / 2;
+  return nodeX(node) + (node.width ?? 0) / 2;
 }
 
 function nodeCenterY(node) {
-  return (node.y ?? 0) + (node.height ?? Math.ceil((node.fontSize ?? 14) * 1.35)) / 2;
+  return nodeY(node) + (node.height ?? Math.ceil((node.fontSize ?? 14) * 1.35)) / 2;
 }
 
 function contains(outer, inner) {
   return (
-    (outer.x ?? 0) <= (inner.x ?? 0) &&
-    (outer.y ?? 0) <= (inner.y ?? 0) &&
+    nodeX(outer) <= nodeX(inner) &&
+    nodeY(outer) <= nodeY(inner) &&
     nodeRight(inner) <= nodeRight(outer) &&
     nodeBottom(inner) <= nodeBottom(outer)
   );
@@ -83,11 +101,20 @@ function contains(outer, inner) {
 function frameContainsPoint(frame, x, y) {
   return (
     frame.type === "frame" &&
-    (frame.x ?? 0) <= x &&
+    nodeX(frame) <= x &&
     x <= nodeRight(frame) &&
-    (frame.y ?? 0) <= y &&
+    nodeY(frame) <= y &&
     y <= nodeBottom(frame)
   );
+}
+
+function pushWarning(warnings, check, page, message) {
+  warnings.push({
+    check,
+    primitive: warningCheckPrimitives[check] ?? "page-local exceptions",
+    page: page.key,
+    message,
+  });
 }
 
 function isLoggedInPage(page) {
@@ -107,9 +134,9 @@ function headerRefreshTextNodes(nodes) {
     (node) =>
       node.type === "text" &&
       String(node.content ?? "").trim() === "Refresh" &&
-      (node.y ?? 0) >= 75 &&
-      (node.y ?? 0) <= 130 &&
-      (node.x ?? 0) >= 1500
+      nodeY(node) >= 75 &&
+      nodeY(node) <= 130 &&
+      nodeX(node) >= 1500
   );
 }
 
@@ -118,8 +145,8 @@ function findRefreshFrame(nodes, refreshText, primitive) {
     (node) =>
       node.type === "frame" &&
       typeof node.fill === "string" &&
-      Math.abs((node.x ?? 0) - primitive.frame.x) <= 8 &&
-      Math.abs((node.y ?? 0) - primitive.frame.y) <= 4 &&
+      Math.abs(nodeX(node) - primitive.frame.x) <= 8 &&
+      Math.abs(nodeY(node) - primitive.frame.y) <= 4 &&
       Math.abs((node.width ?? 0) - primitive.frame.width) <= 8 &&
       Math.abs((node.height ?? 0) - primitive.frame.height) <= 6 &&
       frameContainsPoint(node, nodeCenterX(refreshText), nodeCenterY(refreshText))
@@ -215,19 +242,22 @@ function assertStandardRefresh(nodes, page, manifest, failures) {
 function warnFragmentedParagraphs(nodes, page, warnings) {
   const textNodes = nodes
     .filter((node) => node.type === "text" && String(node.content ?? "").trim().length > 12)
-    .sort((left, right) => (left.y ?? 0) - (right.y ?? 0) || (left.x ?? 0) - (right.x ?? 0));
+    .sort((left, right) => nodeY(left) - nodeY(right) || nodeX(left) - nodeX(right));
   let emitted = 0;
   for (let index = 0; index < textNodes.length - 1 && emitted < maxWarningsPerCheck; index += 1) {
     const current = textNodes[index];
     const next = textNodes[index + 1];
-    const sameColumn = Math.abs((current.x ?? 0) - (next.x ?? 0)) <= 6;
+    const sameColumn = Math.abs(nodeX(current) - nodeX(next)) <= 6;
     const similarWidth = Math.abs((current.width ?? 0) - (next.width ?? 0)) <= 24;
-    const verticalGap = (next.y ?? 0) - nodeBottom(current);
+    const verticalGap = nodeY(next) - nodeBottom(current);
     const currentLooksSentence = /[a-z0-9,;:]$/i.test(String(current.content ?? "").trim());
     const nextLooksContinuation = /^[a-z(]/.test(String(next.content ?? "").trim());
     if (sameColumn && similarWidth && verticalGap >= -2 && verticalGap <= 8 && currentLooksSentence && nextLooksContinuation) {
-      warnings.push(
-        `${page.key}: likely fragmented paragraph near ${current.id}/${next.id}; prefer one wrapping text node`
+      pushWarning(
+        warnings,
+        "fragmented-paragraph",
+        page,
+        `likely fragmented paragraph near ${current.id}/${next.id}; prefer one wrapping text node`
       );
       emitted += 1;
     }
@@ -251,14 +281,17 @@ function warnTextDividerGap(nodes, page, warnings) {
     const textBottom = nodeBottom(textNode);
     const divider = dividerNodes.find(
       (candidate) =>
-        (candidate.y ?? 0) > textBottom &&
-        (candidate.y ?? 0) - textBottom < minimumGapPx &&
-        nodeRight(textNode) > (candidate.x ?? 0) &&
-        (textNode.x ?? 0) < nodeRight(candidate)
+        nodeY(candidate) > textBottom &&
+        nodeY(candidate) - textBottom < minimumGapPx &&
+        nodeRight(textNode) > nodeX(candidate) &&
+        nodeX(textNode) < nodeRight(candidate)
     );
     if (divider) {
-      warnings.push(
-        `${page.key}: text ${textNode.id} is within ${minimumGapPx}px of divider ${divider.id}`
+      pushWarning(
+        warnings,
+        "text-divider-gap",
+        page,
+        `text ${textNode.id} is within ${minimumGapPx}px of divider ${divider.id}`
       );
       emitted += 1;
     }
@@ -268,7 +301,7 @@ function warnTextDividerGap(nodes, page, warnings) {
 function warnBorderedWrapperGap(nodes, page, warnings) {
   const bordered = nodes
     .filter((node) => node.type === "frame" && node.stroke?.fill && (node.width ?? 0) > 20 && (node.height ?? 0) > 20)
-    .sort((left, right) => (left.y ?? 0) - (right.y ?? 0) || (left.x ?? 0) - (right.x ?? 0));
+    .sort((left, right) => nodeY(left) - nodeY(right) || nodeX(left) - nodeX(right));
   let emitted = 0;
   for (let leftIndex = 0; leftIndex < bordered.length && emitted < maxWarningsPerCheck; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < bordered.length && emitted < maxWarningsPerCheck; rightIndex += 1) {
@@ -277,40 +310,39 @@ function warnBorderedWrapperGap(nodes, page, warnings) {
       if (left.parentId !== right.parentId || contains(left, right) || contains(right, left)) {
         continue;
       }
-      const horizontalOverlap = nodeRight(left) > (right.x ?? 0) && (left.x ?? 0) < nodeRight(right);
-      const verticalGap = Math.abs((right.y ?? 0) - nodeBottom(left));
-      const verticalOverlap = nodeBottom(left) > (right.y ?? 0) && (left.y ?? 0) < nodeBottom(right);
-      const horizontalGap = Math.abs((right.x ?? 0) - nodeRight(left));
+      const horizontalOverlap = nodeRight(left) > nodeX(right) && nodeX(left) < nodeRight(right);
+      const verticalGap = Math.abs(nodeY(right) - nodeBottom(left));
+      const verticalOverlap = nodeBottom(left) > nodeY(right) && nodeY(left) < nodeBottom(right);
+      const horizontalGap = Math.abs(nodeX(right) - nodeRight(left));
       if ((horizontalOverlap && verticalGap > 0 && verticalGap < minimumGapPx) || (verticalOverlap && horizontalGap > 0 && horizontalGap < minimumGapPx)) {
-        warnings.push(`${page.key}: bordered wrappers ${left.id}/${right.id} have less than ${minimumGapPx}px buffer`);
+        pushWarning(
+          warnings,
+          "bordered-wrapper-gap",
+          page,
+          `bordered wrappers ${left.id}/${right.id} have less than ${minimumGapPx}px buffer`
+        );
         emitted += 1;
       }
     }
   }
 }
 
-function warnTextOverflow(nodes, page, artboard, warnings) {
-  let emitted = 0;
+function assertTextOverflow(nodes, page, artboard, failures) {
   for (const node of nodes.filter((candidate) => candidate.type === "text")) {
-    if (emitted >= maxWarningsPerCheck) {
-      return;
-    }
-    if ((node.x ?? 0) < 0 || (node.y ?? 0) < 0 || nodeRight(node) > artboard.width || nodeBottom(node) > artboard.height) {
-      warnings.push(`${page.key}: text ${node.id} falls outside the artboard bounds`);
-      emitted += 1;
+    if (nodeX(node) < 0 || nodeY(node) < 0 || nodeRight(node) > artboard.width || nodeBottom(node) > artboard.height) {
+      failures.push(`${page.key}: text ${node.id} falls outside the artboard bounds`);
     }
     if (node.parent && node.parent.type === "frame" && !contains(node.parent, node)) {
-      warnings.push(`${page.key}: text ${node.id} may overflow parent frame ${node.parent.id}`);
-      emitted += 1;
+      failures.push(`${page.key}: text ${node.id} may overflow parent frame ${node.parent.id}`);
     }
   }
 }
 
 function warnTableBaseline(nodes, page, warnings) {
-  const textNodes = nodes.filter((node) => node.type === "text" && (node.x ?? 0) > 260 && (node.y ?? 0) > 120);
+  const textNodes = nodes.filter((node) => node.type === "text" && nodeX(node) > 260 && nodeY(node) > 120);
   const buckets = new Map();
   for (const node of textNodes) {
-    const yBucket = Math.round((node.y ?? 0) / 24) * 24;
+    const yBucket = Math.round(nodeY(node) / 24) * 24;
     if (!buckets.has(yBucket)) {
       buckets.set(yBucket, []);
     }
@@ -324,10 +356,15 @@ function warnTableBaseline(nodes, page, warnings) {
     if (row.length < 3) {
       continue;
     }
-    const minY = Math.min(...row.map((node) => node.y ?? 0));
-    const maxY = Math.max(...row.map((node) => node.y ?? 0));
+    const minY = Math.min(...row.map((node) => nodeY(node)));
+    const maxY = Math.max(...row.map((node) => nodeY(node)));
     if (maxY - minY > 5) {
-      warnings.push(`${page.key}: possible table baseline drift near y=${bucket}; row text spans ${maxY - minY}px`);
+      pushWarning(
+        warnings,
+        "table-baseline",
+        page,
+        `possible table baseline drift near y=${bucket}; row text spans ${maxY - minY}px`
+      );
       emitted += 1;
     }
   }
@@ -382,11 +419,10 @@ function warnSourceShellOverlap(page, warnings) {
   }
 }
 
-function runArtboardWarnings(nodes, page, artboard, warnings) {
+function runArtboardWarnings(nodes, page, warnings) {
   warnFragmentedParagraphs(nodes, page, warnings);
   warnTextDividerGap(nodes, page, warnings);
   warnBorderedWrapperGap(nodes, page, warnings);
-  warnTextOverflow(nodes, page, artboard, warnings);
   warnTableBaseline(nodes, page, warnings);
   warnSourceShellOverlap(page, warnings);
 }
@@ -422,7 +458,8 @@ function runLint({ includeDriftCheck = true } = {}) {
     const nodes = flattenNodes(artboard);
     assertSharedShell(nodes, page, manifest, failures);
     assertStandardRefresh(nodes, page, manifest, failures);
-    runArtboardWarnings(nodes, page, artboard, warnings);
+    assertTextOverflow(nodes, page, artboard, failures);
+    runArtboardWarnings(nodes, page, warnings);
   }
 
   return { failures, warnings };
@@ -477,13 +514,85 @@ function selfTest() {
   if (overlapNodes.length !== 1 || overlapNodes[0].id !== "shell") {
     throw new Error("self-test expected source-shell-overlap detection to flag only shell-region nodes");
   }
+
+  const nestedTextFailures = [];
+  assertTextOverflow(
+    flattenNodes({
+      type: "frame",
+      id: "root",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 120,
+      children: [
+        {
+          type: "frame",
+          id: "parent",
+          x: 40,
+          y: 20,
+          width: 140,
+          height: 60,
+          children: [{ type: "text", id: "nested", content: "Nested text", x: 10, y: 8, width: 80, height: 20 }],
+        },
+      ],
+    }),
+    { key: "fixture" },
+    { width: 200, height: 120 },
+    nestedTextFailures
+  );
+  if (nestedTextFailures.length > 0) {
+    throw new Error(`self-test expected parent-relative nested text to pass: ${nestedTextFailures.join("; ")}`);
+  }
+
+  const overflowFailures = [];
+  assertTextOverflow(
+    flattenNodes({
+      type: "frame",
+      id: "root",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 120,
+      children: [
+        {
+          type: "frame",
+          id: "parent",
+          x: 40,
+          y: 20,
+          width: 90,
+          height: 40,
+          children: [{ type: "text", id: "overflow", content: "Overflowing text", x: 20, y: 8, width: 100, height: 20 }],
+        },
+      ],
+    }),
+    { key: "fixture" },
+    { width: 200, height: 120 },
+    overflowFailures
+  );
+  if (overflowFailures.length === 0) {
+    throw new Error("self-test expected nested text overflow to fail");
+  }
 }
 
 function printResults({ failures, warnings }) {
   if (warnings.length > 0) {
     console.log("Implemented-page design lint warnings:");
+    const primitiveOrder = ["table", "helper paragraph", "wrapper/card/rail", "page-local exceptions"];
+    const groupedWarnings = new Map();
     for (const warning of warnings) {
-      console.log(`- [warn] ${warning}`);
+      const group = groupedWarnings.get(warning.primitive) ?? [];
+      group.push(warning);
+      groupedWarnings.set(warning.primitive, group);
+    }
+    for (const primitive of primitiveOrder) {
+      const primitiveWarnings = groupedWarnings.get(primitive) ?? [];
+      if (primitiveWarnings.length === 0) {
+        continue;
+      }
+      console.log(`\n${primitive} (${primitiveWarnings.length}):`);
+      for (const warning of primitiveWarnings) {
+        console.log(`- [warn] ${warning.page}: ${warning.message}`);
+      }
     }
     console.log(`Warning checks are non-blocking in phase 1: ${warningChecks.join(", ")}.`);
   } else {
@@ -499,6 +608,7 @@ function printResults({ failures, warnings }) {
     return;
   }
 
+  console.log(`Promoted blocking checks: ${promotedBlockingChecks.join(", ")}.`);
   console.log("Implemented-page design lint passed high-confidence checks.");
 }
 
