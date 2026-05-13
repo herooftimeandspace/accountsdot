@@ -9,6 +9,10 @@ const generatedDir = path.join(repoRoot, "frontend", "src", "generated");
 const manifestPath = path.join(generatedDir, "implemented-page-design-manifest.generated.json");
 const minimumGapPx = 5;
 const maxWarningsPerCheck = 12;
+const loggedInPane = {
+  x: 264,
+  y: 76,
+};
 
 const warningChecks = [
   "fragmented-paragraph",
@@ -26,6 +30,14 @@ function readJSON(absolutePath) {
 
 function readText(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function readPenRoot(relativePath) {
+  const parsed = readJSON(path.join(repoRoot, relativePath));
+  if (!Array.isArray(parsed.children) || parsed.children.length === 0) {
+    throw new Error(`${relativePath} does not contain a root artboard`);
+  }
+  return parsed.children[0];
 }
 
 function flattenNodes(root) {
@@ -80,6 +92,14 @@ function frameContainsPoint(frame, x, y) {
 
 function isLoggedInPage(page) {
   return page.loggedInShell && !["login", "error-logged-out"].includes(page.key);
+}
+
+function isPaneSourceNode(node) {
+  return (node.x ?? 0) >= loggedInPane.x && (node.y ?? 0) >= loggedInPane.y;
+}
+
+function sourceShellOverlapNodes(root) {
+  return (root.children || []).filter((node) => !isPaneSourceNode(node));
 }
 
 function headerRefreshTextNodes(nodes) {
@@ -147,6 +167,19 @@ function assertRoleNavReflowSource(failures) {
     if (!source.includes(token)) {
       failures.push(`shared-shell-role-reflow: missing source token ${token}`);
     }
+  }
+}
+
+function assertNoSourceShellOverlap(page, failures) {
+  if (page.mode !== "merge-shell") {
+    return;
+  }
+  const root = readPenRoot(page.sourcePen);
+  const ignoredShellRegionNodes = sourceShellOverlapNodes(root);
+  if (ignoredShellRegionNodes.length > 0) {
+    failures.push(
+      `${page.key}: source-shell-overlap: ${page.sourcePen} contains ${ignoredShellRegionNodes.length} top-level shell-region nodes ignored by merge-shell`
+    );
   }
 }
 
@@ -379,6 +412,7 @@ function runLint({ includeDriftCheck = true } = {}) {
   warnRuntimeHiddenNodeDebt(warnings);
 
   for (const page of manifest.artboards) {
+    assertNoSourceShellOverlap(page, failures);
     const artboardPath = path.join(generatedDir, `${page.key}.artboard.json`);
     if (!fs.existsSync(artboardPath)) {
       failures.push(`${page.key}: missing generated artboard JSON`);
@@ -432,6 +466,16 @@ function selfTest() {
   );
   if (paragraphWarnings.length === 0) {
     throw new Error("self-test expected fragmented paragraph warning");
+  }
+
+  const overlapNodes = sourceShellOverlapNodes({
+    children: [
+      { type: "frame", id: "shell", x: 0, y: 0, width: 264, height: 1080 },
+      { type: "frame", id: "page", x: 264, y: 76, width: 1408, height: 1004 },
+    ],
+  });
+  if (overlapNodes.length !== 1 || overlapNodes[0].id !== "shell") {
+    throw new Error("self-test expected source-shell-overlap detection to flag only shell-region nodes");
   }
 }
 
