@@ -7,6 +7,13 @@ const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(__filename), "..");
 const generatedDir = path.join(repoRoot, "frontend", "src", "generated");
 const manifestPath = path.join(generatedDir, "implemented-page-design-manifest.generated.json");
+const hiddenGeneratedNodeLedgerPath = path.join(
+  repoRoot,
+  "docs",
+  "mocks",
+  "wireframes",
+  "hidden-generated-node-ledger.md"
+);
 const minimumGapPx = 5;
 const maxWarningsPerCheck = 12;
 const loggedInPane = {
@@ -32,6 +39,74 @@ const warningCheckPrimitives = {
 
 const promotedBlockingChecks = ["text-overflow"];
 
+const hiddenGeneratedNodeDebtPages = [
+  {
+    page: "Frequent Fliers",
+    key: "frequent-fliers",
+    runtimeSource: "frontend/src/pages/FrequentFliersPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen"],
+    suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+  },
+  {
+    page: "Offboarding",
+    key: "offboarding",
+    runtimeSource: "frontend/src/pages/OffboardingPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-offboarding-dashboard.pen"],
+    suppressionSourceTokens: [
+      "hiddenNodeIds.push(OFFBOARDING_TABLE_FRAME_NODE_ID, ...STATIC_OFFBOARDING_NODE_IDS)",
+    ],
+  },
+  {
+    page: "Onboarding",
+    key: "onboarding",
+    runtimeSource: "frontend/src/pages/OnboardingPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-onboarding-dashboard.pen"],
+    suppressionSourceTokens: [
+      "hiddenNodeIds.push(...STATIC_ONBOARDING_TABLE_NODE_IDS)",
+      "hiddenNodeIds.push(ADD_MANUAL_NODE_ID, ADD_MANUAL_LABEL_NODE_ID)",
+    ],
+  },
+  {
+    page: "Phone Directory",
+    key: "phone-directory",
+    runtimeSource: "frontend/src/pages/PhoneDirectoryPage.jsx",
+    sourcePens: [
+      "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
+      "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen",
+      "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen",
+    ],
+    suppressionSourceTokens: [
+      "hiddenNodeIds.push(resultsFrame.id)",
+      "hiddenNodeIds.push(...descendantIds(resultsFrame), ...descendantIds(detailRail))",
+      "hiddenNodeIds.push(child.id, ...descendantIds(child))",
+    ],
+  },
+  {
+    page: "Reports",
+    key: "reports",
+    runtimeSource: "frontend/src/pages/ReportsPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-it-admin-reports.pen"],
+    suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+  },
+  {
+    page: "Room Moves",
+    key: "room-moves",
+    runtimeSource: "frontend/src/pages/RoomMovesPage.jsx",
+    sourcePens: [
+      "docs/mocks/wireframes/wireframe-room-moves.pen",
+      "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+    ],
+    suppressionSourceTokens: ["...hiddenRoomMovesNodeIds(artboardKey, isBulk)"],
+  },
+  {
+    page: "Student Data Cleanup",
+    key: "student-data-cleanup",
+    runtimeSource: "frontend/src/pages/StudentDataCleanupPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen"],
+    suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+  },
+];
+
 function readJSON(absolutePath) {
   return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
 }
@@ -46,6 +121,44 @@ function readPenRoot(relativePath) {
     throw new Error(`${relativePath} does not contain a root artboard`);
   }
   return parsed.children[0];
+}
+
+function parseMarkdownTableRows(markdown) {
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("|") && line.endsWith("|"))
+    .filter((line) => !/^\|\s*-+/.test(line))
+    .map((line) =>
+      line
+        .slice(1, -1)
+        .split("|")
+        .map((cell) => cell.trim())
+    )
+    .filter((cells) => cells.length > 1);
+}
+
+function loadHiddenGeneratedNodeLedger() {
+  if (!fs.existsSync(hiddenGeneratedNodeLedgerPath)) {
+    return new Map();
+  }
+  const rows = parseMarkdownTableRows(fs.readFileSync(hiddenGeneratedNodeLedgerPath, "utf8"));
+  const [header, ...bodyRows] = rows;
+  if (!header) {
+    return new Map();
+  }
+  const pageIndex = header.indexOf("Page");
+  if (pageIndex === -1) {
+    return new Map();
+  }
+  const entries = new Map();
+  for (const cells of bodyRows) {
+    const page = cells[pageIndex];
+    if (page) {
+      entries.set(page, cells);
+    }
+  }
+  return entries;
 }
 
 function flattenNodes(root) {
@@ -207,6 +320,44 @@ function assertNoSourceShellOverlap(page, failures) {
     failures.push(
       `${page.key}: source-shell-overlap: ${page.sourcePen} contains ${ignoredShellRegionNodes.length} top-level shell-region nodes ignored by merge-shell`
     );
+  }
+}
+
+function sourceHasHiddenGeneratedNodeSuppression(source, entry) {
+  return entry.suppressionSourceTokens.some((token) => source.includes(token));
+}
+
+function assertHiddenGeneratedNodeDebtLedger(failures) {
+  const ledger = loadHiddenGeneratedNodeLedger();
+  for (const entry of hiddenGeneratedNodeDebtPages) {
+    const source = readText(entry.runtimeSource);
+    const hidesPageLocalGeneratedNodes = sourceHasHiddenGeneratedNodeSuppression(source, entry);
+    if (!hidesPageLocalGeneratedNodes) {
+      continue;
+    }
+
+    const ledgerRow = ledger.get(entry.page);
+    if (!ledgerRow) {
+      failures.push(
+        `${entry.key}: page-local generated nodes are hidden at runtime but ${entry.page} has no row in docs/mocks/wireframes/hidden-generated-node-ledger.md`
+      );
+      continue;
+    }
+
+    const rowText = ledgerRow.join(" ");
+    const missingReferences = [
+      entry.runtimeSource,
+      ...entry.sourcePens,
+      "runtime behavior",
+      ".pen layout",
+      "npm run pen:lint",
+    ].filter((token) => !rowText.includes(token));
+
+    if (missingReferences.length > 0) {
+      failures.push(
+        `${entry.key}: hidden generated-node ledger row is missing required reference(s): ${missingReferences.join(", ")}`
+      );
+    }
   }
 }
 
@@ -384,7 +535,10 @@ function warnRuntimeHiddenNodeDebt(warnings) {
     const generatedPaneCollectors = (source.match(/collect(?:Generated)?PaneNodeIds|collectPaneNodeIds/g) ?? []).length;
     const score = explicitHiddenConstants + hiddenPushes + generatedPaneCollectors;
     if (score >= 3) {
-      warnings.push(
+      pushWarning(
+        warnings,
+        "runtime-hidden-node-debt",
+        { key: file },
         `${file}: runtime hides generated artboard nodes in ${score} places; prefer removing never-visible nodes from the authoritative PEN`
       );
       emitted += 1;
@@ -413,7 +567,10 @@ function sourceShellNodeCount(page) {
 function warnSourceShellOverlap(page, warnings) {
   const count = sourceShellNodeCount(page);
   if (count > 0) {
-    warnings.push(
+    pushWarning(
+      warnings,
+      "source-shell-overlap",
+      page,
       `${page.key}: source PEN includes ${count} shell-region nodes ignored by merge-shell; keep shared shell changes in wireframe-shared-shell.pen`
     );
   }
@@ -445,6 +602,7 @@ function runLint({ includeDriftCheck = true } = {}) {
 
   const manifest = loadManifest();
   assertRoleNavReflowSource(failures);
+  assertHiddenGeneratedNodeDebtLedger(failures);
   warnRuntimeHiddenNodeDebt(warnings);
 
   for (const page of manifest.artboards) {
@@ -572,6 +730,24 @@ function selfTest() {
   if (overflowFailures.length === 0) {
     throw new Error("self-test expected nested text overflow to fail");
   }
+
+  const staleConstantEntry = hiddenGeneratedNodeDebtPages.find((entry) => entry.key === "offboarding");
+  const staleConstantSource = `
+    const OFFBOARDING_TABLE_FRAME_NODE_ID = "offboarding__f1";
+    const STATIC_OFFBOARDING_NODE_IDS = ["offboarding__t1"];
+    const hiddenNodeIds = buildSharedShellHiddenNodeIds(session);
+  `;
+  if (sourceHasHiddenGeneratedNodeSuppression(staleConstantSource, staleConstantEntry)) {
+    throw new Error("self-test expected stale hidden-node constants not to count as suppression");
+  }
+
+  const suppressionSource = `
+    const hiddenNodeIds = buildSharedShellHiddenNodeIds(session);
+    hiddenNodeIds.push(OFFBOARDING_TABLE_FRAME_NODE_ID, ...STATIC_OFFBOARDING_NODE_IDS);
+  `;
+  if (!sourceHasHiddenGeneratedNodeSuppression(suppressionSource, staleConstantEntry)) {
+    throw new Error("self-test expected hiddenNodeIds page-local push to count as suppression");
+  }
 }
 
 function printResults({ failures, warnings }) {
@@ -627,6 +803,7 @@ export {
   assertStandardRefresh,
   flattenNodes,
   runLint,
+  sourceHasHiddenGeneratedNodeSuppression,
   warnFragmentedParagraphs,
   warnTextDividerGap,
 };
