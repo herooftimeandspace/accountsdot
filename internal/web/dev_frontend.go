@@ -1654,8 +1654,10 @@ func updateDevFeatureFlagTargets(ctx context.Context, flagKey string, updates []
 	return nil
 }
 
-// resetDevFeatureFlagStateForTest restores feature flags to registry defaults for tests.
-func resetDevFeatureFlagStateForTest() {
+// ResetDevFeatureFlagStateForTest restores DEV feature flags to their documented defaults.
+// Tests call this helper because DEV feature flag updates intentionally mutate package-global
+// state to mimic a running single-process local dashboard.
+func ResetDevFeatureFlagStateForTest() {
 	devFeatureFlagStateMu.Lock()
 	defer devFeatureFlagStateMu.Unlock()
 	devFeatureFlagState = initialDevFeatureFlagState()

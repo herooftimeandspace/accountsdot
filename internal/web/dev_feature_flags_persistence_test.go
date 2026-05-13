@@ -95,13 +95,13 @@ func (store *recordingDevFeatureFlagStore) lastSnapshotError() error {
 func TestDevFeatureFlagHandlerPersistsAndAuditsTargets(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
-	resetDevFeatureFlagStateForTest()
+	ResetDevFeatureFlagStateForTest()
 	store := newRecordingDevFeatureFlagStore()
 	devFeatureFlagStoreMu.Lock()
 	devFeatureFlagStore = store
 	devFeatureFlagStoreError = nil
 	devFeatureFlagStoreMu.Unlock()
-	t.Cleanup(resetDevFeatureFlagStateForTest)
+	t.Cleanup(ResetDevFeatureFlagStateForTest)
 
 	handler := NewAppHandler(HealthDependencies{})
 	itCookie := loginDevPersonaForPersistenceTest(t, handler, "it_admin")
@@ -174,14 +174,14 @@ func TestDevFeatureFlagHandlerPersistsAndAuditsTargets(t *testing.T) {
 func TestDevFeatureFlagLazyRefreshFailureIsCachedAndFailsClosed(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
-	resetDevFeatureFlagStateForTest()
+	ResetDevFeatureFlagStateForTest()
 	store := newRecordingDevFeatureFlagStore()
 	store.snapshotErr = errors.New("snapshot unavailable")
 	devFeatureFlagStoreMu.Lock()
 	devFeatureFlagStore = store
 	devFeatureFlagStoreError = nil
 	devFeatureFlagStoreMu.Unlock()
-	t.Cleanup(resetDevFeatureFlagStateForTest)
+	t.Cleanup(ResetDevFeatureFlagStateForTest)
 
 	config := devPersonaConfigs["site_admin"]
 	firstPayload := buildDevSessionPayload(context.Background(), config)
@@ -204,13 +204,13 @@ func TestDevFeatureFlagLazyRefreshFailureIsCachedAndFailsClosed(t *testing.T) {
 func TestDevFeatureFlagLazyRefreshUsesRequestContext(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
-	resetDevFeatureFlagStateForTest()
+	ResetDevFeatureFlagStateForTest()
 	store := newRecordingDevFeatureFlagStore()
 	devFeatureFlagStoreMu.Lock()
 	devFeatureFlagStore = store
 	devFeatureFlagStoreError = nil
 	devFeatureFlagStoreMu.Unlock()
-	t.Cleanup(resetDevFeatureFlagStateForTest)
+	t.Cleanup(ResetDevFeatureFlagStateForTest)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -225,14 +225,14 @@ func TestDevFeatureFlagLazyRefreshUsesRequestContext(t *testing.T) {
 func TestDevFeatureFlagUpdateSucceedsWhenPostCommitRefreshFails(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
-	resetDevFeatureFlagStateForTest()
+	ResetDevFeatureFlagStateForTest()
 	store := newRecordingDevFeatureFlagStore()
 	store.snapshotErr = errors.New("snapshot unavailable after commit")
 	devFeatureFlagStoreMu.Lock()
 	devFeatureFlagStore = store
 	devFeatureFlagStoreError = nil
 	devFeatureFlagStoreMu.Unlock()
-	t.Cleanup(resetDevFeatureFlagStateForTest)
+	t.Cleanup(ResetDevFeatureFlagStateForTest)
 
 	err := updateDevFeatureFlagTargets(context.Background(), "onboarding", []devFeatureFlagTargetUpdate{
 		{TargetType: "persona", TargetID: "human_resources", Enabled: false},
@@ -248,13 +248,13 @@ func TestDevFeatureFlagUpdateSucceedsWhenPostCommitRefreshFails(t *testing.T) {
 func TestDevFeatureFlagUpdateSkipsUnchangedAuditEntries(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
-	resetDevFeatureFlagStateForTest()
+	ResetDevFeatureFlagStateForTest()
 	store := newRecordingDevFeatureFlagStore()
 	devFeatureFlagStoreMu.Lock()
 	devFeatureFlagStore = store
 	devFeatureFlagStoreError = nil
 	devFeatureFlagStoreMu.Unlock()
-	t.Cleanup(resetDevFeatureFlagStateForTest)
+	t.Cleanup(ResetDevFeatureFlagStateForTest)
 
 	err := updateDevFeatureFlagTargets(context.Background(), "onboarding", []devFeatureFlagTargetUpdate{
 		{TargetType: "persona", TargetID: "human_resources", Enabled: true},
