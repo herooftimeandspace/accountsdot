@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -9,6 +10,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/db"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const devSessionCookieName = "wizard_dev_session"
@@ -152,6 +157,16 @@ type devFeatureFlagTargetUpdate struct {
 	TargetType string `json:"target_type"`
 	TargetID   string `json:"target_id"`
 	Enabled    bool   `json:"enabled"`
+}
+
+type devFeatureFlagAuditDelta struct {
+	FlagKey       string    `json:"flag_key"`
+	TargetType    string    `json:"target_type"`
+	TargetID      string    `json:"target_id"`
+	BeforeEnabled bool      `json:"before_enabled"`
+	AfterEnabled  bool      `json:"after_enabled"`
+	ActorID       string    `json:"actor_id"`
+	ChangedAt     time.Time `json:"changed_at"`
 }
 
 type dataQualityPagePayload struct {
@@ -604,8 +619,13 @@ var devFeatureFlagRegistry = []devFeatureFlagDefinition{
 }
 
 var (
-	devFeatureFlagStateMu sync.Mutex
-	devFeatureFlagState   = initialDevFeatureFlagState()
+	devFeatureFlagStateMu            sync.Mutex
+	devFeatureFlagState              = initialDevFeatureFlagState()
+	devFeatureFlagStateLoaded        bool
+	devFeatureFlagStateLoadAttempted bool
+	devFeatureFlagStoreMu            sync.Mutex
+	devFeatureFlagStore              devFeatureFlagStorage
+	devFeatureFlagStoreError         error
 )
 
 var devPhoneDirectoryEntries = []devPhoneDirectoryEntry{
@@ -837,7 +857,7 @@ func handleDevSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildDevSessionPayload(config))
+	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
 // handleDevLogin handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
@@ -866,7 +886,7 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeDevSessionCookie(w, config.Persona.ID)
-	writeJSON(w, http.StatusOK, buildDevSessionPayload(config))
+	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
 // handleDevLogout handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
@@ -912,7 +932,7 @@ func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, buildDevFeatureFlagsPayload(config))
+		writeJSON(w, http.StatusOK, buildDevFeatureFlagsPayload(r.Context(), config))
 	default:
 		http.NotFound(w, r)
 	}
@@ -984,8 +1004,14 @@ func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updateDevFeatureFlagTargets(definition.Key, request.Targets)
-	writeJSON(w, http.StatusOK, buildDevFeatureFlagPayload(definition))
+	if err := updateDevFeatureFlagTargets(r.Context(), definition.Key, request.Targets, config.Persona.ID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"code":    "feature_flag_store_failed",
+			"message": "Feature flag state could not be persisted.",
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, buildDevFeatureFlagPayload(r.Context(), definition))
 }
 
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
@@ -1002,7 +1028,7 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !routeAllowed(config, "/data-quality") {
+	if !routeAllowed(r.Context(), config, "/data-quality") {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Data Quality is not available for this role.",
@@ -1095,7 +1121,7 @@ func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode str
 		return
 	}
 	routePath := "/phone-directory/by-" + mode
-	if !routeAllowed(config, routePath) {
+	if !routeAllowed(r.Context(), config, routePath) {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Phone Directory is not available for this role.",
@@ -1140,7 +1166,6 @@ func orderedDevPersonas() []devPersona {
 	return personas
 }
 
-// concatRoutes documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 // devFeatureFlagDefinitionByKey returns the configured feature flag with the requested key.
 func devFeatureFlagDefinitionByKey(key string) (devFeatureFlagDefinition, bool) {
 	for _, definition := range devFeatureFlagRegistry {
@@ -1159,6 +1184,210 @@ func devFeatureFlagDefinitionForRoute(path string) (devFeatureFlagDefinition, bo
 		}
 	}
 	return devFeatureFlagDefinition{}, false
+}
+
+// devFeatureFlagStorage abstracts feature flag state so DEV can fall back to memory without a database.
+type devFeatureFlagStorage interface {
+	Snapshot(context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error)
+	UpdateTargets(context.Context, string, []devFeatureFlagTargetUpdate, string) error
+}
+
+type memoryDevFeatureFlagStore struct{}
+
+func (memoryDevFeatureFlagStore) Snapshot(context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error) {
+	devFeatureFlagStateMu.Lock()
+	defer devFeatureFlagStateMu.Unlock()
+	return cloneDevFeatureFlagState(devFeatureFlagState), nil
+}
+
+func (memoryDevFeatureFlagStore) UpdateTargets(_ context.Context, flagKey string, updates []devFeatureFlagTargetUpdate, _ string) error {
+	devFeatureFlagStateMu.Lock()
+	defer devFeatureFlagStateMu.Unlock()
+	if _, ok := devFeatureFlagState[flagKey]; !ok {
+		devFeatureFlagState[flagKey] = make(map[devFeatureFlagTargetKey]bool)
+	}
+	for _, update := range updates {
+		devFeatureFlagState[flagKey][devFeatureFlagTargetKey{TargetType: update.TargetType, TargetID: update.TargetID}] = update.Enabled
+	}
+	return nil
+}
+
+type postgresDevFeatureFlagStore struct {
+	pool *pgxpool.Pool
+}
+
+func (store postgresDevFeatureFlagStore) Snapshot(ctx context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error) {
+	state := initialDevFeatureFlagState()
+	err := db.WithRetry(ctx, store.pool, func(tx pgx.Tx) error {
+		if err := ensureDevFeatureFlagRegistry(ctx, tx); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `
+			select flag_key, target_type, target_id, enabled
+			from feature_flag_targets
+			order by flag_key, target_type, target_id
+		`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var flagKey string
+			var target devFeatureFlagTargetKey
+			var enabled bool
+			if err := rows.Scan(&flagKey, &target.TargetType, &target.TargetID, &enabled); err != nil {
+				return err
+			}
+			if _, ok := state[flagKey]; !ok {
+				state[flagKey] = make(map[devFeatureFlagTargetKey]bool)
+			}
+			state[flagKey][target] = enabled
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
+}
+
+func (store postgresDevFeatureFlagStore) UpdateTargets(ctx context.Context, flagKey string, updates []devFeatureFlagTargetUpdate, actorID string) error {
+	return db.WithRetry(ctx, store.pool, func(tx pgx.Tx) error {
+		if err := ensureDevFeatureFlagRegistry(ctx, tx); err != nil {
+			return err
+		}
+		changedAt := time.Now().UTC()
+		for _, update := range updates {
+			var beforeEnabled bool
+			if err := tx.QueryRow(ctx, `
+				select enabled
+				from feature_flag_targets
+				where flag_key = $1 and target_type = $2 and target_id = $3
+			`, flagKey, update.TargetType, update.TargetID).Scan(&beforeEnabled); err != nil {
+				return err
+			}
+			if beforeEnabled == update.Enabled {
+				continue
+			}
+			if _, err := tx.Exec(ctx, `
+				update feature_flag_targets
+				set enabled = $4, actor_id = $5, updated_at = $6
+				where flag_key = $1 and target_type = $2 and target_id = $3
+			`, flagKey, update.TargetType, update.TargetID, update.Enabled, actorID, changedAt); err != nil {
+				return err
+			}
+			delta := devFeatureFlagAuditDelta{
+				FlagKey:       flagKey,
+				TargetType:    update.TargetType,
+				TargetID:      update.TargetID,
+				BeforeEnabled: beforeEnabled,
+				AfterEnabled:  update.Enabled,
+				ActorID:       actorID,
+				ChangedAt:     changedAt,
+			}
+			diff, err := json.Marshal(delta)
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `
+				insert into audit_log (actor_id, actor_type, target_entity, target_id, reason, diff, created_at)
+				values ($1, 'dev_persona', 'feature_flag_target', $2, 'dev_feature_flag_update', $3::jsonb, $4)
+			`, actorID, flagKey+":"+update.TargetType+":"+update.TargetID, string(diff), changedAt); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func ensureDevFeatureFlagRegistry(ctx context.Context, tx pgx.Tx) error {
+	for _, definition := range devFeatureFlagRegistry {
+		if _, err := tx.Exec(ctx, `
+			insert into feature_flags (flag_key, label, description, feature_route, default_enabled, actor_id, updated_at)
+			values ($1, $2, $3, $4, $5, 'registry', now())
+			on conflict (flag_key) do update
+			set label = excluded.label,
+				description = excluded.description,
+				feature_route = excluded.feature_route,
+				default_enabled = excluded.default_enabled,
+				updated_at = now()
+			where feature_flags.label is distinct from excluded.label
+				or feature_flags.description is distinct from excluded.description
+				or feature_flags.feature_route is distinct from excluded.feature_route
+				or feature_flags.default_enabled is distinct from excluded.default_enabled
+		`, definition.Key, definition.Label, definition.Description, definition.FeatureRoute, definition.DefaultEnabled); err != nil {
+			return err
+		}
+		for _, persona := range orderedDevFeatureFlagPersonas() {
+			if err := ensureDevFeatureFlagTarget(ctx, tx, definition, "persona", persona.ID); err != nil {
+				return err
+			}
+		}
+		for _, site := range orderedDevFeatureFlagSites() {
+			if err := ensureDevFeatureFlagTarget(ctx, tx, definition, "site", site.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func ensureDevFeatureFlagTarget(ctx context.Context, tx pgx.Tx, definition devFeatureFlagDefinition, targetType string, targetID string) error {
+	_, err := tx.Exec(ctx, `
+		insert into feature_flag_targets (flag_key, target_type, target_id, enabled, actor_id)
+		values ($1, $2, $3, $4, 'registry')
+		on conflict (flag_key, target_type, target_id) do nothing
+	`, definition.Key, targetType, targetID, definition.DefaultEnabled)
+	return err
+}
+
+func currentDevFeatureFlagStore(ctx context.Context) (devFeatureFlagStorage, error) {
+	devFeatureFlagStoreMu.Lock()
+	defer devFeatureFlagStoreMu.Unlock()
+	if devFeatureFlagStore != nil || devFeatureFlagStoreError != nil {
+		return devFeatureFlagStore, devFeatureFlagStoreError
+	}
+	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if databaseURL == "" {
+		devFeatureFlagStore = memoryDevFeatureFlagStore{}
+		return devFeatureFlagStore, nil
+	}
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		devFeatureFlagStoreError = err
+		return nil, err
+	}
+	devFeatureFlagStore = postgresDevFeatureFlagStore{pool: pool}
+	return devFeatureFlagStore, nil
+}
+
+func refreshDevFeatureFlagState(ctx context.Context) error {
+	store, err := currentDevFeatureFlagStore(ctx)
+	if err != nil {
+		return err
+	}
+	state, err := store.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	devFeatureFlagStateMu.Lock()
+	defer devFeatureFlagStateMu.Unlock()
+	devFeatureFlagState = state
+	devFeatureFlagStateLoaded = true
+	devFeatureFlagStateLoadAttempted = true
+	return nil
+}
+
+func cloneDevFeatureFlagState(state map[string]map[devFeatureFlagTargetKey]bool) map[string]map[devFeatureFlagTargetKey]bool {
+	cloned := make(map[string]map[devFeatureFlagTargetKey]bool, len(state))
+	for flagKey, targets := range state {
+		clonedTargets := make(map[devFeatureFlagTargetKey]bool, len(targets))
+		for target, enabled := range targets {
+			clonedTargets[target] = enabled
+		}
+		cloned[flagKey] = clonedTargets
+	}
+	return cloned
 }
 
 // initialDevFeatureFlagState builds the in-memory default target matrix for every flag.
@@ -1203,30 +1432,52 @@ func orderedDevFeatureFlagSites() []devFeatureTarget {
 	return targets
 }
 
+// ensureDevFeatureFlagStateLoaded performs one lazy store snapshot attempt for route checks.
+func ensureDevFeatureFlagStateLoaded(ctx context.Context) {
+	devFeatureFlagStateMu.Lock()
+	loaded := devFeatureFlagStateLoaded
+	attempted := devFeatureFlagStateLoadAttempted
+	if !loaded && !attempted {
+		devFeatureFlagStateLoadAttempted = true
+	}
+	devFeatureFlagStateMu.Unlock()
+	if loaded || attempted {
+		return
+	}
+	_ = refreshDevFeatureFlagState(ctx)
+}
+
 // devFeatureFlagTargetEnabled resolves a stored target override with a flag default fallback.
-func devFeatureFlagTargetEnabled(flagKey string, targetType string, targetID string, fallback bool) bool {
+func devFeatureFlagTargetEnabled(ctx context.Context, flagKey string, targetType string, targetID string, fallback bool) bool {
+	ensureDevFeatureFlagStateLoaded(ctx)
 	devFeatureFlagStateMu.Lock()
 	defer devFeatureFlagStateMu.Unlock()
 	if targets, ok := devFeatureFlagState[flagKey]; ok {
 		if enabled, ok := targets[devFeatureFlagTargetKey{TargetType: targetType, TargetID: targetID}]; ok {
+			if !devFeatureFlagStateLoaded {
+				return false
+			}
 			return enabled
 		}
+	}
+	if !devFeatureFlagStateLoaded {
+		return false
 	}
 	return fallback
 }
 
 // devFeatureFlagEffective computes whether a route-gated feature is enabled for a persona/site session.
-func devFeatureFlagEffective(definition devFeatureFlagDefinition, config devPersonaConfig) bool {
+func devFeatureFlagEffective(ctx context.Context, definition devFeatureFlagDefinition, config devPersonaConfig) bool {
 	if config.Persona.ID == "it_admin" {
 		return true
 	}
-	personaEnabled := devFeatureFlagTargetEnabled(definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled)
-	siteEnabled := devFeatureFlagTargetEnabled(definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled)
+	personaEnabled := devFeatureFlagTargetEnabled(ctx, definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled)
+	siteEnabled := devFeatureFlagTargetEnabled(ctx, definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled)
 	return definition.DefaultEnabled && personaEnabled && siteEnabled
 }
 
 // devFeatureFlagIndicators returns read-only session indicators for feature-flag state.
-func devFeatureFlagIndicators(definition devFeatureFlagDefinition, config devPersonaConfig) []devFeatureFlagIndicator {
+func devFeatureFlagIndicators(ctx context.Context, definition devFeatureFlagDefinition, config devPersonaConfig) []devFeatureFlagIndicator {
 	if config.Persona.ID == "it_admin" {
 		return []devFeatureFlagIndicator{
 			{
@@ -1247,7 +1498,7 @@ func devFeatureFlagIndicators(definition devFeatureFlagDefinition, config devPer
 			TargetType:  "persona",
 			TargetID:    config.Persona.ID,
 			TargetLabel: config.Persona.Label,
-			Enabled:     devFeatureFlagTargetEnabled(definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled),
+			Enabled:     devFeatureFlagTargetEnabled(ctx, definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled),
 			ReadOnly:    true,
 		},
 		{
@@ -1256,40 +1507,40 @@ func devFeatureFlagIndicators(definition devFeatureFlagDefinition, config devPer
 			TargetType:  "site",
 			TargetID:    config.CurrentSite.ID,
 			TargetLabel: config.CurrentSite.Name,
-			Enabled:     devFeatureFlagTargetEnabled(definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled),
+			Enabled:     devFeatureFlagTargetEnabled(ctx, definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled),
 			ReadOnly:    true,
 		},
 	}
 }
 
 // devFeatureAvailabilities returns feature flag state summaries included in the DEV session payload.
-func devFeatureAvailabilities(config devPersonaConfig) []devFeatureAvailability {
+func devFeatureAvailabilities(ctx context.Context, config devPersonaConfig) []devFeatureAvailability {
 	availability := make([]devFeatureAvailability, 0, len(devFeatureFlagRegistry))
 	for _, definition := range devFeatureFlagRegistry {
 		availability = append(availability, devFeatureAvailability{
 			Key:        definition.Key,
 			Label:      definition.Label,
-			Enabled:    devFeatureFlagEffective(definition, config),
-			Indicators: devFeatureFlagIndicators(definition, config),
+			Enabled:    devFeatureFlagEffective(ctx, definition, config),
+			Indicators: devFeatureFlagIndicators(ctx, definition, config),
 		})
 	}
 	return availability
 }
 
 // routeFeatureEnabled reports whether a route is currently enabled for a DEV persona config.
-func routeFeatureEnabled(config devPersonaConfig, path string) bool {
+func routeFeatureEnabled(ctx context.Context, config devPersonaConfig, path string) bool {
 	definition, ok := devFeatureFlagDefinitionForRoute(path)
 	if !ok {
 		return true
 	}
-	return devFeatureFlagEffective(definition, config)
+	return devFeatureFlagEffective(ctx, definition, config)
 }
 
 // featureFilteredRoutes removes disabled feature routes from the session's allowed route list.
-func featureFilteredRoutes(config devPersonaConfig) []string {
+func featureFilteredRoutes(ctx context.Context, config devPersonaConfig) []string {
 	routes := make([]string, 0, len(config.Allowed))
 	for _, route := range config.Allowed {
-		if routeFeatureEnabled(config, route) {
+		if routeFeatureEnabled(ctx, config, route) {
 			routes = append(routes, route)
 		}
 	}
@@ -1297,11 +1548,11 @@ func featureFilteredRoutes(config devPersonaConfig) []string {
 }
 
 // featureFilteredLandingPath chooses a landing path that remains accessible after feature filtering.
-func featureFilteredLandingPath(config devPersonaConfig) string {
-	if routeAllowed(config, config.LandingPath) {
+func featureFilteredLandingPath(ctx context.Context, config devPersonaConfig) string {
+	if routeAllowed(ctx, config, config.LandingPath) {
 		return config.LandingPath
 	}
-	filtered := featureFilteredRoutes(config)
+	filtered := featureFilteredRoutes(ctx, config)
 	if len(filtered) > 0 {
 		return filtered[0]
 	}
@@ -1309,10 +1560,10 @@ func featureFilteredLandingPath(config devPersonaConfig) string {
 }
 
 // buildDevFeatureFlagsPayload builds the IT Admin feature flag management API response.
-func buildDevFeatureFlagsPayload(config devPersonaConfig) devFeatureFlagsPayload {
+func buildDevFeatureFlagsPayload(ctx context.Context, config devPersonaConfig) devFeatureFlagsPayload {
 	flags := make([]devFeatureFlagPayload, 0, len(devFeatureFlagRegistry))
 	for _, definition := range devFeatureFlagRegistry {
-		flags = append(flags, buildDevFeatureFlagPayload(definition))
+		flags = append(flags, buildDevFeatureFlagPayload(ctx, definition))
 	}
 	return devFeatureFlagsPayload{
 		PageID:      "feature-flags",
@@ -1326,13 +1577,13 @@ func buildDevFeatureFlagsPayload(config devPersonaConfig) devFeatureFlagsPayload
 }
 
 // buildDevFeatureFlagPayload builds one flag row with editable target state and IT Admin override state.
-func buildDevFeatureFlagPayload(definition devFeatureFlagDefinition) devFeatureFlagPayload {
+func buildDevFeatureFlagPayload(ctx context.Context, definition devFeatureFlagDefinition) devFeatureFlagPayload {
 	personaTargets := make([]devFeatureTargetState, 0, len(devPersonaOrder)-1)
 	for _, persona := range orderedDevFeatureFlagPersonas() {
 		personaTargets = append(personaTargets, devFeatureTargetState{
 			ID:       persona.ID,
 			Label:    persona.Label,
-			Enabled:  devFeatureFlagTargetEnabled(definition.Key, "persona", persona.ID, definition.DefaultEnabled),
+			Enabled:  devFeatureFlagTargetEnabled(ctx, definition.Key, "persona", persona.ID, definition.DefaultEnabled),
 			ReadOnly: false,
 		})
 	}
@@ -1342,7 +1593,7 @@ func buildDevFeatureFlagPayload(definition devFeatureFlagDefinition) devFeatureF
 		siteTargets = append(siteTargets, devFeatureTargetState{
 			ID:       site.ID,
 			Label:    site.Label,
-			Enabled:  devFeatureFlagTargetEnabled(definition.Key, "site", site.ID, definition.DefaultEnabled),
+			Enabled:  devFeatureFlagTargetEnabled(ctx, definition.Key, "site", site.ID, definition.DefaultEnabled),
 			ReadOnly: false,
 		})
 	}
@@ -1390,16 +1641,17 @@ func validDevFeatureFlagTarget(target devFeatureFlagTargetUpdate) bool {
 	}
 }
 
-// updateDevFeatureFlagTargets applies target state changes to the in-memory DEV flag store.
-func updateDevFeatureFlagTargets(flagKey string, updates []devFeatureFlagTargetUpdate) {
-	devFeatureFlagStateMu.Lock()
-	defer devFeatureFlagStateMu.Unlock()
-	if _, ok := devFeatureFlagState[flagKey]; !ok {
-		devFeatureFlagState[flagKey] = make(map[devFeatureFlagTargetKey]bool)
+// updateDevFeatureFlagTargets persists target state changes and refreshes the DEV flag cache when possible.
+func updateDevFeatureFlagTargets(ctx context.Context, flagKey string, updates []devFeatureFlagTargetUpdate, actorID string) error {
+	store, err := currentDevFeatureFlagStore(ctx)
+	if err != nil {
+		return err
 	}
-	for _, update := range updates {
-		devFeatureFlagState[flagKey][devFeatureFlagTargetKey{TargetType: update.TargetType, TargetID: update.TargetID}] = update.Enabled
+	if err := store.UpdateTargets(ctx, flagKey, updates, actorID); err != nil {
+		return err
 	}
+	_ = refreshDevFeatureFlagState(ctx)
+	return nil
 }
 
 // resetDevFeatureFlagStateForTest restores feature flags to registry defaults for tests.
@@ -1407,8 +1659,15 @@ func resetDevFeatureFlagStateForTest() {
 	devFeatureFlagStateMu.Lock()
 	defer devFeatureFlagStateMu.Unlock()
 	devFeatureFlagState = initialDevFeatureFlagState()
+	devFeatureFlagStateLoaded = false
+	devFeatureFlagStateLoadAttempted = false
+	devFeatureFlagStoreMu.Lock()
+	defer devFeatureFlagStoreMu.Unlock()
+	devFeatureFlagStore = nil
+	devFeatureFlagStoreError = nil
 }
 
+// concatRoutes documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func concatRoutes(groups ...[]string) []string {
 	total := 0
 	for _, group := range groups {
@@ -1423,7 +1682,7 @@ func concatRoutes(groups ...[]string) []string {
 }
 
 // buildDevSessionPayload builds the value used by internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func buildDevSessionPayload(config devPersonaConfig) devSessionPayload {
+func buildDevSessionPayload(ctx context.Context, config devPersonaConfig) devSessionPayload {
 	persona := config.Persona
 	return devSessionPayload{
 		Environment:     "development",
@@ -1431,9 +1690,9 @@ func buildDevSessionPayload(config devPersonaConfig) devSessionPayload {
 		Authorized:      true,
 		CurrentPersona:  &persona,
 		Personas:        orderedDevPersonas(),
-		LandingPath:     featureFilteredLandingPath(config),
-		AllowedRoutes:   featureFilteredRoutes(config),
-		FeatureFlags:    devFeatureAvailabilities(config),
+		LandingPath:     featureFilteredLandingPath(ctx, config),
+		AllowedRoutes:   featureFilteredRoutes(ctx, config),
+		FeatureFlags:    devFeatureAvailabilities(ctx, config),
 		Shell:           config.Shell,
 		DefaultSiteID:   config.DefaultSite.ID,
 		DefaultSiteName: config.DefaultSite.Name,
@@ -1457,8 +1716,8 @@ func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
 }
 
 // routeAllowed documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func routeAllowed(config devPersonaConfig, path string) bool {
-	return slices.Contains(config.Allowed, path) && routeFeatureEnabled(config, path)
+func routeAllowed(ctx context.Context, config devPersonaConfig, path string) bool {
+	return slices.Contains(config.Allowed, path) && routeFeatureEnabled(ctx, config, path)
 }
 
 // writeDevSessionCookie writes the response payload for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.

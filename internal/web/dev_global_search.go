@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -65,7 +66,7 @@ func handleDevGlobalSearch(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !routeAllowed(config, devGlobalSearchRoute) {
+	if !routeAllowed(r.Context(), config, devGlobalSearchRoute) {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Global search is not available for this role.",
@@ -86,13 +87,13 @@ func handleDevGlobalSearch(w http.ResponseWriter, r *http.Request) {
 			Description:   "Global search results across the DEV projections this persona can access.",
 			LastRefreshed: "Last refreshed:\nMay 3, 2026 9:00 AM PT",
 			Query:         query,
-			Groups:        buildDevGlobalSearchGroups(config, query, now),
+			Groups:        buildDevGlobalSearchGroups(r.Context(), config, query, now),
 		},
 	})
 }
 
 // buildDevGlobalSearchGroups builds the value used by internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func buildDevGlobalSearchGroups(config devPersonaConfig, query string, now time.Time) []devGlobalSearchGroup {
+func buildDevGlobalSearchGroups(ctx context.Context, config devPersonaConfig, query string, now time.Time) []devGlobalSearchGroup {
 	normalizedQuery := normalizeSearchValue(query)
 	if normalizedQuery == "" {
 		return []devGlobalSearchGroup{}
@@ -102,14 +103,14 @@ func buildDevGlobalSearchGroups(config devPersonaConfig, query string, now time.
 	if allowedRoutesContainPrefix(config, "/phone-directory/") {
 		ranked = append(ranked, globalSearchPhoneDirectoryResults(config, normalizedQuery)...)
 	}
-	if routeAllowed(config, "/onboarding") {
+	if routeAllowed(ctx, config, "/onboarding") {
 		ranked = append(ranked, globalSearchOnboardingResults(normalizedQuery, now)...)
 	}
-	if routeAllowed(config, "/offboarding") {
+	if routeAllowed(ctx, config, "/offboarding") {
 		ranked = append(ranked, globalSearchOffboardingResults(config, normalizedQuery)...)
 	}
-	ranked = append(ranked, globalSearchWorkflowActionResults(config, normalizedQuery, now)...)
-	if routeAllowed(config, devDepartingSeniorsRoute) {
+	ranked = append(ranked, globalSearchWorkflowActionResults(ctx, config, normalizedQuery, now)...)
+	if routeAllowed(ctx, config, devDepartingSeniorsRoute) {
 		ranked = append(ranked, globalSearchDepartingSeniorResults(normalizedQuery, now)...)
 		ranked = append(ranked, globalSearchDeviceResults(normalizedQuery, now)...)
 	}
@@ -278,9 +279,9 @@ func globalSearchOffboardingResults(config devPersonaConfig, normalizedQuery str
 }
 
 // globalSearchWorkflowActionResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func globalSearchWorkflowActionResults(config devPersonaConfig, normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
+func globalSearchWorkflowActionResults(ctx context.Context, config devPersonaConfig, normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
 	results := []rankedGlobalSearchResult{}
-	if routeAllowed(config, "/onboarding") {
+	if routeAllowed(ctx, config, "/onboarding") {
 		for _, row := range devOnboardingStore.rows(now) {
 			for _, step := range row.WorkflowSteps {
 				for _, action := range step.Actions {
@@ -308,7 +309,7 @@ func globalSearchWorkflowActionResults(config devPersonaConfig, normalizedQuery 
 			}
 		}
 	}
-	if routeAllowed(config, "/offboarding") {
+	if routeAllowed(ctx, config, "/offboarding") {
 		for _, row := range devOffboardingStore.rows(config) {
 			for _, action := range row.Actions {
 				values := []string{row.Person, row.Email, row.Site, action.Name, action.Owner, action.Status, action.Detail, action.Resolution}

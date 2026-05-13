@@ -121,7 +121,7 @@ func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !routeAllowed(config, "/offboarding") {
+	if !routeAllowed(r.Context(), config, "/offboarding") {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Offboarding is not available for this role.",
@@ -168,7 +168,7 @@ func handleDevOffboardingRecord(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !routeAllowed(config, "/offboarding") || !canManageOffboardingEndDates(config) {
+	if !routeAllowed(r.Context(), config, "/offboarding") || !canManageOffboardingEndDates(config) {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "This persona cannot update offboarding end dates.",
