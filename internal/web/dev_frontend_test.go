@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -46,9 +48,11 @@ type devSessionResponse struct {
 type featureFlagsResponse struct {
 	PageID string `json:"page_id"`
 	Flags  []struct {
-		Key            string `json:"key"`
-		Label          string `json:"label"`
-		EffectiveForIT bool   `json:"effective_for_it_admin"`
+		Key            string   `json:"key"`
+		Label          string   `json:"label"`
+		FeatureRoute   string   `json:"feature_route"`
+		Routes         []string `json:"routes"`
+		EffectiveForIT bool     `json:"effective_for_it_admin"`
 		PersonaTargets []struct {
 			ID       string `json:"id"`
 			Label    string `json:"label"`
@@ -516,6 +520,15 @@ func phoneDirectoryHasTitle(payload phoneDirectoryResponse, title string) bool {
 	return false
 }
 
+func repoDoc(t *testing.T, name string) string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("..", "..", name))
+	if err != nil {
+		t.Fatalf("read %s: %v", name, err)
+	}
+	return string(body)
+}
+
 // createAndFinalizeManualOnboarding documents the data flow for internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cookie *http.Cookie, firstName string, lastName string) string {
 	t.Helper()
@@ -674,9 +687,11 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("unexpected feature flags payload: %#v", payload)
 		}
 		flagIndex := slices.IndexFunc(payload.Flags, func(flag struct {
-			Key            string `json:"key"`
-			Label          string `json:"label"`
-			EffectiveForIT bool   `json:"effective_for_it_admin"`
+			Key            string   `json:"key"`
+			Label          string   `json:"label"`
+			FeatureRoute   string   `json:"feature_route"`
+			Routes         []string `json:"routes"`
+			EffectiveForIT bool     `json:"effective_for_it_admin"`
 			PersonaTargets []struct {
 				ID       string `json:"id"`
 				Label    string `json:"label"`
@@ -707,6 +722,103 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if len(frequentFliers.ActiveIndicators) == 0 || !frequentFliers.ActiveIndicators[0].ReadOnly || !frequentFliers.ActiveIndicators[0].Enabled {
 			t.Fatalf("expected active read-only indicators, got %#v", frequentFliers.ActiveIndicators)
+		}
+	})
+
+	t.Run("feature flag registry routes declare backend coverage or documented exceptions", func(t *testing.T) {
+		type routeCoverage struct {
+			APIPaths  []string
+			Exception string
+		}
+		coverage := map[string]routeCoverage{
+			"/dashboard/site-admin": {
+				Exception: "Flagged route backend coverage exception: /dashboard/site-admin",
+			},
+			"/onboarding": {
+				APIPaths: []string{"/api/v1/dev/pages/onboarding"},
+			},
+			"/offboarding": {
+				APIPaths: []string{"/api/v1/dev/pages/offboarding"},
+			},
+			"/departing-seniors": {
+				APIPaths: []string{"/api/v1/dev/pages/departing-seniors"},
+			},
+			"/room-moves": {
+				APIPaths: []string{"/api/v1/dev/pages/room-moves"},
+			},
+			"/room-moves/bulk-draft": {
+				APIPaths: []string{"/api/v1/dev/pages/room-moves/bulk-draft"},
+			},
+			"/phone-directory/by-person": {
+				APIPaths: []string{"/api/v1/dev/pages/phone-directory/by-person"},
+			},
+			"/phone-directory/by-room": {
+				APIPaths: []string{"/api/v1/dev/pages/phone-directory/by-room"},
+			},
+			"/phone-directory/by-department": {
+				APIPaths: []string{"/api/v1/dev/pages/phone-directory/by-department"},
+			},
+			"/student-data-cleanup": {
+				Exception: "Flagged route backend coverage exception: /student-data-cleanup",
+			},
+			"/frequent-fliers": {
+				Exception: "Flagged route backend coverage exception: /frequent-fliers",
+			},
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/feature-flags", nil)
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it admin feature flags returned %d, want 200", rec.Code)
+		}
+		payload := decodeJSON[featureFlagsResponse](t, rec)
+		productRequirements := repoDoc(t, "PRODUCT_REQUIREMENTS.md")
+		implementationPlan := repoDoc(t, "IMPLEMENTATION_PLAN.md")
+
+		seen := map[string]bool{}
+		for _, flag := range payload.Flags {
+			if flag.FeatureRoute == "" {
+				t.Fatalf("feature flag %q has no feature route", flag.Key)
+			}
+			if len(flag.Routes) == 0 {
+				t.Fatalf("feature flag %q has no controlled routes", flag.Key)
+			}
+			for _, route := range flag.Routes {
+				routeCoverage, ok := coverage[route]
+				if !ok {
+					t.Fatalf("feature flag %q route %q has no backend coverage mapping or documented exception", flag.Key, route)
+				}
+				seen[route] = true
+				if routeCoverage.Exception != "" {
+					if !strings.Contains(productRequirements, routeCoverage.Exception) {
+						t.Fatalf("%s missing from PRODUCT_REQUIREMENTS.md", routeCoverage.Exception)
+					}
+					if !strings.Contains(implementationPlan, routeCoverage.Exception) {
+						t.Fatalf("%s missing from IMPLEMENTATION_PLAN.md", routeCoverage.Exception)
+					}
+					continue
+				}
+				if len(routeCoverage.APIPaths) == 0 {
+					t.Fatalf("feature flag %q route %q has neither API paths nor exception", flag.Key, route)
+				}
+				for _, apiPath := range routeCoverage.APIPaths {
+					apiReq := httptest.NewRequest(http.MethodGet, apiPath, nil)
+					apiReq.AddCookie(itCookie)
+					apiRec := httptest.NewRecorder()
+					handler.ServeHTTP(apiRec, apiReq)
+					if apiRec.Code == http.StatusNotFound {
+						t.Fatalf("feature flag %q route %q maps to missing backend API %q", flag.Key, route, apiPath)
+					}
+				}
+			}
+		}
+		for route := range coverage {
+			if !seen[route] {
+				t.Fatalf("coverage mapping for %q no longer matches any feature flag registry route", route)
+			}
 		}
 	})
 
