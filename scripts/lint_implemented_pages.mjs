@@ -45,21 +45,26 @@ const hiddenGeneratedNodeDebtPages = [
     key: "frequent-fliers",
     runtimeSource: "frontend/src/pages/FrequentFliersPage.jsx",
     sourcePens: ["docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen"],
-    requiredSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+    suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
   },
   {
     page: "Offboarding",
     key: "offboarding",
     runtimeSource: "frontend/src/pages/OffboardingPage.jsx",
     sourcePens: ["docs/mocks/wireframes/wireframe-offboarding-dashboard.pen"],
-    requiredSourceTokens: ["OFFBOARDING_TABLE_FRAME_NODE_ID", "STATIC_OFFBOARDING_NODE_IDS"],
+    suppressionSourceTokens: [
+      "hiddenNodeIds.push(OFFBOARDING_TABLE_FRAME_NODE_ID, ...STATIC_OFFBOARDING_NODE_IDS)",
+    ],
   },
   {
     page: "Onboarding",
     key: "onboarding",
     runtimeSource: "frontend/src/pages/OnboardingPage.jsx",
     sourcePens: ["docs/mocks/wireframes/wireframe-onboarding-dashboard.pen"],
-    requiredSourceTokens: ["STATIC_ONBOARDING_TABLE_NODE_IDS", "ADD_MANUAL_NODE_ID"],
+    suppressionSourceTokens: [
+      "hiddenNodeIds.push(...STATIC_ONBOARDING_TABLE_NODE_IDS)",
+      "hiddenNodeIds.push(ADD_MANUAL_NODE_ID, ADD_MANUAL_LABEL_NODE_ID)",
+    ],
   },
   {
     page: "Phone Directory",
@@ -70,14 +75,18 @@ const hiddenGeneratedNodeDebtPages = [
       "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen",
       "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen",
     ],
-    requiredSourceTokens: ["hiddenStaticNodeIds", "buildHiddenNodeIds"],
+    suppressionSourceTokens: [
+      "hiddenNodeIds.push(resultsFrame.id)",
+      "hiddenNodeIds.push(...descendantIds(resultsFrame), ...descendantIds(detailRail))",
+      "hiddenNodeIds.push(child.id, ...descendantIds(child))",
+    ],
   },
   {
     page: "Reports",
     key: "reports",
     runtimeSource: "frontend/src/pages/ReportsPage.jsx",
     sourcePens: ["docs/mocks/wireframes/wireframe-it-admin-reports.pen"],
-    requiredSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+    suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
   },
   {
     page: "Room Moves",
@@ -87,14 +96,14 @@ const hiddenGeneratedNodeDebtPages = [
       "docs/mocks/wireframes/wireframe-room-moves.pen",
       "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
     ],
-    requiredSourceTokens: ["HIDDEN_ROOM_MOVES_NODE_SUFFIXES", "HIDDEN_BULK_DRAFT_NODE_SUFFIXES"],
+    suppressionSourceTokens: ["...hiddenRoomMovesNodeIds(artboardKey, isBulk)"],
   },
   {
     page: "Student Data Cleanup",
     key: "student-data-cleanup",
     runtimeSource: "frontend/src/pages/StudentDataCleanupPage.jsx",
     sourcePens: ["docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen"],
-    requiredSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+    suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
   },
 ];
 
@@ -314,13 +323,15 @@ function assertNoSourceShellOverlap(page, failures) {
   }
 }
 
+function sourceHasHiddenGeneratedNodeSuppression(source, entry) {
+  return entry.suppressionSourceTokens.some((token) => source.includes(token));
+}
+
 function assertHiddenGeneratedNodeDebtLedger(failures) {
   const ledger = loadHiddenGeneratedNodeLedger();
   for (const entry of hiddenGeneratedNodeDebtPages) {
     const source = readText(entry.runtimeSource);
-    const hidesPageLocalGeneratedNodes = entry.requiredSourceTokens.some((token) =>
-      source.includes(token)
-    );
+    const hidesPageLocalGeneratedNodes = sourceHasHiddenGeneratedNodeSuppression(source, entry);
     if (!hidesPageLocalGeneratedNodes) {
       continue;
     }
@@ -524,7 +535,10 @@ function warnRuntimeHiddenNodeDebt(warnings) {
     const generatedPaneCollectors = (source.match(/collect(?:Generated)?PaneNodeIds|collectPaneNodeIds/g) ?? []).length;
     const score = explicitHiddenConstants + hiddenPushes + generatedPaneCollectors;
     if (score >= 3) {
-      warnings.push(
+      pushWarning(
+        warnings,
+        "runtime-hidden-node-debt",
+        { key: file },
         `${file}: runtime hides generated artboard nodes in ${score} places; prefer removing never-visible nodes from the authoritative PEN`
       );
       emitted += 1;
@@ -553,7 +567,10 @@ function sourceShellNodeCount(page) {
 function warnSourceShellOverlap(page, warnings) {
   const count = sourceShellNodeCount(page);
   if (count > 0) {
-    warnings.push(
+    pushWarning(
+      warnings,
+      "source-shell-overlap",
+      page,
       `${page.key}: source PEN includes ${count} shell-region nodes ignored by merge-shell; keep shared shell changes in wireframe-shared-shell.pen`
     );
   }
@@ -713,6 +730,24 @@ function selfTest() {
   if (overflowFailures.length === 0) {
     throw new Error("self-test expected nested text overflow to fail");
   }
+
+  const staleConstantEntry = hiddenGeneratedNodeDebtPages.find((entry) => entry.key === "offboarding");
+  const staleConstantSource = `
+    const OFFBOARDING_TABLE_FRAME_NODE_ID = "offboarding__f1";
+    const STATIC_OFFBOARDING_NODE_IDS = ["offboarding__t1"];
+    const hiddenNodeIds = buildSharedShellHiddenNodeIds(session);
+  `;
+  if (sourceHasHiddenGeneratedNodeSuppression(staleConstantSource, staleConstantEntry)) {
+    throw new Error("self-test expected stale hidden-node constants not to count as suppression");
+  }
+
+  const suppressionSource = `
+    const hiddenNodeIds = buildSharedShellHiddenNodeIds(session);
+    hiddenNodeIds.push(OFFBOARDING_TABLE_FRAME_NODE_ID, ...STATIC_OFFBOARDING_NODE_IDS);
+  `;
+  if (!sourceHasHiddenGeneratedNodeSuppression(suppressionSource, staleConstantEntry)) {
+    throw new Error("self-test expected hiddenNodeIds page-local push to count as suppression");
+  }
 }
 
 function printResults({ failures, warnings }) {
@@ -768,6 +803,7 @@ export {
   assertStandardRefresh,
   flattenNodes,
   runLint,
+  sourceHasHiddenGeneratedNodeSuppression,
   warnFragmentedParagraphs,
   warnTextDividerGap,
 };
