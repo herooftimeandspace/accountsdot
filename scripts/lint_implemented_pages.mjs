@@ -7,6 +7,13 @@ const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(__filename), "..");
 const generatedDir = path.join(repoRoot, "frontend", "src", "generated");
 const manifestPath = path.join(generatedDir, "implemented-page-design-manifest.generated.json");
+const hiddenGeneratedNodeLedgerPath = path.join(
+  repoRoot,
+  "docs",
+  "mocks",
+  "wireframes",
+  "hidden-generated-node-ledger.md"
+);
 const minimumGapPx = 5;
 const maxWarningsPerCheck = 12;
 const loggedInPane = {
@@ -32,6 +39,65 @@ const warningCheckPrimitives = {
 
 const promotedBlockingChecks = ["text-overflow"];
 
+const hiddenGeneratedNodeDebtPages = [
+  {
+    page: "Frequent Fliers",
+    key: "frequent-fliers",
+    runtimeSource: "frontend/src/pages/FrequentFliersPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen"],
+    requiredSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+  },
+  {
+    page: "Offboarding",
+    key: "offboarding",
+    runtimeSource: "frontend/src/pages/OffboardingPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-offboarding-dashboard.pen"],
+    requiredSourceTokens: ["OFFBOARDING_TABLE_FRAME_NODE_ID", "STATIC_OFFBOARDING_NODE_IDS"],
+  },
+  {
+    page: "Onboarding",
+    key: "onboarding",
+    runtimeSource: "frontend/src/pages/OnboardingPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-onboarding-dashboard.pen"],
+    requiredSourceTokens: ["STATIC_ONBOARDING_TABLE_NODE_IDS", "ADD_MANUAL_NODE_ID"],
+  },
+  {
+    page: "Phone Directory",
+    key: "phone-directory",
+    runtimeSource: "frontend/src/pages/PhoneDirectoryPage.jsx",
+    sourcePens: [
+      "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
+      "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen",
+      "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen",
+    ],
+    requiredSourceTokens: ["hiddenStaticNodeIds", "buildHiddenNodeIds"],
+  },
+  {
+    page: "Reports",
+    key: "reports",
+    runtimeSource: "frontend/src/pages/ReportsPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-it-admin-reports.pen"],
+    requiredSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+  },
+  {
+    page: "Room Moves",
+    key: "room-moves",
+    runtimeSource: "frontend/src/pages/RoomMovesPage.jsx",
+    sourcePens: [
+      "docs/mocks/wireframes/wireframe-room-moves.pen",
+      "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+    ],
+    requiredSourceTokens: ["HIDDEN_ROOM_MOVES_NODE_SUFFIXES", "HIDDEN_BULK_DRAFT_NODE_SUFFIXES"],
+  },
+  {
+    page: "Student Data Cleanup",
+    key: "student-data-cleanup",
+    runtimeSource: "frontend/src/pages/StudentDataCleanupPage.jsx",
+    sourcePens: ["docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen"],
+    requiredSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
+  },
+];
+
 function readJSON(absolutePath) {
   return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
 }
@@ -46,6 +112,44 @@ function readPenRoot(relativePath) {
     throw new Error(`${relativePath} does not contain a root artboard`);
   }
   return parsed.children[0];
+}
+
+function parseMarkdownTableRows(markdown) {
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("|") && line.endsWith("|"))
+    .filter((line) => !/^\|\s*-+/.test(line))
+    .map((line) =>
+      line
+        .slice(1, -1)
+        .split("|")
+        .map((cell) => cell.trim())
+    )
+    .filter((cells) => cells.length > 1);
+}
+
+function loadHiddenGeneratedNodeLedger() {
+  if (!fs.existsSync(hiddenGeneratedNodeLedgerPath)) {
+    return new Map();
+  }
+  const rows = parseMarkdownTableRows(fs.readFileSync(hiddenGeneratedNodeLedgerPath, "utf8"));
+  const [header, ...bodyRows] = rows;
+  if (!header) {
+    return new Map();
+  }
+  const pageIndex = header.indexOf("Page");
+  if (pageIndex === -1) {
+    return new Map();
+  }
+  const entries = new Map();
+  for (const cells of bodyRows) {
+    const page = cells[pageIndex];
+    if (page) {
+      entries.set(page, cells);
+    }
+  }
+  return entries;
 }
 
 function flattenNodes(root) {
@@ -207,6 +311,42 @@ function assertNoSourceShellOverlap(page, failures) {
     failures.push(
       `${page.key}: source-shell-overlap: ${page.sourcePen} contains ${ignoredShellRegionNodes.length} top-level shell-region nodes ignored by merge-shell`
     );
+  }
+}
+
+function assertHiddenGeneratedNodeDebtLedger(failures) {
+  const ledger = loadHiddenGeneratedNodeLedger();
+  for (const entry of hiddenGeneratedNodeDebtPages) {
+    const source = readText(entry.runtimeSource);
+    const hidesPageLocalGeneratedNodes = entry.requiredSourceTokens.some((token) =>
+      source.includes(token)
+    );
+    if (!hidesPageLocalGeneratedNodes) {
+      continue;
+    }
+
+    const ledgerRow = ledger.get(entry.page);
+    if (!ledgerRow) {
+      failures.push(
+        `${entry.key}: page-local generated nodes are hidden at runtime but ${entry.page} has no row in docs/mocks/wireframes/hidden-generated-node-ledger.md`
+      );
+      continue;
+    }
+
+    const rowText = ledgerRow.join(" ");
+    const missingReferences = [
+      entry.runtimeSource,
+      ...entry.sourcePens,
+      "runtime behavior",
+      ".pen layout",
+      "npm run pen:lint",
+    ].filter((token) => !rowText.includes(token));
+
+    if (missingReferences.length > 0) {
+      failures.push(
+        `${entry.key}: hidden generated-node ledger row is missing required reference(s): ${missingReferences.join(", ")}`
+      );
+    }
   }
 }
 
@@ -445,6 +585,7 @@ function runLint({ includeDriftCheck = true } = {}) {
 
   const manifest = loadManifest();
   assertRoleNavReflowSource(failures);
+  assertHiddenGeneratedNodeDebtLedger(failures);
   warnRuntimeHiddenNodeDebt(warnings);
 
   for (const page of manifest.artboards) {

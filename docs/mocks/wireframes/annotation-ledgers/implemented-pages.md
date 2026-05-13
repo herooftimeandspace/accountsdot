@@ -81,6 +81,7 @@ This ledger is the default landing place for annotation-driven hardening work ac
 | UIH-074 | All implemented table pages | GitHub issue #14: remaining table-baseline warnings need page-level `.pen` review after duplicate-shell cleanup lands | `.pen layout` | affected authoritative table `.pen` files | open | Deferred to the issue #12 integration pass because issue #12 already edits the relevant `.pen` files broadly; grouped `table` warnings in `npm run pen:lint` are the durable triage guard |
 | UIH-075 | Dashboard Site Admin, Reports Ticketing Human Work, My Profile | GitHub issue #14: fragmented helper-paragraph warnings identify likely multi-node paragraph cleanup candidates | `.pen layout` | `wireframe-site-admin-dashboard.pen`, `wireframe-ticketing-human-work.pen`, `wireframe-faculty-staff-my-profile.pen` | open | Deferred to the issue #12 integration pass to avoid duplicating active `.pen` edits; grouped `helper paragraph` warnings in `npm run pen:lint` keep the candidate list visible |
 | UIH-076 | Phone Directory by Department | GitHub issue #14: bordered-wrapper warnings identify department summary/table wrapper spacing candidates | `.pen layout` | `wireframe-phone-directory-by-department.pen` | open | Deferred to the issue #12 integration pass to avoid conflicting with active source `.pen` cleanup; grouped `wrapper/card/rail` warnings in `npm run pen:lint` keep the page-local candidates visible |
+| UIH-077 | Frequent Fliers, Offboarding, Onboarding, Phone Directory, Reports, Room Moves, Student Data Cleanup | Issue #11: remaining page-local generated nodes are hidden at runtime after those surfaces moved static panes, tables, buttons, filters, and detail rails into runtime-owned controls | runtime behavior, `.pen layout` | `docs/mocks/wireframes/hidden-generated-node-ledger.md` plus the listed page runtime files and authoritative `.pen` sources | completed | Dedicated hidden generated-node ledger plus `npm run pen:lint` enforcement that every assigned page with page-local generated suppression has a documented exception |
 
 ## Page Index
 
@@ -89,16 +90,16 @@ This ledger is the default landing place for annotation-driven hardening work ac
 - `dashboard-it-admin`: active table-baseline lint warnings are captured in UIH-074.
 - `dashboard-site-admin`: active table-baseline and helper-paragraph lint warnings are captured in UIH-074 and UIH-075.
 - `data-quality`: see `docs/mocks/wireframes/data-quality-annotation-ledger.md`; active table-baseline lint warnings are captured in UIH-074.
-- `frequent-fliers`: active table-baseline lint warnings are captured in UIH-074.
+- `frequent-fliers`: active table-baseline lint warnings are captured in UIH-074; page-local hidden generated-node debt is captured in UIH-077.
 - `login`: accepted text-overflow lint false positive is captured in UIH-073.
 - `my-profile`: active table-baseline and helper-paragraph lint warnings are captured in UIH-074 and UIH-075.
-- `offboarding`: no additional active annotations captured yet.
-- `onboarding`: active table-baseline lint warnings are captured in UIH-074.
-- `phone-directory-by-department`: active table-baseline and wrapper/card/rail lint warnings are captured in UIH-074 and UIH-076.
-- `phone-directory-by-person`: active shared-header scope dropdown primitive reuse is captured in UIH-046; active table-baseline lint warnings are captured in UIH-074.
-- `phone-directory-by-room`: active table-baseline lint warnings are captured in UIH-074.
-- `reports`: active table-baseline lint warnings are captured in UIH-074; latest runtime drawer feedback is captured in UIH-044.
+- `offboarding`: page-local hidden generated-node debt is captured in UIH-077.
+- `onboarding`: active table-baseline lint warnings are captured in UIH-074; page-local hidden generated-node debt is captured in UIH-077.
+- `phone-directory-by-department`: active table-baseline and wrapper/card/rail lint warnings are captured in UIH-074 and UIH-076; page-local hidden generated-node debt is captured in UIH-077.
+- `phone-directory-by-person`: active shared-header scope dropdown primitive reuse is captured in UIH-046; active table-baseline lint warnings are captured in UIH-074; page-local hidden generated-node debt is captured in UIH-077.
+- `phone-directory-by-room`: active table-baseline lint warnings are captured in UIH-074; page-local hidden generated-node debt is captured in UIH-077.
+- `reports`: active table-baseline lint warnings are captured in UIH-074; latest runtime drawer feedback is captured in UIH-044; page-local hidden generated-node debt is captured in UIH-077.
 - `reports-sync-transparency`: no additional active annotations captured yet.
 - `reports-ticketing-human-work`: active table-baseline and helper-paragraph lint warnings are captured in UIH-074 and UIH-075.
-- `room-moves`: latest cancel/reversal behavior feedback is captured in UIH-052; latest bulk-draft room selector cleanup is captured in UIH-053; latest main-page table/action cleanup is captured in UIH-054; latest bulk-row author/table feedback is captured in UIH-055; latest bulk-row navigation and action-placement feedback is captured in UIH-056; latest empty-room phone outcome feedback is captured in UIH-057; latest action-label/mode feedback is captured in UIH-058; latest bulk draft helper-copy cleanup is captured in UIH-062.
-- `student-data-cleanup`: active shared-header scope dropdown annotation is captured in UIH-046; latest legacy invalid-name mock coverage is captured in UIH-045.
+- `room-moves`: latest cancel/reversal behavior feedback is captured in UIH-052; latest bulk-draft room selector cleanup is captured in UIH-053; latest main-page table/action cleanup is captured in UIH-054; latest bulk-row author/table feedback is captured in UIH-055; latest bulk-row navigation and action-placement feedback is captured in UIH-056; latest empty-room phone outcome feedback is captured in UIH-057; latest action-label/mode feedback is captured in UIH-058; latest bulk draft helper-copy cleanup is captured in UIH-062; page-local hidden generated-node debt is captured in UIH-077.
+- `student-data-cleanup`: active shared-header scope dropdown annotation is captured in UIH-046; latest legacy invalid-name mock coverage is captured in UIH-045; page-local hidden generated-node debt is captured in UIH-077.
