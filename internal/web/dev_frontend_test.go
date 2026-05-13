@@ -431,6 +431,66 @@ func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.
 	return cookie
 }
 
+func isolateDevFeatureFlagState(t *testing.T, handler http.Handler) {
+	t.Helper()
+	assertDevFeatureFlagsAtDefaults(t, handler)
+	web.ResetDevFeatureFlagStateForTest()
+	assertDevFeatureFlagsAtDefaults(t, handler)
+	t.Cleanup(func() {
+		web.ResetDevFeatureFlagStateForTest()
+		assertDevFeatureFlagsAtDefaults(t, handler)
+	})
+}
+
+func assertDevFeatureFlagsAtDefaults(t *testing.T, handler http.Handler) {
+	t.Helper()
+	itCookie := loginAsPersona(t, handler, "it_admin")
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/feature-flags", nil)
+	req.AddCookie(itCookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("feature flag default guard returned %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	payload := decodeJSON[featureFlagsResponse](t, rec)
+	if len(payload.Flags) == 0 {
+		t.Fatal("feature flag default guard received no flags")
+	}
+	for _, flag := range payload.Flags {
+		for _, target := range flag.PersonaTargets {
+			if !target.Enabled {
+				t.Fatalf("feature flag %q persona target %q leaked disabled state", flag.Key, target.ID)
+			}
+		}
+		for _, target := range flag.SiteTargets {
+			if !target.Enabled {
+				t.Fatalf("feature flag %q site target %q leaked disabled state", flag.Key, target.ID)
+			}
+		}
+	}
+}
+
+func updateDevFeatureFlagTargetForTest(t *testing.T, handler http.Handler, cookie *http.Cookie, flagKey string, targetType string, targetID string, enabled bool) featureFlagResponse {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"targets": []map[string]any{
+			{"target_type": targetType, "target_id": targetID, "enabled": enabled},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal feature flag update: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/"+flagKey, bytes.NewReader(body))
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("feature flag update returned %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	return decodeJSON[featureFlagResponse](t, rec)
+}
+
 // globalSearchHasResult documents the data flow for internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchHasResult(payload globalSearchResponse, groupID string, titleMatch string) bool {
 	for _, group := range payload.Page.Groups {
@@ -505,6 +565,8 @@ func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cooki
 // TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment exercises and documents internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
+	web.ResetDevFeatureFlagStateForTest()
+	t.Cleanup(web.ResetDevFeatureFlagStateForTest)
 
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
@@ -574,6 +636,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	})
 
 	t.Run("feature flags are it admin only and include read only it override", func(t *testing.T) {
+		isolateDevFeatureFlagState(t, handler)
+
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/feature-flags", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -647,6 +711,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	})
 
 	t.Run("feature flags gate non it allowed routes while preserving it override", func(t *testing.T) {
+		isolateDevFeatureFlagState(t, handler)
+
 		itCookie := loginAsPersona(t, handler, "it_admin")
 		body, err := json.Marshal(map[string]any{
 			"targets": []map[string]any{
@@ -663,23 +729,6 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("feature flag update returned %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		defer func() {
-			restoreBody, err := json.Marshal(map[string]any{
-				"targets": []map[string]any{
-					{"target_type": "persona", "target_id": "site_admin", "enabled": true},
-				},
-			})
-			if err != nil {
-				t.Fatalf("marshal feature flag restore: %v", err)
-			}
-			restoreReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/onboarding", bytes.NewReader(restoreBody))
-			restoreReq.AddCookie(itCookie)
-			restoreRec := httptest.NewRecorder()
-			handler.ServeHTTP(restoreRec, restoreReq)
-			if restoreRec.Code != http.StatusOK {
-				t.Fatalf("feature flag restore returned %d, want 200: %s", restoreRec.Code, restoreRec.Body.String())
-			}
-		}()
 
 		siteCookie := loginAsPersona(t, handler, "site_admin")
 		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
@@ -729,30 +778,13 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	})
 
 	t.Run("feature flag target updates are independent and forced APIs are denied", func(t *testing.T) {
+		isolateDevFeatureFlagState(t, handler)
+
 		itCookie := loginAsPersona(t, handler, "it_admin")
 		updateTarget := func(targetType string, targetID string, enabled bool) featureFlagResponse {
 			t.Helper()
-			body, err := json.Marshal(map[string]any{
-				"targets": []map[string]any{
-					{"target_type": targetType, "target_id": targetID, "enabled": enabled},
-				},
-			})
-			if err != nil {
-				t.Fatalf("marshal feature flag update: %v", err)
-			}
-			req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/onboarding", bytes.NewReader(body))
-			req.AddCookie(itCookie)
-			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, req)
-			if rec.Code != http.StatusOK {
-				t.Fatalf("feature flag update returned %d, want 200: %s", rec.Code, rec.Body.String())
-			}
-			return decodeJSON[featureFlagResponse](t, rec)
+			return updateDevFeatureFlagTargetForTest(t, handler, itCookie, "onboarding", targetType, targetID, enabled)
 		}
-		t.Cleanup(func() {
-			updateTarget("persona", "human_resources", true)
-			updateTarget("site", "district-office", true)
-		})
 
 		payload := updateTarget("persona", "human_resources", false)
 		if payload.Key != "onboarding" {
@@ -838,6 +870,30 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if districtOfficeIndex < 0 || !onboardingFlag.SiteTargets[districtOfficeIndex].Enabled {
 			t.Fatalf("district office target changed during persona re-enable: %#v", onboardingFlag.SiteTargets)
 		}
+	})
+
+	t.Run("feature flag isolation helper resets leaked state between subtests", func(t *testing.T) {
+		t.Run("mutates without local restore", func(t *testing.T) {
+			isolateDevFeatureFlagState(t, handler)
+
+			itCookie := loginAsPersona(t, handler, "it_admin")
+			payload := updateDevFeatureFlagTargetForTest(t, handler, itCookie, "onboarding", "persona", "site_admin", false)
+			siteAdminIndex := slices.IndexFunc(payload.PersonaTargets, func(target struct {
+				ID       string `json:"id"`
+				Label    string `json:"label"`
+				Enabled  bool   `json:"enabled"`
+				ReadOnly bool   `json:"read_only"`
+			}) bool {
+				return target.ID == "site_admin"
+			})
+			if siteAdminIndex < 0 || payload.PersonaTargets[siteAdminIndex].Enabled {
+				t.Fatalf("site admin target = %#v, want disabled before cleanup reset", payload.PersonaTargets)
+			}
+		})
+
+		t.Run("starts from default state", func(t *testing.T) {
+			isolateDevFeatureFlagState(t, handler)
+		})
 	})
 
 	t.Run("unauthenticated data quality is 401", func(t *testing.T) {
