@@ -37,6 +37,9 @@ const STATIC_OFFBOARDING_NODE_IDS = [
   "t179", "f180", "t181",
 ].map((id) => `offboarding__${id}`);
 
+/**
+ * readJSON loads or decodes data for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -48,6 +51,9 @@ async function readJSON(response) {
   return payload;
 }
 
+/**
+ * nodeBox documents runtime data flow for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function nodeBox(node) {
   if (!node) {
     return null;
@@ -60,6 +66,9 @@ function nodeBox(node) {
   };
 }
 
+/**
+ * formatDate formats display data for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function formatDate(value) {
   if (!value) {
     return "Not set";
@@ -76,6 +85,9 @@ function formatDate(value) {
   });
 }
 
+/**
+ * statusClass formats display data for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function statusClass(status) {
   if (["Ready", "Ready to Provision", "Healthy", "Complete", "Allowed"].includes(status)) {
     return "offboarding-runtime__status offboarding-runtime__status--ready";
@@ -95,6 +107,9 @@ function statusClass(status) {
   return "offboarding-runtime__status offboarding-runtime__status--neutral";
 }
 
+/**
+ * OffboardingWarning renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function OffboardingWarning({ id, text }) {
   if (!text) {
     return null;
@@ -109,6 +124,9 @@ function OffboardingWarning({ id, text }) {
   );
 }
 
+/**
+ * OffboardingTableOverlay renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs, onSelectRow }) {
   const columns = showEmployeeIDs
     ? OFFBOARDING_TABLE_COLUMNS
@@ -175,6 +193,9 @@ function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs,
   );
 }
 
+/**
+ * OffboardingDrawer renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ */
 function OffboardingDrawer({ row, canManageEndDates, onClose, onSaveEndDate }) {
   const [endDate, setEndDate] = useState(row?.end_date || "");
   const [saving, setSaving] = useState(false);
@@ -191,6 +212,9 @@ function OffboardingDrawer({ row, canManageEndDates, onClose, onSaveEndDate }) {
   }
 
   const editable = row.end_date_editable && canManageEndDates;
+  /**
+   * handleSave handles the user or network event for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   */
   const handleSave = async () => {
     setSaving(true);
     setError("");
@@ -287,6 +311,9 @@ function OffboardingDrawer({ row, canManageEndDates, onClose, onSaveEndDate }) {
   );
 }
 
+/**
+ * OffboardingPage renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "", onUnauthorized, onForbidden }) {
   const [payload, setPayload] = useState(null);
   const [pageState, setPageState] = useState("loading");

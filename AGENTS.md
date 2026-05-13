@@ -144,11 +144,17 @@ This file applies to the whole repository. It condenses durable repo-specific in
 - Sales or leadership summaries should explain what becomes easier, what blockers become visible, and how spreadsheet/email side channels are reduced.
 - Technical docs should capture business decisions where they materially affect implementation, operator behavior, access scope, rollout gates, or user-visible outcomes.
 - Do not add speculative feature controls, queues, dashboard affordances, or mock states that are not cleanly supported by the PRD and implementation plan.
+- Keep inline code documentation current with implemented behavior. When code surfaces change, update the function comments, caller comments, debugging docs, and external-write inventory in the same branch.
+- Prune stale documentation aggressively. Remove or rewrite comments and guides that describe deleted functions, renamed routes, obsolete workflow behavior, superseded provider operations, or old debugging paths.
+- Any live, planned, mock-only, or database write path must stay documented in `docs/external-write-inventory.md`, including Zoom, IncidentIQ, Google, local database, and DEV mock store mutations.
 
 ## Custom Skill Extraction Guidance
 
 - The repo-local Codex UI hardening skill lives at `.agents/skills/wizard-ui-hardening/SKILL.md`.
+- The repo-local code documentation skill lives at `.agents/skills/wizard-code-documentation/SKILL.md`.
+- Use the code documentation skill for implemented code changes under `cmd/`, `internal/`, `frontend/src/`, tests, route handlers, provider-operation planning, database behavior, and external-write surfaces.
 - Keep repo skill bodies lean. Point to repo docs as references instead of copying large sections into `SKILL.md`.
-- Recommended trigger: use the skill for work on The WIZARD, accountsdot, district account lifecycle, `.pen`-derived dashboard pages, provider sync/orchestration, or dev/staging/main promotion safety.
+- Recommended UI trigger: use the UI hardening skill for work on The WIZARD, accountsdot, district account lifecycle, `.pen`-derived dashboard pages, provider sync/orchestration, or dev/staging/main promotion safety when the task is frontend/UI/design oriented.
+- Recommended code documentation trigger: use the code documentation skill whenever implemented code changes, documentation may have gone stale, or an external-write path is introduced, renamed, removed, mocked, or made live.
 - Put long reference detail into skill `references/` files only when it is needed outside the repo or cannot be reliably discovered from the checked-out docs.
 - Preserve the source-of-truth hierarchy: `IMPLEMENTATION_PLAN.md` for implementation decisions, `PRODUCT_REQUIREMENTS.md` for product scope, `TEST_MATRIX.md` for scenario coverage, `ENVIRONMENT_DATA_PLAYBOOK.md` for environment safety, and `README.md` for project overview and commands.

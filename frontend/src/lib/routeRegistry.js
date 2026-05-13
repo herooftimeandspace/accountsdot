@@ -62,6 +62,9 @@ export const NAV_GROUP_ORDER = [
   "admin",
 ];
 
+/**
+ * normalizePath builds derived data for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function normalizePath(pathname) {
   if (!pathname || pathname === "/") {
     return "/";
@@ -70,6 +73,9 @@ export function normalizePath(pathname) {
   return ROUTE_ALIASES.get(normalized) ?? normalized;
 }
 
+/**
+ * resolveRoute builds derived data for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function resolveRoute(pathname) {
   const normalized = normalizePath(pathname);
   const errorMatch = normalized.match(/^\/error\/(\d{3})$/);
@@ -85,10 +91,16 @@ export function resolveRoute(pathname) {
   return APP_ROUTES.find((route) => route.path === normalized) ?? null;
 }
 
+/**
+ * defaultPhoneDirectoryRoute builds derived data for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function defaultPhoneDirectoryRoute(personaId) {
   return personaId === "site_secretary" ? "/phone-directory/by-room" : "/phone-directory/by-person";
 }
 
+/**
+ * navDestinationForKey documents runtime data flow for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function navDestinationForKey(navKey, session) {
   const personaId = session?.current_persona?.id || "it_admin";
   switch (navKey) {
@@ -119,11 +131,17 @@ export function navDestinationForKey(navKey, session) {
   }
 }
 
+/**
+ * isRouteAllowed documents runtime data flow for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function isRouteAllowed(session, path) {
   const allowedRoutes = session?.allowed_routes ?? [];
   return allowedRoutes.includes(path);
 }
 
+/**
+ * navGroupVisible documents runtime data flow for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function navGroupVisible(navKey, session) {
   const allowedRoutes = session?.allowed_routes ?? [];
   switch (navKey) {
@@ -154,6 +172,9 @@ export function navGroupVisible(navKey, session) {
   }
 }
 
+/**
+ * buildVisibleNavGroups builds derived data for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function buildVisibleNavGroups(session) {
   return NAV_GROUP_ORDER.filter((navKey) => navGroupVisible(navKey, session));
 }

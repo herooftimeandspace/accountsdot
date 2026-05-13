@@ -15,13 +15,22 @@ const CONTENT_LEFT = 306;
 const CONTENT_TOP = 118;
 const CONTENT_WIDTH = 1232;
 
+/**
+ * clone documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * uniquifyNodeIds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function uniquifyNodeIds(artboard) {
   const seen = new Map();
 
+  /**
+   * visit documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   function visit(node) {
     const count = (seen.get(node.id) ?? 0) + 1;
     seen.set(node.id, count);
@@ -37,6 +46,9 @@ function uniquifyNodeIds(artboard) {
   return artboard;
 }
 
+/**
+ * buildNodeIndex builds derived data for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function buildNodeIndex(node, map = new Map()) {
   map.set(node.id, node);
   for (const child of node.children || []) {
@@ -45,6 +57,9 @@ function buildNodeIndex(node, map = new Map()) {
   return map;
 }
 
+/**
+ * descendantIds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function descendantIds(node) {
   const ids = [];
   for (const child of node?.children || []) {
@@ -53,6 +68,9 @@ function descendantIds(node) {
   return ids;
 }
 
+/**
+ * nodeBounds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function nodeBounds(node) {
   if (!node) {
     return null;
@@ -65,6 +83,9 @@ function nodeBounds(node) {
   };
 }
 
+/**
+ * contentHiddenNodeIds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function contentHiddenNodeIds(artboard, nodeIndex, session) {
   const hidden = new Set(
     buildSharedShellHiddenNodeIds(session, {
@@ -95,6 +116,9 @@ function contentHiddenNodeIds(artboard, nodeIndex, session) {
   return hidden;
 }
 
+/**
+ * GlobalSearchResults renders the UI surface for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function GlobalSearchResults({ payload, query, onNavigate }) {
   const groups = payload?.page?.groups ?? [];
   const resultCount = groups.reduce((total, group) => total + (group.results?.length ?? 0), 0);
@@ -155,6 +179,9 @@ function GlobalSearchResults({ payload, query, onNavigate }) {
   );
 }
 
+/**
+ * SearchPage renders the UI surface for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function SearchPage({
   session,
   onNavigate,
@@ -177,6 +204,9 @@ export function SearchPage({
 
     const controller = new AbortController();
 
+    /**
+     * loadSearch loads or decodes data for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     */
     async function loadSearch() {
       setPageState("loading");
       setErrorMessage("");
@@ -255,6 +285,9 @@ export function SearchPage({
     };
   }, [onNavigate, pageState, payload, searchQuery, sharedShellOverlay]);
 
+  /**
+   * overlay documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   const overlay = (() => {
     if (pageState === "loading") {
       return (

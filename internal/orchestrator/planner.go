@@ -46,6 +46,7 @@ type plannedStep struct {
 	approvalRequired bool
 }
 
+// PlanWorkflow plans workflow output for internal/orchestrator/planner.go. Workflow planning code and planner tests reach this function; debug it by comparing the input workflow facts with the generated jobs, follow-ups, and approval flags. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func PlanWorkflow(input PlanInput) (PlanResult, error) {
 	result := PlanResult{
 		WorkflowType: input.WorkflowType,
@@ -162,6 +163,7 @@ func PlanWorkflow(input PlanInput) (PlanResult, error) {
 	return result, nil
 }
 
+// DefaultLoopSpecs builds the value used by internal/orchestrator/planner.go. Workflow planning code and planner tests reach this function; debug it by comparing the input workflow facts with the generated jobs, follow-ups, and approval flags. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func DefaultLoopSpecs() []LoopSpec {
 	return []LoopSpec{
 		{Name: "hr_import_loop", Cadence: 5 * time.Minute},
@@ -174,6 +176,7 @@ func DefaultLoopSpecs() []LoopSpec {
 	}
 }
 
+// buildJobs builds the value used by internal/orchestrator/planner.go. Workflow planning code and planner tests reach this function; debug it by comparing the input workflow facts with the generated jobs, follow-ups, and approval flags. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func buildJobs(steps []plannedStep) []core.WorkflowJob {
 	jobs := make([]core.WorkflowJob, 0, len(steps))
 	var previousStep string

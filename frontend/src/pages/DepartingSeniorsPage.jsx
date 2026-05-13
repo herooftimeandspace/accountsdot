@@ -13,6 +13,9 @@ const DEPARTING_SENIORS_ENDPOINT = "/api/v1/dev/pages/departing-seniors";
 const DEPARTING_SENIORS_RECORDS_ENDPOINT = "/api/v1/dev/departing-seniors/records";
 const DEPARTING_SENIORS_HEADING_ID = "departing-seniors-heading";
 
+/**
+ * readJSON loads or decodes data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -24,6 +27,9 @@ async function readJSON(response) {
   return payload;
 }
 
+/**
+ * formatDate formats display data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function formatDate(value) {
   if (!value) {
     return "Not set";
@@ -40,6 +46,9 @@ function formatDate(value) {
   });
 }
 
+/**
+ * deviceSummary documents runtime data flow for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function deviceSummary(row) {
   const devices = row.outstanding_devices ?? [];
   if (devices.length === 0) {
@@ -48,6 +57,9 @@ function deviceSummary(row) {
   return devices.map((device) => `${device.type} ${device.serial} (${device.asset_id})`).join("; ");
 }
 
+/**
+ * statusClass formats display data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function statusClass(status) {
   if (["Ready", "Complete"].includes(status)) {
     return "departing-seniors-runtime__status departing-seniors-runtime__status--ready";
@@ -58,8 +70,14 @@ function statusClass(status) {
   return "departing-seniors-runtime__status departing-seniors-runtime__status--neutral";
 }
 
+/**
+ * collectGeneratedPaneNodeIds builds derived data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectGeneratedPaneNodeIds(artboard) {
   const ids = [];
+  /**
+   * visit documents runtime data flow for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   */
   const visit = (node) => {
     if (!node) {
       return;
@@ -91,6 +109,9 @@ const TABLE_COLUMNS = [
   { key: "status", label: "Status", value: (row) => row.status },
 ];
 
+/**
+ * DepartingSeniorsTable renders the UI surface for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ */
 function DepartingSeniorsTable({ rows, canManage, savingRowId, error, onSaveEndDate, onDeprovision }) {
   const [dateDrafts, setDateDrafts] = useState({});
   const columns = useMemo(() => TABLE_COLUMNS, []);
@@ -193,6 +214,9 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, error, onSaveEndD
   );
 }
 
+/**
+ * DepartingSeniorsPage renders the UI surface for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuery = "", onUnauthorized, onForbidden }) {
   const [payload, setPayload] = useState(null);
   const [pageState, setPageState] = useState("loading");

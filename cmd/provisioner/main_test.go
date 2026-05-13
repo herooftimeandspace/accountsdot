@@ -10,6 +10,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/config"
 )
 
+// TestMainDelegatesToRunMain exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestMainDelegatesToRunMain(t *testing.T) {
 	called := false
 	previous := runMain
@@ -27,6 +28,7 @@ func TestMainDelegatesToRunMain(t *testing.T) {
 	}
 }
 
+// TestStdServerAddress exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestStdServerAddress(t *testing.T) {
 	server := &stdServer{Server: &http.Server{Addr: ":9999"}}
 	if got := server.Address(); got != ":9999" {
@@ -34,6 +36,7 @@ func TestStdServerAddress(t *testing.T) {
 	}
 }
 
+// TestRealMainCallsLogFatalfOnError exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestRealMainCallsLogFatalfOnError(t *testing.T) {
 	restore := overrideMainDeps(t)
 	defer restore()
@@ -54,6 +57,7 @@ func TestRealMainCallsLogFatalfOnError(t *testing.T) {
 	}
 }
 
+// TestRunReturnsConfigError exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestRunReturnsConfigError(t *testing.T) {
 	restore := overrideMainDeps(t)
 	defer restore()
@@ -68,6 +72,7 @@ func TestRunReturnsConfigError(t *testing.T) {
 	}
 }
 
+// TestRunReturnsListenError exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestRunReturnsListenError(t *testing.T) {
 	restore := overrideMainDeps(t)
 	defer restore()
@@ -89,6 +94,7 @@ func TestRunReturnsListenError(t *testing.T) {
 	}
 }
 
+// TestRunTreatsServerClosedAsCleanExit exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestRunTreatsServerClosedAsCleanExit(t *testing.T) {
 	restore := overrideMainDeps(t)
 	defer restore()
@@ -109,6 +115,7 @@ func TestRunTreatsServerClosedAsCleanExit(t *testing.T) {
 	}
 }
 
+// TestRunShutsDownWhenContextIsCanceled exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func TestRunShutsDownWhenContextIsCanceled(t *testing.T) {
 	restore := overrideMainDeps(t)
 	defer restore()
@@ -149,6 +156,7 @@ func TestRunShutsDownWhenContextIsCanceled(t *testing.T) {
 	}
 }
 
+// TestRunLogsShutdownError exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestRunLogsShutdownError(t *testing.T) {
 	restore := overrideMainDeps(t)
 	defer restore()
@@ -212,6 +220,7 @@ type fakeServer struct {
 	shutdowns    int
 }
 
+// ListenAndServe documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeServer) ListenAndServe() error {
 	if f.listenFunc != nil {
 		return f.listenFunc()
@@ -219,6 +228,7 @@ func (f *fakeServer) ListenAndServe() error {
 	return f.listenErr
 }
 
+// Shutdown documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeServer) Shutdown(ctx context.Context) error {
 	f.shutdowns++
 	if f.shutdownFunc != nil {
@@ -227,10 +237,12 @@ func (f *fakeServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// Address documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeServer) Address() string {
 	return f.addr
 }
 
+// overrideMainDeps documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func overrideMainDeps(t *testing.T) func() {
 	t.Helper()
 

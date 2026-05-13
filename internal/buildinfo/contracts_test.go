@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestReadmeContainsLLMDisclaimer exercises and documents internal/buildinfo/contracts_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestReadmeContainsLLMDisclaimer(t *testing.T) {
 	root := projectRoot(t)
 	readme, err := os.ReadFile(filepath.Join(root, "README.md"))
@@ -19,6 +20,7 @@ func TestReadmeContainsLLMDisclaimer(t *testing.T) {
 	}
 }
 
+// TestAllowedModules exercises and documents internal/buildinfo/contracts_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestAllowedModules(t *testing.T) {
 	root := projectRoot(t)
 	goMod, err := os.ReadFile(filepath.Join(root, "go.mod"))
@@ -50,6 +52,7 @@ func TestAllowedModules(t *testing.T) {
 	}
 }
 
+// projectRoot documents the data flow for internal/buildinfo/contracts_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

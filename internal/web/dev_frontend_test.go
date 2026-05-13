@@ -337,6 +337,7 @@ func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	return payload
 }
 
+// findCookie resolves decision data for internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 	for _, cookie := range cookies {
 		if cookie.Name == name {
@@ -346,6 +347,7 @@ func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 	return nil
 }
 
+// loginAsPersona documents the data flow for internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.Cookie {
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"persona_id": personaID})
@@ -366,6 +368,7 @@ func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.
 	return cookie
 }
 
+// globalSearchHasResult documents the data flow for internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchHasResult(payload globalSearchResponse, groupID string, titleMatch string) bool {
 	for _, group := range payload.Page.Groups {
 		if group.ID != groupID {
@@ -380,6 +383,7 @@ func globalSearchHasResult(payload globalSearchResponse, groupID string, titleMa
 	return false
 }
 
+// phoneDirectoryHasTitle documents the data flow for internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func phoneDirectoryHasTitle(payload phoneDirectoryResponse, title string) bool {
 	for _, result := range payload.Page.Results {
 		if result.Title == title {
@@ -389,6 +393,7 @@ func phoneDirectoryHasTitle(payload phoneDirectoryResponse, title string) bool {
 	return false
 }
 
+// createAndFinalizeManualOnboarding documents the data flow for internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cookie *http.Cookie, firstName string, lastName string) string {
 	t.Helper()
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
@@ -434,6 +439,7 @@ func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cooki
 	return finalized.Draft.GeneratedEmail
 }
 
+// TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment exercises and documents internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 
@@ -2158,6 +2164,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	})
 }
 
+// TestDevFrontendRoutesDisabledOutsideDevelopment exercises and documents internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 
@@ -2186,6 +2193,7 @@ func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
 	}
 }
 
+// TestDevFrontendRoutesDisabledWhenAppEnvUnset exercises and documents internal/web/dev_frontend_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestDevFrontendRoutesDisabledWhenAppEnvUnset(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 

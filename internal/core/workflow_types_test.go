@@ -6,6 +6,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/core"
 )
 
+// TestWorkflowTypesValidate exercises and documents internal/core/workflow_types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestWorkflowTypesValidate(t *testing.T) {
 	valid := []core.WorkflowType{
 		core.WorkflowTypePersonOnboard,
@@ -27,6 +28,7 @@ func TestWorkflowTypesValidate(t *testing.T) {
 	}
 }
 
+// TestWorkflowRunStatesValidate exercises and documents internal/core/workflow_types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestWorkflowRunStatesValidate(t *testing.T) {
 	valid := []core.WorkflowRunState{
 		core.WorkflowRunStatePlanned,
@@ -44,6 +46,7 @@ func TestWorkflowRunStatesValidate(t *testing.T) {
 	}
 }
 
+// TestWorkflowChangeReasonsValidate exercises and documents internal/core/workflow_types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestWorkflowChangeReasonsValidate(t *testing.T) {
 	valid := []core.WorkflowChangeReason{
 		core.WorkflowChangeReasonAssignmentAdd,
@@ -65,6 +68,7 @@ func TestWorkflowChangeReasonsValidate(t *testing.T) {
 	}
 }
 
+// TestApprovalStatesValidate exercises and documents internal/core/workflow_types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestApprovalStatesValidate(t *testing.T) {
 	valid := []core.ApprovalState{
 		core.ApprovalStateNotRequired,
@@ -82,6 +86,7 @@ func TestApprovalStatesValidate(t *testing.T) {
 	}
 }
 
+// TestProviderKindsValidate exercises and documents internal/core/workflow_types_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestProviderKindsValidate(t *testing.T) {
 	valid := []core.ProviderKind{
 		core.ProviderKindHRSFTP,

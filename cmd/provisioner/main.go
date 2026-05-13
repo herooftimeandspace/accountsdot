@@ -39,20 +39,24 @@ type stdServer struct {
 	*http.Server
 }
 
+// Address documents the data flow for cmd/provisioner/main.go. The application entrypoint reaches this function during startup; debug it when configuration, server lifecycle, or shutdown behavior is unclear. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *stdServer) Address() string {
 	return s.Addr
 }
 
+// main documents the data flow for cmd/provisioner/main.go. The application entrypoint reaches this function during startup; debug it when configuration, server lifecycle, or shutdown behavior is unclear. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func main() {
 	runMain()
 }
 
+// realMain documents the data flow for cmd/provisioner/main.go. The application entrypoint reaches this function during startup; debug it when configuration, server lifecycle, or shutdown behavior is unclear. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func realMain() {
 	if err := runApp(context.Background()); err != nil {
 		logFatalf("%v", err)
 	}
 }
 
+// run documents the data flow for cmd/provisioner/main.go. The application entrypoint reaches this function during startup; debug it when configuration, server lifecycle, or shutdown behavior is unclear. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func run(baseCtx context.Context) error {
 	cfg, err := loadConfig()
 	if err != nil {

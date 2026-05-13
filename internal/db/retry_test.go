@@ -18,6 +18,7 @@ type fakePool struct {
 	remainingCommitFailures int
 }
 
+// BeginTx documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakePool) BeginTx(_ context.Context, opts pgx.TxOptions) (pgx.Tx, error) {
 	f.begins++
 	f.options = append(f.options, opts)
@@ -33,7 +34,10 @@ type fakeTx struct {
 	rollbacks      int
 }
 
+// Begin documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeTx) Begin(context.Context) (pgx.Tx, error) { return f, nil }
+
+// Commit documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (f *fakeTx) Commit(context.Context) error {
 	f.commits++
 	if f.pool != nil && f.pool.remainingCommitFailures > 0 {
@@ -45,27 +49,49 @@ func (f *fakeTx) Commit(context.Context) error {
 	}
 	return nil
 }
+
+// Rollback documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (f *fakeTx) Rollback(context.Context) error { f.rollbacks++; return nil }
+
+// CopyFrom documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeTx) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
 	return 0, nil
 }
+
+// SendBatch documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeTx) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults { return nil }
-func (f *fakeTx) LargeObjects() pgx.LargeObjects                         { return pgx.LargeObjects{} }
+
+// LargeObjects documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+func (f *fakeTx) LargeObjects() pgx.LargeObjects { return pgx.LargeObjects{} }
+
+// Prepare documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeTx) Prepare(context.Context, string, string) (*pgconn.StatementDescription, error) {
 	return nil, nil
 }
+
+// Exec documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (f *fakeTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
 	return pgconn.CommandTag{}, nil
 }
+
+// Query documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (f *fakeTx) Query(context.Context, string, ...any) (pgx.Rows, error) { return nil, nil }
-func (f *fakeTx) QueryRow(context.Context, string, ...any) pgx.Row        { return nil }
-func (f *fakeTx) Conn() *pgx.Conn                                         { return nil }
+
+// QueryRow documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+func (f *fakeTx) QueryRow(context.Context, string, ...any) pgx.Row { return nil }
+
+// Conn documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+func (f *fakeTx) Conn() *pgx.Conn { return nil }
 
 type serializableErr struct{}
 
-func (serializableErr) Error() string    { return "serialization failure" }
+// Error documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+func (serializableErr) Error() string { return "serialization failure" }
+
+// SQLState documents the data flow for internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (serializableErr) SQLState() string { return "40001" }
 
+// TestWithRetrySerializableRetries exercises and documents internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func TestWithRetrySerializableRetries(t *testing.T) {
 	ctx := context.Background()
 	pool := &fakePool{
@@ -94,6 +120,7 @@ func TestWithRetrySerializableRetries(t *testing.T) {
 	}
 }
 
+// TestWithRetryStopsOnNonRetryableError exercises and documents internal/db/retry_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func TestWithRetryStopsOnNonRetryableError(t *testing.T) {
 	ctx := context.Background()
 	pool := &fakePool{tx: &fakeTx{}}

@@ -9,6 +9,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
 )
 
+// TestSyncDashboardHTMLRoutes exercises and documents internal/web/sync_dashboard_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestSyncDashboardHTMLRoutes(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
@@ -59,6 +60,7 @@ func TestSyncDashboardHTMLRoutes(t *testing.T) {
 	}
 }
 
+// TestSyncDashboardJSONRoutes exercises and documents internal/web/sync_dashboard_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestSyncDashboardJSONRoutes(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
@@ -98,6 +100,7 @@ func TestSyncDashboardJSONRoutes(t *testing.T) {
 	}
 }
 
+// TestSyncDashboardRoutesRejectInvalidMethodsAndPaths exercises and documents internal/web/sync_dashboard_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestSyncDashboardRoutesRejectInvalidMethodsAndPaths(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 

@@ -15,6 +15,9 @@ const COMMON_SHELL_TEXT = new Set([
   "Admin",
 ]);
 
+/**
+ * collectTextNodes builds derived data for frontend/src/lib/artboardSemantics.js. Page setup and semantic summaries call this helper to extract readable structure from artboard nodes; debug it with generated artboard JSON. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function collectTextNodes(node, textOverrides, target = []) {
   if (node?.type === "text") {
     const content = Object.prototype.hasOwnProperty.call(textOverrides, node.id)
@@ -37,10 +40,16 @@ function collectTextNodes(node, textOverrides, target = []) {
   return target;
 }
 
+/**
+ * scoreTitleCandidate documents runtime data flow for frontend/src/lib/artboardSemantics.js. Page setup and semantic summaries call this helper to extract readable structure from artboard nodes; debug it with generated artboard JSON. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 function scoreTitleCandidate(entry) {
   return (entry.fontSize ?? 14) * 10 + ((entry.fontWeight ?? 400) >= 700 ? 20 : 0);
 }
 
+/**
+ * buildArtboardSemanticSummary builds derived data for frontend/src/lib/artboardSemantics.js. Page setup and semantic summaries call this helper to extract readable structure from artboard nodes; debug it with generated artboard JSON. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ */
 export function buildArtboardSemanticSummary(
   artboard,
   { fallbackTitle = "Page", textOverrides = {}, maxItems = 18 } = {}

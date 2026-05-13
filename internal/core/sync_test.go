@@ -6,6 +6,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/core"
 )
 
+// TestSyncEnumsValidate exercises and documents internal/core/sync_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestSyncEnumsValidate(t *testing.T) {
 	t.Run("subject types", func(t *testing.T) {
 		valid := []core.SyncSubjectType{
@@ -76,6 +77,7 @@ func TestSyncEnumsValidate(t *testing.T) {
 	})
 }
 
+// TestProjectSyncProgressStaffCompletion exercises and documents internal/core/sync_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestProjectSyncProgressStaffCompletion(t *testing.T) {
 	phase, status := core.ProjectSyncProgress(core.SyncProjectionInput{
 		SubjectType:            core.SyncSubjectTypeStaff,
@@ -94,6 +96,7 @@ func TestProjectSyncProgressStaffCompletion(t *testing.T) {
 	}
 }
 
+// TestProjectSyncProgressStudentCompletion exercises and documents internal/core/sync_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestProjectSyncProgressStudentCompletion(t *testing.T) {
 	phase, status := core.ProjectSyncProgress(core.SyncProjectionInput{
 		SubjectType:    core.SyncSubjectTypeStudent,
@@ -109,6 +112,7 @@ func TestProjectSyncProgressStudentCompletion(t *testing.T) {
 	}
 }
 
+// TestProjectSyncProgressManualActionOverridesCompletion exercises and documents internal/core/sync_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestProjectSyncProgressManualActionOverridesCompletion(t *testing.T) {
 	phase, status := core.ProjectSyncProgress(core.SyncProjectionInput{
 		SubjectType:            core.SyncSubjectTypeStaff,
@@ -130,6 +134,7 @@ func TestProjectSyncProgressManualActionOverridesCompletion(t *testing.T) {
 	}
 }
 
+// TestProjectSyncProgressRolloverWaitIsInProgress exercises and documents internal/core/sync_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestProjectSyncProgressRolloverWaitIsInProgress(t *testing.T) {
 	phase, status := core.ProjectSyncProgress(core.SyncProjectionInput{
 		SubjectType:            core.SyncSubjectTypeStaff,
@@ -151,6 +156,7 @@ func TestProjectSyncProgressRolloverWaitIsInProgress(t *testing.T) {
 	}
 }
 
+// TestAnnualResetDisposition exercises and documents internal/core/sync_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func TestAnnualResetDisposition(t *testing.T) {
 	archive, clearOverrides := core.AnnualResetDisposition(core.SyncOverallStatusCompleted)
 	if !archive {

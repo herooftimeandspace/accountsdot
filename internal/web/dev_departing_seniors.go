@@ -87,6 +87,7 @@ type departingSeniorSeedRecord struct {
 	OutstandingDevices []departingSeniorDevicePayload
 }
 
+// newDevDepartingSeniorsStore builds the value used by internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func newDevDepartingSeniorsStore() *devDepartingSeniorsStoreState {
 	return &devDepartingSeniorsStoreState{
 		endDates:      map[string]string{},
@@ -94,6 +95,7 @@ func newDevDepartingSeniorsStore() *devDepartingSeniorsStoreState {
 	}
 }
 
+// handleDevDepartingSeniorsPage handles the request path for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -135,6 +137,7 @@ func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleDevDepartingSeniorRecord handles the request path for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevDepartingSeniorRecord(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() {
 		http.NotFound(w, r)
@@ -213,10 +216,12 @@ func handleDevDepartingSeniorRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// canUseDepartingSeniors resolves decision data for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func canUseDepartingSeniors(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin" || config.Persona.ID == "device_wrangler"
 }
 
+// rows documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devDepartingSeniorsStoreState) rows(graduationYear string) []departingSeniorRowPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -234,6 +239,7 @@ func (s *devDepartingSeniorsStoreState) rows(graduationYear string) []departingS
 	return rows
 }
 
+// updateEndDate documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (departingSeniorRowPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -256,6 +262,7 @@ func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (
 	return s.rowPayloadLocked(record), http.StatusOK, nil
 }
 
+// deprovision documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devDepartingSeniorsStoreState) deprovision(id string) (departingSeniorRowPayload, bool, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -272,6 +279,7 @@ func (s *devDepartingSeniorsStoreState) deprovision(id string) (departingSeniorR
 	return s.rowPayloadLocked(record), false, http.StatusOK
 }
 
+// rowPayloadLocked documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorSeedRecord) departingSeniorRowPayload {
 	endDate := record.EndDate
 	endDateSource := "Aeries senior class default"
@@ -312,6 +320,7 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 	}
 }
 
+// currentSeniorGraduationYear documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func currentSeniorGraduationYear(now time.Time) string {
 	year := now.Year()
 	if now.Month() >= time.August {
@@ -320,6 +329,7 @@ func currentSeniorGraduationYear(now time.Time) string {
 	return strconv.Itoa(year)
 }
 
+// currentSchoolYearLabel documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func currentSchoolYearLabel(now time.Time) string {
 	year := now.Year()
 	if now.Month() >= time.August {
@@ -328,6 +338,7 @@ func currentSchoolYearLabel(now time.Time) string {
 	return strconv.Itoa(year-1) + "-" + strconv.Itoa(year)
 }
 
+// findDepartingSeniorSeedRecord resolves decision data for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func findDepartingSeniorSeedRecord(id string) (departingSeniorSeedRecord, bool) {
 	for _, record := range devDepartingSeniorSeedRecords {
 		if record.ID == id {

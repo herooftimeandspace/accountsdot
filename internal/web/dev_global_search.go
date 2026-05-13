@@ -50,6 +50,7 @@ type rankedGlobalSearchResult struct {
 	NormalizedKey string
 }
 
+// handleDevGlobalSearch handles the request path for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevGlobalSearch(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -90,6 +91,7 @@ func handleDevGlobalSearch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// buildDevGlobalSearchGroups builds the value used by internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func buildDevGlobalSearchGroups(config devPersonaConfig, query string, now time.Time) []devGlobalSearchGroup {
 	normalizedQuery := normalizeSearchValue(query)
 	if normalizedQuery == "" {
@@ -146,6 +148,7 @@ func buildDevGlobalSearchGroups(config devPersonaConfig, query string, now time.
 	return groups
 }
 
+// globalSearchPhoneDirectoryResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchPhoneDirectoryResults(config devPersonaConfig, normalizedQuery string) []rankedGlobalSearchResult {
 	canSeeEmployeeID := config.Persona.ID == "it_admin" || config.Persona.ID == "human_resources"
 	seen := map[string]bool{}
@@ -195,6 +198,7 @@ func globalSearchPhoneDirectoryResults(config devPersonaConfig, normalizedQuery 
 	return results
 }
 
+// globalSearchDirectoryTarget documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchDirectoryTarget(entry devPhoneDirectoryEntry) (string, string, string) {
 	query := "?q=" + urlQueryEscape(firstNonEmpty(entry.Extension, entry.Title))
 	switch entry.Type {
@@ -209,6 +213,7 @@ func globalSearchDirectoryTarget(entry devPhoneDirectoryEntry) (string, string, 
 	}
 }
 
+// globalSearchOnboardingResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchOnboardingResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
 	rows := devOnboardingStore.rows(now)
 	results := make([]rankedGlobalSearchResult, 0, len(rows))
@@ -237,6 +242,7 @@ func globalSearchOnboardingResults(normalizedQuery string, now time.Time) []rank
 	return results
 }
 
+// globalSearchOffboardingResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchOffboardingResults(config devPersonaConfig, normalizedQuery string) []rankedGlobalSearchResult {
 	rows := devOffboardingStore.rows(config)
 	results := make([]rankedGlobalSearchResult, 0, len(rows))
@@ -271,6 +277,7 @@ func globalSearchOffboardingResults(config devPersonaConfig, normalizedQuery str
 	return results
 }
 
+// globalSearchWorkflowActionResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchWorkflowActionResults(config devPersonaConfig, normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
 	results := []rankedGlobalSearchResult{}
 	if routeAllowed(config, "/onboarding") {
@@ -330,6 +337,7 @@ func globalSearchWorkflowActionResults(config devPersonaConfig, normalizedQuery 
 	return results
 }
 
+// globalSearchDepartingSeniorResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchDepartingSeniorResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
 	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now))
 	results := make([]rankedGlobalSearchResult, 0, len(rows))
@@ -367,6 +375,7 @@ func globalSearchDepartingSeniorResults(normalizedQuery string, now time.Time) [
 	return results
 }
 
+// globalSearchDeviceResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchDeviceResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
 	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now))
 	results := []rankedGlobalSearchResult{}
@@ -397,6 +406,7 @@ func globalSearchDeviceResults(normalizedQuery string, now time.Time) []rankedGl
 	return results
 }
 
+// bestGlobalSearchMatch documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func bestGlobalSearchMatch(values []string, normalizedQuery string) *phoneDirectorySearchMatch {
 	if normalizedQuery == "" {
 		return nil
@@ -405,6 +415,7 @@ func bestGlobalSearchMatch(values []string, normalizedQuery string) *phoneDirect
 	return bestPhoneDirectoryMatch(entry, normalizedQuery)
 }
 
+// globalSearchGroupRank documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchGroupRank(groupID string) int {
 	order := []string{"people", "rooms", "departments", "onboarding", "offboarding", "workflow-actions", "departing-seniors", "devices-assets"}
 	index := slices.Index(order, groupID)
@@ -414,12 +425,14 @@ func globalSearchGroupRank(groupID string) int {
 	return index
 }
 
+// allowedRoutesContainPrefix resolves decision data for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func allowedRoutesContainPrefix(config devPersonaConfig, prefix string) bool {
 	return slices.ContainsFunc(config.Allowed, func(route string) bool {
 		return strings.HasPrefix(route, prefix)
 	})
 }
 
+// firstNonEmpty documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
@@ -430,6 +443,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// nonEmptyStrings documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func nonEmptyStrings(values ...string) []string {
 	result := []string{}
 	for _, value := range values {
@@ -441,6 +455,7 @@ func nonEmptyStrings(values ...string) []string {
 	return result
 }
 
+// urlQueryEscape documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func urlQueryEscape(value string) string {
 	return url.QueryEscape(strings.TrimSpace(value))
 }
