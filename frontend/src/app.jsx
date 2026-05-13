@@ -1,19 +1,29 @@
-import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
-import { ErrorPage } from "./pages/ErrorPage";
-import { LoginPage } from "./pages/LoginPage";
-import { DataQualityPage } from "./pages/DataQualityPage";
-import { DepartingSeniorsPage } from "./pages/DepartingSeniorsPage";
-import { FrequentFliersPage } from "./pages/FrequentFliersPage";
-import { OffboardingPage } from "./pages/OffboardingPage";
-import { OnboardingPage } from "./pages/OnboardingPage";
-import { PhoneDirectoryPage } from "./pages/PhoneDirectoryPage";
-import { ReportsPage } from "./pages/ReportsPage";
-import { RoomMovesPage } from "./pages/RoomMovesPage";
-import { SearchPage } from "./pages/SearchPage";
-import { StaticPenPage } from "./pages/StaticPenPage";
-import { StudentDataCleanupPage } from "./pages/StudentDataCleanupPage";
+import { devMark, devMeasureAsync } from "./lib/devPerformance";
 import { isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
+
+function lazyNamed(importer, exportName) {
+  return lazy(() => importer().then((module) => ({ default: module[exportName] })));
+}
+
+const ErrorPage = lazyNamed(() => import("./pages/ErrorPage"), "ErrorPage");
+const FeatureFlagsPage = lazyNamed(() => import("./pages/FeatureFlagsPage"), "FeatureFlagsPage");
+const LoginPage = lazyNamed(() => import("./pages/LoginPage"), "LoginPage");
+const DataQualityPage = lazyNamed(() => import("./pages/DataQualityPage"), "DataQualityPage");
+const DepartingSeniorsPage = lazyNamed(() => import("./pages/DepartingSeniorsPage"), "DepartingSeniorsPage");
+const FrequentFliersPage = lazyNamed(() => import("./pages/FrequentFliersPage"), "FrequentFliersPage");
+const OffboardingPage = lazyNamed(() => import("./pages/OffboardingPage"), "OffboardingPage");
+const OnboardingPage = lazyNamed(() => import("./pages/OnboardingPage"), "OnboardingPage");
+const PhoneDirectoryPage = lazyNamed(() => import("./pages/PhoneDirectoryPage"), "PhoneDirectoryPage");
+const ReportsPage = lazyNamed(() => import("./pages/ReportsPage"), "ReportsPage");
+const RoomMovesPage = lazyNamed(() => import("./pages/RoomMovesPage"), "RoomMovesPage");
+const SearchPage = lazyNamed(() => import("./pages/SearchPage"), "SearchPage");
+const StaticPenPage = lazyNamed(() => import("./pages/StaticPenPage"), "StaticPenPage");
+const StudentDataCleanupPage = lazyNamed(
+  () => import("./pages/StudentDataCleanupPage"),
+  "StudentDataCleanupPage"
+);
 
 const DEV_API_BASE = "/api/v1/dev";
 const DEFAULT_PERSONA_ID = "it_admin";
@@ -33,6 +43,7 @@ const STATIC_ROUTE_TITLES = {
   "reports-sync-transparency": "Sync Transparency",
   "reports-ticketing-human-work": "Ticketing Human Work",
   admin: "Admin",
+  "admin-feature-flags": "Feature Flags",
   "my-profile": "My Profile",
 };
 const PHONE_DIRECTORY_TITLES = {
@@ -70,6 +81,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Student Data Cleanup";
     case "reports":
       return "Reports";
+    case "feature-flags":
+      return "Feature Flags";
     case "room-moves":
     case "room-moves-bulk-draft":
       return "Room Moves";
@@ -221,11 +234,13 @@ export function App() {
     setSessionState("loading");
     setSessionError(null);
     try {
-      const payload = await readJSON(
-        await fetch(`${DEV_API_BASE}/session`, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        })
+      const payload = await devMeasureAsync("session-fetch", {}, async () =>
+        readJSON(
+          await fetch(`${DEV_API_BASE}/session`, {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+          })
+        )
       );
       setSession(payload);
       if (payload?.current_persona?.id) {
@@ -358,6 +373,15 @@ export function App() {
     // WCAG 2.4.2: route changes update the document title for screen reader and tab users.
     document.title = `${routeTitle} | ${APP_TITLE}`;
   }, [currentPath, currentRoute]);
+
+  useEffect(() => {
+    devMark("route-render-commit", {
+      path: currentPath,
+      search: currentSearch,
+      routeKind: currentRoute?.kind ?? null,
+      sessionState,
+    });
+  }, [currentPath, currentSearch, currentRoute?.kind, sessionState]);
 
   const handleSharedSearch = useCallback(
     (query) => {
@@ -563,6 +587,17 @@ export function App() {
         searchQuery={currentSearchQuery}
       />
     );
+  } else if (currentRoute?.kind === "feature-flags") {
+    page = (
+      <FeatureFlagsPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
   } else if (currentRoute?.kind === "room-moves" || currentRoute?.kind === "room-moves-bulk-draft") {
     page = (
       <RoomMovesPage
@@ -613,7 +648,9 @@ export function App() {
         />
       ) : null}
       {personaSwitchState ? <PersonaSwitchOverlay label={personaSwitchState.targetLabel} /> : null}
-      {page}
+      <Suspense fallback={<PageStatus title="Loading" message="Preparing the requested page." />}>
+        {page}
+      </Suspense>
     </>
   );
 }

@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
@@ -415,11 +416,11 @@ function ReportsOverlay({ selectedItem, onSelect }) {
  * ReportsPage renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
 export function ReportsPage({ session, onNavigate, onSearch, searchQuery }) {
-  const artboard = generatedArtboards[ARTBOARD_KEY];
+  const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
   const [selectedItem, setSelectedItem] = useState(null);
   const textOverrides = buildSharedShellTextOverrides(session);
-  const paneNodeIds = useMemo(() => collectPaneNodeIds(artboard), [artboard]);
+  const paneNodeIds = useMemo(() => artboard ? collectPaneNodeIds(artboard) : [], [artboard]);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
     hideNavHighlight: true,
     hideSearchPlaceholder: true,
@@ -435,10 +436,12 @@ export function ReportsPage({ session, onNavigate, onSearch, searchQuery }) {
     activeNavKey: meta?.activeNav ?? "reports",
     refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
-  const semanticSummary = buildArtboardSemanticSummary(artboard, {
-    fallbackTitle: "Reports",
-    textOverrides,
-  });
+  const semanticSummary = artboard
+    ? buildArtboardSemanticSummary(artboard, {
+        fallbackTitle: "Reports",
+        textOverrides,
+      })
+    : { title: "Reports", items: [] };
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (
     <>
       {sharedShellRenderOverlay?.({ nodeIndex, textOverrides: overlayTextOverrides })}
@@ -446,6 +449,20 @@ export function ReportsPage({ session, onNavigate, onSearch, searchQuery }) {
       <ReportsDrawer item={selectedItem} onClose={() => setSelectedItem(null)} onNavigate={onNavigate} />
     </>
   ), [onNavigate, selectedItem, sharedShellRenderOverlay]);
+
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading Reports</h1>
+          <p>Preparing the generated Reports artboard.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Reports unavailable</h1></main>;
+  }
 
   return (
     <main id="main-content" className="page-canvas page-canvas--static" aria-labelledby={REPORTS_HEADING_ID}>

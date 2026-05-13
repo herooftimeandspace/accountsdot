@@ -43,6 +43,7 @@ export const APP_ROUTES = [
     artboardKey: "reports-ticketing-human-work",
   },
   { path: "/admin", kind: "static", artboardKey: "admin" },
+  { path: "/admin/feature-flags", kind: "feature-flags", artboardKey: "admin-feature-flags" },
   { path: "/my-profile", kind: "static", artboardKey: "my-profile" },
 ];
 
@@ -103,6 +104,7 @@ export function defaultPhoneDirectoryRoute(personaId) {
  */
 export function navDestinationForKey(navKey, session) {
   const personaId = session?.current_persona?.id || "it_admin";
+  const allowedRoutes = session?.allowed_routes ?? [];
   switch (navKey) {
     case "dashboard":
       return session?.landing_path?.startsWith("/dashboard/") ? session.landing_path : null;
@@ -125,7 +127,7 @@ export function navDestinationForKey(navKey, session) {
     case "reports":
       return "/reports";
     case "admin":
-      return "/admin";
+      return allowedRoutes.includes("/admin") ? "/admin" : "/admin/feature-flags";
     default:
       return null;
   }
@@ -166,7 +168,7 @@ export function navGroupVisible(navKey, session) {
     case "studentDataCleanup":
       return allowedRoutes.includes("/student-data-cleanup");
     case "admin":
-      return allowedRoutes.includes("/admin");
+      return allowedRoutes.includes("/admin") || allowedRoutes.includes("/admin/feature-flags");
     default:
       return false;
   }

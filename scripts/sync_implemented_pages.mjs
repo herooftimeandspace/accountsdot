@@ -54,6 +54,7 @@ const artboardSpecs = [
     key: "room-moves-bulk-draft",
     source: "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
     mode: "merge-shell",
+    standardPrimitives: [],
   },
   {
     key: "phone-directory-by-person",
@@ -101,6 +102,12 @@ const artboardSpecs = [
     mode: "merge-shell",
   },
   {
+    key: "admin-feature-flags",
+    source: "docs/mocks/wireframes/wireframe-admin-feature-flags.pen",
+    mode: "merge-shell",
+    standardPrimitives: [],
+  },
+  {
     key: "my-profile",
     source: "docs/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
     mode: "merge-shell",
@@ -130,6 +137,10 @@ const stableAssets = new Map([
   [
     path.join(repoRoot, "docs", "reference-inputs", "branding", "google-g.png"),
     "google-g.png",
+  ],
+  [
+    path.join(repoRoot, "docs", "reference-inputs", "branding", "Wordmarks", "Gold W black outline.png"),
+    "gold-w-black-outline.png",
   ],
   [
     path.join(repoRoot, "docs", "mocks", "wireframes", "varsity_regular.ttf"),
@@ -291,6 +302,7 @@ const activeNavByArtboardKey = {
   "reports-sync-transparency": "reports",
   "reports-ticketing-human-work": "reports",
   admin: "admin",
+  "admin-feature-flags": "admin",
 };
 
 const loggedInArtboardKeys = artboardSpecs
@@ -322,9 +334,10 @@ function generatedManifest() {
       activeNav: activeNavByArtboardKey[spec.key] ?? null,
       loggedInShell: loggedInArtboardKeys.includes(spec.key),
       standardPrimitives:
-        loggedInArtboardKeys.includes(spec.key) && !spec.key.startsWith("error-")
+        spec.standardPrimitives ??
+        (loggedInArtboardKeys.includes(spec.key) && !spec.key.startsWith("error-")
           ? ["refresh"]
-          : [],
+          : []),
     })),
     sharedShell: {
       sourcePen: SHARED_SHELL_SOURCE,
@@ -345,6 +358,46 @@ function generatedManifest() {
 }
 
 const assetCache = new Map();
+
+async function assertFileExists(absolutePath, label) {
+  try {
+    await fs.access(absolutePath);
+  } catch (error) {
+    throw new Error(`${label} does not exist: ${path.relative(repoRoot, absolutePath)}`);
+  }
+}
+
+function collectImageFillUrls(node, urls = []) {
+  if (node?.fill && typeof node.fill === "object" && node.fill.type === "image" && node.fill.url) {
+    urls.push(node.fill.url);
+  }
+  for (const child of node?.children ?? []) {
+    collectImageFillUrls(child, urls);
+  }
+  return urls;
+}
+
+async function validateSourceImageFills() {
+  const sources = new Set([SHARED_SHELL_SOURCE, ...artboardSpecs.map((spec) => spec.source)]);
+  for (const source of sources) {
+    const root = await readPenRoot(source);
+    for (const url of collectImageFillUrls(root)) {
+      const resolved = path.isAbsolute(url) ? url : path.join(repoRoot, url);
+      await assertFileExists(resolved, `Image fill in ${source}`);
+    }
+  }
+}
+
+async function validateGeneratedImageFills(artboards) {
+  for (const [key, artboard] of artboards.entries()) {
+    for (const url of collectImageFillUrls(artboard)) {
+      if (!url.startsWith("/pen-assets/")) {
+        throw new Error(`Generated artboard ${key} has non-public image URL: ${url}`);
+      }
+      await assertFileExists(path.join(repoRoot, "frontend", "public", url.replace(/^\//, "")), `Generated image fill in ${key}`);
+    }
+  }
+}
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -502,12 +555,8 @@ function toJsonFileName(key) {
 }
 
 function generateArtboardsModule(specs) {
-  const imports = specs
-    .map((spec, index) => `import artboard${index} from "./${toJsonFileName(spec.key)}";`)
-    .join("\n");
-
-  const entries = specs
-    .map((spec, index) => `  "${spec.key}": artboard${index},`)
+  const loaderEntries = specs
+    .map((spec) => `  "${spec.key}": () => import("./${toJsonFileName(spec.key)}").then((module) => module.default),`)
     .join("\n");
 
   const metadata = specs
@@ -519,11 +568,22 @@ function generateArtboardsModule(specs) {
     )
     .join("\n");
 
-  return `${imports}
-
-export const generatedArtboards = {
-${entries}
+  return `export const generatedArtboardLoaders = {
+${loaderEntries}
 };
+
+const generatedArtboardCache = new Map();
+
+export function loadGeneratedArtboard(key) {
+  const loader = generatedArtboardLoaders[key];
+  if (!loader) {
+    return Promise.reject(new Error(\`Unknown generated artboard: \${key}\`));
+  }
+  if (!generatedArtboardCache.has(key)) {
+    generatedArtboardCache.set(key, loader());
+  }
+  return generatedArtboardCache.get(key);
+}
 
 export const generatedArtboardMeta = {
 ${metadata}
@@ -608,12 +668,14 @@ async function syncBinaryAsset(sourcePath, checkOnly) {
 async function main() {
   const checkOnly = process.argv.includes("--check");
   const thisFile = fileURLToPath(import.meta.url);
+  await validateSourceImageFills();
   const shellRoot = await readPenRoot(SHARED_SHELL_SOURCE);
   const artboards = new Map();
 
   for (const spec of artboardSpecs) {
     artboards.set(spec.key, await buildArtboard(spec, shellRoot));
   }
+  await validateGeneratedImageFills(artboards);
 
   const filesToWrite = [];
   for (const spec of artboardSpecs) {

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 
 import { RowHotspotOverlay, RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { PenArtboard } from "../lib/PenArtboard";
-import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
   buildSharedShellHiddenNodeIds,
@@ -412,7 +413,7 @@ async function readJSON(response) {
 /**
  * AdminRoomMoveRevertOverlay renders the UI surface for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
  */
-function AdminRoomMoveRevertOverlay({ session }) {
+function AdminRoomMoveRevertOverlay({ session, onNavigate }) {
   const isItAdmin = session?.current_persona?.id === "it_admin";
   const [state, setState] = useState("idle");
   const [jobs, setJobs] = useState([]);
@@ -497,6 +498,9 @@ function AdminRoomMoveRevertOverlay({ session }) {
         <h2>Room Move Reversal</h2>
         <p>IT Admins can schedule a full reversal for completed room move jobs.</p>
       </div>
+      <button type="button" className="admin-room-move-revert__feature-flags" onClick={() => onNavigate("/admin/feature-flags")}>
+        Open Feature Flags
+      </button>
       {state === "loading" ? <p role="status">Loading completed room moves...</p> : null}
       {message ? <p className="admin-room-move-revert__message" role={state === "error" ? "alert" : "status"}>{message}</p> : null}
       {state === "ready" ? (
@@ -534,7 +538,7 @@ function AdminRoomMoveRevertOverlay({ session }) {
  */
 export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, searchQuery = "" }) {
   const [selectedStaticDrawerRow, setSelectedStaticDrawerRow] = useState(null);
-  const artboard = generatedArtboards[artboardKey];
+  const { artboard, status: artboardStatus } = useGeneratedArtboard(artboardKey);
   const meta = generatedArtboardMeta[artboardKey];
   const staticDrawerConfig = STATIC_DRAWER_CONFIGS[artboardKey] ?? null;
 
@@ -571,11 +575,24 @@ export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, sear
           onClose={() => setSelectedStaticDrawerRow(null)}
         />
       ) : null}
-      {artboardKey === "admin" ? <AdminRoomMoveRevertOverlay session={session} /> : null}
+      {artboardKey === "admin" ? <AdminRoomMoveRevertOverlay session={session} onNavigate={onNavigate} /> : null}
     </>
   );
   const pageTitle = STATIC_PAGE_TITLES[artboardKey] || "Dashboard Page";
   const semanticTitleId = `static-page-${artboardKey}-title`;
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading {pageTitle}</h1>
+          <p>Preparing the generated page artboard.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>{pageTitle} unavailable</h1></main>;
+  }
   const semanticSummary = buildArtboardSemanticSummary(artboard, {
     fallbackTitle: pageTitle,
     textOverrides,

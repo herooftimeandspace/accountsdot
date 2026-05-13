@@ -3,7 +3,7 @@
   "id": "root",
   "x": 0,
   "y": 0,
-  "name": "Room Moves",
+  "name": "Feature Flags",
   "width": 1672,
   "height": 1080,
   "fill": "#FFFFFF",
@@ -1739,97 +1739,16 @@
       "fontSize": 12
     },
     {
-      "id": "room-moves-bulk-draft__f300",
       "type": "frame",
-      "name": "Runtime Button",
-      "x": 1224,
-      "y": 226,
-      "width": 170,
-      "height": 40,
-      "fill": "#CEB770",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#CEB770",
-        "align": "inside"
-      }
-    },
-    {
-      "id": "room-moves-bulk-draft__t301",
-      "type": "text",
-      "content": "Create Room Move",
-      "x": 1238,
-      "y": 238,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "800",
-      "fill": "#01161E",
-      "width": 142,
-      "textGrowth": "auto",
-      "textAlign": "center"
-    },
-    {
-      "id": "room-moves-bulk-draft__f302",
-      "type": "frame",
-      "name": "Runtime Button",
-      "x": 1224,
-      "y": 276,
-      "width": 170,
-      "height": 40,
-      "fill": "#CEB770",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#CEB770",
-        "align": "inside"
-      }
-    },
-    {
-      "id": "room-moves-bulk-draft__t303",
-      "type": "text",
-      "content": "Bulk Site Roster",
-      "x": 1238,
-      "y": 288,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "800",
-      "fill": "#01161E",
-      "width": 142,
-      "textGrowth": "auto",
-      "textAlign": "center"
-    },
-    {
-      "id": "room-moves-bulk-draft__f304",
-      "type": "frame",
-      "name": "Runtime Button",
-      "x": 1224,
-      "y": 326,
-      "width": 170,
-      "height": 40,
-      "fill": "#CEB770",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#CEB770",
-        "align": "inside"
-      }
-    },
-    {
-      "id": "room-moves-bulk-draft__t305",
-      "type": "text",
-      "content": "Build Move List",
-      "x": 1238,
-      "y": 338,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "800",
-      "fill": "#01161E",
-      "width": 142,
-      "textGrowth": "auto",
-      "textAlign": "center"
+      "id": "admin-feature-flags__ff1",
+      "name": "Feature Flags Pane Background",
+      "x": 264,
+      "y": 76,
+      "width": 1408,
+      "height": 1004,
+      "fill": "#FFFFFF",
+      "cornerRadius": 0,
+      "layout": "none"
     }
   ]
 }

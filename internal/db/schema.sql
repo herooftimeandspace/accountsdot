@@ -245,3 +245,24 @@ create table if not exists system_controls (
     actor_id text,
     updated_at timestamptz not null default now()
 );
+
+create table if not exists feature_flags (
+    flag_key text primary key,
+    label text not null,
+    description text not null,
+    feature_route text not null,
+    default_enabled boolean not null default true,
+    actor_id text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table if not exists feature_flag_targets (
+    flag_key text not null references feature_flags(flag_key) on delete cascade,
+    target_type text not null check (target_type in ('persona', 'site')),
+    target_id text not null,
+    enabled boolean not null,
+    actor_id text,
+    updated_at timestamptz not null default now(),
+    primary key (flag_key, target_type, target_id)
+);

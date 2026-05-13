@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -44,6 +45,7 @@ var (
 		"/reports/sync-transparency",
 		"/reports/ticketing-human-work",
 		"/admin",
+		"/admin/feature-flags",
 	}
 )
 
@@ -71,22 +73,85 @@ type devPersonaConfig struct {
 }
 
 type devSessionPayload struct {
-	Environment     string          `json:"environment"`
-	Authenticated   bool            `json:"authenticated"`
-	Authorized      bool            `json:"authorized"`
-	CurrentPersona  *devPersona     `json:"current_persona,omitempty"`
-	Personas        []devPersona    `json:"personas"`
-	LandingPath     string          `json:"landing_path,omitempty"`
-	AllowedRoutes   []string        `json:"allowed_routes,omitempty"`
-	Shell           devShellPayload `json:"shell,omitempty"`
-	DefaultSiteID   string          `json:"default_site_id,omitempty"`
-	DefaultSiteName string          `json:"default_site_name,omitempty"`
-	CurrentSiteID   string          `json:"current_site_id,omitempty"`
-	CurrentSiteName string          `json:"current_site_name,omitempty"`
+	Environment     string                   `json:"environment"`
+	Authenticated   bool                     `json:"authenticated"`
+	Authorized      bool                     `json:"authorized"`
+	CurrentPersona  *devPersona              `json:"current_persona,omitempty"`
+	Personas        []devPersona             `json:"personas"`
+	LandingPath     string                   `json:"landing_path,omitempty"`
+	AllowedRoutes   []string                 `json:"allowed_routes,omitempty"`
+	FeatureFlags    []devFeatureAvailability `json:"feature_flags,omitempty"`
+	Shell           devShellPayload          `json:"shell,omitempty"`
+	DefaultSiteID   string                   `json:"default_site_id,omitempty"`
+	DefaultSiteName string                   `json:"default_site_name,omitempty"`
+	CurrentSiteID   string                   `json:"current_site_id,omitempty"`
+	CurrentSiteName string                   `json:"current_site_name,omitempty"`
 }
 
 type devLoginRequest struct {
 	PersonaID string `json:"persona_id"`
+}
+
+type devFeatureAvailability struct {
+	Key        string                    `json:"key"`
+	Label      string                    `json:"label"`
+	Enabled    bool                      `json:"enabled"`
+	Indicators []devFeatureFlagIndicator `json:"indicators"`
+}
+
+type devFeatureFlagIndicator struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	TargetType  string `json:"target_type"`
+	TargetID    string `json:"target_id"`
+	TargetLabel string `json:"target_label"`
+	Enabled     bool   `json:"enabled"`
+	ReadOnly    bool   `json:"read_only"`
+}
+
+type devFeatureFlagsPayload struct {
+	PageID      string                  `json:"page_id"`
+	Persona     devPersona              `json:"persona"`
+	Shell       devShellPayload         `json:"shell"`
+	GeneratedAt string                  `json:"generated_at"`
+	Flags       []devFeatureFlagPayload `json:"flags"`
+	Personas    []devFeatureTarget      `json:"personas"`
+	Sites       []devFeatureTarget      `json:"sites"`
+}
+
+type devFeatureFlagPayload struct {
+	Key              string                    `json:"key"`
+	Label            string                    `json:"label"`
+	Description      string                    `json:"description"`
+	FeatureRoute     string                    `json:"feature_route"`
+	Routes           []string                  `json:"routes"`
+	DefaultEnabled   bool                      `json:"default_enabled"`
+	EffectiveForIT   bool                      `json:"effective_for_it_admin"`
+	PersonaTargets   []devFeatureTargetState   `json:"persona_targets"`
+	SiteTargets      []devFeatureTargetState   `json:"site_targets"`
+	ActiveIndicators []devFeatureFlagIndicator `json:"active_indicators"`
+}
+
+type devFeatureTarget struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+type devFeatureTargetState struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`
+	Enabled  bool   `json:"enabled"`
+	ReadOnly bool   `json:"read_only"`
+}
+
+type devFeatureFlagUpdateRequest struct {
+	Targets []devFeatureFlagTargetUpdate `json:"targets"`
+}
+
+type devFeatureFlagTargetUpdate struct {
+	TargetType string `json:"target_type"`
+	TargetID   string `json:"target_id"`
+	Enabled    bool   `json:"enabled"`
 }
 
 type dataQualityPagePayload struct {
@@ -457,6 +522,92 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 	},
 }
 
+type devFeatureFlagDefinition struct {
+	Key            string
+	Label          string
+	Description    string
+	FeatureRoute   string
+	Routes         []string
+	DefaultEnabled bool
+}
+
+type devFeatureFlagTargetKey struct {
+	TargetType string
+	TargetID   string
+}
+
+var devFeatureFlagRegistry = []devFeatureFlagDefinition{
+	{
+		Key:            "dashboard.site_admin",
+		Label:          "Site Admin Dashboard",
+		Description:    "Controls the site-scoped administrative dashboard route for non-IT users.",
+		FeatureRoute:   "/dashboard/site-admin",
+		Routes:         []string{"/dashboard/site-admin"},
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "onboarding",
+		Label:          "Onboarding",
+		Description:    "Controls staff onboarding visibility and DEV onboarding API access.",
+		FeatureRoute:   "/onboarding",
+		Routes:         []string{"/onboarding"},
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "offboarding",
+		Label:          "Offboarding",
+		Description:    "Controls offboarding visibility and DEV offboarding API access.",
+		FeatureRoute:   "/offboarding",
+		Routes:         []string{"/offboarding"},
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "departing_seniors",
+		Label:          "Departing Seniors",
+		Description:    "Controls departing-senior account lifecycle visibility and DEV API access.",
+		FeatureRoute:   "/departing-seniors",
+		Routes:         []string{"/departing-seniors"},
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "room_moves",
+		Label:          "Room Moves",
+		Description:    "Controls room-move review, draft, and reversal DEV routes for non-IT users.",
+		FeatureRoute:   "/room-moves",
+		Routes:         []string{"/room-moves", "/room-moves/bulk-draft"},
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "phone_directory",
+		Label:          "Phone Directory",
+		Description:    "Controls phone directory routes and DEV directory API access.",
+		FeatureRoute:   "/phone-directory/by-person",
+		Routes:         slices.Clone(devPhoneDirectoryRoutes),
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "student_data_cleanup",
+		Label:          "Student Data Cleanup",
+		Description:    "Controls the student source-data cleanup queue for scoped site users.",
+		FeatureRoute:   "/student-data-cleanup",
+		Routes:         []string{"/student-data-cleanup"},
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "frequent_fliers",
+		Label:          "Frequent Fliers",
+		Description:    "Controls repeated device-support pattern visibility for site-scoped users.",
+		FeatureRoute:   "/frequent-fliers",
+		Routes:         []string{"/frequent-fliers"},
+		DefaultEnabled: true,
+	},
+}
+
+var (
+	devFeatureFlagStateMu sync.Mutex
+	devFeatureFlagState   = initialDevFeatureFlagState()
+)
+
 var devPhoneDirectoryEntries = []devPhoneDirectoryEntry{
 	// Derived from the read-only directory reference HTML. Extension values and type
 	// families are preserved from the source exports; names, emails, phone numbers,
@@ -735,6 +886,108 @@ func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDevDataQualityPage handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// handleDevFeatureFlags returns the IT Admin-only feature flag management payload.
+func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
+	if !devModeEnabled() {
+		http.NotFound(w, r)
+		return
+	}
+
+	config, ok := resolveAuthenticatedDevPersona(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{
+			"code":    "not_authorized",
+			"message": "You need to sign in before you can manage feature flags.",
+		})
+		return
+	}
+	if config.Persona.ID != "it_admin" {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"code":    "forbidden",
+			"message": "Feature flags are available to IT Admin only.",
+			"persona": config.Persona,
+		})
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, buildDevFeatureFlagsPayload(config))
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// handleDevFeatureFlag applies IT Admin feature flag target updates for one flag key.
+func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
+	if !devModeEnabled() || r.Method != http.MethodPut {
+		http.NotFound(w, r)
+		return
+	}
+
+	config, ok := resolveAuthenticatedDevPersona(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{
+			"code":    "not_authorized",
+			"message": "You need to sign in before you can manage feature flags.",
+		})
+		return
+	}
+	if config.Persona.ID != "it_admin" {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"code":    "forbidden",
+			"message": "Feature flags are available to IT Admin only.",
+			"persona": config.Persona,
+		})
+		return
+	}
+
+	flagKey := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/dev/feature-flags/"), "/")
+	definition, ok := devFeatureFlagDefinitionByKey(flagKey)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]any{
+			"code":    "not_found",
+			"message": "Unknown feature flag.",
+		})
+		return
+	}
+
+	var request devFeatureFlagUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"code":    "invalid_request",
+			"message": "Request body must include feature flag targets.",
+		})
+		return
+	}
+	if len(request.Targets) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"code":    "invalid_request",
+			"message": "At least one feature flag target is required.",
+		})
+		return
+	}
+	for _, target := range request.Targets {
+		if target.TargetType == "persona" && target.TargetID == "it_admin" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"code":    "invalid_target",
+				"message": "IT Admin is always enabled and cannot be stored as an editable target.",
+			})
+			return
+		}
+		if !validDevFeatureFlagTarget(target) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"code":    "invalid_target",
+				"message": "Feature flag targets must reference a known non-IT persona or site.",
+			})
+			return
+		}
+	}
+
+	updateDevFeatureFlagTargets(definition.Key, request.Targets)
+	writeJSON(w, http.StatusOK, buildDevFeatureFlagPayload(definition))
+}
+
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -888,6 +1141,274 @@ func orderedDevPersonas() []devPersona {
 }
 
 // concatRoutes documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// devFeatureFlagDefinitionByKey returns the configured feature flag with the requested key.
+func devFeatureFlagDefinitionByKey(key string) (devFeatureFlagDefinition, bool) {
+	for _, definition := range devFeatureFlagRegistry {
+		if definition.Key == key {
+			return definition, true
+		}
+	}
+	return devFeatureFlagDefinition{}, false
+}
+
+// devFeatureFlagDefinitionForRoute returns the feature flag that gates a frontend route.
+func devFeatureFlagDefinitionForRoute(path string) (devFeatureFlagDefinition, bool) {
+	for _, definition := range devFeatureFlagRegistry {
+		if slices.Contains(definition.Routes, path) {
+			return definition, true
+		}
+	}
+	return devFeatureFlagDefinition{}, false
+}
+
+// initialDevFeatureFlagState builds the in-memory default target matrix for every flag.
+func initialDevFeatureFlagState() map[string]map[devFeatureFlagTargetKey]bool {
+	state := make(map[string]map[devFeatureFlagTargetKey]bool, len(devFeatureFlagRegistry))
+	for _, definition := range devFeatureFlagRegistry {
+		targets := make(map[devFeatureFlagTargetKey]bool)
+		for _, persona := range orderedDevFeatureFlagPersonas() {
+			targets[devFeatureFlagTargetKey{TargetType: "persona", TargetID: persona.ID}] = definition.DefaultEnabled
+		}
+		for _, site := range orderedDevFeatureFlagSites() {
+			targets[devFeatureFlagTargetKey{TargetType: "site", TargetID: site.ID}] = definition.DefaultEnabled
+		}
+		state[definition.Key] = targets
+	}
+	return state
+}
+
+// orderedDevFeatureFlagPersonas returns editable non-IT persona targets in UI order.
+func orderedDevFeatureFlagPersonas() []devFeatureTarget {
+	targets := make([]devFeatureTarget, 0, len(devPersonaOrder)-1)
+	for _, id := range devPersonaOrder {
+		if id == "it_admin" {
+			continue
+		}
+		config, ok := devPersonaConfigs[id]
+		if !ok {
+			continue
+		}
+		targets = append(targets, devFeatureTarget{ID: config.Persona.ID, Label: config.Persona.Label})
+	}
+	return targets
+}
+
+// orderedDevFeatureFlagSites returns editable site targets in shell/site order.
+func orderedDevFeatureFlagSites() []devFeatureTarget {
+	targets := make([]devFeatureTarget, 0, len(devSiteOrder))
+	for _, id := range devSiteOrder {
+		site := siteByID(id)
+		targets = append(targets, devFeatureTarget{ID: site.ID, Label: site.Name})
+	}
+	return targets
+}
+
+// devFeatureFlagTargetEnabled resolves a stored target override with a flag default fallback.
+func devFeatureFlagTargetEnabled(flagKey string, targetType string, targetID string, fallback bool) bool {
+	devFeatureFlagStateMu.Lock()
+	defer devFeatureFlagStateMu.Unlock()
+	if targets, ok := devFeatureFlagState[flagKey]; ok {
+		if enabled, ok := targets[devFeatureFlagTargetKey{TargetType: targetType, TargetID: targetID}]; ok {
+			return enabled
+		}
+	}
+	return fallback
+}
+
+// devFeatureFlagEffective computes whether a route-gated feature is enabled for a persona/site session.
+func devFeatureFlagEffective(definition devFeatureFlagDefinition, config devPersonaConfig) bool {
+	if config.Persona.ID == "it_admin" {
+		return true
+	}
+	personaEnabled := devFeatureFlagTargetEnabled(definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled)
+	siteEnabled := devFeatureFlagTargetEnabled(definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled)
+	return definition.DefaultEnabled && personaEnabled && siteEnabled
+}
+
+// devFeatureFlagIndicators returns read-only session indicators for feature-flag state.
+func devFeatureFlagIndicators(definition devFeatureFlagDefinition, config devPersonaConfig) []devFeatureFlagIndicator {
+	if config.Persona.ID == "it_admin" {
+		return []devFeatureFlagIndicator{
+			{
+				Key:         definition.Key,
+				Label:       definition.Label,
+				TargetType:  "persona",
+				TargetID:    "it_admin",
+				TargetLabel: "IT Admin",
+				Enabled:     true,
+				ReadOnly:    true,
+			},
+		}
+	}
+	return []devFeatureFlagIndicator{
+		{
+			Key:         definition.Key,
+			Label:       definition.Label,
+			TargetType:  "persona",
+			TargetID:    config.Persona.ID,
+			TargetLabel: config.Persona.Label,
+			Enabled:     devFeatureFlagTargetEnabled(definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled),
+			ReadOnly:    true,
+		},
+		{
+			Key:         definition.Key,
+			Label:       definition.Label,
+			TargetType:  "site",
+			TargetID:    config.CurrentSite.ID,
+			TargetLabel: config.CurrentSite.Name,
+			Enabled:     devFeatureFlagTargetEnabled(definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled),
+			ReadOnly:    true,
+		},
+	}
+}
+
+// devFeatureAvailabilities returns feature flag state summaries included in the DEV session payload.
+func devFeatureAvailabilities(config devPersonaConfig) []devFeatureAvailability {
+	availability := make([]devFeatureAvailability, 0, len(devFeatureFlagRegistry))
+	for _, definition := range devFeatureFlagRegistry {
+		availability = append(availability, devFeatureAvailability{
+			Key:        definition.Key,
+			Label:      definition.Label,
+			Enabled:    devFeatureFlagEffective(definition, config),
+			Indicators: devFeatureFlagIndicators(definition, config),
+		})
+	}
+	return availability
+}
+
+// routeFeatureEnabled reports whether a route is currently enabled for a DEV persona config.
+func routeFeatureEnabled(config devPersonaConfig, path string) bool {
+	definition, ok := devFeatureFlagDefinitionForRoute(path)
+	if !ok {
+		return true
+	}
+	return devFeatureFlagEffective(definition, config)
+}
+
+// featureFilteredRoutes removes disabled feature routes from the session's allowed route list.
+func featureFilteredRoutes(config devPersonaConfig) []string {
+	routes := make([]string, 0, len(config.Allowed))
+	for _, route := range config.Allowed {
+		if routeFeatureEnabled(config, route) {
+			routes = append(routes, route)
+		}
+	}
+	return routes
+}
+
+// featureFilteredLandingPath chooses a landing path that remains accessible after feature filtering.
+func featureFilteredLandingPath(config devPersonaConfig) string {
+	if routeAllowed(config, config.LandingPath) {
+		return config.LandingPath
+	}
+	filtered := featureFilteredRoutes(config)
+	if len(filtered) > 0 {
+		return filtered[0]
+	}
+	return "/dashboard"
+}
+
+// buildDevFeatureFlagsPayload builds the IT Admin feature flag management API response.
+func buildDevFeatureFlagsPayload(config devPersonaConfig) devFeatureFlagsPayload {
+	flags := make([]devFeatureFlagPayload, 0, len(devFeatureFlagRegistry))
+	for _, definition := range devFeatureFlagRegistry {
+		flags = append(flags, buildDevFeatureFlagPayload(definition))
+	}
+	return devFeatureFlagsPayload{
+		PageID:      "feature-flags",
+		Persona:     config.Persona,
+		Shell:       config.Shell,
+		GeneratedAt: "2026-05-12T12:00:00Z",
+		Flags:       flags,
+		Personas:    orderedDevFeatureFlagPersonas(),
+		Sites:       orderedDevFeatureFlagSites(),
+	}
+}
+
+// buildDevFeatureFlagPayload builds one flag row with editable target state and IT Admin override state.
+func buildDevFeatureFlagPayload(definition devFeatureFlagDefinition) devFeatureFlagPayload {
+	personaTargets := make([]devFeatureTargetState, 0, len(devPersonaOrder)-1)
+	for _, persona := range orderedDevFeatureFlagPersonas() {
+		personaTargets = append(personaTargets, devFeatureTargetState{
+			ID:       persona.ID,
+			Label:    persona.Label,
+			Enabled:  devFeatureFlagTargetEnabled(definition.Key, "persona", persona.ID, definition.DefaultEnabled),
+			ReadOnly: false,
+		})
+	}
+
+	siteTargets := make([]devFeatureTargetState, 0, len(devSiteOrder))
+	for _, site := range orderedDevFeatureFlagSites() {
+		siteTargets = append(siteTargets, devFeatureTargetState{
+			ID:       site.ID,
+			Label:    site.Label,
+			Enabled:  devFeatureFlagTargetEnabled(definition.Key, "site", site.ID, definition.DefaultEnabled),
+			ReadOnly: false,
+		})
+	}
+
+	return devFeatureFlagPayload{
+		Key:            definition.Key,
+		Label:          definition.Label,
+		Description:    definition.Description,
+		FeatureRoute:   definition.FeatureRoute,
+		Routes:         slices.Clone(definition.Routes),
+		DefaultEnabled: definition.DefaultEnabled,
+		EffectiveForIT: true,
+		PersonaTargets: append([]devFeatureTargetState{
+			{ID: "it_admin", Label: "IT Admin", Enabled: true, ReadOnly: true},
+		}, personaTargets...),
+		SiteTargets: siteTargets,
+		ActiveIndicators: []devFeatureFlagIndicator{
+			{
+				Key:         definition.Key,
+				Label:       definition.Label,
+				TargetType:  "persona",
+				TargetID:    "it_admin",
+				TargetLabel: "IT Admin",
+				Enabled:     true,
+				ReadOnly:    true,
+			},
+		},
+	}
+}
+
+// validDevFeatureFlagTarget validates editable persona/site targets for a feature flag mutation.
+func validDevFeatureFlagTarget(target devFeatureFlagTargetUpdate) bool {
+	switch target.TargetType {
+	case "persona":
+		if target.TargetID == "it_admin" {
+			return false
+		}
+		_, ok := devPersonaConfigs[target.TargetID]
+		return ok
+	case "site":
+		_, ok := devSiteCatalog[target.TargetID]
+		return ok
+	default:
+		return false
+	}
+}
+
+// updateDevFeatureFlagTargets applies target state changes to the in-memory DEV flag store.
+func updateDevFeatureFlagTargets(flagKey string, updates []devFeatureFlagTargetUpdate) {
+	devFeatureFlagStateMu.Lock()
+	defer devFeatureFlagStateMu.Unlock()
+	if _, ok := devFeatureFlagState[flagKey]; !ok {
+		devFeatureFlagState[flagKey] = make(map[devFeatureFlagTargetKey]bool)
+	}
+	for _, update := range updates {
+		devFeatureFlagState[flagKey][devFeatureFlagTargetKey{TargetType: update.TargetType, TargetID: update.TargetID}] = update.Enabled
+	}
+}
+
+// resetDevFeatureFlagStateForTest restores feature flags to registry defaults for tests.
+func resetDevFeatureFlagStateForTest() {
+	devFeatureFlagStateMu.Lock()
+	defer devFeatureFlagStateMu.Unlock()
+	devFeatureFlagState = initialDevFeatureFlagState()
+}
+
 func concatRoutes(groups ...[]string) []string {
 	total := 0
 	for _, group := range groups {
@@ -910,8 +1431,9 @@ func buildDevSessionPayload(config devPersonaConfig) devSessionPayload {
 		Authorized:      true,
 		CurrentPersona:  &persona,
 		Personas:        orderedDevPersonas(),
-		LandingPath:     config.LandingPath,
-		AllowedRoutes:   slices.Clone(config.Allowed),
+		LandingPath:     featureFilteredLandingPath(config),
+		AllowedRoutes:   featureFilteredRoutes(config),
+		FeatureFlags:    devFeatureAvailabilities(config),
 		Shell:           config.Shell,
 		DefaultSiteID:   config.DefaultSite.ID,
 		DefaultSiteName: config.DefaultSite.Name,
@@ -936,7 +1458,7 @@ func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
 
 // routeAllowed documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func routeAllowed(config devPersonaConfig, path string) bool {
-	return slices.Contains(config.Allowed, path)
+	return slices.Contains(config.Allowed, path) && routeFeatureEnabled(config, path)
 }
 
 // writeDevSessionCookie writes the response payload for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.

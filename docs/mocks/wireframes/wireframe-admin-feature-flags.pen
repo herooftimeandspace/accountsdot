@@ -1,0 +1,31 @@
+{
+  "version": "2.11",
+  "children": [
+    {
+      "type": "frame",
+      "id": "root",
+      "name": "Feature Flags",
+      "x": 0,
+      "y": 0,
+      "width": 1672,
+      "height": 1080,
+      "fill": "#FFFFFF",
+      "cornerRadius": 0,
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "ff1",
+          "name": "Feature Flags Pane Background",
+          "x": 264,
+          "y": 76,
+          "width": 1408,
+          "height": 1004,
+          "fill": "#FFFFFF",
+          "cornerRadius": 0,
+          "layout": "none"
+        }
+      ]
+    }
+  ]
+}

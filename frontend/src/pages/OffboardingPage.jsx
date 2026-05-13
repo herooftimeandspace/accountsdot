@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
@@ -319,7 +320,7 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
   const [pageState, setPageState] = useState("loading");
   const [selectedRow, setSelectedRow] = useState(null);
 
-  const artboard = generatedArtboards.offboarding;
+  const { artboard, status: artboardStatus } = useGeneratedArtboard("offboarding");
   const meta = generatedArtboardMeta.offboarding;
   const personaId = session?.current_persona?.id ?? "";
 
@@ -368,10 +369,12 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
     activeNavKey: meta?.activeNav ?? null,
     refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard("offboarding"),
   });
-  const semanticSummary = buildArtboardSemanticSummary(artboard, {
-    fallbackTitle: "Offboarding Dashboard",
-    textOverrides,
-  });
+  const semanticSummary = artboard
+    ? buildArtboardSemanticSummary(artboard, {
+        fallbackTitle: "Offboarding Dashboard",
+        textOverrides,
+      })
+    : { title: "Offboarding Dashboard", items: [] };
   const rows = payload?.page?.rows ?? [];
   const selectedPayloadRow = selectedRow ? rows.find((row) => row.id === selectedRow.id) || selectedRow : null;
 
@@ -413,7 +416,7 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
     );
   }, [handleSaveEndDate, payload, rows, selectedPayloadRow, sharedShellRenderOverlay]);
 
-  if (pageState === "loading") {
+  if (artboardStatus === "loading" || pageState === "loading") {
     return (
       <main id="main-content" className="page-status" aria-live="polite">
         <section className="page-status__card">
@@ -433,6 +436,10 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
         </section>
       </main>
     );
+  }
+
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Offboarding unavailable</h1></main>;
   }
 
   return (

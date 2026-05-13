@@ -201,6 +201,15 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/reports/sync-transparency`
   - `/reports/ticketing-human-work`
   - `/admin`
+  - `/admin/feature-flags`
+- Feature flags for the current foundation slice:
+  - feature flags are IT Admin-owned policy controls for temporarily enabling or disabling route-level dashboard functionality without a redeploy
+  - the first feature-flag pass controls sidebar visibility, direct route access, and matching DEV page/API access for route-backed features
+  - flags may target persona slices, site slices, or both; a non-IT user receives a feature only when their persona and current site are effectively enabled for that flag
+  - IT Admin is an explicit override and always sees every route-level feature, every active indicator, and every flag configuration surface
+  - IT Admin override state must be displayed as read-only and must not be stored as a normal editable target row
+  - `/admin/feature-flags` is an IT Admin-only subpage of the Admin area
+  - active feature indicators for persona/site applicability should be visible to IT Admin as read-only badges or chips, not as toggle controls
 - Reports page behavior for the current foundation slice:
   - `/reports` is an IT Admin operational reporting hub for report inventory, queue summaries, and provider refresh state
   - report inventory rows and recent refresh rows should open the shared right-hand drawer when selected

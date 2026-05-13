@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
@@ -422,13 +423,13 @@ function StudentDataOverlay({
  * StudentDataCleanupPage renders the UI surface for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
 export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQuery }) {
-  const artboard = generatedArtboards[ARTBOARD_KEY];
+  const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
   const [filters, setFilters] = useState({ issueType: "all", grade: "all" });
   const [selectedRow, setSelectedRow] = useState(null);
   const [syncStatus, setSyncStatus] = useState("Sync now");
   const textOverrides = buildSharedShellTextOverrides(session);
-  const paneNodeIds = useMemo(() => collectPaneNodeIds(artboard), [artboard]);
+  const paneNodeIds = useMemo(() => artboard ? collectPaneNodeIds(artboard) : [], [artboard]);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
     hideNavHighlight: true,
     hideSearchPlaceholder: true,
@@ -445,10 +446,12 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
     refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
     helpContent: STUDENT_DATA_HELP_CONTENT,
   });
-  const semanticSummary = buildArtboardSemanticSummary(artboard, {
-    fallbackTitle: "Student Data Cleanup",
-    textOverrides,
-  });
+  const semanticSummary = artboard
+    ? buildArtboardSemanticSummary(artboard, {
+        fallbackTitle: "Student Data Cleanup",
+        textOverrides,
+      })
+    : { title: "Student Data Cleanup", items: [] };
   const selectedPayloadRow = selectedRow ? STUDENT_ROWS.find((row) => row.id === selectedRow.id) || selectedRow : null;
 
   const handleFilterChange = useCallback((change) => {
@@ -479,6 +482,20 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
       <StudentDataDrawer row={selectedPayloadRow} onClose={() => setSelectedRow(null)} />
     </>
   ), [filters, handleClearFilters, handleFilterChange, handleSync, selectedPayloadRow, sharedShellRenderOverlay, syncStatus]);
+
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading Student Data Cleanup</h1>
+          <p>Preparing the generated Student Data Cleanup artboard.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Student Data Cleanup unavailable</h1></main>;
+  }
 
   return (
     <main id="main-content" className="page-canvas page-canvas--static" aria-labelledby={STUDENT_DATA_HEADING_ID}>

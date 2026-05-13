@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards, generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { generatedArtboardMeta } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import {
   buildSharedShellHiddenNodeIds,
@@ -45,17 +46,7 @@ const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
   "t162",
   "f300", "t301", "f302", "t303", "f304", "t305",
 ];
-const HIDDEN_BULK_DRAFT_NODE_SUFFIXES = [
-  "t72",
-  "f76", "t77", "t78", "t79", "f80", "t81", "t82", "t83",
-  "f84", "t85", "t86", "t87", "f88", "t89", "t90", "t91",
-  "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
-  "t109", "t110", "t111", "t112", "t113", "f114", "t115", "l116",
-  "t117", "t118", "t119", "t120", "t121", "f122", "t123", "l124",
-  "t125", "t126", "t127", "t128", "t129", "f130", "t131", "l132",
-  "t133", "t134", "t135", "t136", "t137", "f138", "t139", "l140",
-  "t162",
-];
+const HIDDEN_BULK_DRAFT_NODE_SUFFIXES = [];
 
 /**
  * nodeIdForSuffix documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
@@ -597,27 +588,27 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
       style={{ left: bounds.left, top: bounds.top, width: bounds.width, minHeight: bounds.height }}
       aria-labelledby={ROOM_MOVES_HEADING_ID}
     >
-      <div className="room-moves-runtime__bulk-toolbar">
-        <div>
-          <span>{draft.scope_site}</span>
+      <div className="room-moves-runtime__bulk-titlebar">
+        <h2>{page.title}</h2>
+        <div className="room-moves-runtime__bulk-actions">
+          <label htmlFor="room-move-effective-date">
+            <span>Effective date</span>
+            <input
+              id="room-move-effective-date"
+              type="date"
+              value={effectiveDate}
+              onChange={(event) => {
+                setEffectiveDate(event.target.value);
+                setDirty(true);
+              }}
+              onBlur={() => save(rows, effectiveDate)}
+            />
+          </label>
+          <button type="button" onClick={() => save()} disabled={saving}>Save Draft</button>
+          <button type="button" onClick={() => onTransition("schedule")}>Schedule</button>
+          <button type="button" onClick={() => onTransition("apply")}>Apply</button>
+          <button type="button" className="room-moves-runtime__delete" onClick={onDelete}>Discard</button>
         </div>
-        <label htmlFor="room-move-effective-date">
-          <span>Effective date</span>
-          <input
-            id="room-move-effective-date"
-            type="date"
-            value={effectiveDate}
-            onChange={(event) => {
-              setEffectiveDate(event.target.value);
-              setDirty(true);
-            }}
-            onBlur={() => save(rows, effectiveDate)}
-          />
-        </label>
-        <button type="button" onClick={() => save()} disabled={saving}>Save Draft</button>
-        <button type="button" onClick={() => onTransition("schedule")}>Schedule</button>
-        <button type="button" onClick={() => onTransition("apply")}>Apply</button>
-        <button type="button" className="room-moves-runtime__delete" onClick={onDelete}>Discard</button>
       </div>
       {draft.warnings?.length ? (
         <div className="room-moves-runtime__warning-bar">
@@ -721,7 +712,7 @@ export function RoomMovesPage({
   const [cancelingDraftId, setCancelingDraftId] = useState("");
 
   const isBulk = routeKind === "room-moves-bulk-draft";
-  const artboard = generatedArtboards[artboardKey];
+  const { artboard, status: artboardStatus } = useGeneratedArtboard(artboardKey);
   const meta = generatedArtboardMeta[artboardKey];
 
   const endpoint = useMemo(() => {
@@ -771,11 +762,8 @@ export function RoomMovesPage({
 
   const textOverrides = useMemo(() => {
     const overrides = buildSharedShellTextOverrides(session);
-    if (isBulk) {
-      overrides[nodeIdForSuffix(artboardKey, "t71")] = payload?.page?.title || "Site Rollover";
-    }
     return overrides;
-  }, [artboardKey, isBulk, payload?.page?.title, session]);
+  }, [session]);
   const hiddenNodeIds = useMemo(
     () => [
       ...buildSharedShellHiddenNodeIds(session, {
@@ -898,9 +886,11 @@ export function RoomMovesPage({
         onSearch,
         searchQuery,
         activeNavKey: "roomMoves",
-        refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(meta),
+        refreshMetadata: isBulk
+          ? null
+          : payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(meta),
       }),
-    [meta, onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
+    [isBulk, meta, onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
   );
 
   const fullOverlay = useCallback(
@@ -912,7 +902,7 @@ export function RoomMovesPage({
       }
       const page = payload.page;
       const tableBounds = isBulk
-        ? { left: 288, top: 196, width: 1268, height: 720 }
+        ? { left: 288, top: 96, width: 1268, height: 820 }
         : { ...nodeBox(nodeIndex.get("room-moves__f100"), { left: 288, top: 348, width: 1268, height: 480 }), width: 1268 };
       const batchBounds = nodeBox(nodeIndex.get("room-moves__f88"), { left: 996, top: 182, width: 220, height: 148 });
 
@@ -958,6 +948,17 @@ export function RoomMovesPage({
     },
     [busy, cancelMove, cancelingDraftId, createDraft, deleteBulkDraft, isBulk, onNavigate, pageState, payload, renderOverlay, saveBulkDraft, selectedRow, transitionBulkDraft]
   );
+
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading Room Moves</h1>
+          <p>Preparing the generated Room Moves artboard.</p>
+        </section>
+      </main>
+    );
+  }
 
   if (!artboard) {
     return <main id="main-content" className="page-status"><h1>Room Moves unavailable</h1></main>;

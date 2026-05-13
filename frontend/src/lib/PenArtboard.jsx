@@ -1,4 +1,5 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { devMark } from "./devPerformance";
 
 const ACCESSIBLE_UI_FONT_STACK = '"Atkinson Hyperlegible", Arial, Helvetica, sans-serif';
 
@@ -247,6 +248,13 @@ export function PenArtboard({
   const [containerWidth, setContainerWidth] = useState(normalizedArtboard.width);
   const hiddenNodeIdSet = useMemo(() => new Set(hiddenNodeIds), [hiddenNodeIds]);
   const nodeIndex = useMemo(() => buildNodeIndex(normalizedArtboard), [normalizedArtboard]);
+
+  useEffect(() => {
+    devMark("artboard-render-commit", {
+      artboardId: normalizedArtboard.id ?? null,
+      nodeCount: nodeIndex.size,
+    });
+  }, [nodeIndex.size, normalizedArtboard.id]);
 
   useLayoutEffect(() => {
     const element = containerRef.current;

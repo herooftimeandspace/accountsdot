@@ -519,6 +519,14 @@ func requireManualOnboardingManager(w http.ResponseWriter, r *http.Request) (dev
 		})
 		return devPersonaConfig{}, false
 	}
+	if !routeAllowed(config, "/onboarding") {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"code":    "forbidden",
+			"message": "Onboarding is not available for this role.",
+			"persona": config.Persona,
+		})
+		return devPersonaConfig{}, false
+	}
 	return config, true
 }
 
