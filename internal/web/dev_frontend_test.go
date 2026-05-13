@@ -896,6 +896,67 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		})
 	})
 
+	t.Run("feature flag updates reject duplicate targets and malformed payloads", func(t *testing.T) {
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		cases := []struct {
+			name       string
+			body       string
+			wantStatus int
+		}{
+			{
+				name:       "duplicate matching target",
+				body:       `{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":false},{"target_type":"persona","target_id":"site_admin","enabled":false}]}`,
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				name:       "duplicate conflicting target",
+				body:       `{"targets":[{"target_type":"site","target_id":"district-office","enabled":false},{"target_type":"site","target_id":"district-office","enabled":true}]}`,
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				name:       "unknown request field",
+				body:       `{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":false}],"updated_by":"surprise"}`,
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				name:       "unknown target field",
+				body:       `{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":false,"reason":"surprise"}]}`,
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				name:       "malformed json",
+				body:       `{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":false}]`,
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				name:       "multiple json objects",
+				body:       `{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":false}]}{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":true}]}`,
+				wantStatus: http.StatusBadRequest,
+			},
+			{
+				name:       "payload too large",
+				body:       `{"targets":[{"target_type":"persona","target_id":"site_admin","enabled":false}],"padding":"` + strings.Repeat("x", 20*1024) + `"}`,
+				wantStatus: http.StatusRequestEntityTooLarge,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/feature-flags/onboarding", strings.NewReader(tc.body))
+				req.AddCookie(itCookie)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				if rec.Code != tc.wantStatus {
+					t.Fatalf("feature flag update returned %d, want %d: %s", rec.Code, tc.wantStatus, rec.Body.String())
+				}
+				payload := decodeJSON[errorResponse](t, rec)
+				if payload.Code == "" {
+					t.Fatalf("expected error response code, got %#v", payload)
+				}
+			})
+		}
+	})
+
 	t.Run("unauthenticated data quality is 401", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
 		rec := httptest.NewRecorder()
