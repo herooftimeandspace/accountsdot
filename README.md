@@ -76,12 +76,60 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `npm run pen:lint`
 - `npm run build:web`
 - `npm run a11y:check`
+- `npm run perf:routes:plan`
+- `npm run perf:routes:merge -- [artifact-input-dir]`
 
 `make vulncheck` uses a local `govulncheck` binary when available, otherwise it runs `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`. If the host does not have Go installed, it falls back to `make vulncheck-container`, which runs the same scan inside the repo's configured Go Docker image.
 
 Use `make test-container` or `make security-container` when the host Go toolchain is missing or unhealthy. These targets bootstrap through the configured `golang` Docker image and do not require Go to be installed on the host.
 
 Inside the devcontainer, `govulncheck` is installed during `postCreateCommand`.
+
+## Generated Artifact Policy
+- `frontend/dist/` is local build output from `npm run build:web`. Do not commit it. A release or deployment build must generate production frontend assets from the approved repository revision during that release process, then package or publish the freshly generated `frontend/dist/` contents through the deployment mechanism for that environment. Do not promote a developer workstation's existing `frontend/dist/` directory as release evidence or a production artifact.
+- New raw DEV route performance outputs under `artifacts/performance/` are local by default and are ignored by Git. The currently tracked files in that directory are retained only as historical handoff evidence for the 2026-05-12 DEV performance investigation. Future JSON and Markdown harness output should be copied or linked into the external IncidentIQ testing evidence or promotion runbook when it supports a release decision. Commit new performance artifacts only when a specific issue or PR explicitly requires a small curated evidence file in the repository.
+- The repository remains the source of truth for harness code, scenario definitions, command documentation, and artifact policy. Live evidence tracking and retention remain outside the repo in the external IncidentIQ testing ticket and promotion runbook described above.
+
+### DEV Route Performance Harness
+Use the DEV route performance harness when route transitions, reload behavior, or Browser-pipe stability needs runtime evidence. Start the Go API and Vite frontend first:
+
+```bash
+npm run dev:api
+npm run dev:web
+```
+
+`npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, and the first transitions without opening a browser. The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object:
+
+```js
+const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
+await runDevRoutePerformanceMatrix({
+  tab,
+  baseUrl: "http://localhost:5173",
+  maxTransitions: 50,
+  includeRefreshes: false
+});
+```
+
+The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. If the Browser pipe fails, restart the Browser automation session and resume with the reported `resumeFromTransitionIndex` or `nextTransitionIndex`:
+
+```js
+const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
+await runDevRoutePerformanceMatrix({
+  tab,
+  baseUrl: "http://localhost:5173",
+  startTransitionIndex: 372,
+  maxTransitions: 50,
+  includeRefreshes: false
+});
+```
+
+After collecting multiple partial runs, merge them with:
+
+```bash
+npm run perf:routes:merge -- artifacts/performance
+```
+
+The merged Markdown file is the human-readable summary to copy into external evidence. The merged JSON file is for debugging and reproducibility; keep it local unless a PR explicitly asks for a curated repository artifact.
 
 ## Environment Variables
 Required or commonly used local variables:

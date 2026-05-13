@@ -1,7 +1,9 @@
 .env
 .gocache/
 .gomodcache/
+artifacts/performance/*
 coverage.out
+frontend/dist/
 node_modules/
 .DS_Store
 docs/reference-inputs
