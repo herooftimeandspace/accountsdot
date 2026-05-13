@@ -7,6 +7,7 @@ const repoRoot = path.resolve(path.dirname(__filename), "..");
 
 const scannedRoots = ["cmd", "internal", path.join("frontend", "src")];
 const scannedExtensions = new Set([".go", ".js", ".jsx", ".ts", ".tsx", ".css"]);
+const templateExpressionExtensions = new Set([".js", ".jsx", ".ts", ".tsx"]);
 const excludedPathSegments = new Set(["generated", "dist", "node_modules", ".cache"]);
 
 const placeholderPatterns = [
@@ -117,19 +118,39 @@ function walkFiles(root) {
   return files;
 }
 
-function extractComments(source) {
+function extractComments(source, { parseTemplateExpressions = true } = {}) {
   const comments = [];
   let index = 0;
   let line = 1;
   let state = "code";
   let quote = "";
-  let templateDepth = 0;
+  const stateStack = [];
+  let templateExpressionDepth = 0;
 
   function advance(char) {
     index += 1;
     if (char === "\n") {
       line += 1;
     }
+  }
+
+  function enterState(nextState) {
+    stateStack.push({ state, quote, templateExpressionDepth });
+    state = nextState;
+    quote = "";
+  }
+
+  function leaveState() {
+    const previous = stateStack.pop();
+    if (!previous) {
+      state = "code";
+      quote = "";
+      templateExpressionDepth = 0;
+      return;
+    }
+    state = previous.state;
+    quote = previous.quote;
+    templateExpressionDepth = previous.templateExpressionDepth;
   }
 
   while (index < source.length) {
@@ -143,7 +164,7 @@ function extractComments(source) {
         index += 1;
       }
       comments.push({ line: startLine, text: source.slice(start, index) });
-      state = "code";
+      leaveState();
       continue;
     }
 
@@ -158,7 +179,7 @@ function extractComments(source) {
         advance(source[index]);
       }
       comments.push({ line: startLine, text: source.slice(start, index) });
-      state = "code";
+      leaveState();
       continue;
     }
 
@@ -170,35 +191,62 @@ function extractComments(source) {
         }
         continue;
       }
-      if (quote === "`" && char === "$" && next === "{") {
-        templateDepth += 1;
+      if (parseTemplateExpressions && quote === "`" && char === "$" && next === "{") {
+        enterState("template-expression");
+        templateExpressionDepth = 1;
         advance(char);
         advance(next);
         continue;
       }
-      if (quote === "`" && templateDepth > 0 && char === "}") {
-        templateDepth -= 1;
+      if (char === quote) {
+        leaveState();
+      }
+      advance(char);
+      continue;
+    }
+
+    if (state === "template-expression") {
+      if (char === "/" && next === "/") {
+        enterState("line-comment");
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        enterState("block-comment");
+        continue;
+      }
+      if (char === "\"" || char === "'" || char === "`") {
+        enterState("string");
+        quote = char;
         advance(char);
         continue;
       }
-      if (char === quote && templateDepth === 0) {
-        state = "code";
-        quote = "";
+      if (char === "{") {
+        templateExpressionDepth += 1;
+        advance(char);
+        continue;
+      }
+      if (char === "}") {
+        templateExpressionDepth -= 1;
+        advance(char);
+        if (templateExpressionDepth === 0) {
+          leaveState();
+        }
+        continue;
       }
       advance(char);
       continue;
     }
 
     if (char === "/" && next === "/") {
-      state = "line-comment";
+      enterState("line-comment");
       continue;
     }
     if (char === "/" && next === "*") {
-      state = "block-comment";
+      enterState("block-comment");
       continue;
     }
     if (char === "\"" || char === "'" || char === "`") {
-      state = "string";
+      enterState("string");
       quote = char;
       advance(char);
       continue;
@@ -218,8 +266,11 @@ function findPlaceholderMatches({ allowedComments = new Set() } = {}) {
     }
     for (const absolutePath of walkFiles(absoluteRoot)) {
       const relativePath = path.relative(repoRoot, absolutePath).split(path.sep).join("/");
+      const extension = path.extname(relativePath);
       const source = fs.readFileSync(absolutePath, "utf8");
-      for (const comment of extractComments(source)) {
+      for (const comment of extractComments(source, {
+        parseTemplateExpressions: templateExpressionExtensions.has(extension),
+      })) {
         const normalized = normalizeComment(comment.text);
         if (!normalized) {
           continue;
@@ -230,7 +281,7 @@ function findPlaceholderMatches({ allowedComments = new Set() } = {}) {
         if (patternIds.length === 0) {
           continue;
         }
-        const key = `${relativePath}:${normalized}`;
+        const key = `${relativePath}:${comment.line}:${normalized}`;
         if (allowedComments.has(key)) {
           continue;
         }
@@ -280,6 +331,28 @@ const notAComment = "handleSave handles the user or network event for frontend/s
   const uiSurfacePattern = placeholderPatterns.find((entry) => entry.id === "generic-ui-surface");
   if (!uiSurfacePattern.pattern.test(comments[2])) {
     throw new Error("generic UI placeholder pattern did not match extracted comments");
+  }
+  const goRawStringSample = "const raw = `${`;\n// goRaw documents the data flow for internal/example.go.";
+  const goRawComments = extractComments(goRawStringSample, { parseTemplateExpressions: false });
+  if (goRawComments.length !== 1) {
+    throw new Error("Go raw strings containing ${ must not hide later comments");
+  }
+  const jsTemplateSample = "const value = `prefix ${\"${\"} suffix`;\n// jsTemplate documents the data flow for frontend/src/example.js.";
+  const jsTemplateComments = extractComments(jsTemplateSample, { parseTemplateExpressions: true });
+  if (jsTemplateComments.length !== 1) {
+    throw new Error("quoted ${ text inside JS template expressions must not hide later comments");
+  }
+  const duplicatePlaceholder = [
+    "// duplicate documents the data flow for frontend/src/example.js.",
+    "// duplicate documents the data flow for frontend/src/example.js.",
+  ].join("\n");
+  const duplicateMatches = [];
+  for (const comment of extractComments(duplicatePlaceholder)) {
+    const normalized = normalizeComment(comment.text);
+    duplicateMatches.push(`frontend/src/example.js:${comment.line}:${normalized}`);
+  }
+  if (new Set(duplicateMatches).size !== 2) {
+    throw new Error("baseline keys must distinguish copied placeholder comments by line");
   }
   console.log("doc-comment-quality self-test passed");
 }
