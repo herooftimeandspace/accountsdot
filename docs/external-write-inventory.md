@@ -135,7 +135,7 @@ DEV routes mutate in-memory stores to model operator workflows without touching 
 
 ### DEV Session And Feature Flags
 
-`internal/web/dev_frontend.go` handles DEV login/logout/session and feature flag state. Login/logout write or clear the local DEV session cookie. Feature flag routes mutate DEV feature flag configuration in memory.
+`internal/web/dev_frontend.go` handles DEV login/logout/session and feature flag state. Login/logout write or clear the local DEV session cookie. Feature flag routes mutate DEV feature flag configuration in memory when `DATABASE_URL` is unset. When `DATABASE_URL` is configured, feature flag refresh and update paths reconcile `feature_flags` and `feature_flag_targets`, update changed `feature_flag_targets.enabled` values through `db.WithRetry`, and write matching `audit_log` rows with `dev_feature_flag_update` diffs. Unchanged target updates are skipped so repeated requests do not create duplicate audit entries.
 
 Expected debugging path: frontend persona or feature controls call `/api/v1/dev/...`; handler checks `devModeEnabled`, validates method and persona context, mutates local state or cookies, then returns JSON.
 
