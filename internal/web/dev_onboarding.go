@@ -360,7 +360,7 @@ func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !routeAllowed(config, "/onboarding") {
+	if !routeAllowed(r.Context(), config, "/onboarding") {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Onboarding is not available for this role.",
@@ -515,6 +515,14 @@ func requireManualOnboardingManager(w http.ResponseWriter, r *http.Request) (dev
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Only Human Resources and IT Admin can manage manual onboarding records.",
+			"persona": config.Persona,
+		})
+		return devPersonaConfig{}, false
+	}
+	if !routeAllowed(r.Context(), config, "/onboarding") {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"code":    "forbidden",
+			"message": "Onboarding is not available for this role.",
 			"persona": config.Persona,
 		})
 		return devPersonaConfig{}, false

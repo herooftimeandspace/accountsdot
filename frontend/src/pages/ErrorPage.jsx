@@ -1,5 +1,5 @@
 import { PenArtboard } from "../lib/PenArtboard";
-import { generatedArtboards } from "../generated/artboards.generated.js";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -119,8 +119,23 @@ export function ErrorPage({ code, session, onNavigate, onSearch, searchQuery = "
   const copy = errorCopyFor(code, details);
   const loggedIn = Boolean(session?.authenticated && session?.authorized);
   const hideVisibleBody = loggedIn && Number(code) === 403;
+  const artboardKey = loggedIn ? "error-logged-in" : "error-logged-out";
+  const { artboard: baseArtboard, status: artboardStatus } = useGeneratedArtboard(artboardKey);
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading Error Page</h1>
+          <p>Preparing the DEV error page.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!baseArtboard) {
+    return <main id="main-content" className="page-status"><h1>Error page unavailable</h1></main>;
+  }
   const artboard = updateErrorArtboard(
-    generatedArtboards[loggedIn ? "error-logged-in" : "error-logged-out"],
+    baseArtboard,
     copy,
     loggedIn
   );

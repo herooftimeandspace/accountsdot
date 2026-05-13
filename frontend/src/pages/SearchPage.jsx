@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
-import { generatedArtboards } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -194,8 +194,9 @@ export function SearchPage({
   const [payload, setPayload] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const artboard = useMemo(() => uniquifyNodeIds(clone(generatedArtboards[SEARCH_ARTBOARD_KEY])), []);
-  const nodeIndex = useMemo(() => buildNodeIndex(artboard), [artboard]);
+  const { artboard: baseArtboard, status: artboardStatus } = useGeneratedArtboard(SEARCH_ARTBOARD_KEY);
+  const artboard = useMemo(() => baseArtboard ? uniquifyNodeIds(clone(baseArtboard)) : null, [baseArtboard]);
+  const nodeIndex = useMemo(() => artboard ? buildNodeIndex(artboard) : new Map(), [artboard]);
 
   useEffect(() => {
     if (!session?.authenticated || !session?.authorized) {
@@ -289,6 +290,15 @@ export function SearchPage({
    * overlay documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
    */
   const overlay = (() => {
+    if (artboardStatus === "loading") {
+      return (
+        <AccessDenied
+          role="status"
+          title="Loading Search"
+          message="Preparing the generated Search artboard."
+        />
+      );
+    }
     if (pageState === "loading") {
       return (
         <AccessDenied
@@ -308,6 +318,20 @@ export function SearchPage({
     }
     return null;
   })();
+
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading Search</h1>
+          <p>Preparing the generated Search artboard.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Search unavailable</h1></main>;
+  }
 
   return (
     <main id="main-content" className="page-canvas page-canvas--static global-search-runtime" aria-labelledby={SEARCH_HEADING_ID}>

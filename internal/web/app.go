@@ -26,6 +26,8 @@ func NewAppHandler(deps HealthDependencies) http.Handler {
 	mux.Handle("/api/v1/dev/session", http.HandlerFunc(handleDevSession))
 	mux.Handle("/api/v1/dev/login", http.HandlerFunc(handleDevLogin))
 	mux.Handle("/api/v1/dev/logout", http.HandlerFunc(handleDevLogout))
+	mux.Handle("/api/v1/dev/feature-flags", http.HandlerFunc(handleDevFeatureFlags))
+	mux.Handle("/api/v1/dev/feature-flags/", http.HandlerFunc(handleDevFeatureFlag))
 	mux.Handle("/api/v1/dev/search", http.HandlerFunc(handleDevGlobalSearch))
 	mux.Handle("/api/v1/dev/pages/onboarding", http.HandlerFunc(handleDevOnboardingPage))
 	mux.Handle("/api/v1/dev/onboarding/manual-drafts", http.HandlerFunc(handleDevOnboardingManualDrafts))

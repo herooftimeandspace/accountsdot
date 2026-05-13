@@ -330,6 +330,28 @@
   - generated layout code and hand-written behavioral code are separated cleanly
   - the DEV frontend can render persona-scoped screens against mock data
   - the `Data Quality` page establishes the migration pattern for later implemented screens
+- 2026-05-12 end-of-day handoff:
+  - active feature-flag implementation work is on `codex/issue-2-feature-flags`; the branch currently carries the DEV route-level feature-flag slice for issue `#2` plus the independent toggle/API-denial follow-up for issue `#4`
+  - active code-documentation work is in the separate worktree `/private/tmp/accountsdot-issue-3` on `issue-3-code-path-documentation` for issue `#3`
+  - `dev` and `main` both point at the merged sync-transparency baseline `da3ad40`; `codex/sync-transparency-dashboard` is already merged and should not be reopened for this handoff
+  - feature-flag docs currently define the IT Admin-only `/admin/feature-flags` page, IT Admin read-only override, persona/site target controls, sidebar/direct-route filtering, and matching DEV page/API denial for non-IT users
+  - issue `#4` already records the completed independent-toggle correction, forced onboarding mutation denial while disabled, and verification evidence
+  - open follow-up issue queue from the 2026-05-12 diagnostic pass:
+    - `#5` persist and audit feature flag state
+    - `#6` harden feature flag update validation
+    - `#7` isolate feature flag state in tests
+    - `#8` add registry-to-backend coverage checks for flagged routes
+    - `#9` triage DEV route performance timeouts and Browser pipe resume point
+    - `#10` define generated artifact policy for performance evidence and frontend builds
+    - `#11` reduce runtime hidden generated-node debt
+    - `#12` remove duplicated shell-region nodes from merge-shell PEN sources
+    - `#13` add a documentation quality gate for placeholder comments
+    - `#14` triage remaining design lint warnings into page and primitive fixes
+    - `#15` add workflow walkthrough docs for high-risk debug paths
+    - `#16` add a route-to-write inventory drift check
+  - the latest performance evidence is resumable rather than clean: `artifacts/performance/dev-route-performance-merged-2026-05-12T19-55-41-810Z.md` reports full directed-transition coverage up to Browser pipe failure at transition `372`, with refresh timeouts still observed for `/dashboard/site-admin` and `/reports/ticketing-human-work`
+  - `frontend/dist/` remains generated build output and should not be committed unless issue `#10` deliberately changes the artifact policy
+  - tomorrow's recommended resume order is: finish/publish issue `#2` and issue `#4` branch state, then publish issue `#3` documentation branch, then pick from the new follow-up queue by risk and file ownership
 - Current pilot implementation status:
   - `Data Quality` is the first migrated implemented page in the pre-phase 0 track
   - the authoritative design source for that page is `docs/mocks/wireframes/wireframe-data-quality-dashboard.pen`
@@ -397,6 +419,10 @@
   - the `/reports` route is a runtime-owned Reports hub over the shared `.pen` shell; the live page hides the fixed artboard detail card and renders report inventory plus recent refresh rows with shared table search/sort primitives
   - selecting any report or refresh row on `/reports` opens the shared right-hand drawer with row-specific scope, source, data-included, open-item, last-run or refresh, cadence, status, and explanation details
   - report rows may expose an `Open Report` drawer action that routes to the owning implemented page or report route; refresh rows remain informational and do not navigate
+  - each `devFeatureFlagRegistry` route must be covered by a Go regression test that proves the matching DEV page/API handler is registered, unless the route is explicitly documented as frontend/static-only for the current foundation slice
+  - Flagged route backend coverage exception: /dashboard/site-admin is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+  - Flagged route backend coverage exception: /student-data-cleanup is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+  - Flagged route backend coverage exception: /frequent-fliers is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Purpose:
@@ -1095,6 +1121,7 @@
 - 2026-04-24: When Aeries School Info disagrees across schools about the active school year, derive the current school year from the earliest start date and latest end date across all schools so the staging `DatabaseYear` encompasses the full district year.
 - 2026-04-24: Teacher classification must not rely on teacher records alone. A person is teaching staff when they have courses assigned to their Aeries staff record or when the job-title mapping classifies them as `TS`. A person with no courses and no `TS`-mapped teaching title should be treated as non-teaching staff.
 - 2026-04-24: Every business-decision mapping between data points must have IT Admin levers in the dashboard for add/change/remove operations so business-rule changes do not require recompiling or redeploying the app.
+- 2026-05-12: Feature flags are IT Admin-owned dashboard levers for route-level functionality in the current DEV frontend track. The first implementation gates sidebar visibility, direct route access, and matching DEV page/API access by persona and site, while IT Admin remains a hard-coded effective override that always sees every feature. IT Admin override must be represented as read-only state in the feature-flag UI rather than an editable stored target. The Admin feature-flag subpage lives at `/admin/feature-flags` and is itself IT Admin only.
 - 2026-04-24: If a person is mapped as `TS` but has no course assignments yet, teaching-room-dependent workflows should wait until course data appears. Site Admin, Site Secretary, HR, and IT must have a manual inline room override that can unblock room-dependent workflows such as Incident IQ room assignment and Zoom phone assignment. Device Wranglers / Librarians must not be able to set this override.
 - 2026-04-24: Additional first-class title-mapping fields for v1 are device requirement and gets-monitor. Device mapping rules are `Basic Device → Chromebook`, `Full OS Computer → Windows or Mac`, and `No Device → none`.
 - 2026-04-24: `Gets monitor` is a room-dependent workflow trigger, not a direct person-to-monitor assignment. If `Gets monitor = yes` and room is known, check whether the room already has a monitor; if not, create an IT ticket. If room is unknown, wait until room is known before evaluating monitor action.

@@ -1,48 +1,40 @@
-import artboard0 from "./data-quality.artboard.json";
-import artboard1 from "./dashboard-it-admin.artboard.json";
-import artboard2 from "./dashboard-hr-lifecycle.artboard.json";
-import artboard3 from "./dashboard-site-admin.artboard.json";
-import artboard4 from "./onboarding.artboard.json";
-import artboard5 from "./offboarding.artboard.json";
-import artboard6 from "./room-moves.artboard.json";
-import artboard7 from "./room-moves-bulk-draft.artboard.json";
-import artboard8 from "./phone-directory-by-person.artboard.json";
-import artboard9 from "./phone-directory-by-room.artboard.json";
-import artboard10 from "./phone-directory-by-department.artboard.json";
-import artboard11 from "./frequent-fliers.artboard.json";
-import artboard12 from "./student-data-cleanup.artboard.json";
-import artboard13 from "./reports.artboard.json";
-import artboard14 from "./reports-sync-transparency.artboard.json";
-import artboard15 from "./reports-ticketing-human-work.artboard.json";
-import artboard16 from "./admin.artboard.json";
-import artboard17 from "./my-profile.artboard.json";
-import artboard18 from "./login.artboard.json";
-import artboard19 from "./error-logged-in.artboard.json";
-import artboard20 from "./error-logged-out.artboard.json";
-
-export const generatedArtboards = {
-  "data-quality": artboard0,
-  "dashboard-it-admin": artboard1,
-  "dashboard-hr-lifecycle": artboard2,
-  "dashboard-site-admin": artboard3,
-  "onboarding": artboard4,
-  "offboarding": artboard5,
-  "room-moves": artboard6,
-  "room-moves-bulk-draft": artboard7,
-  "phone-directory-by-person": artboard8,
-  "phone-directory-by-room": artboard9,
-  "phone-directory-by-department": artboard10,
-  "frequent-fliers": artboard11,
-  "student-data-cleanup": artboard12,
-  "reports": artboard13,
-  "reports-sync-transparency": artboard14,
-  "reports-ticketing-human-work": artboard15,
-  "admin": artboard16,
-  "my-profile": artboard17,
-  "login": artboard18,
-  "error-logged-in": artboard19,
-  "error-logged-out": artboard20,
+export const generatedArtboardLoaders = {
+  "data-quality": () => import("./data-quality.artboard.json").then((module) => module.default),
+  "dashboard-it-admin": () => import("./dashboard-it-admin.artboard.json").then((module) => module.default),
+  "dashboard-hr-lifecycle": () => import("./dashboard-hr-lifecycle.artboard.json").then((module) => module.default),
+  "dashboard-site-admin": () => import("./dashboard-site-admin.artboard.json").then((module) => module.default),
+  "onboarding": () => import("./onboarding.artboard.json").then((module) => module.default),
+  "offboarding": () => import("./offboarding.artboard.json").then((module) => module.default),
+  "room-moves": () => import("./room-moves.artboard.json").then((module) => module.default),
+  "room-moves-bulk-draft": () => import("./room-moves-bulk-draft.artboard.json").then((module) => module.default),
+  "phone-directory-by-person": () => import("./phone-directory-by-person.artboard.json").then((module) => module.default),
+  "phone-directory-by-room": () => import("./phone-directory-by-room.artboard.json").then((module) => module.default),
+  "phone-directory-by-department": () => import("./phone-directory-by-department.artboard.json").then((module) => module.default),
+  "frequent-fliers": () => import("./frequent-fliers.artboard.json").then((module) => module.default),
+  "student-data-cleanup": () => import("./student-data-cleanup.artboard.json").then((module) => module.default),
+  "reports": () => import("./reports.artboard.json").then((module) => module.default),
+  "reports-sync-transparency": () => import("./reports-sync-transparency.artboard.json").then((module) => module.default),
+  "reports-ticketing-human-work": () => import("./reports-ticketing-human-work.artboard.json").then((module) => module.default),
+  "admin": () => import("./admin.artboard.json").then((module) => module.default),
+  "admin-feature-flags": () => import("./admin-feature-flags.artboard.json").then((module) => module.default),
+  "my-profile": () => import("./my-profile.artboard.json").then((module) => module.default),
+  "login": () => import("./login.artboard.json").then((module) => module.default),
+  "error-logged-in": () => import("./error-logged-in.artboard.json").then((module) => module.default),
+  "error-logged-out": () => import("./error-logged-out.artboard.json").then((module) => module.default),
 };
+
+const generatedArtboardCache = new Map();
+
+export function loadGeneratedArtboard(key) {
+  const loader = generatedArtboardLoaders[key];
+  if (!loader) {
+    return Promise.reject(new Error(`Unknown generated artboard: ${key}`));
+  }
+  if (!generatedArtboardCache.has(key)) {
+    generatedArtboardCache.set(key, loader());
+  }
+  return generatedArtboardCache.get(key);
+}
 
 export const generatedArtboardMeta = {
   "data-quality": { key: "data-quality", sourcePen: "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen", activeNav: "dataQuality" },
@@ -62,6 +54,7 @@ export const generatedArtboardMeta = {
   "reports-sync-transparency": { key: "reports-sync-transparency", sourcePen: "docs/mocks/wireframes/wireframe-sync-transparency-dashboard.pen", activeNav: "reports" },
   "reports-ticketing-human-work": { key: "reports-ticketing-human-work", sourcePen: "docs/mocks/wireframes/wireframe-ticketing-human-work.pen", activeNav: "reports" },
   "admin": { key: "admin", sourcePen: "docs/mocks/wireframes/wireframe-it-admin-admin-controls.pen", activeNav: "admin" },
+  "admin-feature-flags": { key: "admin-feature-flags", sourcePen: "docs/mocks/wireframes/wireframe-admin-feature-flags.pen", activeNav: "admin" },
   "my-profile": { key: "my-profile", sourcePen: "docs/mocks/wireframes/wireframe-faculty-staff-my-profile.pen", activeNav: null },
   "login": { key: "login", sourcePen: "docs/mocks/wireframes/wireframe-login.pen", activeNav: null },
   "error-logged-in": { key: "error-logged-in", sourcePen: "docs/mocks/wireframes/wireframe-http-error.pen", activeNav: null },
@@ -271,9 +264,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": null,
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "phone-directory-by-person",
@@ -364,6 +355,14 @@ export const implementedPageDesignManifest = {
       "standardPrimitives": [
         "refresh"
       ]
+    },
+    {
+      "key": "admin-feature-flags",
+      "sourcePen": "docs/mocks/wireframes/wireframe-admin-feature-flags.pen",
+      "mode": "merge-shell",
+      "activeNav": "admin",
+      "loggedInShell": true,
+      "standardPrimitives": []
     },
     {
       "key": "my-profile",

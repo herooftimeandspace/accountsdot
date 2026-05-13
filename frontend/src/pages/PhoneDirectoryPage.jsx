@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
-import { generatedArtboards, sharedShellSpec } from "../generated/artboards.generated.js";
+import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
+import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -806,6 +807,7 @@ export function PhoneDirectoryPage({
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedResultId, setSelectedResultId] = useState("");
   const activeRequestKeyRef = useRef("");
+  const { artboard: baseArtboard, status: artboardStatus } = useGeneratedArtboard(artboardKey);
 
   useEffect(() => {
     setSelectedResultId("");
@@ -813,11 +815,14 @@ export function PhoneDirectoryPage({
 
   const resultCount = payload?.page?.results?.length ?? 0;
   const artboard = useMemo(() => {
-    const nextArtboard = uniquifyNodeIds(clone(generatedArtboards[artboardKey]));
+    if (!baseArtboard) {
+      return null;
+    }
+    const nextArtboard = uniquifyNodeIds(clone(baseArtboard));
     nextArtboard.height = phoneDirectoryExpandedArtboardHeight(nextArtboard.height, resultCount);
     return nextArtboard;
-  }, [artboardKey, resultCount]);
-  const nodeIndex = useMemo(() => buildNodeIndex(artboard), [artboard]);
+  }, [baseArtboard, resultCount]);
+  const nodeIndex = useMemo(() => artboard ? buildNodeIndex(artboard) : new Map(), [artboard]);
   const requestKey = useMemo(() => {
     const params = new URLSearchParams(currentSearch);
     return JSON.stringify({
@@ -1016,6 +1021,15 @@ export function PhoneDirectoryPage({
    * overlay documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
    */
   const overlay = (() => {
+    if (artboardStatus === "loading") {
+      return (
+        <AccessDenied
+          role="status"
+          title="Loading Phone Directory"
+          message="Preparing the generated Phone Directory artboard."
+        />
+      );
+    }
     if (pageState === "loading") {
       return (
         <AccessDenied
@@ -1036,6 +1050,20 @@ export function PhoneDirectoryPage({
     return null;
   })();
   const pageTitle = MODE_PAGE_TITLES[mode] || "Phone Directory";
+
+  if (artboardStatus === "loading") {
+    return (
+      <main id="main-content" className="page-status" aria-live="polite">
+        <section className="page-status__card">
+          <h1>Loading Phone Directory</h1>
+          <p>Preparing the generated Phone Directory artboard.</p>
+        </section>
+      </main>
+    );
+  }
+  if (!artboard) {
+    return <main id="main-content" className="page-status"><h1>Phone Directory unavailable</h1></main>;
+  }
 
   return (
     <main
