@@ -109,7 +109,7 @@ func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !canUseDepartingSeniors(config) || !routeAllowed(config, devDepartingSeniorsRoute) {
+	if !canUseDepartingSeniors(config) || !routeAllowed(r.Context(), config, devDepartingSeniorsRoute) {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Departing Seniors is not available for this role.",
@@ -151,7 +151,7 @@ func handleDevDepartingSeniorRecord(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !canUseDepartingSeniors(config) || !routeAllowed(config, devDepartingSeniorsRoute) {
+	if !canUseDepartingSeniors(config) || !routeAllowed(r.Context(), config, devDepartingSeniorsRoute) {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "This persona cannot update departing senior records.",

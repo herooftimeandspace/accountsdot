@@ -380,7 +380,7 @@ func authenticatedRoomMovesPersona(w http.ResponseWriter, r *http.Request) (devP
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"code": "not_authorized", "message": "You need to sign in before you can view this page."})
 		return devPersonaConfig{}, false
 	}
-	if !routeAllowed(config, "/room-moves") {
+	if !routeAllowed(r.Context(), config, "/room-moves") {
 		writeJSON(w, http.StatusForbidden, map[string]any{"code": "forbidden", "message": "Room Moves is not available for this role.", "persona": config.Persona})
 		return devPersonaConfig{}, false
 	}
@@ -394,7 +394,7 @@ func authenticatedRoomMoveRevertPersona(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"code": "not_authorized", "message": "You need to sign in before you can view this page."})
 		return devPersonaConfig{}, false
 	}
-	if !canManageDistrictRoomMoves(config) || !routeAllowed(config, "/admin") {
+	if !canManageDistrictRoomMoves(config) || !routeAllowed(r.Context(), config, "/admin") {
 		writeJSON(w, http.StatusForbidden, map[string]any{"code": "forbidden", "message": "Only IT Admin can revert completed room move jobs.", "persona": config.Persona})
 		return devPersonaConfig{}, false
 	}

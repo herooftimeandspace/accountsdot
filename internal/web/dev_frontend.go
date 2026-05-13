@@ -619,12 +619,13 @@ var devFeatureFlagRegistry = []devFeatureFlagDefinition{
 }
 
 var (
-	devFeatureFlagStateMu     sync.Mutex
-	devFeatureFlagState       = initialDevFeatureFlagState()
-	devFeatureFlagStateLoaded bool
-	devFeatureFlagStoreMu     sync.Mutex
-	devFeatureFlagStore       devFeatureFlagStorage
-	devFeatureFlagStoreError  error
+	devFeatureFlagStateMu            sync.Mutex
+	devFeatureFlagState              = initialDevFeatureFlagState()
+	devFeatureFlagStateLoaded        bool
+	devFeatureFlagStateLoadAttempted bool
+	devFeatureFlagStoreMu            sync.Mutex
+	devFeatureFlagStore              devFeatureFlagStorage
+	devFeatureFlagStoreError         error
 )
 
 var devPhoneDirectoryEntries = []devPhoneDirectoryEntry{
@@ -856,7 +857,7 @@ func handleDevSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, buildDevSessionPayload(config))
+	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
 // handleDevLogin handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
@@ -885,7 +886,7 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeDevSessionCookie(w, config.Persona.ID)
-	writeJSON(w, http.StatusOK, buildDevSessionPayload(config))
+	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
 // handleDevLogout handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
@@ -931,7 +932,7 @@ func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, buildDevFeatureFlagsPayload(config))
+		writeJSON(w, http.StatusOK, buildDevFeatureFlagsPayload(r.Context(), config))
 	default:
 		http.NotFound(w, r)
 	}
@@ -1010,7 +1011,7 @@ func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	writeJSON(w, http.StatusOK, buildDevFeatureFlagPayload(definition))
+	writeJSON(w, http.StatusOK, buildDevFeatureFlagPayload(r.Context(), definition))
 }
 
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
@@ -1027,7 +1028,7 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !routeAllowed(config, "/data-quality") {
+	if !routeAllowed(r.Context(), config, "/data-quality") {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Data Quality is not available for this role.",
@@ -1120,7 +1121,7 @@ func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode str
 		return
 	}
 	routePath := "/phone-directory/by-" + mode
-	if !routeAllowed(config, routePath) {
+	if !routeAllowed(r.Context(), config, routePath) {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "forbidden",
 			"message": "Phone Directory is not available for this role.",
@@ -1265,6 +1266,9 @@ func (store postgresDevFeatureFlagStore) UpdateTargets(ctx context.Context, flag
 			`, flagKey, update.TargetType, update.TargetID).Scan(&beforeEnabled); err != nil {
 				return err
 			}
+			if beforeEnabled == update.Enabled {
+				continue
+			}
 			if _, err := tx.Exec(ctx, `
 				update feature_flag_targets
 				set enabled = $4, actor_id = $5, updated_at = $6
@@ -1370,6 +1374,7 @@ func refreshDevFeatureFlagState(ctx context.Context) error {
 	defer devFeatureFlagStateMu.Unlock()
 	devFeatureFlagState = state
 	devFeatureFlagStateLoaded = true
+	devFeatureFlagStateLoadAttempted = true
 	return nil
 }
 
@@ -1427,36 +1432,52 @@ func orderedDevFeatureFlagSites() []devFeatureTarget {
 	return targets
 }
 
-// devFeatureFlagTargetEnabled resolves a stored target override with a flag default fallback.
-func devFeatureFlagTargetEnabled(flagKey string, targetType string, targetID string, fallback bool) bool {
+// ensureDevFeatureFlagStateLoaded performs one lazy store snapshot attempt for route checks.
+func ensureDevFeatureFlagStateLoaded(ctx context.Context) {
 	devFeatureFlagStateMu.Lock()
 	loaded := devFeatureFlagStateLoaded
-	devFeatureFlagStateMu.Unlock()
-	if !loaded {
-		_ = refreshDevFeatureFlagState(context.Background())
+	attempted := devFeatureFlagStateLoadAttempted
+	if !loaded && !attempted {
+		devFeatureFlagStateLoadAttempted = true
 	}
+	devFeatureFlagStateMu.Unlock()
+	if loaded || attempted {
+		return
+	}
+	_ = refreshDevFeatureFlagState(ctx)
+}
+
+// devFeatureFlagTargetEnabled resolves a stored target override with a flag default fallback.
+func devFeatureFlagTargetEnabled(ctx context.Context, flagKey string, targetType string, targetID string, fallback bool) bool {
+	ensureDevFeatureFlagStateLoaded(ctx)
 	devFeatureFlagStateMu.Lock()
 	defer devFeatureFlagStateMu.Unlock()
 	if targets, ok := devFeatureFlagState[flagKey]; ok {
 		if enabled, ok := targets[devFeatureFlagTargetKey{TargetType: targetType, TargetID: targetID}]; ok {
+			if !devFeatureFlagStateLoaded {
+				return false
+			}
 			return enabled
 		}
+	}
+	if !devFeatureFlagStateLoaded {
+		return false
 	}
 	return fallback
 }
 
 // devFeatureFlagEffective computes whether a route-gated feature is enabled for a persona/site session.
-func devFeatureFlagEffective(definition devFeatureFlagDefinition, config devPersonaConfig) bool {
+func devFeatureFlagEffective(ctx context.Context, definition devFeatureFlagDefinition, config devPersonaConfig) bool {
 	if config.Persona.ID == "it_admin" {
 		return true
 	}
-	personaEnabled := devFeatureFlagTargetEnabled(definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled)
-	siteEnabled := devFeatureFlagTargetEnabled(definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled)
+	personaEnabled := devFeatureFlagTargetEnabled(ctx, definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled)
+	siteEnabled := devFeatureFlagTargetEnabled(ctx, definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled)
 	return definition.DefaultEnabled && personaEnabled && siteEnabled
 }
 
 // devFeatureFlagIndicators returns read-only session indicators for feature-flag state.
-func devFeatureFlagIndicators(definition devFeatureFlagDefinition, config devPersonaConfig) []devFeatureFlagIndicator {
+func devFeatureFlagIndicators(ctx context.Context, definition devFeatureFlagDefinition, config devPersonaConfig) []devFeatureFlagIndicator {
 	if config.Persona.ID == "it_admin" {
 		return []devFeatureFlagIndicator{
 			{
@@ -1477,7 +1498,7 @@ func devFeatureFlagIndicators(definition devFeatureFlagDefinition, config devPer
 			TargetType:  "persona",
 			TargetID:    config.Persona.ID,
 			TargetLabel: config.Persona.Label,
-			Enabled:     devFeatureFlagTargetEnabled(definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled),
+			Enabled:     devFeatureFlagTargetEnabled(ctx, definition.Key, "persona", config.Persona.ID, definition.DefaultEnabled),
 			ReadOnly:    true,
 		},
 		{
@@ -1486,40 +1507,40 @@ func devFeatureFlagIndicators(definition devFeatureFlagDefinition, config devPer
 			TargetType:  "site",
 			TargetID:    config.CurrentSite.ID,
 			TargetLabel: config.CurrentSite.Name,
-			Enabled:     devFeatureFlagTargetEnabled(definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled),
+			Enabled:     devFeatureFlagTargetEnabled(ctx, definition.Key, "site", config.CurrentSite.ID, definition.DefaultEnabled),
 			ReadOnly:    true,
 		},
 	}
 }
 
 // devFeatureAvailabilities returns feature flag state summaries included in the DEV session payload.
-func devFeatureAvailabilities(config devPersonaConfig) []devFeatureAvailability {
+func devFeatureAvailabilities(ctx context.Context, config devPersonaConfig) []devFeatureAvailability {
 	availability := make([]devFeatureAvailability, 0, len(devFeatureFlagRegistry))
 	for _, definition := range devFeatureFlagRegistry {
 		availability = append(availability, devFeatureAvailability{
 			Key:        definition.Key,
 			Label:      definition.Label,
-			Enabled:    devFeatureFlagEffective(definition, config),
-			Indicators: devFeatureFlagIndicators(definition, config),
+			Enabled:    devFeatureFlagEffective(ctx, definition, config),
+			Indicators: devFeatureFlagIndicators(ctx, definition, config),
 		})
 	}
 	return availability
 }
 
 // routeFeatureEnabled reports whether a route is currently enabled for a DEV persona config.
-func routeFeatureEnabled(config devPersonaConfig, path string) bool {
+func routeFeatureEnabled(ctx context.Context, config devPersonaConfig, path string) bool {
 	definition, ok := devFeatureFlagDefinitionForRoute(path)
 	if !ok {
 		return true
 	}
-	return devFeatureFlagEffective(definition, config)
+	return devFeatureFlagEffective(ctx, definition, config)
 }
 
 // featureFilteredRoutes removes disabled feature routes from the session's allowed route list.
-func featureFilteredRoutes(config devPersonaConfig) []string {
+func featureFilteredRoutes(ctx context.Context, config devPersonaConfig) []string {
 	routes := make([]string, 0, len(config.Allowed))
 	for _, route := range config.Allowed {
-		if routeFeatureEnabled(config, route) {
+		if routeFeatureEnabled(ctx, config, route) {
 			routes = append(routes, route)
 		}
 	}
@@ -1527,11 +1548,11 @@ func featureFilteredRoutes(config devPersonaConfig) []string {
 }
 
 // featureFilteredLandingPath chooses a landing path that remains accessible after feature filtering.
-func featureFilteredLandingPath(config devPersonaConfig) string {
-	if routeAllowed(config, config.LandingPath) {
+func featureFilteredLandingPath(ctx context.Context, config devPersonaConfig) string {
+	if routeAllowed(ctx, config, config.LandingPath) {
 		return config.LandingPath
 	}
-	filtered := featureFilteredRoutes(config)
+	filtered := featureFilteredRoutes(ctx, config)
 	if len(filtered) > 0 {
 		return filtered[0]
 	}
@@ -1539,10 +1560,10 @@ func featureFilteredLandingPath(config devPersonaConfig) string {
 }
 
 // buildDevFeatureFlagsPayload builds the IT Admin feature flag management API response.
-func buildDevFeatureFlagsPayload(config devPersonaConfig) devFeatureFlagsPayload {
+func buildDevFeatureFlagsPayload(ctx context.Context, config devPersonaConfig) devFeatureFlagsPayload {
 	flags := make([]devFeatureFlagPayload, 0, len(devFeatureFlagRegistry))
 	for _, definition := range devFeatureFlagRegistry {
-		flags = append(flags, buildDevFeatureFlagPayload(definition))
+		flags = append(flags, buildDevFeatureFlagPayload(ctx, definition))
 	}
 	return devFeatureFlagsPayload{
 		PageID:      "feature-flags",
@@ -1556,13 +1577,13 @@ func buildDevFeatureFlagsPayload(config devPersonaConfig) devFeatureFlagsPayload
 }
 
 // buildDevFeatureFlagPayload builds one flag row with editable target state and IT Admin override state.
-func buildDevFeatureFlagPayload(definition devFeatureFlagDefinition) devFeatureFlagPayload {
+func buildDevFeatureFlagPayload(ctx context.Context, definition devFeatureFlagDefinition) devFeatureFlagPayload {
 	personaTargets := make([]devFeatureTargetState, 0, len(devPersonaOrder)-1)
 	for _, persona := range orderedDevFeatureFlagPersonas() {
 		personaTargets = append(personaTargets, devFeatureTargetState{
 			ID:       persona.ID,
 			Label:    persona.Label,
-			Enabled:  devFeatureFlagTargetEnabled(definition.Key, "persona", persona.ID, definition.DefaultEnabled),
+			Enabled:  devFeatureFlagTargetEnabled(ctx, definition.Key, "persona", persona.ID, definition.DefaultEnabled),
 			ReadOnly: false,
 		})
 	}
@@ -1572,7 +1593,7 @@ func buildDevFeatureFlagPayload(definition devFeatureFlagDefinition) devFeatureF
 		siteTargets = append(siteTargets, devFeatureTargetState{
 			ID:       site.ID,
 			Label:    site.Label,
-			Enabled:  devFeatureFlagTargetEnabled(definition.Key, "site", site.ID, definition.DefaultEnabled),
+			Enabled:  devFeatureFlagTargetEnabled(ctx, definition.Key, "site", site.ID, definition.DefaultEnabled),
 			ReadOnly: false,
 		})
 	}
@@ -1620,7 +1641,7 @@ func validDevFeatureFlagTarget(target devFeatureFlagTargetUpdate) bool {
 	}
 }
 
-// updateDevFeatureFlagTargets persists target state changes and refreshes the DEV flag cache.
+// updateDevFeatureFlagTargets persists target state changes and refreshes the DEV flag cache when possible.
 func updateDevFeatureFlagTargets(ctx context.Context, flagKey string, updates []devFeatureFlagTargetUpdate, actorID string) error {
 	store, err := currentDevFeatureFlagStore(ctx)
 	if err != nil {
@@ -1629,7 +1650,8 @@ func updateDevFeatureFlagTargets(ctx context.Context, flagKey string, updates []
 	if err := store.UpdateTargets(ctx, flagKey, updates, actorID); err != nil {
 		return err
 	}
-	return refreshDevFeatureFlagState(ctx)
+	_ = refreshDevFeatureFlagState(ctx)
+	return nil
 }
 
 // resetDevFeatureFlagStateForTest restores feature flags to registry defaults for tests.
@@ -1638,6 +1660,7 @@ func resetDevFeatureFlagStateForTest() {
 	defer devFeatureFlagStateMu.Unlock()
 	devFeatureFlagState = initialDevFeatureFlagState()
 	devFeatureFlagStateLoaded = false
+	devFeatureFlagStateLoadAttempted = false
 	devFeatureFlagStoreMu.Lock()
 	defer devFeatureFlagStoreMu.Unlock()
 	devFeatureFlagStore = nil
@@ -1659,7 +1682,7 @@ func concatRoutes(groups ...[]string) []string {
 }
 
 // buildDevSessionPayload builds the value used by internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func buildDevSessionPayload(config devPersonaConfig) devSessionPayload {
+func buildDevSessionPayload(ctx context.Context, config devPersonaConfig) devSessionPayload {
 	persona := config.Persona
 	return devSessionPayload{
 		Environment:     "development",
@@ -1667,9 +1690,9 @@ func buildDevSessionPayload(config devPersonaConfig) devSessionPayload {
 		Authorized:      true,
 		CurrentPersona:  &persona,
 		Personas:        orderedDevPersonas(),
-		LandingPath:     featureFilteredLandingPath(config),
-		AllowedRoutes:   featureFilteredRoutes(config),
-		FeatureFlags:    devFeatureAvailabilities(config),
+		LandingPath:     featureFilteredLandingPath(ctx, config),
+		AllowedRoutes:   featureFilteredRoutes(ctx, config),
+		FeatureFlags:    devFeatureAvailabilities(ctx, config),
 		Shell:           config.Shell,
 		DefaultSiteID:   config.DefaultSite.ID,
 		DefaultSiteName: config.DefaultSite.Name,
@@ -1693,8 +1716,8 @@ func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
 }
 
 // routeAllowed documents the data flow for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func routeAllowed(config devPersonaConfig, path string) bool {
-	return slices.Contains(config.Allowed, path) && routeFeatureEnabled(config, path)
+func routeAllowed(ctx context.Context, config devPersonaConfig, path string) bool {
+	return slices.Contains(config.Allowed, path) && routeFeatureEnabled(ctx, config, path)
 }
 
 // writeDevSessionCookie writes the response payload for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -13,18 +14,30 @@ import (
 )
 
 type recordingDevFeatureFlagStore struct {
-	mu     sync.Mutex
-	state  map[string]map[devFeatureFlagTargetKey]bool
-	audits []devFeatureFlagAuditDelta
+	mu              sync.Mutex
+	state           map[string]map[devFeatureFlagTargetKey]bool
+	audits          []devFeatureFlagAuditDelta
+	snapshotErr     error
+	snapshots       int
+	lastSnapshotErr error
 }
 
 func newRecordingDevFeatureFlagStore() *recordingDevFeatureFlagStore {
 	return &recordingDevFeatureFlagStore{state: initialDevFeatureFlagState()}
 }
 
-func (store *recordingDevFeatureFlagStore) Snapshot(context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error) {
+func (store *recordingDevFeatureFlagStore) Snapshot(ctx context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	store.snapshots++
+	if err := ctx.Err(); err != nil {
+		store.lastSnapshotErr = err
+		return nil, err
+	}
+	if store.snapshotErr != nil {
+		store.lastSnapshotErr = store.snapshotErr
+		return nil, store.snapshotErr
+	}
 	return cloneDevFeatureFlagState(store.state), nil
 }
 
@@ -38,6 +51,9 @@ func (store *recordingDevFeatureFlagStore) UpdateTargets(_ context.Context, flag
 	for _, update := range updates {
 		target := devFeatureFlagTargetKey{TargetType: update.TargetType, TargetID: update.TargetID}
 		beforeEnabled := store.state[flagKey][target]
+		if beforeEnabled == update.Enabled {
+			continue
+		}
 		store.state[flagKey][target] = update.Enabled
 		store.audits = append(store.audits, devFeatureFlagAuditDelta{
 			FlagKey:       flagKey,
@@ -62,6 +78,18 @@ func (store *recordingDevFeatureFlagStore) auditDeltas() []devFeatureFlagAuditDe
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	return slices.Clone(store.audits)
+}
+
+func (store *recordingDevFeatureFlagStore) snapshotCount() int {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	return store.snapshots
+}
+
+func (store *recordingDevFeatureFlagStore) lastSnapshotError() error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	return store.lastSnapshotErr
 }
 
 func TestDevFeatureFlagHandlerPersistsAndAuditsTargets(t *testing.T) {
@@ -120,6 +148,7 @@ func TestDevFeatureFlagHandlerPersistsAndAuditsTargets(t *testing.T) {
 	devFeatureFlagStateMu.Lock()
 	devFeatureFlagState = initialDevFeatureFlagState()
 	devFeatureFlagStateLoaded = false
+	devFeatureFlagStateLoadAttempted = false
 	devFeatureFlagStateMu.Unlock()
 
 	restartedHandler := NewAppHandler(HealthDependencies{})
@@ -139,6 +168,107 @@ func TestDevFeatureFlagHandlerPersistsAndAuditsTargets(t *testing.T) {
 	}
 	if slices.Contains(session.AllowedRoutes, "/onboarding") {
 		t.Fatalf("restarted handler lost persisted target state; allowed routes = %#v", session.AllowedRoutes)
+	}
+}
+
+func TestDevFeatureFlagLazyRefreshFailureIsCachedAndFailsClosed(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("DATABASE_URL", "")
+	resetDevFeatureFlagStateForTest()
+	store := newRecordingDevFeatureFlagStore()
+	store.snapshotErr = errors.New("snapshot unavailable")
+	devFeatureFlagStoreMu.Lock()
+	devFeatureFlagStore = store
+	devFeatureFlagStoreError = nil
+	devFeatureFlagStoreMu.Unlock()
+	t.Cleanup(resetDevFeatureFlagStateForTest)
+
+	config := devPersonaConfigs["site_admin"]
+	firstPayload := buildDevSessionPayload(context.Background(), config)
+	if slices.Contains(firstPayload.AllowedRoutes, "/onboarding") {
+		t.Fatalf("failed lazy refresh allowed default-enabled route; allowed routes = %#v", firstPayload.AllowedRoutes)
+	}
+	if store.snapshotCount() != 1 {
+		t.Fatalf("snapshot count after first payload = %d, want 1", store.snapshotCount())
+	}
+
+	secondPayload := buildDevSessionPayload(context.Background(), config)
+	if slices.Contains(secondPayload.AllowedRoutes, "/onboarding") {
+		t.Fatalf("cached failed refresh allowed default-enabled route; allowed routes = %#v", secondPayload.AllowedRoutes)
+	}
+	if store.snapshotCount() != 1 {
+		t.Fatalf("snapshot count after second payload = %d, want cached failed attempt without retry", store.snapshotCount())
+	}
+}
+
+func TestDevFeatureFlagLazyRefreshUsesRequestContext(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("DATABASE_URL", "")
+	resetDevFeatureFlagStateForTest()
+	store := newRecordingDevFeatureFlagStore()
+	devFeatureFlagStoreMu.Lock()
+	devFeatureFlagStore = store
+	devFeatureFlagStoreError = nil
+	devFeatureFlagStoreMu.Unlock()
+	t.Cleanup(resetDevFeatureFlagStateForTest)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if routeAllowed(ctx, devPersonaConfigs["site_admin"], "/onboarding") {
+		t.Fatal("canceled lazy refresh allowed onboarding route, want fail closed")
+	}
+	if !errors.Is(store.lastSnapshotError(), context.Canceled) {
+		t.Fatalf("snapshot error = %v, want request context cancellation", store.lastSnapshotError())
+	}
+}
+
+func TestDevFeatureFlagUpdateSucceedsWhenPostCommitRefreshFails(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("DATABASE_URL", "")
+	resetDevFeatureFlagStateForTest()
+	store := newRecordingDevFeatureFlagStore()
+	store.snapshotErr = errors.New("snapshot unavailable after commit")
+	devFeatureFlagStoreMu.Lock()
+	devFeatureFlagStore = store
+	devFeatureFlagStoreError = nil
+	devFeatureFlagStoreMu.Unlock()
+	t.Cleanup(resetDevFeatureFlagStateForTest)
+
+	err := updateDevFeatureFlagTargets(context.Background(), "onboarding", []devFeatureFlagTargetUpdate{
+		{TargetType: "persona", TargetID: "human_resources", Enabled: false},
+	}, "it_admin")
+	if err != nil {
+		t.Fatalf("update returned refresh failure after commit: %v", err)
+	}
+	if store.targetEnabled("onboarding", devFeatureFlagTargetKey{TargetType: "persona", TargetID: "human_resources"}) {
+		t.Fatal("persistent store did not receive committed feature flag target update")
+	}
+}
+
+func TestDevFeatureFlagUpdateSkipsUnchangedAuditEntries(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("DATABASE_URL", "")
+	resetDevFeatureFlagStateForTest()
+	store := newRecordingDevFeatureFlagStore()
+	devFeatureFlagStoreMu.Lock()
+	devFeatureFlagStore = store
+	devFeatureFlagStoreError = nil
+	devFeatureFlagStoreMu.Unlock()
+	t.Cleanup(resetDevFeatureFlagStateForTest)
+
+	err := updateDevFeatureFlagTargets(context.Background(), "onboarding", []devFeatureFlagTargetUpdate{
+		{TargetType: "persona", TargetID: "human_resources", Enabled: true},
+		{TargetType: "site", TargetID: "district-office", Enabled: false},
+	}, "it_admin")
+	if err != nil {
+		t.Fatalf("update returned error: %v", err)
+	}
+	audits := store.auditDeltas()
+	if len(audits) != 1 {
+		t.Fatalf("audit delta count = %d, want only the changed target: %#v", len(audits), audits)
+	}
+	if audits[0].TargetType != "site" || audits[0].TargetID != "district-office" {
+		t.Fatalf("audit delta = %#v, want district-office site change only", audits[0])
 	}
 }
 
