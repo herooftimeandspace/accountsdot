@@ -14,12 +14,12 @@ const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ROUTE_REGISTRY_PATH = path.join(REPO_ROOT, "frontend/src/lib/routeRegistry.js");
 
 const ROUTE_VARIANTS = new Map([
-  ["/search", [{ suffix: "?q=alex", label: "search alex", expectedText: "alex" }]],
+  ["/search", [{ suffix: "?q=alex", label: "search alex", expectedText: "Alex", expectedTitle: "Global Search" }]],
   [
     "/room-moves/bulk-draft",
     [
-      { suffix: "?draft_id=rm-draft-101", label: "bulk draft rm-draft-101", expectedText: "Batch Move" },
-      { suffix: "?draft_id=rm-draft-103", label: "bulk draft rm-draft-103", expectedText: "Site Rollover" },
+      { suffix: "?draft_id=rm-draft-101", label: "bulk draft rm-draft-101", expectedText: "Batch Move", expectedTitle: "Room Moves" },
+      { suffix: "?draft_id=rm-draft-103", label: "bulk draft rm-draft-103", expectedText: "Site Rollover", expectedTitle: "Room Moves" },
     ],
   ],
 ]);
@@ -28,7 +28,7 @@ const EXPECTED_TEXT_BY_PATH = new Map([
   ["/dashboard", "Dashboard"],
   ["/dashboard/it-admin", "IT Admin"],
   ["/dashboard/hr-lifecycle", "HR Lifecycle"],
-  ["/dashboard/site-admin", "Site-level view"],
+  ["/dashboard/site-admin", "Site Admin Dashboard"],
   ["/search", "Search"],
   ["/onboarding", "Onboarding"],
   ["/offboarding", "Offboarding"],
@@ -45,8 +45,24 @@ const EXPECTED_TEXT_BY_PATH = new Map([
   ["/reports/sync-transparency", "Sync Transparency"],
   ["/reports/ticketing-human-work", "Ticketing and Human Work"],
   ["/admin", "Admin"],
+  ["/admin/feature-flags", "Feature Flags"],
   ["/my-profile", "My Profile"],
 ]);
+
+const EXPECTED_TITLE_BY_PATH = new Map([
+  ["/dashboard/it-admin", "IT Admin Dashboard"],
+  ["/dashboard/hr-lifecycle", "Human Resources Dashboard"],
+  ["/dashboard/site-admin", "Site Admin Dashboard"],
+  ["/reports/ticketing-human-work", "Ticketing Human Work"],
+  ["/admin/feature-flags", "Feature Flags"],
+]);
+
+const LOADING_TEXT_MARKERS = [
+  "Preparing the DEV session.",
+  "Preparing the requested page.",
+  "Preparing the generated page artboard.",
+  "Routing to the correct page.",
+];
 
 function nowISO() {
   return new Date().toISOString();
@@ -94,6 +110,26 @@ function routeLabel(route) {
 
 function routeExpectedText(route) {
   return route.expectedText || EXPECTED_TEXT_BY_PATH.get(route.path) || routeLabel(route);
+}
+
+function routeExpectedTitle(route) {
+  return route.expectedTitle || EXPECTED_TITLE_BY_PATH.get(route.path) || routeExpectedText(route);
+}
+
+function routePathMatches(finalUrl, route) {
+  if (!finalUrl) {
+    return false;
+  }
+  try {
+    const parsed = new URL(finalUrl);
+    return `${parsed.pathname}${parsed.search}` === route.url;
+  } catch {
+    return finalUrl.endsWith(route.url);
+  }
+}
+
+function snapshotHasLoadingMarker(snapshot) {
+  return LOADING_TEXT_MARKERS.some((marker) => snapshot.includes(marker));
 }
 
 function isBrowserPipeFailure(row) {
@@ -177,6 +213,7 @@ export function buildRouteTargetsFromRoutes(appRoutes) {
       artboardKey: route.artboardKey ?? null,
       label: routeLabel(route),
       expectedText: routeExpectedText(route),
+      expectedTitle: routeExpectedTitle(route),
     };
     targets.push(base);
 
@@ -187,6 +224,7 @@ export function buildRouteTargetsFromRoutes(appRoutes) {
         url: `${route.path}${variant.suffix}`,
         label: variant.label,
         expectedText: variant.expectedText || base.expectedText,
+        expectedTitle: variant.expectedTitle || base.expectedTitle,
         variantOf: route.path,
       });
     }
@@ -286,18 +324,35 @@ async function collectLogs(tab) {
 async function readReadyState(tab, route, timeoutMs) {
   const startedAt = Date.now();
   const expectedText = routeExpectedText(route);
+  const expectedTitle = routeExpectedTitle(route);
   let snapshot = "";
   let title = "";
   let finalUrl = "";
+  let readinessSignal = "";
 
   while (Date.now() - startedAt < timeoutMs) {
     title = (await tab.title()) || "";
     finalUrl = (await tab.url()) || "";
     snapshot = await tab.playwright.domSnapshot();
-    if (snapshot.includes(expectedText) && !snapshot.includes("Preparing the DEV session.")) {
+    const hasLoadingMarker = snapshotHasLoadingMarker(snapshot);
+    if (snapshot.includes(expectedText) && !hasLoadingMarker) {
+      readinessSignal = "expected_text";
       return {
         ready: true,
+        readinessSignal,
         expectedText,
+        expectedTitle,
+        title,
+        finalUrl,
+      };
+    }
+    if (routePathMatches(finalUrl, route) && title.includes(expectedTitle) && !hasLoadingMarker) {
+      readinessSignal = "title_and_url";
+      return {
+        ready: true,
+        readinessSignal,
+        expectedText,
+        expectedTitle,
         title,
         finalUrl,
       };
@@ -307,7 +362,9 @@ async function readReadyState(tab, route, timeoutMs) {
 
   return {
     ready: false,
+    readinessSignal,
     expectedText,
+    expectedTitle,
     title,
     finalUrl,
   };
@@ -332,6 +389,8 @@ async function measureNavigation(tab, baseUrl, from, to, timeoutMs) {
       finalUrl: ready.finalUrl,
       title: ready.title,
       expectedText: ready.expectedText,
+      expectedTitle: ready.expectedTitle,
+      readinessSignal: ready.readinessSignal,
       ready: ready.ready,
       status: ready.ready ? "ok" : "not_ready",
       logs: await collectLogs(tab),
@@ -347,6 +406,8 @@ async function measureNavigation(tab, baseUrl, from, to, timeoutMs) {
       finalUrl: await tab.url().catch(() => ""),
       title: await tab.title().catch(() => ""),
       expectedText: routeExpectedText(to),
+      expectedTitle: routeExpectedTitle(to),
+      readinessSignal: "",
       ready: false,
       status: error.code === "browser_timeout" ? "timeout" : "error",
       error: error.message,
@@ -378,6 +439,8 @@ async function measureRefresh(tab, baseUrl, route, sample, timeoutMs) {
       finalUrl: ready.finalUrl,
       title: ready.title,
       expectedText: ready.expectedText,
+      expectedTitle: ready.expectedTitle,
+      readinessSignal: ready.readinessSignal,
       ready: ready.ready,
       status: ready.ready ? "ok" : "not_ready",
       logs: await collectLogs(tab),
@@ -393,6 +456,8 @@ async function measureRefresh(tab, baseUrl, route, sample, timeoutMs) {
       finalUrl: await tab.url().catch(() => ""),
       title: await tab.title().catch(() => ""),
       expectedText: routeExpectedText(route),
+      expectedTitle: routeExpectedTitle(route),
+      readinessSignal: "",
       ready: false,
       status: error.code === "browser_timeout" ? "timeout" : "error",
       error: error.message,
@@ -604,6 +669,14 @@ export async function mergePerformanceArtifacts({
   });
   result.sourceFiles = sourceFiles;
   result.cleanedAfterPipeFailures = true;
+  const currentRoutes = buildRouteTargets();
+  const currentCoverage = validateCoverage(currentRoutes, buildEdgeCoveragePath(currentRoutes));
+  result.currentRoutePlan = {
+    routeCount: currentRoutes.length,
+    expectedEdgeCount: currentCoverage.expectedEdgeCount,
+    differsFromMergedArtifacts:
+      currentRoutes.length !== routes.length || currentCoverage.expectedEdgeCount !== coverage.expectedEdgeCount,
+  };
 
   const stamp = `merged-${result.generatedAt.replace(/[:.]/g, "-")}`;
   const filesWritten = await writeMatrixArtifacts(result, outputDir, stamp);
@@ -616,6 +689,12 @@ export async function mergePerformanceArtifacts({
 function renderMarkdownSummary(result) {
   const transitionFailures = result.transitions.filter((row) => row.status !== "ok");
   const refreshFailures = result.refreshes.filter((row) => row.status !== "ok");
+  const appTimeoutFailures = [...transitionFailures, ...refreshFailures].filter(
+    (row) => row.failureClass === "app_timeout"
+  );
+  const browserTransportFailures = [...transitionFailures, ...refreshFailures].filter(
+    (row) => row.failureClass === "browser_pipe_failure"
+  );
   const firstBrowserPipeFailure =
     result.transitions.find(isBrowserPipeFailure) || result.refreshes.find(isBrowserPipeFailure) || null;
   const failedTransitionIndex = firstBrowserPipeFailure?.index ?? null;
@@ -640,6 +719,12 @@ function renderMarkdownSummary(result) {
     `Directed transitions: ${result.coverage.actualEdgeCount}/${result.coverage.expectedEdgeCount}`,
     `Refresh samples: ${result.refreshes.length}`,
     `Coverage valid: ${result.coverage.valid ? "yes" : "no"}`,
+    result.currentRoutePlan
+      ? `Current route plan: ${result.currentRoutePlan.routeCount} routes / ${result.currentRoutePlan.expectedEdgeCount} directed transitions`
+      : null,
+    result.currentRoutePlan?.differsFromMergedArtifacts
+      ? "Current route plan differs from merged artifact route coverage; run a fresh matrix instead of resuming this merged artifact."
+      : null,
     result.transitionRange
       ? `Transition range: ${result.transitionRange.startIndex}-${result.transitionRange.endIndex ?? "end"}`
       : null,
@@ -668,18 +753,20 @@ function renderMarkdownSummary(result) {
     "",
     `Transition classes: \`${JSON.stringify(result.failureCounts?.transitions ?? {})}\``,
     `Refresh classes: \`${JSON.stringify(result.failureCounts?.refreshes ?? {})}\``,
+    `App timeout rows: ${appTimeoutFailures.length}`,
+    `Browser transport rows: ${browserTransportFailures.length}`,
     "",
     "## Slowest Transitions",
     "",
-    "| From | To | ms | Final URL |",
-    "| --- | --- | ---: | --- |",
-    ...slowestTransitions.map((row) => `| \`${row.from}\` | \`${row.to}\` | ${row.elapsedMs} | \`${row.finalUrl}\` |`),
+    "| From | To | ms | Ready Signal | Final URL |",
+    "| --- | --- | ---: | --- | --- |",
+    ...slowestTransitions.map((row) => `| \`${row.from}\` | \`${row.to}\` | ${row.elapsedMs} | ${row.readinessSignal || ""} | \`${row.finalUrl}\` |`),
     "",
     "## Slowest Refreshes",
     "",
-    "| Route | Sample | ms | Final URL |",
-    "| --- | ---: | ---: | --- |",
-    ...slowestRefreshes.map((row) => `| \`${row.route}\` | ${row.sample} | ${row.elapsedMs} | \`${row.finalUrl}\` |`),
+    "| Route | Sample | ms | Ready Signal | Final URL |",
+    "| --- | ---: | ---: | --- | --- |",
+    ...slowestRefreshes.map((row) => `| \`${row.route}\` | ${row.sample} | ${row.elapsedMs} | ${row.readinessSignal || ""} | \`${row.finalUrl}\` |`),
     "",
     "## Failures",
     "",
@@ -688,13 +775,13 @@ function renderMarkdownSummary(result) {
   ].filter((line) => line !== null);
 
   if (transitionFailures.length > 0) {
-    lines.push("", "### Transition Failures", "", "| Index | From | To | Status | Class | Error |", "| ---: | --- | --- | --- | --- | --- |");
-    lines.push(...transitionFailures.map((row) => `| ${row.index ?? ""} | \`${row.from}\` | \`${row.to}\` | ${row.status} | ${row.failureClass ?? ""} | ${row.error ?? ""} |`));
+    lines.push("", "### Transition Failures", "", "| Index | From | To | Status | Class | Expected | Final Title | Error |", "| ---: | --- | --- | --- | --- | --- | --- | --- |");
+    lines.push(...transitionFailures.map((row) => `| ${row.index ?? ""} | \`${row.from}\` | \`${row.to}\` | ${row.status} | ${row.failureClass ?? ""} | ${row.expectedText ?? ""} | ${row.title ?? ""} | ${row.error ?? ""} |`));
   }
 
   if (refreshFailures.length > 0) {
-    lines.push("", "### Refresh Failures", "", "| Route | Sample | Status | Class | Error |", "| --- | ---: | --- | --- | --- |");
-    lines.push(...refreshFailures.map((row) => `| \`${row.route}\` | ${row.sample} | ${row.status} | ${row.failureClass ?? ""} | ${row.error ?? ""} |`));
+    lines.push("", "### Refresh Failures", "", "| Route | Sample | Status | Class | Expected | Final Title | Error |", "| --- | ---: | --- | --- | --- | --- | --- |");
+    lines.push(...refreshFailures.map((row) => `| \`${row.route}\` | ${row.sample} | ${row.status} | ${row.failureClass ?? ""} | ${row.expectedText ?? ""} | ${row.title ?? ""} | ${row.error ?? ""} |`));
   }
 
   return `${lines.join("\n")}\n`;
@@ -728,7 +815,6 @@ export async function runDevRoutePerformanceMatrix({
   const refreshes = [];
   let stopReason = "";
   let stoppedAtTransitionIndex = null;
-  let nextTransitionIndex = startTransitionIndex;
 
   const persist = async () => {
     const result = buildResult({
@@ -757,7 +843,6 @@ export async function runDevRoutePerformanceMatrix({
     const row = await measureNavigation(tab, baseUrl, edgePath[index - 1], edgePath[index], timeoutMs);
     row.index = index;
     transitions.push(row);
-    nextTransitionIndex = index + 1;
     await persist();
     if (stopOnBrowserPipeError && isBrowserPipeFailure(row)) {
       stopReason = "browser_pipe_failure";
@@ -807,7 +892,6 @@ export async function runDevRoutePerformanceMatrix({
 
   return {
     ...result,
-    nextTransitionIndex,
     files,
   };
 }
