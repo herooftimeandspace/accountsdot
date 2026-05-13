@@ -121,7 +121,7 @@ function contentHiddenNodeIds(artboard, nodeIndex, session) {
 }
 
 /**
- * GlobalSearchResults renders the UI surface for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * GlobalSearchResults renders grouped search results returned by the DEV search API and forwards result destinations into the shared app navigation callback. Empty query text shows the operator search scope instead of rendering stale result groups.
  */
 function GlobalSearchResults({ payload, query, onNavigate }) {
   const groups = payload?.page?.groups ?? [];
@@ -184,7 +184,7 @@ function GlobalSearchResults({ payload, query, onNavigate }) {
 }
 
 /**
- * SearchPage renders the UI surface for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * SearchPage combines the generated search artboard, shared shell overlays, and `/api/v1/dev/search` results for the global search route. It reacts to header query changes, handles DEV auth failures, and keeps runtime result cards layered over the generated page pane.
  */
 export function SearchPage({
   session,
@@ -210,7 +210,7 @@ export function SearchPage({
     const controller = new AbortController();
 
     /**
-     * loadSearch loads or decodes data for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     * loadSearch fetches search results for the current header query and stores the decoded payload for the overlay renderer. Auth failures are delegated to app-level handlers, while aborted requests are ignored so fast query changes do not surface stale errors.
      */
     async function loadSearch() {
       setPageState("loading");
@@ -291,7 +291,7 @@ export function SearchPage({
   }, [onNavigate, pageState, payload, searchQuery, sharedShellOverlay]);
 
   /**
-   * overlay documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   * overlay chooses between loading/error states and the runtime search results layered on top of the generated artboard. It waits for the generated artboard before computing hidden-node ids so initial route loads cannot read missing artboard metadata.
    */
   const overlay = (() => {
     if (artboardStatus === "loading") {
