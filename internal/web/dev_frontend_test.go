@@ -395,6 +395,10 @@ type roomMoveCompletedJobsTestResponse struct {
 	} `json:"jobs"`
 }
 
+// decodeJSON is a shared test helper for DEV frontend handler tests that
+// converts a recorder body into the typed response payload asserted by the
+// caller. It fails the current test immediately when a handler returns invalid
+// JSON so route regressions point at the response contract under test.
 func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	t.Helper()
 	var payload T
@@ -435,6 +439,10 @@ func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.
 	return cookie
 }
 
+// isolateDevFeatureFlagState guards tests that mutate DEV feature flags by
+// verifying defaults before the test, resetting state for the test body, and
+// restoring defaults afterward. It prevents one route-permission test from
+// leaking mock store state into later handler assertions.
 func isolateDevFeatureFlagState(t *testing.T, handler http.Handler) {
 	t.Helper()
 	assertDevFeatureFlagsAtDefaults(t, handler)
@@ -446,6 +454,10 @@ func isolateDevFeatureFlagState(t *testing.T, handler http.Handler) {
 	})
 }
 
+// assertDevFeatureFlagsAtDefaults checks the authenticated DEV feature-flag API
+// for the all-enabled baseline expected by most frontend handler tests. It
+// decodes the response payload and fails immediately if any persona or site
+// target was left disabled by a previous test.
 func assertDevFeatureFlagsAtDefaults(t *testing.T, handler http.Handler) {
 	t.Helper()
 	itCookie := loginAsPersona(t, handler, "it_admin")
@@ -475,6 +487,10 @@ func assertDevFeatureFlagsAtDefaults(t *testing.T, handler http.Handler) {
 	}
 }
 
+// updateDevFeatureFlagTargetForTest drives the same PUT route that the DEV
+// frontend uses to change one feature-flag target. Tests use the returned typed
+// payload to assert route access changes while keeping request construction and
+// JSON decoding consistent.
 func updateDevFeatureFlagTargetForTest(t *testing.T, handler http.Handler, cookie *http.Cookie, flagKey string, targetType string, targetID string, enabled bool) featureFlagResponse {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
@@ -520,6 +536,9 @@ func phoneDirectoryHasTitle(payload phoneDirectoryResponse, title string) bool {
 	return false
 }
 
+// repoDoc reads a checked-in repository document for tests that assert durable
+// documentation content. It resolves paths from the internal/web package so
+// failures identify the specific missing or unreadable doc file.
 func repoDoc(t *testing.T, name string) string {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join("..", "..", name))

@@ -1034,6 +1034,10 @@ func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, buildDevFeatureFlagPayload(r.Context(), definition))
 }
 
+// decodeDevFeatureFlagUpdateRequest reads the feature-flag target update body
+// for handleDevFeatureFlagUpdate. It enforces the small DEV API request limit,
+// rejects unknown fields and trailing JSON, and returns a typed request so the
+// handler can validate targets before mutating storage.
 func decodeDevFeatureFlagUpdateRequest(w http.ResponseWriter, r *http.Request) (devFeatureFlagUpdateRequest, error) {
 	var request devFeatureFlagUpdateRequest
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, devFeatureFlagUpdateMaxBodyBytes))
@@ -1050,6 +1054,9 @@ func decodeDevFeatureFlagUpdateRequest(w http.ResponseWriter, r *http.Request) (
 	return request, nil
 }
 
+// handleDevDataQualityPage serves the DEV Data Quality page payload. The route
+// requires development mode, a signed-in persona, and feature-flag route access;
+// successful responses contain mock queue data consumed by the React page.
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -1230,12 +1237,18 @@ type devFeatureFlagStorage interface {
 
 type memoryDevFeatureFlagStore struct{}
 
+// Snapshot returns the current process-local feature-flag matrix for DEV runs
+// without DATABASE_URL. It clones state before returning so callers cannot
+// mutate shared routing decisions outside the store lock.
 func (memoryDevFeatureFlagStore) Snapshot(context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error) {
 	devFeatureFlagStateMu.Lock()
 	defer devFeatureFlagStateMu.Unlock()
 	return cloneDevFeatureFlagState(devFeatureFlagState), nil
 }
 
+// UpdateTargets applies feature-flag target changes to the process-local DEV
+// store. This mock-only write path is used when no database is configured and
+// has no retry or audit persistence beyond the in-memory state mutation.
 func (memoryDevFeatureFlagStore) UpdateTargets(_ context.Context, flagKey string, updates []devFeatureFlagTargetUpdate, _ string) error {
 	devFeatureFlagStateMu.Lock()
 	defer devFeatureFlagStateMu.Unlock()
@@ -1252,6 +1265,10 @@ type postgresDevFeatureFlagStore struct {
 	pool *pgxpool.Pool
 }
 
+// Snapshot loads the database-backed feature-flag target matrix for DEV
+// routing. It first reconciles the checked-in registry into feature_flags and
+// feature_flag_targets inside db.WithRetry, then returns a full target map for
+// session and route-authorization checks.
 func (store postgresDevFeatureFlagStore) Snapshot(ctx context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error) {
 	state := initialDevFeatureFlagState()
 	err := db.WithRetry(ctx, store.pool, func(tx pgx.Tx) error {
@@ -1287,6 +1304,10 @@ func (store postgresDevFeatureFlagStore) Snapshot(ctx context.Context) (map[stri
 	return state, nil
 }
 
+// UpdateTargets persists DEV feature-flag target changes and writes matching
+// audit_log deltas in one retried database transaction. The caller supplies the
+// authenticated DEV persona id as actorID; unchanged targets are skipped so
+// repeat requests stay idempotent and do not create duplicate audit entries.
 func (store postgresDevFeatureFlagStore) UpdateTargets(ctx context.Context, flagKey string, updates []devFeatureFlagTargetUpdate, actorID string) error {
 	return db.WithRetry(ctx, store.pool, func(tx pgx.Tx) error {
 		if err := ensureDevFeatureFlagRegistry(ctx, tx); err != nil {
@@ -1336,6 +1357,10 @@ func (store postgresDevFeatureFlagStore) UpdateTargets(ctx context.Context, flag
 	})
 }
 
+// ensureDevFeatureFlagRegistry reconciles the static DEV feature-flag registry
+// into database tables before snapshot or update work. It upserts flag metadata
+// and creates missing persona/site targets with default values so later writes
+// can update known rows only.
 func ensureDevFeatureFlagRegistry(ctx context.Context, tx pgx.Tx) error {
 	for _, definition := range devFeatureFlagRegistry {
 		if _, err := tx.Exec(ctx, `
@@ -1368,6 +1393,9 @@ func ensureDevFeatureFlagRegistry(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
+// ensureDevFeatureFlagTarget creates a missing database target row for one
+// registry flag and persona/site target. Existing target rows are left untouched
+// so operator changes survive registry reconciliation.
 func ensureDevFeatureFlagTarget(ctx context.Context, tx pgx.Tx, definition devFeatureFlagDefinition, targetType string, targetID string) error {
 	_, err := tx.Exec(ctx, `
 		insert into feature_flag_targets (flag_key, target_type, target_id, enabled, actor_id)
@@ -1377,6 +1405,10 @@ func ensureDevFeatureFlagTarget(ctx context.Context, tx pgx.Tx, definition devFe
 	return err
 }
 
+// currentDevFeatureFlagStore returns the configured DEV feature-flag storage
+// backend. It memoizes either an in-memory store or a database-backed store, and
+// caches connection setup errors so request handlers can fail closed with a
+// stable debugging signal.
 func currentDevFeatureFlagStore(ctx context.Context) (devFeatureFlagStorage, error) {
 	devFeatureFlagStoreMu.Lock()
 	defer devFeatureFlagStoreMu.Unlock()
@@ -1397,6 +1429,10 @@ func currentDevFeatureFlagStore(ctx context.Context) (devFeatureFlagStorage, err
 	return devFeatureFlagStore, nil
 }
 
+// refreshDevFeatureFlagState reloads persisted feature-flag targets into the
+// process cache used by routeAllowed and session payload builders. Callers pass
+// their request context so database delays or cancellations fail the current
+// access decision closed instead of using stale default state.
 func refreshDevFeatureFlagState(ctx context.Context) error {
 	store, err := currentDevFeatureFlagStore(ctx)
 	if err != nil {
@@ -1414,6 +1450,9 @@ func refreshDevFeatureFlagState(ctx context.Context) error {
 	return nil
 }
 
+// cloneDevFeatureFlagState deep-copies the nested feature-flag target map used
+// by DEV routing. Store implementations use it at read boundaries so callers
+// can inspect state without sharing mutable map references.
 func cloneDevFeatureFlagState(state map[string]map[devFeatureFlagTargetKey]bool) map[string]map[devFeatureFlagTargetKey]bool {
 	cloned := make(map[string]map[devFeatureFlagTargetKey]bool, len(state))
 	for flagKey, targets := range state {

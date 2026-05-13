@@ -22,10 +22,17 @@ type recordingDevFeatureFlagStore struct {
 	lastSnapshotErr error
 }
 
+// newRecordingDevFeatureFlagStore builds the in-memory feature-flag storage
+// double used by persistence tests. It starts from the same default target
+// matrix as DEV runtime code so tests can assert only the state changed by the
+// request under test.
 func newRecordingDevFeatureFlagStore() *recordingDevFeatureFlagStore {
 	return &recordingDevFeatureFlagStore{state: initialDevFeatureFlagState()}
 }
 
+// Snapshot implements devFeatureFlagStorage for persistence tests. Handler and
+// session code call it during lazy refresh; it records call count and context
+// cancellation so tests can verify fail-closed behavior without a database.
 func (store *recordingDevFeatureFlagStore) Snapshot(ctx context.Context) (map[string]map[devFeatureFlagTargetKey]bool, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -41,6 +48,9 @@ func (store *recordingDevFeatureFlagStore) Snapshot(ctx context.Context) (map[st
 	return cloneDevFeatureFlagState(store.state), nil
 }
 
+// UpdateTargets implements devFeatureFlagStorage for persistence tests. The
+// feature-flag update path calls it with target changes and an actor id; the
+// store mutates its local state and records audit deltas for assertions.
 func (store *recordingDevFeatureFlagStore) UpdateTargets(_ context.Context, flagKey string, updates []devFeatureFlagTargetUpdate, actorID string) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -68,30 +78,45 @@ func (store *recordingDevFeatureFlagStore) UpdateTargets(_ context.Context, flag
 	return nil
 }
 
+// targetEnabled reports the test store value for one feature flag target after
+// a handler call. Tests use it to confirm persisted DEV feature-flag updates
+// survive refresh and restart-style state reloads.
 func (store *recordingDevFeatureFlagStore) targetEnabled(flagKey string, target devFeatureFlagTargetKey) bool {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	return store.state[flagKey][target]
 }
 
+// auditDeltas returns the audit records captured by UpdateTargets. Tests use a
+// cloned slice so assertions cannot mutate the recorder's internal history.
 func (store *recordingDevFeatureFlagStore) auditDeltas() []devFeatureFlagAuditDelta {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	return slices.Clone(store.audits)
 }
 
+// snapshotCount exposes how often lazy feature-flag refresh asked the store for
+// persisted state. The failure-cache tests use this to prove repeated session
+// checks do not hammer a failing store.
 func (store *recordingDevFeatureFlagStore) snapshotCount() int {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	return store.snapshots
 }
 
+// lastSnapshotError returns the most recent Snapshot failure observed by the
+// recorder. Context-cancellation tests use it to confirm refresh uses the
+// request context instead of an unbounded background context.
 func (store *recordingDevFeatureFlagStore) lastSnapshotError() error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	return store.lastSnapshotErr
 }
 
+// TestDevFeatureFlagHandlerPersistsAndAuditsTargets exercises the DEV
+// feature-flag update API through NewAppHandler. It verifies authorized updates
+// mutate the configured storage, record audit deltas, and reload into a fresh
+// handler session payload.
 func TestDevFeatureFlagHandlerPersistsAndAuditsTargets(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
@@ -171,6 +196,10 @@ func TestDevFeatureFlagHandlerPersistsAndAuditsTargets(t *testing.T) {
 	}
 }
 
+// TestDevFeatureFlagLazyRefreshFailureIsCachedAndFailsClosed verifies session
+// route filtering when persisted feature-flag state cannot be loaded. The
+// expected result is a closed route set and a cached failure signal rather than
+// repeated store calls.
 func TestDevFeatureFlagLazyRefreshFailureIsCachedAndFailsClosed(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
@@ -201,6 +230,9 @@ func TestDevFeatureFlagLazyRefreshFailureIsCachedAndFailsClosed(t *testing.T) {
 	}
 }
 
+// TestDevFeatureFlagLazyRefreshUsesRequestContext proves feature-flag refresh
+// observes caller cancellation. This keeps slow database-backed refreshes tied
+// to the HTTP request lifetime and leaves a concrete error for debugging.
 func TestDevFeatureFlagLazyRefreshUsesRequestContext(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
@@ -222,6 +254,9 @@ func TestDevFeatureFlagLazyRefreshUsesRequestContext(t *testing.T) {
 	}
 }
 
+// TestDevFeatureFlagUpdateSucceedsWhenPostCommitRefreshFails protects the
+// update path after storage mutation succeeds. A post-commit refresh failure
+// should not report the already-persisted update as failed to the caller.
 func TestDevFeatureFlagUpdateSucceedsWhenPostCommitRefreshFails(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
@@ -245,6 +280,9 @@ func TestDevFeatureFlagUpdateSucceedsWhenPostCommitRefreshFails(t *testing.T) {
 	}
 }
 
+// TestDevFeatureFlagUpdateSkipsUnchangedAuditEntries verifies the DEV
+// feature-flag audit stream only records real target changes. Unchanged targets
+// should leave state intact and avoid noisy audit_log entries in database mode.
 func TestDevFeatureFlagUpdateSkipsUnchangedAuditEntries(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
@@ -272,6 +310,10 @@ func TestDevFeatureFlagUpdateSkipsUnchangedAuditEntries(t *testing.T) {
 	}
 }
 
+// loginDevPersonaForPersistenceTest signs a DEV persona into the handler under
+// test and returns the issued session cookie. Persistence tests use the cookie
+// to drive authenticated feature-flag requests through the same route stack as
+// the frontend.
 func loginDevPersonaForPersistenceTest(t *testing.T, handler http.Handler, personaID string) *http.Cookie {
 	t.Helper()
 	body, err := json.Marshal(devLoginRequest{PersonaID: personaID})
