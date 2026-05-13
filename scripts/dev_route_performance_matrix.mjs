@@ -63,6 +63,7 @@ const LOADING_TEXT_MARKERS = [
   "Preparing the generated page artboard.",
   "Routing to the correct page.",
 ];
+const GENERATED_ARTBOARD_LOADING_PATTERN = /Preparing the generated .+ artboard\./;
 
 function nowISO() {
   return new Date().toISOString();
@@ -129,7 +130,35 @@ function routePathMatches(finalUrl, route) {
 }
 
 function snapshotHasLoadingMarker(snapshot) {
-  return LOADING_TEXT_MARKERS.some((marker) => snapshot.includes(marker));
+  return (
+    LOADING_TEXT_MARKERS.some((marker) => snapshot.includes(marker)) ||
+    GENERATED_ARTBOARD_LOADING_PATTERN.test(snapshot)
+  );
+}
+
+function canUseTitleAndUrlReadiness(route) {
+  return !route.variantOf;
+}
+
+function routePlanSignature(routes) {
+  return routes.map((route) => ({
+    url: route.url,
+    path: route.path,
+    kind: route.kind,
+    expectedText: routeExpectedText(route),
+    expectedTitle: routeExpectedTitle(route),
+  }));
+}
+
+function routePlanSignaturesMatch(leftRoutes, rightRoutes) {
+  return JSON.stringify(routePlanSignature(leftRoutes)) === JSON.stringify(routePlanSignature(rightRoutes));
+}
+
+function markdownCell(value) {
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, "<br>");
 }
 
 function isBrowserPipeFailure(row) {
@@ -346,7 +375,12 @@ async function readReadyState(tab, route, timeoutMs) {
         finalUrl,
       };
     }
-    if (routePathMatches(finalUrl, route) && title.includes(expectedTitle) && !hasLoadingMarker) {
+    if (
+      canUseTitleAndUrlReadiness(route) &&
+      routePathMatches(finalUrl, route) &&
+      title.includes(expectedTitle) &&
+      !hasLoadingMarker
+    ) {
       readinessSignal = "title_and_url";
       return {
         ready: true,
@@ -675,7 +709,9 @@ export async function mergePerformanceArtifacts({
     routeCount: currentRoutes.length,
     expectedEdgeCount: currentCoverage.expectedEdgeCount,
     differsFromMergedArtifacts:
-      currentRoutes.length !== routes.length || currentCoverage.expectedEdgeCount !== coverage.expectedEdgeCount,
+      currentRoutes.length !== routes.length ||
+      currentCoverage.expectedEdgeCount !== coverage.expectedEdgeCount ||
+      !routePlanSignaturesMatch(currentRoutes, routes),
   };
 
   const stamp = `merged-${result.generatedAt.replace(/[:.]/g, "-")}`;
@@ -760,13 +796,13 @@ function renderMarkdownSummary(result) {
     "",
     "| From | To | ms | Ready Signal | Final URL |",
     "| --- | --- | ---: | --- | --- |",
-    ...slowestTransitions.map((row) => `| \`${row.from}\` | \`${row.to}\` | ${row.elapsedMs} | ${row.readinessSignal || ""} | \`${row.finalUrl}\` |`),
+    ...slowestTransitions.map((row) => `| \`${markdownCell(row.from)}\` | \`${markdownCell(row.to)}\` | ${row.elapsedMs} | ${markdownCell(row.readinessSignal)} | \`${markdownCell(row.finalUrl)}\` |`),
     "",
     "## Slowest Refreshes",
     "",
     "| Route | Sample | ms | Ready Signal | Final URL |",
     "| --- | ---: | ---: | --- | --- |",
-    ...slowestRefreshes.map((row) => `| \`${row.route}\` | ${row.sample} | ${row.elapsedMs} | ${row.readinessSignal || ""} | \`${row.finalUrl}\` |`),
+    ...slowestRefreshes.map((row) => `| \`${markdownCell(row.route)}\` | ${row.sample} | ${row.elapsedMs} | ${markdownCell(row.readinessSignal)} | \`${markdownCell(row.finalUrl)}\` |`),
     "",
     "## Failures",
     "",
@@ -776,12 +812,12 @@ function renderMarkdownSummary(result) {
 
   if (transitionFailures.length > 0) {
     lines.push("", "### Transition Failures", "", "| Index | From | To | Status | Class | Expected | Final Title | Error |", "| ---: | --- | --- | --- | --- | --- | --- | --- |");
-    lines.push(...transitionFailures.map((row) => `| ${row.index ?? ""} | \`${row.from}\` | \`${row.to}\` | ${row.status} | ${row.failureClass ?? ""} | ${row.expectedText ?? ""} | ${row.title ?? ""} | ${row.error ?? ""} |`));
+    lines.push(...transitionFailures.map((row) => `| ${row.index ?? ""} | \`${markdownCell(row.from)}\` | \`${markdownCell(row.to)}\` | ${markdownCell(row.status)} | ${markdownCell(row.failureClass)} | ${markdownCell(row.expectedText)} | ${markdownCell(row.title)} | ${markdownCell(row.error)} |`));
   }
 
   if (refreshFailures.length > 0) {
     lines.push("", "### Refresh Failures", "", "| Route | Sample | Status | Class | Expected | Final Title | Error |", "| --- | ---: | --- | --- | --- | --- | --- |");
-    lines.push(...refreshFailures.map((row) => `| \`${row.route}\` | ${row.sample} | ${row.status} | ${row.failureClass ?? ""} | ${row.expectedText ?? ""} | ${row.title ?? ""} | ${row.error ?? ""} |`));
+    lines.push(...refreshFailures.map((row) => `| \`${markdownCell(row.route)}\` | ${row.sample} | ${markdownCell(row.status)} | ${markdownCell(row.failureClass)} | ${markdownCell(row.expectedText)} | ${markdownCell(row.title)} | ${markdownCell(row.error)} |`));
   }
 
   return `${lines.join("\n")}\n`;
