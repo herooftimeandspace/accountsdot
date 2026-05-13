@@ -95,6 +95,10 @@ function contentHiddenNodeIds(artboard, nodeIndex, session) {
     })
   );
 
+  if (!artboard || nodeIndex.size === 0) {
+    return hidden;
+  }
+
   for (const [id, node] of nodeIndex.entries()) {
     const bounds = nodeBounds(node);
     if (!bounds) {
