@@ -96,6 +96,39 @@ Current code mostly exercises schema and retry behavior through tests. Future re
 - audit or request-log rows,
 - how to debug serialization/deadlock retries.
 
+## HTTP Route Inventory
+
+`scripts/check_external_write_inventory.mjs` derives every currently known `POST`, `PUT`, `DELETE`, and future `PATCH` route from the registered `internal/web` handlers, then compares those live mutating route boundaries with the backticked route bullets in this file.
+
+Routes that intentionally do not call a live provider today still need entries here. Their entries should state whether the route is an accepted no-op, a planned workflow boundary, a local-only mock mutation, a cookie/session mutation, or a future external-write boundary. If a future mutating route is intentionally exempt from the inventory, document it with a nearby explanation and an HTML comment in this exact form:
+
+`<!-- external-write-inventory-exception: METHOD /path/{param} -->`
+
+Use exceptions sparingly. Most mutating routes should be normal inventory bullets because reviewers need to see the workflow owner, side effect, and future provider risk.
+
+### Accepted Workflow And Sync Write Boundaries
+
+These routes currently acknowledge operator intent and return accepted JSON responses. They do not call live providers or write the database in this checkout, but they are treated as write boundaries because future worker and persistence code will hang off the same operator actions.
+
+Mutation routes include:
+
+- `POST /api/v1/workflows/{workflow_run_id}/retry`
+- `POST /api/v1/approvals/{approval_id}/approve`
+- `POST /api/v1/approvals/{approval_id}/reject`
+- `POST /api/v1/sync-status/{user_type}/{user_id}/override`
+- `POST /api/v1/room-mappings`
+- `POST /api/v1/annual-reset`
+
+Current behavior:
+
+- workflow retry accepts a workflow run id and returns `202 Accepted` without queuing live provider work;
+- approval approve/reject accepts a decision and returns `202 Accepted` without persisting the approval decision;
+- sync override accepts user type and user id path parameters and returns `202 Accepted` without changing provider state;
+- room mappings accepts a proposed mapping action and returns `202 Accepted` without changing IncidentIQ or local database records;
+- annual reset accepts a reset trigger and returns `202 Accepted` with workflow type `annual_reset_archive` without archiving database rows in this checkout.
+
+When any of these routes become durable write paths, update this inventory with the exact table, provider, idempotency, audit, retry, rollback, and staging-validation behavior before or with the implementation change.
+
 ## DEV Mock Mutations
 
 DEV routes mutate in-memory stores to model operator workflows without touching live providers. These are still write paths because they change local runtime state and teach future production behavior.
@@ -105,6 +138,14 @@ DEV routes mutate in-memory stores to model operator workflows without touching 
 `internal/web/dev_frontend.go` handles DEV login/logout/session and feature flag state. Login/logout write or clear the local DEV session cookie. Feature flag routes mutate DEV feature flag configuration in memory.
 
 Expected debugging path: frontend persona or feature controls call `/api/v1/dev/...`; handler checks `devModeEnabled`, validates method and persona context, mutates local state or cookies, then returns JSON.
+
+Mutation routes include:
+
+- `POST /api/v1/dev/login`
+- `POST /api/v1/dev/logout`
+- `PUT /api/v1/dev/feature-flags/{key}`
+
+Login and logout only write or clear the local DEV session cookie. The feature flag route persists IT Admin-only DEV feature flag target state for persona and site visibility. These routes are documented so session-affecting and feature-flag mock behavior does not disappear from the route inventory when the route drift check runs.
 
 ### Onboarding Manual Drafts
 
@@ -152,3 +193,11 @@ Update this file whenever code adds, removes, renames, or changes:
 - a provider SDK/API call,
 - idempotency or retry behavior,
 - external failure diagnostics.
+
+For intentional mutating route changes:
+
+1. Update `internal/web` route handlers so the registered route and method branch accurately describe the new, removed, renamed, or method-changed route.
+2. Update the matching section in this file with a backticked bullet in `METHOD /path/{param}` form, plus the route owner, current side effect, provider/database impact, and whether the route is a live write, planned write boundary, local-only mock mutation, or documented exception.
+3. If the route is intentionally exempt, add the `external-write-inventory-exception` HTML comment next to the explanation instead of adding a normal route bullet.
+4. If a new mutating handler shape cannot be derived from existing checker rules, update `scripts/check_external_write_inventory.mjs` so the live route derivation and route owner metadata cover that shape.
+5. Run `npm run write-inventory:check` and `npm run write-inventory:test` before opening or updating the PR. `make test` also runs the drift check so CI catches inventory drift.

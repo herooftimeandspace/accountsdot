@@ -9,6 +9,8 @@
     "a11y:check": "node scripts/check_frontend_accessibility.mjs",
     "docs:comments:check": "node scripts/check_doc_comment_quality.mjs",
     "docs:comments:test": "node scripts/check_doc_comment_quality.mjs --self-test",
+    "write-inventory:check": "node scripts/check_external_write_inventory.mjs",
+    "write-inventory:test": "node scripts/check_external_write_inventory.mjs --self-test",
     "pen:sync": "node scripts/sync_implemented_pages.mjs",
     "pen:check": "node scripts/sync_implemented_pages.mjs --check",
     "pen:lint": "node scripts/lint_implemented_pages.mjs",

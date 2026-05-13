@@ -5,7 +5,7 @@ GOVULNCHECK ?= govulncheck
 GOVULNCHECK_VERSION ?= latest
 GOVULNCHECK_PACKAGE := golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: up down test test-container test-unit test-contract test-integration deps-check docs-comments-check install-govulncheck vulncheck vulncheck-container security security-host security-container
+.PHONY: up down test test-container test-unit test-contract test-integration deps-check docs-comments-check write-inventory-check install-govulncheck vulncheck vulncheck-container security security-host security-container
 
 up:
 	docker compose up -d
@@ -13,7 +13,7 @@ up:
 down:
 	docker compose down
 
-test: deps-check test-unit test-contract test-integration
+test: deps-check write-inventory-check test-unit test-contract test-integration
 
 test-container:
 	$(DOCKER) run --rm \
@@ -38,6 +38,9 @@ deps-check:
 
 docs-comments-check:
 	node scripts/check_doc_comment_quality.mjs
+
+write-inventory-check:
+	node scripts/check_external_write_inventory.mjs
 
 install-govulncheck:
 	$(GO) install $(GOVULNCHECK_PACKAGE)
