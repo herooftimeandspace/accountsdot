@@ -721,6 +721,10 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
     hideAllNavGroups: true,
   });
 
+  if (!artboard || !config || nodeIndex.size === 0) {
+    return hiddenNodeIds;
+  }
+
   for (const button of MODE_BUTTONS) {
     pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, button.buttonId));
     pushDuplicateIds(hiddenNodeIds, nodeIndex, resolvePaneId(nodeIndex, config, button.labelId));
