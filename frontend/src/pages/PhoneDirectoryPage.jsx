@@ -781,7 +781,7 @@ function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
 }
 
 /**
- * selectedResultForPayload documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * selectedResultForPayload returns the row object that should populate the right-hand directory detail rail. It reads the current API payload plus the selected row id and returns null when the mode changes, the payload is empty, or the previous selection is no longer present.
  */
 function selectedResultForPayload(payload, selectedResultId) {
   const results = payload?.page?.results ?? [];
@@ -792,7 +792,7 @@ function selectedResultForPayload(payload, selectedResultId) {
 }
 
 /**
- * PhoneDirectoryPage renders the UI surface for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * PhoneDirectoryPage owns the runtime search/sort/detail overlays for the three generated Phone Directory artboards. It combines route mode, DEV session context, query parameters, generated artboard readiness, and `/api/v1/dev/phone-directory/*` payloads into the table controls and selected-row detail rail.
  */
 export function PhoneDirectoryPage({
   session,
@@ -847,7 +847,7 @@ export function PhoneDirectoryPage({
     const request = JSON.parse(requestKey);
 
     /**
-     * loadPage loads or decodes data for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     * loadPage fetches the active directory mode JSON payload and ignores responses that belong to stale mode/site/query requests. It translates authentication failures into shared app navigation callbacks and stores successful payloads for the runtime table overlay.
      */
     async function loadPage() {
       setPageState("loading");
@@ -1022,7 +1022,7 @@ export function PhoneDirectoryPage({
   ]);
 
   /**
-   * overlay documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   * overlay selects the temporary loading/error surface or the runtime directory controls layered over the generated artboard. It keeps hidden-node computation behind artboard readiness so route transitions cannot dereference missing generated nodes.
    */
   const overlay = (() => {
     if (artboardStatus === "loading") {

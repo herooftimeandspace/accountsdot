@@ -23,6 +23,7 @@ Use this skill whenever implemented code changes in The WIZARD. The goal is to k
 4. Update `docs/external-write-inventory.md` before adding, removing, or changing any live, planned, mock-only, or database write path.
 5. Prune comments and guide sections that describe removed functions, obsolete routes, renamed symbols, superseded workflow behavior, or stale debugging steps.
 6. Search for old symbol names, route paths, provider-operation names, JSON fields, and workflow labels before finishing.
+7. Run `npm run docs:comments:check` after adding or editing comments under `cmd/`, `internal/`, or `frontend/src/`.
 
 ## Inline Documentation Standard
 
@@ -30,6 +31,7 @@ Use this skill whenever implemented code changes in The WIZARD. The goal is to k
 - Prefer precise call-path language: HTTP route, React page/component, test case, planner operation, provider contract, or store method.
 - Explain side effects clearly. Name database writes, in-memory DEV store mutations, external SDK/API writes, and generated provider-operation plans.
 - Keep comments accurate and maintainable. Do not narrate obvious syntax.
+- Do not introduce placeholder templates such as generic data-flow summaries, UI-surface summaries, request-path summaries, frontend event-handler summaries, signature-placeholder wording, or vague side-effect warnings. The repo-local quality gate flags these phrases unless they are inherited entries in `scripts/doc_comment_quality_baseline.json`.
 - Keep generated files, dist output, caches, vendored assets, and `.pen`-generated artboards out of manual documentation edits.
 
 ## External Write Rule
@@ -47,6 +49,7 @@ If the path is only planned or mock-only today, document that explicitly so futu
 ## Verification
 
 - Run the narrow tests for the touched code, then the repo's normal relevant checks.
+- Run `npm run docs:comments:check` for comment-only changes or any patch that touches implemented-code comments.
 - For Go comments, run `make test-unit` or `make test` when practical.
 - For frontend comments, run `npm run build:web` when practical.
 - Manually verify that comments still match code after formatting or refactors.

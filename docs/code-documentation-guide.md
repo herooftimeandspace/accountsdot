@@ -122,3 +122,30 @@ Documentation must evolve with code. Before finishing a code change:
 5. Update `docs/external-write-inventory.md` when any write-capable path changes.
 
 Stale documentation is dangerous in this project because it can hide provider-write risk. Prefer deleting obsolete detail over leaving a confident but wrong explanation.
+
+## Placeholder Comment Quality Gate
+
+Run the placeholder-comment quality gate whenever adding or editing comments under `cmd/`, `internal/`, or `frontend/src/`:
+
+```bash
+npm run docs:comments:check
+```
+
+The same check is also available as:
+
+```bash
+make docs-comments-check
+```
+
+The check scans Go, JavaScript, TypeScript, JSX, TSX, and CSS comments under the implemented-code roots and skips generated output such as `frontend/src/generated/`, `frontend/dist/`, caches, and dependency folders. It looks only at comments, not strings or rendered copy, so placeholder words in user-facing text or test data do not fail the gate.
+
+The gate flags boilerplate phrases from the issue #3 documentation pass, including generic data-flow comments, UI-surface summaries, derived-data summaries, request-path comments, frontend event-handler comments, signature-placeholder wording, and broad side-effect warnings that point to `docs/external-write-inventory.md` without naming the actual caller, state, payload, or failure signal.
+
+Allowed exceptions are intentionally narrow:
+
+- Existing inherited placeholders from the issue #3 documentation branch are listed in `scripts/doc_comment_quality_baseline.json` so this gate can land without rewriting unrelated comments in the issue #13 branch.
+- Do not add new baseline entries for new or edited code. Rewrite the comment instead.
+- Remove a baseline entry when you replace the corresponding placeholder with a specific comment.
+- Regenerate the baseline only as part of a deliberate cleanup pass that removes or rewrites inherited placeholders first.
+
+When the gate fails, rewrite the reported comment so it answers the standard questions in this guide: why the function exists, who calls it, what data enters, what data leaves, and what side effects, errors, permissions, state transitions, or debugging signals matter.
