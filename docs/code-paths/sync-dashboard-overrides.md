@@ -130,7 +130,7 @@ Relevant tests:
 Run targeted tests with:
 
 ```bash
-go test ./internal/web -run 'TestSyncDashboard|data-quality'
+go test ./internal/web -run 'TestSyncDashboard|TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment/(it admin login sets session and can load data quality|unauthenticated data quality is 401|human resources data quality is 403)'
 go test ./internal/core ./internal/orchestrator -run 'Sync|AnnualReset'
 ```
 

@@ -122,7 +122,7 @@ Relevant tests live in `internal/web/dev_frontend_test.go`:
 Run targeted tests with:
 
 ```bash
-go test ./internal/web -run 'TestDevFrontend|Onboarding|manual onboarding'
+go test ./internal/web -run 'TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment/(onboarding page exposes manual intake options only to hr and it|manual onboarding draft validates sanitizes and finalizes into mock row|past-dated manual entry shows warning fields and schedules next cycle|escape-backed past-date row preserves source date and exposes next-cycle schedule|manual onboarding generated email falls through collision order)'
 ```
 
 If the local Go toolchain is unavailable, use the repo container test path described in `README.md`.

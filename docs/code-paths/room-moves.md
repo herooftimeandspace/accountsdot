@@ -147,7 +147,7 @@ Relevant tests live in `internal/web/dev_frontend_test.go`:
 Run targeted tests with:
 
 ```bash
-go test ./internal/web -run 'TestDevFrontend/room moves'
+go test ./internal/web -run 'TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment/(room moves enforce site scoped drafts and room defaults|room moves bulk drafts support roster and manual list lifecycle|room moves cancel pending drafts and schedule IT-only completed-job reversals)'
 ```
 
 If the local Go toolchain is unavailable, use `make test-container` from the repo root.
