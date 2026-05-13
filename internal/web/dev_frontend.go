@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -17,6 +19,7 @@ import (
 )
 
 const devSessionCookieName = "wizard_dev_session"
+const devFeatureFlagUpdateMaxBodyBytes int64 = 16 * 1024
 
 const (
 	phoneDirectoryTypePerson        = "person"
@@ -972,11 +975,18 @@ func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request devFeatureFlagUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
+	request, err := decodeDevFeatureFlagUpdateRequest(w, r)
+	if err != nil {
+		status := http.StatusBadRequest
+		message := "Request body must include feature flag targets."
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			status = http.StatusRequestEntityTooLarge
+			message = "Feature flag update payload is too large."
+		}
+		writeJSON(w, status, map[string]any{
 			"code":    "invalid_request",
-			"message": "Request body must include feature flag targets.",
+			"message": message,
 		})
 		return
 	}
@@ -987,6 +997,7 @@ func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	seenTargets := make(map[devFeatureFlagTargetKey]bool, len(request.Targets))
 	for _, target := range request.Targets {
 		if target.TargetType == "persona" && target.TargetID == "it_admin" {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
@@ -1002,6 +1013,15 @@ func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		targetKey := devFeatureFlagTargetKey{TargetType: target.TargetType, TargetID: target.TargetID}
+		if seenTargets[targetKey] {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"code":    "invalid_target",
+				"message": "Feature flag target updates must not contain duplicate target_type and target_id entries.",
+			})
+			return
+		}
+		seenTargets[targetKey] = true
 	}
 
 	if err := updateDevFeatureFlagTargets(r.Context(), definition.Key, request.Targets, config.Persona.ID); err != nil {
@@ -1012,6 +1032,22 @@ func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, buildDevFeatureFlagPayload(r.Context(), definition))
+}
+
+func decodeDevFeatureFlagUpdateRequest(w http.ResponseWriter, r *http.Request) (devFeatureFlagUpdateRequest, error) {
+	var request devFeatureFlagUpdateRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, devFeatureFlagUpdateMaxBodyBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		return devFeatureFlagUpdateRequest{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err != nil {
+			return devFeatureFlagUpdateRequest{}, err
+		}
+		return devFeatureFlagUpdateRequest{}, errors.New("request body must contain one JSON object")
+	}
+	return request, nil
 }
 
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
