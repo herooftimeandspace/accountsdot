@@ -32,7 +32,7 @@ The handler/store/helper chain lives in `internal/web/dev_onboarding.go`:
 - `handleDevOnboardingPage` builds `onboardingPagePayload` from the authenticated DEV persona, `devOnboardingStore.rows`, `devOnboardingStore.draftPayloads`, and `devOnboardingFormOptions`.
 - `handleDevOnboardingManualDrafts` requires a manual-onboarding manager, then calls `devOnboardingStore.create`.
 - `handleDevOnboardingManualDraft` parses the draft id and optional `finalize` action, then calls `devOnboardingStore.update`, `devOnboardingStore.finalize`, or `devOnboardingStore.softDelete`.
-- `sanitizeManualDraftRequest` normalizes form input and rejects invalid dates, last-4 SSN values, email addresses, sites, rooms, titles, employee types, classifications, devices, Aeries access choices, or replacement employees.
+- `sanitizeManualDraftRequest` normalizes form input and rejects invalid dates, last-4 SSN values, email addresses, personal phone numbers, sites, rooms, titles, employee types, classifications, devices, Aeries access choices, or replacement employees.
 - `applyDerivedDraftStateLocked` computes missing-field state, Escape collision state, reactivation data, generated email, generated employee id, and late-start scheduling.
 
 ## Payload Shape
@@ -84,6 +84,7 @@ Draft create/finalize/delete responses use `onboardingManualDraftResponse`:
     "job_title": "Counselor",
     "site_id": "district-office",
     "personal_email": "sam@example.invalid",
+    "personal_phone": "7075550134",
     "preferred_device": "Mac",
     "requested_aeries_access": "Staff",
     "missing_fields": [],
@@ -94,7 +95,7 @@ Draft create/finalize/delete responses use `onboardingManualDraftResponse`:
 }
 ```
 
-`PUT` accepts `onboardingManualDraftRequest` fields: `start_date`, `ssn_last4`, `employee_type`, `classification`, `first_name`, `last_name`, `job_title`, `site_id`, `personal_email`, `preferred_device`, `requested_aeries_access`, `replacing_employee_id`, `room_id`, and `notes`.
+`PUT` accepts `onboardingManualDraftRequest` fields: `start_date`, `ssn_last4`, `employee_type`, `classification`, `first_name`, `last_name`, `job_title`, `site_id`, `personal_email`, `personal_phone`, `preferred_device`, `requested_aeries_access`, `replacing_employee_id`, `room_id`, and `notes`. Personal phone is required for manual Non-Escape drafts, canonicalized to a `10`-digit United States number, and used only by planned Aeries upload serialization for `manual_non_escape` source rows.
 
 ## Authorization And Persona Behavior
 
@@ -106,7 +107,7 @@ Manual draft mutations go through `requireManualOnboardingManager`. Only `it_adm
 
 The mutation boundary is the in-memory `devOnboardingStore` in `internal/web/dev_onboarding.go`. Store methods lock `devOnboardingStoreState.mu`, mutate `drafts`, purge expired non-finalized drafts, and return cloned payloads. There are no live provider writes and no database writes in this path.
 
-Keep this aligned with `docs/external-write-inventory.md`: manual draft create, update, finalize, and soft-delete are DEV mock mutations only. Future production onboarding writes must add provider-specific idempotency keys, request logging, staging validation, sanitized diagnostics, and rollback expectations before merging.
+Keep this aligned with `docs/external-write-inventory.md`: manual draft create, update, finalize, and soft-delete are DEV mock mutations only. The personal phone value is sensitive workflow data; tests may use deterministic reserved `555-01xx` values, but diagnostics, audit summaries, and generated artifacts should redact or omit raw values. Future production onboarding writes must add provider-specific idempotency keys, request logging, staging validation, sanitized diagnostics, and rollback expectations before merging.
 
 ## Tests
 

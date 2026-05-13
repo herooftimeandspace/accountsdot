@@ -55,6 +55,7 @@ const EMPTY_DRAFT_FORM = {
   job_title: "",
   site_id: "",
   personal_email: "",
+  personal_phone: "",
   preferred_device: "",
   requested_aeries_access: "",
   replacing_employee_id: "",
@@ -169,6 +170,7 @@ function draftToForm(draft) {
     job_title: draft?.job_title ?? "",
     site_id: draft?.site_id ?? "",
     personal_email: draft?.personal_email ?? "",
+    personal_phone: draft?.personal_phone ?? "",
     preferred_device: draft?.preferred_device ?? "",
     requested_aeries_access: draft?.requested_aeries_access ?? "",
     replacing_employee_id: draft?.replacing_employee_id ?? "",
@@ -290,6 +292,7 @@ function missingFieldLabel(field) {
     job_title: "Job title",
     site_id: "Site",
     personal_email: "Personal email",
+    personal_phone: "Personal phone",
     preferred_device: "Preferred device",
     requested_aeries_access: "Requested Aeries access",
   };
@@ -788,6 +791,20 @@ function ManualDraftDrawer({
           <span>Personal email</span>
           <input id="manual-personal-email" type="email" required value={form.personal_email} onChange={(event) => onChange("personal_email", event.target.value)} />
           <FieldError value={errors.personal_email} />
+        </label>
+
+        <label className={fieldClassName("personal_phone", draft, errors)} htmlFor="manual-personal-phone">
+          <span>Personal phone</span>
+          <input
+            id="manual-personal-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            required
+            value={form.personal_phone}
+            onChange={(event) => onChange("personal_phone", event.target.value)}
+          />
+          <FieldError value={errors.personal_phone} />
         </label>
 
         <SelectField id="manual-device" label="Preferred device" value={form.preferred_device} options={formOptions.preferred_devices} required className={fieldClassName("preferred_device", draft, errors)} onChange={(value) => onChange("preferred_device", value)} />

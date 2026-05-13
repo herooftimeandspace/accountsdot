@@ -158,6 +158,8 @@ Mutation routes include:
 - `POST /api/v1/dev/onboarding/manual-drafts/{id}/finalize`
 - `DELETE /api/v1/dev/onboarding/manual-drafts/{id}`
 
+Manual Non-Escape draft updates capture a required personal phone number for the planned Aeries upload payload. The DEV mock store keeps the canonical `10`-digit value only inside the editable draft payload used by HR/IT, and `internal/provider.BuildAeriesUploadPayload` includes that value only when the source is `manual_non_escape`. ESCAPE-sourced Aeries planning omits this field so imported phone data remains source-authoritative. Raw personal phone numbers must stay out of diagnostics, audit summaries, generated artifacts, and fixtures unless a future checked-in requirement documents a safe display need.
+
 ### Offboarding And Departing Seniors
 
 `internal/web/dev_offboarding.go` and `internal/web/dev_departing_seniors.go` update mock end dates and deprovisioning status. These model operator decisions and device/asset follow-up without writing to Escape, Google, Zoom, or IncidentIQ.

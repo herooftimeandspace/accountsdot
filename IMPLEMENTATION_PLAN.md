@@ -1444,6 +1444,7 @@
   - job title
   - location
   - personal email address
+  - personal phone number for the manual Non-Escape Aeries upload path only; store and serialize the canonical `10`-digit value, redact diagnostics and summaries, and never use this field to overwrite ESCAPE-sourced phone data
   - preferred device
   - requested Aeries access role set
 - Start-date lead-time rule:

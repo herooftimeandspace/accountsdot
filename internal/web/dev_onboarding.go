@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/core"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 var (
 	onboardingPersonalEmailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 	onboardingLast4Pattern         = regexp.MustCompile(`^\d{4}$`)
+	onboardingPersonalPhonePattern = regexp.MustCompile(`^\d{10}$`)
 	devOnboardingStore             = newDevOnboardingStore()
 )
 
@@ -140,6 +142,7 @@ type onboardingManualDraftRequest struct {
 	JobTitle              string `json:"job_title"`
 	SiteID                string `json:"site_id"`
 	PersonalEmail         string `json:"personal_email"`
+	PersonalPhone         string `json:"personal_phone"`
 	PreferredDevice       string `json:"preferred_device"`
 	RequestedAeriesAccess string `json:"requested_aeries_access"`
 	ReplacingEmployeeID   string `json:"replacing_employee_id"`
@@ -161,6 +164,7 @@ type onboardingManualDraftPayload struct {
 	SiteID                 string                               `json:"site_id"`
 	SiteName               string                               `json:"site_name"`
 	PersonalEmail          string                               `json:"personal_email"`
+	PersonalPhone          string                               `json:"personal_phone,omitempty"`
 	PreferredDevice        string                               `json:"preferred_device"`
 	RequestedAeriesAccess  string                               `json:"requested_aeries_access"`
 	ReplacingEmployeeID    string                               `json:"replacing_employee_id,omitempty"`
@@ -208,6 +212,7 @@ type onboardingManualDraft struct {
 	JobTitle              string
 	SiteID                string
 	PersonalEmail         string
+	PersonalPhone         string
 	PreferredDevice       string
 	RequestedAeriesAccess string
 	ReplacingEmployeeID   string
@@ -620,6 +625,7 @@ func (s *devOnboardingStoreState) update(id string, request onboardingManualDraf
 	draft.JobTitle = clean.JobTitle
 	draft.SiteID = clean.SiteID
 	draft.PersonalEmail = clean.PersonalEmail
+	draft.PersonalPhone = clean.PersonalPhone
 	draft.PreferredDevice = clean.PreferredDevice
 	draft.RequestedAeriesAccess = clean.RequestedAeriesAccess
 	draft.ReplacingEmployeeID = clean.ReplacingEmployeeID
@@ -849,6 +855,7 @@ func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config dev
 		JobTitle:              normalizeSpaces(request.JobTitle),
 		SiteID:                strings.TrimSpace(request.SiteID),
 		PersonalEmail:         strings.ToLower(strings.TrimSpace(request.PersonalEmail)),
+		PersonalPhone:         normalizePersonalPhone(request.PersonalPhone),
 		PreferredDevice:       normalizeSpaces(request.PreferredDevice),
 		RequestedAeriesAccess: normalizeSpaces(request.RequestedAeriesAccess),
 		ReplacingEmployeeID:   strings.TrimSpace(request.ReplacingEmployeeID),
@@ -866,6 +873,9 @@ func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config dev
 	}
 	if clean.PersonalEmail != "" && !onboardingPersonalEmailPattern.MatchString(clean.PersonalEmail) {
 		errors["personal_email"] = "Personal email must be a valid email address."
+	}
+	if clean.PersonalPhone != "" && !onboardingPersonalPhonePattern.MatchString(clean.PersonalPhone) {
+		errors["personal_phone"] = "Personal phone must contain a 10-digit US phone number."
 	}
 	options := devOnboardingFormOptions(config)
 	validateOption(errors, "employee_type", clean.EmployeeType, options.EmployeeTypes)
@@ -943,6 +953,7 @@ func (draft *onboardingManualDraft) missingFields() []string {
 		{"job_title", draft.JobTitle},
 		{"site_id", draft.SiteID},
 		{"personal_email", draft.PersonalEmail},
+		{"personal_phone", draft.PersonalPhone},
 		{"preferred_device", draft.PreferredDevice},
 		{"requested_aeries_access", draft.RequestedAeriesAccess},
 	}
@@ -980,6 +991,7 @@ func (draft *onboardingManualDraft) toPayload(now time.Time) onboardingManualDra
 		SiteID:                draft.SiteID,
 		SiteName:              site.Name,
 		PersonalEmail:         draft.PersonalEmail,
+		PersonalPhone:         draft.PersonalPhone,
 		PreferredDevice:       draft.PreferredDevice,
 		RequestedAeriesAccess: draft.RequestedAeriesAccess,
 		ReplacingEmployeeID:   draft.ReplacingEmployeeID,
@@ -1117,6 +1129,21 @@ func (draft *onboardingManualDraft) workflowSteps(now time.Time) []onboardingWor
 		stepStatus = "Scheduled"
 		identityDetail += " The start date is already in the past, so the workflow is scheduled for the next available cycle at " + formatOnboardingDateTime(*draft.ScheduledFor) + "."
 	}
+	aeriesDetail := "Requested Aeries access is tracked as workflow data. The app links external IncidentIQ follow-up status when it exists."
+	aeriesPayload := provider.BuildAeriesUploadPayload(provider.AeriesUploadInput{
+		SourceSystem:    provider.AeriesSourceManualNonEscape,
+		EmployeeID:      draft.GeneratedEmployeeID,
+		FirstName:       draft.FirstName,
+		LastName:        draft.LastName,
+		PersonalEmail:   draft.PersonalEmail,
+		PersonalPhone:   draft.PersonalPhone,
+		RequestedAccess: draft.RequestedAeriesAccess,
+		PreferredDevice: draft.PreferredDevice,
+		ChangeReason:    string(draft.ChangeReason),
+	})
+	if _, ok := aeriesPayload["personal_phone"]; ok {
+		aeriesDetail += " The manual Non-Escape Aeries upload payload has a captured personal phone number; diagnostics and summaries must use redaction rather than the raw value."
+	}
 	return []onboardingWorkflowStep{
 		{
 			Name:   "Identity preparation",
@@ -1126,7 +1153,7 @@ func (draft *onboardingManualDraft) workflowSteps(now time.Time) []onboardingWor
 		{
 			Name:   "Aeries access follow-up",
 			Status: "External action",
-			Detail: "Requested Aeries access is tracked as workflow data. The app links external IncidentIQ follow-up status when it exists.",
+			Detail: aeriesDetail,
 			Actions: []onboardingWorkflowAction{{
 				Label:      "Open mock Aeries access request",
 				Resolution: "Confirm the requested Aeries role and complete the external user-rights task.",
@@ -1221,6 +1248,7 @@ func devLeadTimeReviewDraft(now time.Time) *onboardingManualDraft {
 		JobTitle:              "Instructional Aide",
 		SiteID:                "district-office",
 		PersonalEmail:         "casey.quickstart@example.com",
+		PersonalPhone:         "7075550198",
 		PreferredDevice:       "Mac",
 		RequestedAeriesAccess: "Staff",
 		Notes:                 "DEV review row: start date is within three calendar days of Date Added so the intake drawer shows the lead-time warning.",
@@ -1273,6 +1301,21 @@ func roomByID(id string) onboardingRoomOption {
 // normalizeSpaces normalizes source data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func normalizeSpaces(value string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+}
+
+// normalizePersonalPhone accepts HR-entered manual Non-Escape phone input from the DEV onboarding drawer and returns only the ten digits needed by the planned Aeries upload payload. Formatting characters are intentionally discarded here so web tests and future serializers compare the same canonical value without logging or displaying the raw operator entry.
+func normalizePersonalPhone(value string) string {
+	var b strings.Builder
+	for _, r := range value {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	digits := b.String()
+	if len(digits) == 11 && strings.HasPrefix(digits, "1") {
+		return digits[1:]
+	}
+	return digits
 }
 
 // normalizeEmailNamePart normalizes source data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
