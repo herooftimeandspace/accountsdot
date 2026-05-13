@@ -76,24 +76,29 @@ This ledger is the default landing place for annotation-driven hardening work ac
 | UIH-069 | Feature Flags | User feedback: `/admin/feature-flags` must be a separate implemented subpage with its own authoritative PEN source and no shared refresh button or last-refreshed text | pipeline, `.pen layout`, runtime behavior | `wireframe-admin-feature-flags.pen`, generated `admin-feature-flags` artboard, Feature Flags runtime page refresh opt-out | completed | `npm run pen:sync`, `npm run pen:check`, `npm run pen:lint`, `npm run build:web`, `npm run a11y:check`, and browser verification on `/admin/feature-flags` |
 | UIH-070 | All implemented pages, Room Moves bulk draft | User feedback: generated artboard JSON should load per route, and annotation-driven frontend cleanup must update authoritative PEN sources instead of hiding obsolete generated nodes | pipeline, `.pen layout` | Artboard sync pipeline, generated artboard loader helper, `wireframe-room-moves-bulk-draft.pen`, and image-fill validation | completed | Per-route dynamic artboard loaders, Room Moves bulk draft PEN cleanup, image source/public asset checks in `npm run pen:check`, `npm run pen:lint`, `npm run build:web`, `npm run a11y:check`, and browser verification on `/room-moves`, `/room-moves/bulk-draft?draft_id=rm-draft-101`, and `/room-moves/bulk-draft?draft_id=rm-draft-103` |
 | UIH-071 | Feature Flags | User feedback: remove static Feature Flags scaffold rows and placeholder labels from the authoritative PEN instead of hiding those nodes in runtime code | `.pen layout`, runtime behavior | `wireframe-admin-feature-flags.pen`, generated `admin-feature-flags` artboard, `FeatureFlagsPage.jsx` static-node suppression cleanup | completed | Minimal source PEN page pane plus generated-artboard string check, `npm run pen:sync`, `npm run pen:check`, `npm run pen:lint`, `npm run build:web`, and `npm run a11y:check` |
+| UIH-072 | All implemented pages | GitHub issue #14: group warning-only design lint diagnostics by primitive and promote stable checks where safe | pipeline | `scripts/lint_implemented_pages.mjs` | completed | `npm run pen:lint` now groups warnings by `table`, `helper paragraph`, `wrapper/card/rail`, and page-local exceptions; text overflow is promoted to a blocking failure after the parent-relative coordinate fix and guarded by `npm run pen:lint:test` |
+| UIH-073 | Login | GitHub issue #14: `login` text-overflow warning for `t7` inside `f5` was a lint coordinate false positive, not a `.pen` layout defect | pipeline | `scripts/lint_implemented_pages.mjs` | accepted exception | Linter geometry now compares nested child nodes using absolute coordinates, so parent-relative login button text is accepted only when it remains inside the parent frame; the self-test covers passing nested text and real nested overflow |
+| UIH-074 | All implemented table pages | GitHub issue #14: remaining table-baseline warnings need page-level `.pen` review after duplicate-shell cleanup lands | `.pen layout` | affected authoritative table `.pen` files | open | Deferred to the issue #12 integration pass because issue #12 already edits the relevant `.pen` files broadly; grouped `table` warnings in `npm run pen:lint` are the durable triage guard |
+| UIH-075 | Dashboard Site Admin, Reports Ticketing Human Work, My Profile | GitHub issue #14: fragmented helper-paragraph warnings identify likely multi-node paragraph cleanup candidates | `.pen layout` | `wireframe-site-admin-dashboard.pen`, `wireframe-ticketing-human-work.pen`, `wireframe-faculty-staff-my-profile.pen` | open | Deferred to the issue #12 integration pass to avoid duplicating active `.pen` edits; grouped `helper paragraph` warnings in `npm run pen:lint` keep the candidate list visible |
+| UIH-076 | Phone Directory by Department | GitHub issue #14: bordered-wrapper warnings identify department summary/table wrapper spacing candidates | `.pen layout` | `wireframe-phone-directory-by-department.pen` | open | Deferred to the issue #12 integration pass to avoid conflicting with active source `.pen` cleanup; grouped `wrapper/card/rail` warnings in `npm run pen:lint` keep the page-local candidates visible |
 
 ## Page Index
 
-- `admin`: active shared-scope/dropdown and empty-title-pill annotations are captured in UIH-046 and UIH-047; Feature Flags subpage scaffold cleanup is captured in UIH-071.
+- `admin`: active shared-scope/dropdown and empty-title-pill annotations are captured in UIH-046 and UIH-047; Feature Flags subpage scaffold cleanup is captured in UIH-071; active table-baseline lint warnings are captured in UIH-074.
 - `dashboard-hr-lifecycle`: no additional active annotations captured yet.
-- `dashboard-it-admin`: no additional active annotations captured yet.
-- `dashboard-site-admin`: no additional active annotations captured yet.
-- `data-quality`: see `docs/mocks/wireframes/data-quality-annotation-ledger.md`.
-- `frequent-fliers`: no additional active annotations captured yet.
-- `login`: no additional active annotations captured yet.
-- `my-profile`: no additional active annotations captured yet.
+- `dashboard-it-admin`: active table-baseline lint warnings are captured in UIH-074.
+- `dashboard-site-admin`: active table-baseline and helper-paragraph lint warnings are captured in UIH-074 and UIH-075.
+- `data-quality`: see `docs/mocks/wireframes/data-quality-annotation-ledger.md`; active table-baseline lint warnings are captured in UIH-074.
+- `frequent-fliers`: active table-baseline lint warnings are captured in UIH-074.
+- `login`: accepted text-overflow lint false positive is captured in UIH-073.
+- `my-profile`: active table-baseline and helper-paragraph lint warnings are captured in UIH-074 and UIH-075.
 - `offboarding`: no additional active annotations captured yet.
-- `onboarding`: no additional active annotations captured yet.
-- `phone-directory-by-department`: no additional active annotations captured yet.
-- `phone-directory-by-person`: active shared-header scope dropdown primitive reuse is captured in UIH-046.
-- `phone-directory-by-room`: no additional active annotations captured yet.
-- `reports`: no additional active annotations captured yet; latest runtime drawer feedback is captured in UIH-044.
+- `onboarding`: active table-baseline lint warnings are captured in UIH-074.
+- `phone-directory-by-department`: active table-baseline and wrapper/card/rail lint warnings are captured in UIH-074 and UIH-076.
+- `phone-directory-by-person`: active shared-header scope dropdown primitive reuse is captured in UIH-046; active table-baseline lint warnings are captured in UIH-074.
+- `phone-directory-by-room`: active table-baseline lint warnings are captured in UIH-074.
+- `reports`: active table-baseline lint warnings are captured in UIH-074; latest runtime drawer feedback is captured in UIH-044.
 - `reports-sync-transparency`: no additional active annotations captured yet.
-- `reports-ticketing-human-work`: no additional active annotations captured yet.
+- `reports-ticketing-human-work`: active table-baseline and helper-paragraph lint warnings are captured in UIH-074 and UIH-075.
 - `room-moves`: latest cancel/reversal behavior feedback is captured in UIH-052; latest bulk-draft room selector cleanup is captured in UIH-053; latest main-page table/action cleanup is captured in UIH-054; latest bulk-row author/table feedback is captured in UIH-055; latest bulk-row navigation and action-placement feedback is captured in UIH-056; latest empty-room phone outcome feedback is captured in UIH-057; latest action-label/mode feedback is captured in UIH-058; latest bulk draft helper-copy cleanup is captured in UIH-062.
 - `student-data-cleanup`: active shared-header scope dropdown annotation is captured in UIH-046; latest legacy invalid-name mock coverage is captured in UIH-045.
