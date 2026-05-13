@@ -98,7 +98,7 @@ Current code mostly exercises schema and retry behavior through tests. Future re
 
 ## HTTP Route Inventory
 
-`scripts/check_external_write_inventory.mjs` enumerates every currently known `POST`, `PUT`, `DELETE`, and future `PATCH` route that can write, plan a write, change local runtime state, or simulate a write. The check compares that route inventory with the backticked route bullets in this file.
+`scripts/check_external_write_inventory.mjs` derives every currently known `POST`, `PUT`, `DELETE`, and future `PATCH` route from the registered `internal/web` handlers, then compares those live mutating route boundaries with the backticked route bullets in this file.
 
 Routes that intentionally do not call a live provider today still need entries here. Their entries should state whether the route is an accepted no-op, a planned workflow boundary, a local-only mock mutation, a cookie/session mutation, or a future external-write boundary. If a future mutating route is intentionally exempt from the inventory, document it with a nearby explanation and an HTML comment in this exact form:
 
@@ -196,7 +196,8 @@ Update this file whenever code adds, removes, renames, or changes:
 
 For intentional mutating route changes:
 
-1. Update `scripts/check_external_write_inventory.mjs` so the route inventory includes the new, removed, renamed, or method-changed route.
+1. Update `internal/web` route handlers so the registered route and method branch accurately describe the new, removed, renamed, or method-changed route.
 2. Update the matching section in this file with a backticked bullet in `METHOD /path/{param}` form, plus the route owner, current side effect, provider/database impact, and whether the route is a live write, planned write boundary, local-only mock mutation, or documented exception.
 3. If the route is intentionally exempt, add the `external-write-inventory-exception` HTML comment next to the explanation instead of adding a normal route bullet.
-4. Run `npm run write-inventory:check` and `npm run write-inventory:test` before opening or updating the PR.
+4. If a new mutating handler shape cannot be derived from existing checker rules, update `scripts/check_external_write_inventory.mjs` so the live route derivation and route owner metadata cover that shape.
+5. Run `npm run write-inventory:check` and `npm run write-inventory:test` before opening or updating the PR. `make test` also runs the drift check so CI catches inventory drift.

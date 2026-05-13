@@ -13,7 +13,7 @@ up:
 down:
 	docker compose down
 
-test: deps-check test-unit test-contract test-integration
+test: deps-check write-inventory-check test-unit test-contract test-integration
 
 test-container:
 	$(DOCKER) run --rm \
