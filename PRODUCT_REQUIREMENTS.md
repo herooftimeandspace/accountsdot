@@ -323,6 +323,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - for same-site moves, the default destination room is the person’s current room when that room exists in the destination site
   - for inter-site moves, the destination room defaults to `None`
   - if a person is moving sites, the destination room should be set to none
+  - bulk-draft `add` rows clear current-room state because the person has no prior room association in that planned action
+  - bulk-draft `removal` rows save destination room as `None` because the planned action removes the person from room phones, shared line groups, and call queues at the site
 - Runtime detail placement:
   - execution rules and cutover-control guidance live in the Room Moves help drawer, not as fixed page-side panels
   - one-person move warnings appear in the right drawer

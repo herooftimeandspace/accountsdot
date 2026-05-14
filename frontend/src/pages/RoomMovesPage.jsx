@@ -25,8 +25,7 @@ const ROOM_MOVES_TABLE_COLUMNS = [
   { key: "state", label: "State", value: (row) => row.state },
 ];
 const BULK_COLUMNS = [
-  { key: "person", label: "Person", value: (row) => row.person },
-  { key: "email", label: "Email", value: (row) => row.email },
+  { key: "person", label: "Person", value: (row) => [row.person, row.email, row.phone].join(" ") },
   { key: "current_room", label: "Current Room", value: (row) => row.current_room },
   { key: "destination_site", label: "Destination Site", value: (row) => row.destination_site },
   { key: "destination_room", label: "Destination Room", value: (row) => row.destination_room },
@@ -164,6 +163,11 @@ function personAutocompleteLabel(person) {
   return `${person.name} · ${person.email} · ${person.employee_id}`;
 }
 
+function bulkPersonLabel(person) {
+  const extension = person.phone ? `ext ${person.phone}` : "no extension";
+  return `${person.name} · ${person.email} · ${extension}`;
+}
+
 /**
  * findPersonFromAutocompleteValue documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
@@ -183,9 +187,6 @@ function findPersonFromAutocompleteValue(people, value) {
   }) || null;
 }
 
-/**
- * defaultDestinationRoom builds derived data for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function defaultDestinationRoom(person, destinationSiteId) {
   if (!person) {
     return "none";
@@ -539,7 +540,9 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
   }, [dirty, effectiveDate, rows]);
 
   /**
-   * updateRow documents runtime data flow for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   * updateRow owns editable bulk-draft row state before saveBulkDraft sends it to the DEV mock API.
+   * The action branches mirror normalizeRoomMoveRows so selecting add/removal gives immediate visual feedback
+   * and the saved/reloaded draft keeps the same room-clearing semantics.
    */
   function updateRow(rowId, patch) {
     const nextRows = rows.map((row) => {
@@ -547,12 +550,14 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
         return row;
       }
       const next = { ...row, ...patch };
+      const action = next.action || "change";
       if (patch.person_id) {
         const person = page.people.find((candidate) => candidate.id === patch.person_id);
         if (person) {
           next.person = person.name;
           next.email = person.email;
           next.employee_id = person.employee_id;
+          next.phone = person.phone;
           next.current_site_id = person.site_id;
           next.current_site = person.site;
           next.current_room_id = person.current_room_id;
@@ -562,6 +567,13 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
           next.destination_room_id = person.current_room_id || "none";
           next.destination_room = person.current_room || "None";
         }
+      }
+      if (action === "add") {
+        next.current_room_id = "none";
+        next.current_room = "";
+      }
+      if (action === "removal") {
+        next.destination_room_id = "none";
       }
       const site = page.sites.find((candidate) => candidate.id === next.destination_site_id);
       const room = roomOptionsForSite(page.rooms, next.destination_site_id).find((candidate) => candidate.id === next.destination_room_id);
@@ -584,7 +596,10 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
         person_id: "",
         person: "Select person",
         email: "",
+        phone: "",
+        employee_id: "",
         current_room: "",
+        current_room_id: "none",
         destination_site_id: page.scope_site.id,
         destination_site: page.scope_site.name,
         destination_room_id: "none",
@@ -670,10 +685,9 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
             <select value={row.person_id} onChange={(event) => updateRow(row.id, { person_id: event.target.value })}>
               <option value="">Select person...</option>
               {page.people.map((person) => (
-                <option key={person.id} value={person.id}>{person.name} · {person.email} · {person.employee_id}</option>
+                <option key={person.id} value={person.id}>{bulkPersonLabel(person)}</option>
               ))}
             </select>
-            <div>{row.email || "—"}</div>
             <div>{row.current_room || "—"}</div>
             {page.can_manage_district ? (
               <select
@@ -708,7 +722,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
                 void cancelRow(row.id);
               }}
             >
-              Cancel Move
+              Remove
             </button>
           </div>
         ))}

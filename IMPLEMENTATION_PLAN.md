@@ -800,6 +800,8 @@
     - same-site moves default destination room to the person’s current room when available
     - inter-site moves default destination room to `None`
     - if a person is moving sites, the destination room should be set to none
+    - bulk-draft `add` rows represent adding a person to the selected destination without a prior room association, so current-room state must be blank/none after save and reload
+    - bulk-draft `removal` rows represent removing the person from all room phones, shared line groups, and call queues at the site, so destination room must save and reload as `None`
   - user-facing guidance placement:
     - Execution Rules and Cutover Controls copy belongs in the Room Moves help drawer
     - single-move warnings belong in right-drawer details
@@ -1783,6 +1785,8 @@
     - bulk copy-all current-room to new-room action
   - the Room Moves bulk draft page must show scoped site context, bulk mode label, effective date, warning bar, inline `Save Draft` button, sortable/searchable table, and schedule/apply/discard actions
   - manually built bulk drafts must support person lookup by email, name, or employee ID in each new row and must auto-populate the selected person’s current site, current room, destination site, and default destination room
+  - when a bulk-draft row action is changed to `add`, the row must clear current-room state because the planned action has no prior room association
+  - when a bulk-draft row action is changed to `removal`, the row must clear destination room to `None` because the planned action removes room phone, shared-line-group, and call-queue membership at the site
   - row-level `Remove` controls in bulk drafts must use the supported brand-red destructive styling
   - the phone-directory person-detail and room-detail surfaces must expose an authorized one-person corrective room-move entry point for site-scoped users when the current assignment is wrong
   - that corrective entry point must prefill the selected person, current room, current phone context, and site so the user can create a targeted correction without starting from the bulk editor

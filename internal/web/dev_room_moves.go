@@ -846,6 +846,9 @@ func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID
 		scopeSiteID = "clover-hs"
 	}
 	request := roomMoveDraftRequest{Mode: mode, ScopeSiteID: scopeSiteID}
+	if newID == "rm-draft-103" {
+		request.Rows = seededBulkDraftFeedbackRows()
+	}
 	draft, _, _ := buildRoomMoveDraft(config, newID, request)
 	s.drafts[draft.ID] = draft
 	return draft
@@ -904,7 +907,9 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 	}, http.StatusOK, nil
 }
 
-// normalizeRoomMoveRows normalizes source data for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// normalizeRoomMoveRows converts client-supplied draft rows into the canonical DEV mock payload saved by createDraft
+// and updateDraft. The action-specific branches are user-visible: add rows clear prior room state, and removal rows
+// always save destination room None so reloads continue to represent removal from room phones, SLGs, and queues.
 func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, rows []roomMoveDraftRow) ([]roomMoveDraftRow, []string, int, map[string]string) {
 	normalized := make([]roomMoveDraftRow, 0, len(rows))
 	warnings := []string{}
@@ -924,8 +929,14 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			destinationSiteID = scopeSite.ID
 		}
 		destinationSite := siteByID(destinationSiteID)
+		action := row.Action
+		if action == "" {
+			action = "change"
+		}
 		destinationRoomID := row.DestinationRoomID
-		if destinationSiteID != person.SiteID {
+		if action == "removal" {
+			destinationRoomID = "none"
+		} else if destinationSiteID != person.SiteID {
 			destinationRoomID = "none"
 		} else if destinationRoomID == "" {
 			destinationRoomID = person.CurrentRoomID
@@ -959,9 +970,11 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			manualActionReason = ""
 			warnings = appendUniqueString(warnings, warning)
 		}
-		action := row.Action
-		if action == "" {
-			action = "change"
+		currentRoomID := person.CurrentRoomID
+		currentRoom := person.CurrentRoom
+		if action == "add" {
+			currentRoomID = "none"
+			currentRoom = ""
 		}
 		normalized = append(normalized, roomMoveDraftRow{
 			ID:                 firstNonEmpty(row.ID, fmt.Sprintf("row-%02d-%s", index+1, person.ID)),
@@ -971,8 +984,8 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			EmployeeID:         person.EmployeeID,
 			CurrentSiteID:      person.SiteID,
 			CurrentSite:        person.Site,
-			CurrentRoomID:      person.CurrentRoomID,
-			CurrentRoom:        person.CurrentRoom,
+			CurrentRoomID:      currentRoomID,
+			CurrentRoom:        currentRoom,
 			DestinationSiteID:  destinationSiteID,
 			DestinationSite:    destinationSite.Name,
 			DestinationRoomID:  destinationRoomID,
@@ -989,6 +1002,28 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		})
 	}
 	return normalized, warnings, http.StatusOK, nil
+}
+
+// seededBulkDraftFeedbackRows keeps issue #55's browser-verification fixture stable for /room-moves/bulk-draft?draft_id=rm-draft-103.
+// The first row demonstrates add semantics with no previous room, and the second row demonstrates removal semantics
+// where the destination room is persisted as None after normalization.
+func seededBulkDraftFeedbackRows() []roomMoveDraftRow {
+	return []roomMoveDraftRow{
+		{
+			ID:                "row-alex-ramirez-add",
+			PersonID:          "alex-ramirez",
+			DestinationSiteID: "clover-hs",
+			DestinationRoomID: "cla-a104",
+			Action:            "add",
+		},
+		{
+			ID:                "row-morgan-lee-removal",
+			PersonID:          "morgan-lee",
+			DestinationSiteID: "clover-hs",
+			DestinationRoomID: "cla-b204",
+			Action:            "removal",
+		},
+	}
 }
 
 // roomMoveSummaryCards documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
