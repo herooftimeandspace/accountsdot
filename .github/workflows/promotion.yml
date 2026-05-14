@@ -1,0 +1,140 @@
+name: promotion
+
+on:
+  workflow_run:
+    workflows:
+      - quality
+    types:
+      - completed
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  promote-dev-to-staging:
+    name: promote dev to staging
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out validated dev revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Create or refresh promotion PR
+        env:
+          GH_PR_TOKEN: ${{ secrets.PROMOTION_PR_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_PR_TOKEN}" ]; then
+            echo "PROMOTION_PR_TOKEN is required so promotion PRs are not authored with github.token."
+            exit 1
+          fi
+
+          git fetch origin staging dev
+          if [ "$(git rev-list --count origin/staging..HEAD)" = "0" ]; then
+            echo "No commits between staging and validated dev; skipping promotion PR."
+            exit 0
+          fi
+
+          export GH_TOKEN="${GH_PR_TOKEN}"
+          existing_pr="$(gh pr list --repo "${GH_REPO}" --base staging --head dev --state open --json number --jq '.[0].number')"
+          title="Promote dev to staging"
+          body="$(cat <<EOF
+          Automated promotion PR from dev to staging.
+
+          Source commit: ${GH_SHA}
+          Source workflow: ${GH_WORKFLOW_URL}
+
+          Promotion requirements before merge:
+          - Confirm the dev gate passed on the source commit.
+          - Confirm every affected workflow bucket has clean dev evidence in the external IncidentIQ testing ticket.
+          - Confirm any write-capable bucket has a documented rollback path before staging validation starts.
+          EOF
+          )"
+
+          if [ -n "${existing_pr}" ]; then
+            gh pr edit "${existing_pr}" --repo "${GH_REPO}" --title "${title}" --body "${body}"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "${GH_REPO}" \
+            --base staging \
+            --head dev \
+            --title "${title}" \
+            --body "${body}"
+
+  promote-staging-to-main:
+    name: promote staging to main
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out validated staging revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Create or refresh promotion branch and PR
+        env:
+          GH_PR_TOKEN: ${{ secrets.PROMOTION_PR_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GH_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+          GH_PROMOTION_REF: promote/staging-to-main
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_PR_TOKEN}" ]; then
+            echo "PROMOTION_PR_TOKEN is required so promotion PRs are not authored with github.token."
+            exit 1
+          fi
+
+          git fetch origin main staging
+          if [ "$(git rev-list --count origin/main..HEAD)" = "0" ]; then
+            echo "No commits between main and validated staging; skipping promotion PR."
+            exit 0
+          fi
+
+          git push "https://x-access-token:${GH_PR_TOKEN}@github.com/${GH_REPO}.git" HEAD:"${GH_PROMOTION_REF}" --force
+
+          export GH_TOKEN="${GH_PR_TOKEN}"
+          existing_pr="$(gh pr list --repo "${GH_REPO}" --base main --head "${GH_PROMOTION_REF}" --state open --json number --jq '.[0].number')"
+          title="Promote staging to main"
+          body="$(cat <<EOF
+          Automated promotion PR from staging to main.
+
+          Source commit: ${GH_SHA}
+          Source workflow: ${GH_WORKFLOW_URL}
+
+          Main promotion readiness, to be completed before merge:
+          - External promotion runbook: REQUIRED BEFORE MERGE
+          - IncidentIQ testing ticket: REQUIRED BEFORE MERGE
+          - Release/deployment metadata: REQUIRED BEFORE MERGE
+          - Confirm staging gate passed on the source commit.
+          - Confirm all affected workflow buckets have clean staging evidence.
+          - Confirm production credentials, provider writes, rollback paths, and deployment packaging are approved outside this repository.
+
+          This repository does not currently define semver labels, package version files, or deployment manifests for The WIZARD. Add those product decisions in docs before teaching this workflow to mutate release/version metadata.
+          EOF
+          )"
+
+          if [ -n "${existing_pr}" ]; then
+            gh pr edit "${existing_pr}" --repo "${GH_REPO}" --title "${title}" --body "${body}"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "${GH_REPO}" \
+            --base main \
+            --head "${GH_PROMOTION_REF}" \
+            --title "${title}" \
+            --body "${body}"
