@@ -648,6 +648,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Allow draft save, review, scheduling, and commit.
 - Support add, change, and removal actions per person.
 - Support warnings, primary-teacher selection, null-room outcomes, and manual ticket fallback when automation cannot complete a phone assignment safely.
+- Primary-room conflicts are not a default manual-ticket path. When a destination room already has an active primary room owner, the Room Moves review drawer must explain the conflicting primary owner, keep the existing primary phone assignment unchanged, and identify the automated outcome as adding the moving user to that room shared line group. A manual action should appear only when automation cannot plan or verify the shared-line-group outcome safely, and then the drawer must name the owner, reason, resolution steps, and linked external systems.
 - Null-room outcomes are an automation path, not a manual review path:
   - remove the user from all assigned phones
   - remove the user from all shared line groups
