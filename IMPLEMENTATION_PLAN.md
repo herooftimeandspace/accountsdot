@@ -1530,12 +1530,16 @@
   - room equipment such as phones, TVs, and clock speakers remains assigned to the room and does not require person-level retrieval tracking
 - Departing Seniors page behavior:
   - expose a bare-bones `/departing-seniors` runtime page for IT Admin and Device Wrangler personas only
-  - list the current school year's senior class using the current graduation year, with rows refreshed each school year
-  - show student name, district email, graduation year, student ID, end date, status, and outstanding IncidentIQ devices with serial and asset ID
+  - list the current school year's senior class using Aeries school-year data to select the current graduation year by default
+  - retain the current senior year plus the four previous senior years for selectable historical review; older senior-year rows should not be returned by the DEV API or future retained projection
+  - show student name, district email, student ID, end date, status, and outstanding IncidentIQ devices with serial and asset ID; graduation year remains available in the selected school-year context and row detail but is not a default visible table column
+  - render each outstanding IncidentIQ device serial as a link to `https://{incidentiq_domain}/agent/assets/{asset_id}` when an asset id and domain are available; `No outstanding devices` is plain text
+  - keep device-return warning details in the row drawer rather than persistent table-cell helper copy
   - provide a per-row local end-date override date picker in DEV mock state
   - provide a per-row deprovision action; remove a row only after the account is deprovisioned and IncidentIQ reports no outstanding devices
   - keep deprovisioned rows visible when devices remain assigned, because the remaining work is device recovery rather than account removal
-  - use the shared runtime table search/sort primitive, with the search covering first name, last name, email address, graduation year, assigned asset serial, assigned asset ID, and student ID
+  - use the shared runtime table search/sort primitive, with the search covering first name, last name, email address, selected school year, assigned asset serial, assigned asset ID, and student ID
+  - selecting a row opens the shared right-hand drawer with the student's school-year context, account-retirement state, device-return details, and available IncidentIQ asset links
 
 ## Lifecycle Decisions
 - Most workflows should run automatically.

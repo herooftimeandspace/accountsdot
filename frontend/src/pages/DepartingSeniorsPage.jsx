@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -15,7 +16,10 @@ const DEPARTING_SENIORS_RECORDS_ENDPOINT = "/api/v1/dev/departing-seniors/record
 const DEPARTING_SENIORS_HEADING_ID = "departing-seniors-heading";
 
 /**
- * readJSON loads or decodes data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * readJSON normalizes DEV API fetch responses for this page. It returns the
+ * decoded payload for successful requests and attaches backend error payloads
+ * to thrown Error objects so page loaders and mutation handlers can route 401,
+ * 403, and field-validation failures correctly.
  */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
@@ -29,7 +33,9 @@ async function readJSON(response) {
 }
 
 /**
- * formatDate formats display data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * formatDate renders DEV date strings as district-readable calendar dates for
+ * table cells and drawer detail rows. Invalid fixture values are returned
+ * unchanged so bad mock data remains visible during debugging.
  */
 function formatDate(value) {
   if (!value) {
@@ -48,7 +54,9 @@ function formatDate(value) {
 }
 
 /**
- * deviceSummary documents runtime data flow for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * deviceSummary provides the searchable plain-text representation of a row's
+ * IncidentIQ devices. The rendered table uses serial links, but the shared
+ * search primitive needs a stable string containing serial and asset ids.
  */
 function deviceSummary(row) {
   const devices = row.outstanding_devices ?? [];
@@ -59,7 +67,17 @@ function deviceSummary(row) {
 }
 
 /**
- * statusClass formats display data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * shouldSelectRowFromTarget keeps the row drawer trigger off nested controls.
+ * Departing Seniors rows are clickable for drawer details, while device links,
+ * date inputs, and mutation buttons keep their own browser behavior.
+ */
+function shouldSelectRowFromTarget(target) {
+  return !target?.closest?.("a, button, input, select, textarea, label");
+}
+
+/**
+ * statusClass maps Departing Seniors status labels to the shared severity
+ * palette used by runtime table badges.
  */
 function statusClass(status) {
   if (["Ready", "Complete"].includes(status)) {
@@ -72,12 +90,14 @@ function statusClass(status) {
 }
 
 /**
- * collectGeneratedPaneNodeIds builds derived data for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * collectGeneratedPaneNodeIds hides the offboarding artboard body underneath
+ * the Departing Seniors runtime pane while leaving the shared shell visible.
  */
 function collectGeneratedPaneNodeIds(artboard) {
   const ids = [];
   /**
-   * visit documents runtime data flow for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   * visit walks generated nodes recursively because the .pen-derived artboard
+   * stores pane children at multiple depths.
    */
   const visit = (node) => {
     if (!node) {
@@ -95,7 +115,6 @@ function collectGeneratedPaneNodeIds(artboard) {
 const TABLE_COLUMNS = [
   { key: "last_name", label: "Student", value: (row) => row.display_name, sortValue: (row) => `${row.last_name} ${row.first_name}` },
   { key: "email", label: "Email", value: (row) => row.email },
-  { key: "graduation_year", label: "Grad Year", value: (row) => row.graduation_year },
   { key: "student_id", label: "Student ID", value: (row) => row.student_id },
   { key: "end_date", label: "End Date", value: (row) => formatDate(row.end_date), sortValue: (row) => row.end_date || "" },
   {
@@ -103,6 +122,7 @@ const TABLE_COLUMNS = [
     label: "IncidentIQ Devices",
     value: deviceSummary,
     searchValue: (row) => [
+      row.school_year,
       deviceSummary(row),
       ...(row.outstanding_devices ?? []).flatMap((device) => [device.asset_id, device.serial]),
     ],
@@ -111,9 +131,11 @@ const TABLE_COLUMNS = [
 ];
 
 /**
- * DepartingSeniorsTable renders the UI surface for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ * DepartingSeniorsTable renders the searchable row list and local DEV controls.
+ * The page passes DEV API mutation callbacks for end-date overrides and
+ * deprovisioning; selecting row whitespace opens the shared detail drawer.
  */
-function DepartingSeniorsTable({ rows, canManage, savingRowId, error, onSaveEndDate, onDeprovision }) {
+function DepartingSeniorsTable({ rows, canManage, savingRowId, selectedRowId, error, onSelectRow, onSaveEndDate, onDeprovision }) {
   const [dateDrafts, setDateDrafts] = useState({});
   const columns = useMemo(() => TABLE_COLUMNS, []);
   const table = useRuntimeTableData(rows, columns, {
@@ -139,7 +161,7 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, error, onSaveEndD
           value={table.searchQuery}
           onChange={table.setSearchQuery}
           label="Search departing seniors"
-          placeholder="Search by name, email, grad year, asset serial, asset ID, or student ID..."
+          placeholder="Search by name, email, school year, asset serial, asset ID, or student ID..."
         />
       </div>
       {error ? <p className="departing-seniors-runtime__error" role="alert">{error}</p> : null}
@@ -157,20 +179,43 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, error, onSaveEndD
           const dateValue = dateDrafts[row.id] ?? row.end_date ?? "";
           const hasDevices = (row.outstanding_devices ?? []).length > 0;
           return (
-            <div key={row.id} className="departing-seniors-runtime__row">
+            <div
+              key={row.id}
+              className={`departing-seniors-runtime__row ${
+                selectedRowId === row.id ? "departing-seniors-runtime__row--selected" : ""
+              }`}
+              onClick={(event) => {
+                if (shouldSelectRowFromTarget(event.target)) {
+                  onSelectRow(row);
+                }
+              }}
+            >
               <div>
-                <strong>{row.display_name}</strong>
+                <button
+                  type="button"
+                  className="departing-seniors-runtime__row-open"
+                  aria-label={`Open departing senior details for ${row.display_name}`}
+                  aria-pressed={selectedRowId === row.id}
+                  onClick={() => onSelectRow(row)}
+                >
+                  <strong>{row.display_name}</strong>
+                </button>
                 <span>{row.site}</span>
               </div>
               <div>{row.email}</div>
-              <div>{row.graduation_year}</div>
               <div>{row.student_id}</div>
               <div>{formatDate(row.end_date)}</div>
               <div className="departing-seniors-runtime__devices">
                 {hasDevices ? (
                   row.outstanding_devices.map((device) => (
                     <span key={`${row.id}-${device.asset_id}`}>
-                      {device.type}: {device.serial} / {device.asset_id}
+                      {device.asset_url ? (
+                        <a href={device.asset_url} target="_blank" rel="noreferrer">
+                          {device.serial}
+                        </a>
+                      ) : (
+                        device.serial
+                      )}
                     </span>
                   ))
                 ) : (
@@ -179,7 +224,6 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, error, onSaveEndD
               </div>
               <div>
                 <span className={statusClass(row.status)}>{row.status}</span>
-                {row.notes?.length ? <small>{row.notes[0]}</small> : null}
               </div>
               <div className="departing-seniors-runtime__date-control">
                 <input
@@ -216,29 +260,96 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, error, onSaveEndD
 }
 
 /**
- * DepartingSeniorsPage renders the UI surface for frontend/src/pages/DepartingSeniorsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * DepartingSeniorsDrawer shows the selected row's account-retirement and
+ * device-return detail in the shared right-hand drawer. Device serials link to
+ * IncidentIQ only when the DEV payload includes a concrete asset URL.
+ */
+function DepartingSeniorsDrawer({ row, schoolYear, onClose }) {
+  if (!row) {
+    return null;
+  }
+  const devices = row.outstanding_devices ?? [];
+  return (
+    <RuntimeDrawer title={row.display_name} onClose={onClose}>
+      <RuntimeDetailList
+        items={[
+          { label: "Status", value: row.status },
+          { label: "Email", value: row.email },
+          { label: "Student ID", value: row.student_id },
+          { label: "School year", value: schoolYear },
+          { label: "Graduation year", value: row.graduation_year },
+          { label: "Site", value: row.site },
+          { label: "End date", value: formatDate(row.end_date) },
+          { label: "End date source", value: row.end_date_source },
+        ]}
+      />
+      <div className="runtime-drawer__section">
+        <h3>Device return</h3>
+        {devices.length ? (
+          <ul className="departing-seniors-runtime__drawer-devices">
+            {devices.map((device) => (
+              <li key={`${row.id}-${device.asset_id || device.serial}`}>
+                <strong>{device.type}</strong>
+                {device.asset_url ? (
+                  <a href={device.asset_url} target="_blank" rel="noreferrer">
+                    {device.serial}
+                  </a>
+                ) : (
+                  <span>{device.serial}</span>
+                )}
+                {device.asset_id ? <span>{device.asset_id}</span> : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No outstanding devices</p>
+        )}
+      </div>
+      {row.notes?.length ? (
+        <div className="runtime-drawer__section">
+          <h3>Follow-up</h3>
+          {row.notes.map((note) => (
+            <p key={note}>{note}</p>
+          ))}
+        </div>
+      ) : null}
+    </RuntimeDrawer>
+  );
+}
+
+/**
+ * DepartingSeniorsPage owns the DEV data load, selected school-year state, and
+ * row drawer state for /departing-seniors. It reads the mock page payload from
+ * internal/web/dev_departing_seniors.go and sends only local DEV mutations for
+ * date overrides or mock deprovisioning.
  */
 export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuery = "", onUnauthorized, onForbidden }) {
   const [payload, setPayload] = useState(null);
   const [pageState, setPageState] = useState("loading");
   const [savingRowId, setSavingRowId] = useState("");
   const [error, setError] = useState("");
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState("");
+  const [selectedRow, setSelectedRow] = useState(null);
 
   const { artboard, status: artboardStatus } = useGeneratedArtboard("offboarding");
 
-  const loadPage = useCallback(async () => {
+  const loadPage = useCallback(async (schoolYear = "") => {
     setPageState("loading");
     setError("");
     try {
+      const endpoint = schoolYear
+        ? `${DEPARTING_SENIORS_ENDPOINT}?school_year=${encodeURIComponent(schoolYear)}`
+        : DEPARTING_SENIORS_ENDPOINT;
       const nextPayload = await devMeasureAsync("page-payload-fetch", { page: "departing-seniors" }, async () =>
         readJSON(
-          await fetch(DEPARTING_SENIORS_ENDPOINT, {
+          await fetch(endpoint, {
             credentials: "same-origin",
             headers: { Accept: "application/json" },
           })
         )
       );
       setPayload(nextPayload);
+      setSelectedSchoolYear(nextPayload.page?.school_year || "");
       setPageState("ready");
     } catch (loadError) {
       if (loadError.status === 401 && onUnauthorized) {
@@ -272,13 +383,13 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
           body: JSON.stringify({ end_date: endDate }),
         })
       );
-      await loadPage();
+      await loadPage(selectedSchoolYear);
     } catch (saveError) {
       setError(saveError.payload?.errors?.end_date || saveError.message);
     } finally {
       setSavingRowId("");
     }
-  }, [loadPage]);
+  }, [loadPage, selectedSchoolYear]);
 
   const handleDeprovision = useCallback(async (row) => {
     setSavingRowId(row.id);
@@ -291,13 +402,24 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
           headers: { Accept: "application/json" },
         })
       );
-      await loadPage();
+      await loadPage(selectedSchoolYear);
     } catch (saveError) {
       setError(saveError.message);
     } finally {
       setSavingRowId("");
     }
+  }, [loadPage, selectedSchoolYear]);
+
+  const handleSchoolYearChange = useCallback((event) => {
+    const nextSchoolYear = event.target.value;
+    setSelectedSchoolYear(nextSchoolYear);
+    setSelectedRow(null);
+    void loadPage(nextSchoolYear);
   }, [loadPage]);
+
+  const selectedPayloadRow = selectedRow
+    ? (payload?.page?.rows ?? []).find((row) => row.id === selectedRow.id) || selectedRow
+    : null;
 
   const generatedPaneNodeIds = useMemo(() => artboard ? collectGeneratedPaneNodeIds(artboard) : [], [artboard]);
   const textOverrides = useMemo(() => buildSharedShellTextOverrides(session), [session]);
@@ -331,24 +453,40 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
         <div className="departing-seniors-runtime__header">
           <div>
             <h1 id={DEPARTING_SENIORS_HEADING_ID}>{payload?.page?.title || "Departing Seniors"}</h1>
-            <p>{payload?.page?.description || "Current senior class account retirement review."}</p>
           </div>
           <div className="departing-seniors-runtime__year">
-            <span>School year</span>
-            <strong>{payload?.page?.school_year || "Current"}</strong>
+            <label htmlFor="departing-seniors-school-year">School year</label>
+            <select
+              id="departing-seniors-school-year"
+              value={selectedSchoolYear || payload?.page?.school_year || ""}
+              onChange={handleSchoolYearChange}
+            >
+              {(payload?.page?.school_year_options ?? []).map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}{option.current ? " (current)" : ""}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <DepartingSeniorsTable
           rows={payload?.page?.rows ?? []}
           canManage={Boolean(payload?.page?.can_manage)}
           savingRowId={savingRowId}
+          selectedRowId={selectedPayloadRow?.id}
           error={error}
+          onSelectRow={setSelectedRow}
           onSaveEndDate={handleSaveEndDate}
           onDeprovision={handleDeprovision}
         />
+        <DepartingSeniorsDrawer
+          row={selectedPayloadRow}
+          schoolYear={payload?.page?.school_year}
+          onClose={() => setSelectedRow(null)}
+        />
       </section>
     </>
-  ), [error, handleDeprovision, handleSaveEndDate, payload, savingRowId, sharedShellRenderOverlay]);
+  ), [error, handleDeprovision, handleSaveEndDate, handleSchoolYearChange, payload, savingRowId, selectedPayloadRow, selectedSchoolYear, sharedShellRenderOverlay]);
 
   if (artboardStatus === "loading" || pageState === "loading") {
     return (

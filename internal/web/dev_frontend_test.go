@@ -294,14 +294,22 @@ type offboardingResponse struct {
 type departingSeniorsResponse struct {
 	PageID string `json:"page_id"`
 	Page   struct {
-		CanManage      bool   `json:"can_manage"`
-		GraduationYear string `json:"graduation_year"`
-		Rows           []struct {
+		CanManage         bool   `json:"can_manage"`
+		SchoolYear        string `json:"school_year"`
+		GraduationYear    string `json:"graduation_year"`
+		SchoolYearOptions []struct {
+			ID             string `json:"id"`
+			Label          string `json:"label"`
+			GraduationYear string `json:"graduation_year"`
+			Current        bool   `json:"current"`
+		} `json:"school_year_options"`
+		Rows []struct {
 			ID                 string `json:"id"`
 			FirstName          string `json:"first_name"`
 			LastName           string `json:"last_name"`
 			Email              string `json:"email"`
 			StudentID          string `json:"student_id"`
+			SchoolYear         string `json:"school_year"`
 			GraduationYear     string `json:"graduation_year"`
 			EndDate            string `json:"end_date"`
 			EndDateSource      string `json:"end_date_source"`
@@ -310,9 +318,11 @@ type departingSeniorsResponse struct {
 			CanDeprovision     bool   `json:"can_deprovision"`
 			Deprovisioned      bool   `json:"deprovisioned"`
 			OutstandingDevices []struct {
-				AssetID string `json:"asset_id"`
-				Serial  string `json:"serial"`
-				Type    string `json:"type"`
+				AssetID  string `json:"asset_id"`
+				Serial   string `json:"serial"`
+				Type     string `json:"type"`
+				Domain   string `json:"domain"`
+				AssetURL string `json:"asset_url"`
 			} `json:"outstanding_devices"`
 		} `json:"rows"`
 	} `json:"page"`
@@ -1481,10 +1491,19 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if len(itPayload.Page.Rows) == 0 {
 			t.Fatal("expected current senior rows")
 		}
+		if itPayload.Page.SchoolYear == "" || len(itPayload.Page.SchoolYearOptions) != 5 {
+			t.Fatalf("school year options = %#v, selected = %q; want current plus four previous years", itPayload.Page.SchoolYearOptions, itPayload.Page.SchoolYear)
+		}
+		if !itPayload.Page.SchoolYearOptions[0].Current || itPayload.Page.SchoolYearOptions[0].ID != itPayload.Page.SchoolYear {
+			t.Fatalf("first school year option should be current selected year: %#v selected %q", itPayload.Page.SchoolYearOptions[0], itPayload.Page.SchoolYear)
+		}
 		foundDevice := false
 		for _, row := range itPayload.Page.Rows {
 			if row.GraduationYear != itPayload.Page.GraduationYear {
 				t.Fatalf("row graduation year = %s, page year = %s", row.GraduationYear, itPayload.Page.GraduationYear)
+			}
+			if row.SchoolYear != itPayload.Page.SchoolYear {
+				t.Fatalf("row school year = %s, page year = %s", row.SchoolYear, itPayload.Page.SchoolYear)
 			}
 			if row.Email == "" || row.StudentID == "" {
 				t.Fatalf("row missing searchable identity data: %#v", row)
@@ -1494,10 +1513,42 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 				if row.OutstandingDevices[0].AssetID == "" || row.OutstandingDevices[0].Serial == "" {
 					t.Fatalf("device row missing incidentiq identifiers: %#v", row.OutstandingDevices[0])
 				}
+				if row.OutstandingDevices[0].Domain == "" || !strings.Contains(row.OutstandingDevices[0].AssetURL, "/agent/assets/") {
+					t.Fatalf("device row missing incidentiq link data: %#v", row.OutstandingDevices[0])
+				}
 			}
 		}
 		if !foundDevice {
 			t.Fatal("expected at least one senior with outstanding IncidentIQ device data")
+		}
+
+		previousYear := itPayload.Page.SchoolYearOptions[1]
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year="+url.QueryEscape(previousYear.ID), nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("previous-year departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		previousPayload := decodeJSON[departingSeniorsResponse](t, rec)
+		if previousPayload.Page.SchoolYear != previousYear.ID || previousPayload.Page.GraduationYear != previousYear.GraduationYear {
+			t.Fatalf("previous-year selection = %s/%s, want %s/%s", previousPayload.Page.SchoolYear, previousPayload.Page.GraduationYear, previousYear.ID, previousYear.GraduationYear)
+		}
+		if len(previousPayload.Page.Rows) == 0 {
+			t.Fatal("expected retained previous senior rows")
+		}
+
+		expiredYear := "2020-2021"
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year="+url.QueryEscape(expiredYear), nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expired-year departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		expiredPayload := decodeJSON[departingSeniorsResponse](t, rec)
+		if expiredPayload.Page.SchoolYear == expiredYear || expiredPayload.Page.SchoolYear != itPayload.Page.SchoolYear {
+			t.Fatalf("expired school year selected %q, want fallback current %q", expiredPayload.Page.SchoolYear, itPayload.Page.SchoolYear)
 		}
 
 		deviceCookie := loginAsPersona(t, handler, "device_wrangler")

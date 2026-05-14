@@ -20,13 +20,21 @@ type departingSeniorsPagePayload struct {
 }
 
 type departingSeniorsPageContent struct {
-	Title          string                      `json:"title"`
-	Description    string                      `json:"description"`
-	LastRefreshed  string                      `json:"last_refreshed"`
-	SchoolYear     string                      `json:"school_year"`
-	GraduationYear string                      `json:"graduation_year"`
-	CanManage      bool                        `json:"can_manage"`
-	Rows           []departingSeniorRowPayload `json:"rows"`
+	Title             string                             `json:"title"`
+	Description       string                             `json:"description"`
+	LastRefreshed     string                             `json:"last_refreshed"`
+	SchoolYear        string                             `json:"school_year"`
+	SchoolYearOptions []departingSeniorsSchoolYearOption `json:"school_year_options"`
+	GraduationYear    string                             `json:"graduation_year"`
+	CanManage         bool                               `json:"can_manage"`
+	Rows              []departingSeniorRowPayload        `json:"rows"`
+}
+
+type departingSeniorsSchoolYearOption struct {
+	ID             string `json:"id"`
+	Label          string `json:"label"`
+	GraduationYear string `json:"graduation_year"`
+	Current        bool   `json:"current"`
 }
 
 type departingSeniorRowPayload struct {
@@ -38,6 +46,7 @@ type departingSeniorRowPayload struct {
 	StudentID          string                         `json:"student_id"`
 	SiteID             string                         `json:"site_id"`
 	Site               string                         `json:"site"`
+	SchoolYear         string                         `json:"school_year"`
 	GraduationYear     string                         `json:"graduation_year"`
 	EndDate            string                         `json:"end_date"`
 	EndDateSource      string                         `json:"end_date_source"`
@@ -50,9 +59,11 @@ type departingSeniorRowPayload struct {
 }
 
 type departingSeniorDevicePayload struct {
-	AssetID string `json:"asset_id"`
-	Serial  string `json:"serial"`
-	Type    string `json:"type"`
+	AssetID  string `json:"asset_id"`
+	Serial   string `json:"serial"`
+	Type     string `json:"type"`
+	Domain   string `json:"domain,omitempty"`
+	AssetURL string `json:"asset_url,omitempty"`
 }
 
 type departingSeniorsEndDateRequest struct {
@@ -87,7 +98,10 @@ type departingSeniorSeedRecord struct {
 	OutstandingDevices []departingSeniorDevicePayload
 }
 
-// newDevDepartingSeniorsStore builds the value used by internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// newDevDepartingSeniorsStore creates the in-memory DEV state used by the
+// Departing Seniors mock routes. The store holds only local override dates and
+// deprovision flags; live Aeries, Google, Zoom, and IncidentIQ records are not
+// mutated by this slice.
 func newDevDepartingSeniorsStore() *devDepartingSeniorsStoreState {
 	return &devDepartingSeniorsStoreState{
 		endDates:      map[string]string{},
@@ -95,7 +109,10 @@ func newDevDepartingSeniorsStore() *devDepartingSeniorsStoreState {
 	}
 }
 
-// handleDevDepartingSeniorsPage handles the request path for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// handleDevDepartingSeniorsPage serves the DEV JSON payload consumed by
+// DepartingSeniorsPage. It requires a logged-in IT Admin or Device Wrangler,
+// accepts an optional school_year query value, and returns only the current
+// senior year plus four retained previous senior years.
 func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -119,25 +136,30 @@ func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().UTC()
-	graduationYear := currentSeniorGraduationYear(now)
+	schoolYearOptions := departingSeniorsSchoolYearOptions(now)
+	selectedSchoolYear := selectedDepartingSeniorsSchoolYear(r.URL.Query().Get("school_year"), schoolYearOptions)
 	writeJSON(w, http.StatusOK, departingSeniorsPagePayload{
 		PageID:      "departing-seniors",
 		Persona:     config.Persona,
 		Shell:       config.Shell,
 		GeneratedAt: now.Format(time.RFC3339),
 		Page: departingSeniorsPageContent{
-			Title:          "Departing Seniors",
-			Description:    "Current senior class account retirement and outstanding IncidentIQ device review.",
-			LastRefreshed:  "Last refreshed:\nMay 8, 2026 9:00 AM PT",
-			SchoolYear:     currentSchoolYearLabel(now),
-			GraduationYear: graduationYear,
-			CanManage:      canUseDepartingSeniors(config),
-			Rows:           devDepartingSeniorsStore.rows(graduationYear),
+			Title:             "Departing Seniors",
+			Description:       "Current senior class account retirement and outstanding IncidentIQ device review.",
+			LastRefreshed:     "Last refreshed:\nMay 8, 2026 9:00 AM PT",
+			SchoolYear:        selectedSchoolYear.ID,
+			SchoolYearOptions: schoolYearOptions,
+			GraduationYear:    selectedSchoolYear.GraduationYear,
+			CanManage:         canUseDepartingSeniors(config),
+			Rows:              devDepartingSeniorsStore.rows(selectedSchoolYear.GraduationYear),
 		},
 	})
 }
 
-// handleDevDepartingSeniorRecord handles the request path for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// handleDevDepartingSeniorRecord applies IT/Admin or Device Wrangler mock
+// mutations for one departing-senior row. End-date updates and deprovision
+// requests change only devDepartingSeniorsStore so the UI can model future
+// operator behavior without touching live providers.
 func handleDevDepartingSeniorRecord(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() {
 		http.NotFound(w, r)
@@ -216,12 +238,16 @@ func handleDevDepartingSeniorRecord(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// canUseDepartingSeniors resolves decision data for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// canUseDepartingSeniors centralizes the persona gate shared by the page-load
+// and row-mutation routes. Departing Seniors is intentionally limited to IT
+// Admin and Device Wrangler in the DEV frontend slice.
 func canUseDepartingSeniors(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin" || config.Persona.ID == "device_wrangler"
 }
 
-// rows documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// rows builds the visible DEV table for one graduation year. Deprovisioned
+// students remain visible while assigned devices are still present, matching
+// the documented distinction between account retirement and device recovery.
 func (s *devDepartingSeniorsStoreState) rows(graduationYear string) []departingSeniorRowPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -239,7 +265,9 @@ func (s *devDepartingSeniorsStoreState) rows(graduationYear string) []departingS
 	return rows
 }
 
-// updateEndDate documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// updateEndDate stores or clears a local DEV override for a senior's planned
+// account-retirement date. The successful response returns the refreshed row;
+// invalid date input returns a field error and leaves the mock store unchanged.
 func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (departingSeniorRowPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -262,7 +290,9 @@ func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (
 	return s.rowPayloadLocked(record), http.StatusOK, nil
 }
 
-// deprovision documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// deprovision marks a DEV senior account as deprovisioned. Rows with no
+// outstanding devices are removed from the visible payload, while rows with
+// devices stay visible so operators can keep working the return queue.
 func (s *devDepartingSeniorsStoreState) deprovision(id string) (departingSeniorRowPayload, bool, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -279,7 +309,9 @@ func (s *devDepartingSeniorsStoreState) deprovision(id string) (departingSeniorR
 	return s.rowPayloadLocked(record), false, http.StatusOK
 }
 
-// rowPayloadLocked documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// rowPayloadLocked converts one immutable seed record plus local DEV mutation
+// state into the JSON row consumed by the React table and drawer. Callers must
+// hold s.mu so date overrides and deprovision flags are read consistently.
 func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorSeedRecord) departingSeniorRowPayload {
 	endDate := record.EndDate
 	endDateSource := "Aeries senior class default"
@@ -298,6 +330,14 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 		status = "Device return required"
 		notes = append(notes, "Outstanding IncidentIQ devices must be returned before this student leaves the list after deprovisioning.")
 	}
+	devices := make([]departingSeniorDevicePayload, 0, len(record.OutstandingDevices))
+	for _, device := range record.OutstandingDevices {
+		if device.Domain == "" && device.AssetID != "" {
+			device.Domain = "wusd.incidentiq.com"
+		}
+		device.AssetURL = incidentIQAssetURL(device.Domain, device.AssetID)
+		devices = append(devices, device)
+	}
 
 	return departingSeniorRowPayload{
 		ID:                 record.ID,
@@ -308,11 +348,12 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 		StudentID:          record.StudentID,
 		SiteID:             record.SiteID,
 		Site:               record.Site,
+		SchoolYear:         schoolYearLabelForGraduationYearString(record.GraduationYear),
 		GraduationYear:     record.GraduationYear,
 		EndDate:            endDate,
 		EndDateSource:      endDateSource,
 		Status:             status,
-		OutstandingDevices: append([]departingSeniorDevicePayload(nil), record.OutstandingDevices...),
+		OutstandingDevices: devices,
 		CanOverrideEndDate: true,
 		CanDeprovision:     !deprovisioned,
 		Deprovisioned:      deprovisioned,
@@ -320,7 +361,9 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 	}
 }
 
-// currentSeniorGraduationYear documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// currentSeniorGraduationYear derives the current senior graduation year from
+// the active Aeries-style school-year boundary. August starts the next school
+// year, so seniors after that boundary graduate in the following calendar year.
 func currentSeniorGraduationYear(now time.Time) string {
 	year := now.Year()
 	if now.Month() >= time.August {
@@ -329,7 +372,8 @@ func currentSeniorGraduationYear(now time.Time) string {
 	return strconv.Itoa(year)
 }
 
-// currentSchoolYearLabel documents the data flow for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// currentSchoolYearLabel returns the Aeries-style school-year label that should
+// be selected by default on the Departing Seniors page.
 func currentSchoolYearLabel(now time.Time) string {
 	year := now.Year()
 	if now.Month() >= time.August {
@@ -338,7 +382,72 @@ func currentSchoolYearLabel(now time.Time) string {
 	return strconv.Itoa(year-1) + "-" + strconv.Itoa(year)
 }
 
-// findDepartingSeniorSeedRecord resolves decision data for internal/web/dev_departing_seniors.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// departingSeniorsSchoolYearOptions exposes the current senior year and four
+// retained previous senior years for the page dropdown. The generated list is
+// intentionally bounded so old senior cohorts cannot leak back into DEV API
+// responses once they fall outside the documented retention window.
+func departingSeniorsSchoolYearOptions(now time.Time) []departingSeniorsSchoolYearOption {
+	currentGraduationYear, _ := strconv.Atoi(currentSeniorGraduationYear(now))
+	options := make([]departingSeniorsSchoolYearOption, 0, 5)
+	for graduationYear := currentGraduationYear; graduationYear >= currentGraduationYear-4; graduationYear-- {
+		options = append(options, departingSeniorsSchoolYearOption{
+			ID:             schoolYearLabelForGraduationYear(graduationYear),
+			Label:          schoolYearLabelForGraduationYear(graduationYear),
+			GraduationYear: strconv.Itoa(graduationYear),
+			Current:        graduationYear == currentGraduationYear,
+		})
+	}
+	return options
+}
+
+// selectedDepartingSeniorsSchoolYear validates a requested school-year id
+// against the retained option list. Unknown or expired values fall back to the
+// current Aeries-derived senior year rather than returning stale cohorts.
+func selectedDepartingSeniorsSchoolYear(requested string, options []departingSeniorsSchoolYearOption) departingSeniorsSchoolYearOption {
+	for _, option := range options {
+		if option.ID == requested {
+			return option
+		}
+	}
+	for _, option := range options {
+		if option.Current {
+			return option
+		}
+	}
+	return options[0]
+}
+
+// schoolYearLabelForGraduationYear formats the district school year attached
+// to a graduating senior cohort. A 2026 senior belongs to school year
+// 2025-2026.
+func schoolYearLabelForGraduationYear(graduationYear int) string {
+	return strconv.Itoa(graduationYear-1) + "-" + strconv.Itoa(graduationYear)
+}
+
+// schoolYearLabelForGraduationYearString is the defensive string wrapper used
+// when seed rows are converted to payload rows. Bad fixture data returns an
+// empty label so tests can catch missing school-year context.
+func schoolYearLabelForGraduationYearString(graduationYear string) string {
+	parsed, err := strconv.Atoi(graduationYear)
+	if err != nil {
+		return ""
+	}
+	return schoolYearLabelForGraduationYear(parsed)
+}
+
+// incidentIQAssetURL builds the DEV asset deep link shown in the table and
+// drawer. Empty asset ids or domains return an empty URL so the frontend can
+// render plain text instead of an invalid external link.
+func incidentIQAssetURL(domain string, assetID string) string {
+	if strings.TrimSpace(domain) == "" || strings.TrimSpace(assetID) == "" {
+		return ""
+	}
+	return "https://" + strings.TrimSpace(domain) + "/agent/assets/" + strings.TrimSpace(assetID)
+}
+
+// findDepartingSeniorSeedRecord looks up a seed row for row-level DEV
+// mutations. It searches all retained and fixture-only seed records so mutation
+// routes can return 404 only when the row id is truly unknown.
 func findDepartingSeniorSeedRecord(id string) (departingSeniorSeedRecord, bool) {
 	for _, record := range devDepartingSeniorSeedRecords {
 		if record.ID == id {
@@ -399,5 +508,41 @@ var devDepartingSeniorSeedRecords = []departingSeniorSeedRecord{
 		Site:           "Desert View",
 		GraduationYear: "2026",
 		EndDate:        "2026-06-05",
+	},
+	{
+		ID:             "senior-ava-rodriguez-2025",
+		FirstName:      "Ava",
+		LastName:       "Rodriguez",
+		Email:          "ava.rodriguez@stu.wusd.org",
+		StudentID:      "S-2025-09017",
+		SiteID:         "clover-hs",
+		Site:           "Clover HS",
+		GraduationYear: "2025",
+		EndDate:        "2025-06-06",
+		OutstandingDevices: []departingSeniorDevicePayload{
+			{AssetID: "IIQ-100512", Serial: "CB-CLA-22-10255", Type: "Chromebook"},
+		},
+	},
+	{
+		ID:             "senior-noah-kim-2024",
+		FirstName:      "Noah",
+		LastName:       "Kim",
+		Email:          "noah.kim@stu.wusd.org",
+		StudentID:      "S-2024-08444",
+		SiteID:         "desert-view",
+		Site:           "Desert View",
+		GraduationYear: "2024",
+		EndDate:        "2024-06-07",
+	},
+	{
+		ID:             "senior-zoe-patel-2021",
+		FirstName:      "Zoe",
+		LastName:       "Patel",
+		Email:          "zoe.patel@stu.wusd.org",
+		StudentID:      "S-2021-07111",
+		SiteID:         "clover-hs",
+		Site:           "Clover HS",
+		GraduationYear: "2021",
+		EndDate:        "2021-06-04",
 	},
 }
