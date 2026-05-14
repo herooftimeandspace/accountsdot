@@ -555,6 +555,7 @@
 - Success gates:
   - HR, site staff, Device Wranglers, and IT can answer current-state lifecycle questions from the dashboard without relying on hand-maintained sheets
   - source conflicts and missing data surface to the right non-IT owner with correct scope controls
+  - actionable data-quality issues are routed to the owner surface where the correcting team already works, while `/data-quality` remains the IT Admin district-wide awareness and escalation surface
   - phone directory data is API-driven without CSV upload dependence and is available to every logged-in authorized role with correct scope
   - Frequent Fliers is usable as a live dashboard surface in place of its legacy emailed/sheet-based visibility workflow
   - room-move drafts can be created and validated ahead of execution without requiring the transfer engine to be live yet, with IT able to create district-wide drafts at the same time site-scoped users create site drafts
@@ -574,10 +575,12 @@
     - conflict-surfacing evidence showing no silent normalization
     - projection-refresh evidence after successful import
     - evidence that projection-backed read surfaces expose freshness context without requiring live provider calls for list rendering
+    - data-quality routing evidence showing each issue family declares one owner role and one primary corrective route
   - `1B` onboarding/offboarding visibility plus HR/IT mismatch queues in review-only mode
     - scope evidence for HR, Site Admin, and IT review surfaces
     - queue ownership evidence for review-only operational handling
     - review-only evidence showing no write controls are available in this phase
+    - evidence that HR/onboarding-owned data-quality blockers appear inline on the affected lifecycle record and are not discoverable only through `/data-quality`
   - `1C` phone directory visibility surfaces
     - runtime evidence for person-centric, room-centric, and department-centric synced views
     - evidence that site default and cross-site lookup behavior matches scope rules
@@ -591,6 +594,7 @@
     - site-secretary scope evidence
     - invalid-name detail evidence including secretary-friendly current/suggested first-name and last-name labels, source-value preservation, suggested correction, and Aeries base-site link behavior
     - student-denial evidence for this dashboard surface
+    - evidence that student-name data-quality issues remain owned by `/student-data-cleanup` for the scoped site operator while `/data-quality` only summarizes them for IT Admin
   - `1E` Frequent Fliers visibility
     - runtime evidence of threshold/lookback behavior
     - site-scope evidence for Device Wranglers and Site Admins
@@ -606,10 +610,12 @@
     - `P1-1A-002` Source Conflict Surfaces Without Silent Normalization
     - `P1-1A-003` Projection Refresh After Successful Import
     - `P1-1A-004` Projection Backed Lists Expose Freshness Context
+    - `P1-1A-005` Data Quality Issues Declare Owner And Corrective Route
   - `1B` onboarding/offboarding visibility and review-only mismatch queues
     - `P1-1B-001` HR District-Wide Onboarding Visibility
     - `P1-1B-002` Site-Scoped Administrative Visibility
     - `P1-1B-003` Review-Only Google Active Aeries Inactive Queue
+    - `P1-1B-004` Onboarding Blockers Surface On Affected Lifecycle Row
   - `1C` phone directory visibility surfaces
     - `P1-1C-001` Phone Directory Person View Uses Synced Provider Data
     - `P1-1C-002` Phone Directory Room View Uses Synced Provider Data
@@ -626,6 +632,8 @@
     - `P1-1D-002` Suggested Corrected Name And Aeries Link
     - `P1-1D-003` Student Login Denied For Invalid-Name Dashboard
     - `P1-1D-004` Invalid-Name Review Stays On Dedicated Screen
+    - `P1-1D-005` Invalid-Name Queue Uses Separate Name Fields And Student-ID Sort
+    - `P1-1D-006` Student Name Issues Summarize To Data Quality Without Moving Ownership
   - `1E` Frequent Fliers visibility
     - `P1-1E-001` Frequent Fliers Threshold And Lookback Default
     - `P1-1E-002` Device Wrangler Site Scope
@@ -1512,6 +1520,7 @@
   - show upcoming offboarding processes
   - focus status on the person rather than on a spreadsheet row
   - expose where each person currently is in the lifecycle and what steps remain
+  - show onboarding-blocking data-quality issues inline on the affected person row or drawer when the onboarding operator owns the correction, rather than requiring that operator to discover the blocker through `/data-quality`
   - for the implemented pre-phase 0 Onboarding page, show selected person workflow details in a right-hand drawer that opens only after a row click, updates when another row is clicked, and closes from the drawer `X`
   - for the implemented pre-phase 0 Offboarding page, use the same shared right-hand drawer primitive for selected offboarding rows; fixed side-panel Queue Actions content moves into per-row drawer actions
   - the onboarding table's first column is `Date Added`, defined as first Escape import, Escape inactive-to-active reactivation, or manual Non-Escape creation
@@ -1975,6 +1984,26 @@
 - Fixed right-side report detail cards from the source artboard are hidden in the live runtime page. Row details belong in the shared right-hand drawer so Reports follows the same row-open, row-update, and close behavior as other implemented pages.
 - Report rows open a drawer with report-specific scope, source systems, included data, open-item count, last run, refresh frequency, status, and a concise explanation. The drawer `Open Report` action routes to the owning implemented page or report route.
 - Provider refresh rows open the same drawer primitive with source, last refresh, health status, and refresh details. Refresh rows are informational and do not provide navigation actions in this DEV slice.
+
+## Actionable Data Quality Ownership Model
+- `/data-quality` is the IT Admin district-wide awareness and escalation dashboard for upstream data issues. It summarizes issue families, owner roles, sources, oldest age, blocked workflow impact, and escalation state.
+- `/data-quality` must not become the only work queue where HR, Site Secretary, Site Admin, or other non-IT operators discover data corrections they own.
+- Every data-quality issue type must declare a primary corrective owner and primary corrective route. A row may be visible in multiple places for awareness, but only one surface is the primary workflow for doing the correction.
+- Owner surfaces:
+  - `/onboarding` owns person-specific onboarding blockers, including missing mandatory HR intake fields, incomplete manual Non-Escape records, room-needed blockers, hardware choice, Windows/Mac choice, and active employee/contractor collisions.
+  - `/student-data-cleanup` owns active student Aeries name-field issues and similar student-record source corrections. Site Secretary users see site-scoped rows; IT Admin may see all rows or district summaries for awareness.
+  - HR lifecycle surfaces such as `/onboarding`, `/offboarding`, or future HR-owned queues own staff source-record issues such as Escape site conflicts, missing end dates, invalid manual contractor fields, and inactive/reactivation source ambiguity.
+  - `/admin` owns IT configuration fixes such as title/category mappings, provisioning profiles, Zoom SAML mappings, sync cadence, exception lists, and feature flags.
+- Initial routing rules:
+  - `Unmapped job title`: route to `/admin` when the raw title is valid but unmapped; route to HR source correction when the raw title is wrong.
+  - `Missing mandatory onboarding field` and `Manual Non-Escape incomplete record`: route to `/onboarding`.
+  - `Student invalid name`: route to `/student-data-cleanup`.
+  - `Room mismatch` or `missing room context`: route to `/room-moves`, a phone-directory corrective draft, or the onboarding drawer based on the affected workflow; HR owns the issue when the Escape assignment source is wrong.
+  - `Escape site-field conflict`: route to an HR-owned lifecycle or onboarding detail surface and show blocked baseline/site-selection impact in `/data-quality`.
+  - `Google-active / Aeries-inactive`: route to the IT-owned security or lifecycle queue/report rather than treating generic Data Quality as the primary work surface.
+  - `Provider sync failure`, `stale projection`, or `schedule overlap`: route to `/admin` for cadence/settings or `/reports` for inspection, and show in `/data-quality` only when the condition creates data-trust risk.
+- Data-quality projection records should carry routing metadata for future implementation: `owner_role`, `source_system`, `issue_family`, `blocking_workflow`, `primary_corrective_route`, `primary_corrective_action`, `escalation_state`, `last_observed_at`, and `age`.
+- Duplicated awareness is acceptable when it helps IT understand district-wide risk. Duplicated work queues are not acceptable because they obscure ownership and make operators resolve the same issue from multiple places.
 
 ## Non-Deterministic Overrides
 - Certain fields are explicitly non-deterministic and may be updated by authorized users even when they are not authoritative in upstream systems.

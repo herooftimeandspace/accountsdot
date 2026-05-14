@@ -268,6 +268,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Success gates:
   - operators can answer in-scope visibility questions without relying on hand-maintained sheets
   - data-quality issues surface to the correct owners with correct site/role scoping
+  - data-quality issues that require action appear on the page owned by the team that can correct the upstream record or configuration, while `/data-quality` remains the IT Admin district-wide awareness and escalation view
   - phone directory visibility is API-driven rather than CSV-upload driven
   - Frequent Fliers is usable as a live dashboard replacement for its legacy emailed/sheet-based visibility workflow
   - room-move drafts are available as planning/validation artifacts before move execution automation is live, with IT able to create district-wide drafts in the same phase
@@ -813,6 +814,22 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - The `Data Quality` refresh control should render as a Vegas Gold primary action and, when used, should re-collect the full current set of Data Quality issues for the page rather than performing a cosmetic-only refresh.
 - `Next Action` values in the `Data Quality` queue should link directly to the page where the corrective action can be taken whenever an in-app destination exists.
 - If no in-app destination exists for a `Next Action`, the row should render the action as `{Action} in {system}` and link to the top-level external system only when that destination has been defined.
+- `/data-quality` is the IT Admin district-wide awareness and escalation dashboard for upstream data issues. It summarizes issue families, owners, counts, age, blocked workflow impact, and escalation state, but it must not become the only operational queue for HR, Site Secretary, Site Admin, or other non-IT owners.
+- The primary corrective queue for a data-quality issue must live on the page owned by the team that can correct the upstream record or configuration:
+  - `/onboarding` owns person-specific onboarding blockers such as missing mandatory HR intake fields, incomplete manual Non-Escape records, room-needed blockers, hardware choice, Windows/Mac choice, and active employee/contractor collisions.
+  - `/student-data-cleanup` owns active student Aeries name-field issues and similar student-record corrections. Site Secretary users see their site-scoped rows, and IT Admin may see district-wide summary or all-row visibility, but the operational owner remains the Aeries correction path.
+  - HR lifecycle surfaces such as `/onboarding`, `/offboarding`, or future HR-owned queues own staff source-record issues such as Escape site conflicts, missing end dates, invalid manual contractor fields, and inactive/reactivation ambiguity.
+  - `/admin` owns IT configuration fixes such as title/category mappings, provisioning profiles, Zoom SAML mappings, sync cadence, exception lists, and feature flags. Data Quality may link to `/admin` only when the correction is genuinely a configuration change.
+- A data-quality issue may be visible in more than one place for awareness, but only one route is the primary corrective workflow. Duplicated awareness is acceptable; duplicated work queues are not.
+- Data Quality records should carry owner-routing metadata sufficient to drive those surfaces, including `owner_role`, `source_system`, `issue_family`, `blocking_workflow`, `primary_corrective_route`, `primary_corrective_action`, `escalation_state`, `last_observed_at`, and `age`.
+- Initial data-quality routing rules:
+  - `Unmapped job title`: route to `/admin` when the raw title is valid but unmapped; route to HR source correction when the raw title is wrong. `/data-quality` shows count, age, blocked users, and the appropriate route.
+  - `Missing mandatory onboarding field` and `Manual Non-Escape incomplete record`: route to `/onboarding`; `/data-quality` is awareness only.
+  - `Student invalid name`: route to `/student-data-cleanup`; `/data-quality` shows district-wide count and aging summary.
+  - `Room mismatch` or `missing room context`: route to `/room-moves`, a phone-directory corrective draft, or the onboarding drawer based on the affected workflow; HR owns the issue when the Escape assignment source is wrong.
+  - `Escape site-field conflict`: route to an HR-owned lifecycle or onboarding detail surface and show blocked baseline/site-selection impact in `/data-quality`.
+  - `Google-active / Aeries-inactive`: route to the IT-owned security or lifecycle queue/report rather than treating generic Data Quality as the primary work surface.
+  - `Provider sync failure`, `stale projection`, or `schedule overlap`: route to `/admin` for cadence/settings or `/reports` for inspection, and show in `/data-quality` only when the condition creates data-trust risk.
 - The implemented `Support` affordance should treat the question-mark icon and the `Support` label as one action target that launches IncidentIQ ticket creation.
 - Extension values shown anywhere in the phone directory must be numeric-only.
 - Do not render letters inside extension values.

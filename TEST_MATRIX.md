@@ -104,10 +104,12 @@ This document tracks the named mock scenarios and verification coverage required
     - conflict-surfacing evidence showing no silent normalization
     - projection-refresh evidence after successful import
     - evidence that projection-backed read surfaces expose freshness context without requiring live provider fan-out for list rendering
+    - data-quality routing evidence showing each issue family declares one owner role and one primary corrective route
   - `1B` onboarding/offboarding visibility and review-only mismatch queues
     - scope evidence for HR, Site Admin, and IT review surfaces
     - queue ownership evidence for review-only operational handling
     - review-only evidence showing no write controls are available in this phase
+    - evidence that HR/onboarding-owned data-quality blockers appear on the affected lifecycle row or drawer rather than being discoverable only through `/data-quality`
   - `1C` phone directory visibility surfaces
     - runtime evidence for person-centric, room-centric, and department-centric synced views
     - evidence that site default and cross-site lookup behavior matches scope rules
@@ -125,6 +127,7 @@ This document tracks the named mock scenarios and verification coverage required
     - invalid-name detail evidence including suggested correction and Aeries link
     - student-denial evidence for this dashboard surface
     - evidence that invalid-name review is a dedicated screen and does not co-render Frequent Fliers
+    - evidence that student-name data-quality issues remain owned by `/student-data-cleanup` for scoped operators while `/data-quality` only summarizes them for IT Admin
 - `1E` Frequent Fliers visibility
     - runtime evidence of threshold/lookback behavior
     - site-scope evidence for Device Wranglers and Site Admins
@@ -142,12 +145,14 @@ This document tracks the named mock scenarios and verification coverage required
   | `P1-1A-002` | Source Conflict Surfaces Without Silent Normalization | Feed conflicting upstream values and verify the dashboard surfaces the conflict rather than normalizing it away. | Confirm staging conflict handling produces owned review surfaces, not silent drift. |
   | `P1-1A-003` | Projection Refresh After Successful Import | Verify successful import refreshes the visible read model without manual rebuild steps. | Confirm staging projections refresh after completed sync/import runs. |
   | `P1-1A-004` | Projection Backed Lists Expose Freshness Context | Verify projection-backed dashboard and queue surfaces show last-sync or equivalent freshness context without requiring live provider calls for the list view itself. | Confirm staging list and queue surfaces expose the same freshness context while remaining projection-backed. |
+  | `P1-1A-005` | Data Quality Issues Declare Owner And Corrective Route | Verify each data-quality issue family exposes an owner role, primary corrective route, primary corrective action, and escalation state so actionable work lands on the owner surface rather than a generic IT-only queue. | Confirm staging uses the same owner routing metadata to drive corrective destinations and district-wide IT awareness. |
 - `1B` onboarding/offboarding visibility and review-only mismatch queues
   | Scenario ID | Scenario Name | Operational Owner | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- | --- |
   | `P1-1B-001` | HR District-Wide Onboarding Visibility | `HR` | Verify HR can see district-wide onboarding/offboarding status including sensitive fields. | Confirm staging HR visibility and redaction boundaries match spec. |
   | `P1-1B-002` | Site-Scoped Administrative Visibility | `Site Admin` | Verify site admins see only their site-scoped records and approved fields. | Confirm staging site scoping prevents cross-site leakage. |
   | `P1-1B-003` | Review-Only Google Active Aeries Inactive Queue | `IT Admin` | Verify the queue is visible in review-only mode with no write actions enabled in Phase 1. | Confirm staging queue ownership and review-only behavior match the phase boundary. |
+  | `P1-1B-004` | Onboarding Blockers Surface On Affected Lifecycle Row | `HR` | Verify missing mandatory onboarding fields, incomplete manual Non-Escape records, and other onboarding-owned data-quality blockers appear on the affected onboarding row or drawer, while `/data-quality` summarizes rather than owns the work. | Confirm staging keeps onboarding-owned blockers actionable from the lifecycle surface with IT summary visibility only. |
 - `1C` phone directory visibility surfaces
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
@@ -169,6 +174,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P1-1D-003` | Student Login Denied For Invalid-Name Dashboard | `Site Secretary` | Verify student identities cannot access the dashboard surface. | Confirm staging enforces staff-only access against this workflow. |
   | `P1-1D-004` | Invalid-Name Review Stays On Dedicated Screen | `Site Secretary` | Verify the invalid-name dashboard does not co-render Frequent Fliers content on the same screen. | Confirm staging keeps invalid-name review as its own dedicated surface. |
   | `P1-1D-005` | Invalid-Name Queue Uses Separate Name Fields And Student-ID Sort | `Site Secretary` | Verify the queue validates separate Aeries `FirstName` and `LastName` fields, never flags missing-comma conditions, renders the human-readable name as `FirstName LastName`, and sorts rows ascending by `Student ID`. | Confirm staging preserves separate-field validation semantics and ascending `Student ID` ordering. |
+  | `P1-1D-006` | Student Name Issues Summarize To Data Quality Without Moving Ownership | `Site Secretary` | Verify student invalid-name issues remain actionable on `/student-data-cleanup` for scoped site operators and appear on `/data-quality` only as IT Admin district-wide awareness. | Confirm staging preserves site-scoped ownership while still giving IT Admin district-wide issue visibility. |
 - `1E` Frequent Fliers visibility
   | Scenario ID | Scenario Name | Operational Owner | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- | --- |
