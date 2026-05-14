@@ -1,6 +1,7 @@
 import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
 import { devMark, devMeasureAsync } from "./lib/devPerformance";
+import { errorStatusCodeFor } from "./lib/errorStatus.mjs";
 import { prefetchArtboards } from "./lib/generatedArtboards";
 import { artboardKeysForAllowedRoutes, isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
 
@@ -497,7 +498,7 @@ export function App() {
   } else if (sessionState === "error") {
     page = (
       <ErrorPage
-        code={500}
+        code={errorStatusCodeFor(sessionError)}
         session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}
