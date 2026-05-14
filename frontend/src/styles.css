@@ -376,7 +376,7 @@ input {
   white-space: nowrap;
 }
 
-.shared-shell-refresh-meta {
+.shared-shell-page-sync__meta {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -387,18 +387,60 @@ input {
   text-align: right;
 }
 
-.shared-shell-refresh-meta__label {
+.shared-shell-page-sync__label {
   color: var(--color-accent-deep-navy);
   font-size: 10px;
   font-weight: 700;
   line-height: 1.05;
 }
 
-.shared-shell-refresh-meta__value {
+.shared-shell-page-sync__value,
+.shared-shell-page-sync__next {
   color: var(--color-accent-deep-navy);
   font-size: 10px;
   font-weight: 500;
   line-height: 1.1;
+}
+
+.shared-shell-page-sync__next {
+  font-size: 9px;
+  color: var(--color-accent-slate);
+}
+
+.shared-shell-page-sync__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(1, 22, 30, 0.18);
+  border-radius: 8px;
+  padding: 0 16px;
+  color: var(--color-text);
+  font: 700 14px/1.1 "Atkinson Hyperlegible", Arial, Helvetica, sans-serif;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.shared-shell-page-sync__button--primary {
+  background: var(--color-highlight);
+}
+
+.shared-shell-page-sync__button--static-visual {
+  border-color: transparent;
+  background: transparent;
+}
+
+.shared-shell-page-sync__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.shared-shell-page-sync__button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
 .runtime-row-hotspot {
@@ -2337,7 +2379,6 @@ input {
   line-height: 1.35;
 }
 
-.student-data-runtime__sync,
 .student-data-runtime__toolbar button,
 .student-data-runtime__aeries-link {
   display: inline-flex;
@@ -2353,11 +2394,6 @@ input {
   text-align: center;
   text-decoration: none;
   white-space: nowrap;
-}
-
-.student-data-runtime__sync {
-  min-width: 112px;
-  padding: 8px 16px;
 }
 
 .student-data-runtime__summary {
@@ -2424,7 +2460,6 @@ input {
   font: 800 13px/1.2 var(--font-ui);
 }
 
-.student-data-runtime__sync:focus-visible,
 .student-data-runtime__toolbar button:focus-visible,
 .student-data-runtime__toolbar select:focus,
 .student-data-runtime__aeries-link:focus-visible {

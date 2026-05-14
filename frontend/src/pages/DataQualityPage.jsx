@@ -349,9 +349,16 @@ export function DataQualityPage({
         onSearch,
         searchQuery,
         activeNavKey: "dataQuality",
-        refreshMetadata: viewPayload?.page?.last_refreshed ?? null,
+        pageSyncControl: {
+          label: "Refresh",
+          loadingLabel: "Refreshing",
+          lastRefreshed: viewPayload?.page?.last_refreshed ?? null,
+          disabled: pageState === "loading",
+          loading: pageState === "loading",
+          onAction: refreshDataQuality,
+        },
       }),
-    [onNavigate, onSearch, searchQuery, session, viewPayload?.page?.last_refreshed]
+    [onNavigate, onSearch, pageState, refreshDataQuality, searchQuery, session, viewPayload?.page?.last_refreshed]
   );
 
   /**

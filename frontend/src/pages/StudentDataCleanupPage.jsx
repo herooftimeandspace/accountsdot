@@ -308,8 +308,6 @@ function StudentDataOverlay({
   onFilterChange,
   onClearFilters,
   onSelectRow,
-  onSync,
-  syncStatus,
 }) {
   const columns = useMemo(() => STUDENT_COLUMNS, []);
   const filteredRows = useMemo(() => {
@@ -341,9 +339,6 @@ function StudentDataOverlay({
           <h1 id={STUDENT_DATA_HEADING_ID}>Student Data Cleanup</h1>
           <p>Review active student-name field issues that must be corrected in Aeries.</p>
         </div>
-        <button type="button" className="student-data-runtime__sync" onClick={onSync}>
-          {syncStatus}
-        </button>
       </header>
       <section className="student-data-runtime__summary" aria-label="Student data cleanup summary">
         <div>
@@ -435,14 +430,18 @@ function StudentDataOverlay({
 }
 
 /**
- * StudentDataCleanupPage is the /student-data-cleanup route rendered by frontend/src/app.jsx after route authorization. It loads the generated artboard shell, hides the obsolete static pane, renders runtime-owned filters/table/drawer behavior, and keeps the page informational only: the local sync button changes temporary UI state, but no student record or provider data is written.
+ * StudentDataCleanupPage is the /student-data-cleanup route rendered by frontend/src/app.jsx after route authorization.
+ * It loads the generated artboard shell, hides the obsolete static pane, renders runtime-owned filters/table/drawer
+ * behavior, and passes the source reconciliation affordance through the shared page sync primitive. The sync callback
+ * only simulates DEV freshness state for the button; no student record, Aeries value, provider API, or mock store is
+ * mutated from this informational page.
  */
 export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQuery }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
   const [filters, setFilters] = useState({ issueType: "all", grade: "all" });
   const [selectedRow, setSelectedRow] = useState(null);
-  const [syncStatus, setSyncStatus] = useState("Sync now");
+  const [syncState, setSyncState] = useState("idle");
   const textOverrides = buildSharedShellTextOverrides(session);
   const paneNodeIds = useMemo(() => artboard ? collectPaneNodeIds(artboard) : [], [artboard]);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
@@ -452,13 +451,25 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
   });
   hiddenNodeIds.push(...paneNodeIds);
   const imageNodeOverrides = buildSharedShellImageOverrides(session);
+  const handleSync = useCallback(() => {
+    setSyncState("syncing");
+    window.setTimeout(() => setSyncState("idle"), 1400);
+  }, []);
   const sharedShellRenderOverlay = createSharedShellRenderOverlay({
     session,
     onNavigate,
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "studentDataCleanup",
-    refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
+    pageSyncControl: {
+      label: "Sync now",
+      loadingLabel: "Syncing",
+      lastRefreshed: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
+      nextSyncText: "Next sync in 55 minutes",
+      loading: syncState === "syncing",
+      disabled: syncState === "syncing",
+      onAction: handleSync,
+    },
     helpContent: STUDENT_DATA_HELP_CONTENT,
   });
   const semanticSummary = artboard
@@ -477,10 +488,6 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
     setFilters({ issueType: "all", grade: "all" });
     setSelectedRow(null);
   }, []);
-  const handleSync = useCallback(() => {
-    setSyncStatus("Synced");
-    window.setTimeout(() => setSyncStatus("Sync now"), 1400);
-  }, []);
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (
     <>
       {sharedShellRenderOverlay?.({ nodeIndex, textOverrides: overlayTextOverrides })}
@@ -491,12 +498,10 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
         onSelectRow={setSelectedRow}
-        onSync={handleSync}
-        syncStatus={syncStatus}
       />
       <StudentDataDrawer row={selectedPayloadRow} onClose={() => setSelectedRow(null)} />
     </>
-  ), [filters, handleClearFilters, handleFilterChange, handleSync, selectedPayloadRow, sharedShellRenderOverlay, syncStatus]);
+  ), [filters, handleClearFilters, handleFilterChange, selectedPayloadRow, sharedShellRenderOverlay]);
 
   if (artboardStatus === "loading") {
     return (
