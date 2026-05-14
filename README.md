@@ -123,6 +123,8 @@ await runDevRoutePerformanceMatrix({
 });
 ```
 
+If the Browser skill cannot provide an active in-app browser target, such as when `agent.browsers.get("iab")` reports that `iab` is unavailable and `agent.browsers.list()` returns an empty list, the matrix cannot produce current Browser evidence. Keep any generated blocked or merged summaries local under `artifacts/performance/`, cite their paths in the GitHub issue or PR, and do not close the route-performance issue from historical artifacts alone. Historical merged artifacts are only useful as handoff context when their recorded route count and directed-transition count match the current `npm run perf:routes:plan` output.
+
 After collecting multiple partial runs, merge them with:
 
 ```bash

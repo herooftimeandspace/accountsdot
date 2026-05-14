@@ -18,8 +18,20 @@ const ROUTE_VARIANTS = new Map([
   [
     "/room-moves/bulk-draft",
     [
-      { suffix: "?draft_id=rm-draft-101", label: "bulk draft rm-draft-101", expectedText: "Batch Move", expectedTitle: "Room Moves" },
-      { suffix: "?draft_id=rm-draft-103", label: "bulk draft rm-draft-103", expectedText: "Site Rollover", expectedTitle: "Room Moves" },
+      {
+        suffix: "?draft_id=rm-draft-101",
+        label: "bulk draft rm-draft-101",
+        expectedText: "Batch Move",
+        expectedTitle: "Room Moves",
+        allowTitleAndUrlReadiness: true,
+      },
+      {
+        suffix: "?draft_id=rm-draft-103",
+        label: "bulk draft rm-draft-103",
+        expectedText: "Site Rollover",
+        expectedTitle: "Room Moves",
+        allowTitleAndUrlReadiness: true,
+      },
     ],
   ],
 ]);
@@ -137,7 +149,7 @@ function snapshotHasLoadingMarker(snapshot) {
 }
 
 function canUseTitleAndUrlReadiness(route) {
-  return !route.variantOf;
+  return !route.variantOf || route.allowTitleAndUrlReadiness === true;
 }
 
 function routePlanSignature(routes) {
@@ -147,6 +159,7 @@ function routePlanSignature(routes) {
     kind: route.kind,
     expectedText: routeExpectedText(route),
     expectedTitle: routeExpectedTitle(route),
+    allowTitleAndUrlReadiness: route.allowTitleAndUrlReadiness === true,
   }));
 }
 
@@ -254,6 +267,7 @@ export function buildRouteTargetsFromRoutes(appRoutes) {
         label: variant.label,
         expectedText: variant.expectedText || base.expectedText,
         expectedTitle: variant.expectedTitle || base.expectedTitle,
+        allowTitleAndUrlReadiness: variant.allowTitleAndUrlReadiness === true,
         variantOf: route.path,
       });
     }
@@ -682,6 +696,12 @@ export async function mergePerformanceArtifacts({
 
   const transitions = [...transitionByIndex.values()].sort((a, b) => a.index - b.index);
   const firstPipeFailure = transitions.find(isBrowserPipeFailure) || refreshes.find(isBrowserPipeFailure) || null;
+  const devServerHealthValues = artifacts
+    .map((artifact) => artifact.payload.devServerHealthy)
+    .filter((value) => value !== null && value !== undefined);
+  const mergedDevServerHealthy = devServerHealthValues.length === 0
+    ? null
+    : devServerHealthValues.every(Boolean);
   const result = buildResult({
     generatedAt: nowISO(),
     baseUrl: artifacts[0].payload.baseUrl ?? DEFAULT_BASE_URL,
@@ -699,7 +719,7 @@ export async function mergePerformanceArtifacts({
     refreshes,
     stoppedAtTransitionIndex: firstPipeFailure?.index ?? null,
     stopReason: firstPipeFailure ? "browser_pipe_failure" : "",
-    devServerHealthy: null,
+    devServerHealthy: mergedDevServerHealthy,
   });
   result.sourceFiles = sourceFiles;
   result.cleanedAfterPipeFailures = true;
