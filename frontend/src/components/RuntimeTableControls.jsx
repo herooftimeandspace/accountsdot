@@ -30,9 +30,9 @@ function stringifyValue(value) {
 }
 
 /**
- * columnValue documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * runtimeTableColumnValue selects the plain value a runtime table should use for search and sort. Page-specific renderers can return JSX, so callers that build labels or compare rows should use this helper to avoid turning interactive cell markup into table data.
  */
-function columnValue(row, column, purpose) {
+export function runtimeTableColumnValue(row, column, purpose) {
   if (purpose === "sort" && typeof column.sortValue === "function") {
     return column.sortValue(row);
   }
@@ -53,7 +53,7 @@ function columnValue(row, column, purpose) {
  */
 function searchableRowText(row, columns) {
   return columns
-    .map((column) => stringifyValue(columnValue(row, column, "search")))
+    .map((column) => stringifyValue(runtimeTableColumnValue(row, column, "search")))
     .join(" ")
     .toLowerCase();
 }
@@ -62,8 +62,8 @@ function searchableRowText(row, columns) {
  * compareRows documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
 function compareRows(left, right, column, direction) {
-  const leftValue = stringifyValue(columnValue(left.row, column, "sort"));
-  const rightValue = stringifyValue(columnValue(right.row, column, "sort"));
+  const leftValue = stringifyValue(runtimeTableColumnValue(left.row, column, "sort"));
+  const rightValue = stringifyValue(runtimeTableColumnValue(right.row, column, "sort"));
   const comparison = leftValue.localeCompare(rightValue, undefined, {
     numeric: true,
     sensitivity: "base",
