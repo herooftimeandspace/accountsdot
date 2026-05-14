@@ -227,7 +227,7 @@ input {
   position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 50;
+  z-index: 90;
   display: grid;
   justify-items: end;
   gap: 8px;
@@ -429,10 +429,6 @@ input {
   width: 440px;
   color: var(--color-text);
   font-family: var(--font-ui);
-}
-
-.runtime-drawer--dev-toolbar-offset:not(.runtime-drawer--bounded) {
-  right: 320px;
 }
 
 .runtime-drawer--bounded {
@@ -3138,10 +3134,6 @@ input {
     width: auto;
     margin: 12px;
     border-radius: 8px;
-  }
-
-  .runtime-drawer--dev-toolbar-offset:not(.runtime-drawer--bounded) {
-    right: 0;
   }
 
   .page-canvas {
