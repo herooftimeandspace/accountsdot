@@ -12,6 +12,7 @@
     "write-inventory:check": "node scripts/check_external_write_inventory.mjs",
     "write-inventory:test": "node scripts/check_external_write_inventory.mjs --self-test",
     "perf:routes:plan": "node scripts/dev_route_performance_matrix.mjs",
+    "perf:routes:batch-plan": "node scripts/dev_route_performance_matrix.mjs batch-plan",
     "perf:routes:merge": "node scripts/dev_route_performance_matrix.mjs merge",
     "pen:sync": "node scripts/sync_implemented_pages.mjs",
     "pen:check": "node scripts/sync_implemented_pages.mjs --check",

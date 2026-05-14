@@ -9,6 +9,7 @@ const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_REFRESH_SAMPLES = 2;
 const DEFAULT_TRANSITION_BATCH_SIZE = 50;
 const DEFAULT_REFRESH_BATCH_SIZE = 12;
+const DEFAULT_MAX_BROWSER_BATCHES_PER_CALL = 1;
 const IT_ADMIN_PERSONA_LABEL = "IT Admin";
 const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ROUTE_REGISTRY_PATH = path.join(REPO_ROOT, "frontend/src/lib/routeRegistry.js");
@@ -206,6 +207,10 @@ function withFailureClass(row) {
   };
 }
 
+function isMeasuredRow(row) {
+  return row && !isBrowserPipeFailure(row);
+}
+
 export function buildRouteTargets() {
   return buildRouteTargetsFromRoutes(loadAppRoutesFromRegistrySync());
 }
@@ -357,6 +362,171 @@ export function validateCoverage(routes, pathRoutes) {
       duplicates.length === 0 &&
       selfTransitions.length === 0 &&
       actualEdges.size === expectedEdges.size,
+  };
+}
+
+function buildRefreshJobs(routes, refreshSamples) {
+  return routes.flatMap((route, routeIndex) =>
+    Array.from({ length: refreshSamples }, (_, sampleIndex) => ({
+      route,
+      routeIndex,
+      sample: sampleIndex + 1,
+      key: `${route.url}::${sampleIndex + 1}`,
+    }))
+  );
+}
+
+function refreshKeyForRow(row) {
+  return `${row.route}::${row.sample}`;
+}
+
+function artifactMatchesRoutePlan(payload, routes, coverage) {
+  return (
+    Array.isArray(payload?.routes) &&
+    payload.routes.length === routes.length &&
+    payload.coverage?.expectedEdgeCount === coverage.expectedEdgeCount &&
+    routePlanSignaturesMatch(payload.routes, routes)
+  );
+}
+
+async function loadCurrentPerformanceArtifacts(inputDir, routes, coverage) {
+  const absoluteInputDir = path.resolve(REPO_ROOT, inputDir);
+  let files;
+  try {
+    files = (await readdir(absoluteInputDir))
+      .filter((name) => /^dev-route-performance-\d{4}-.*\.json$/.test(name))
+      .sort();
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+
+  const artifacts = [];
+  for (const file of files) {
+    const payload = JSON.parse(await readFile(path.join(absoluteInputDir, file), "utf8"));
+    if (artifactMatchesRoutePlan(payload, routes, coverage)) {
+      artifacts.push({ file, payload });
+    }
+  }
+  return artifacts;
+}
+
+function completedTransitionIndexesFromArtifacts(artifacts) {
+  const completed = new Set();
+  for (const artifact of artifacts) {
+    const transitionStartIndex = artifact.payload.transitionRange?.startIndex ?? 1;
+    for (const [offset, rawRow] of (artifact.payload.transitions ?? []).entries()) {
+      const row = {
+        ...rawRow,
+        index: rawRow.index ?? transitionStartIndex + offset,
+      };
+      if (isMeasuredRow(row)) {
+        completed.add(row.index);
+      }
+    }
+  }
+  return completed;
+}
+
+function completedRefreshKeysFromArtifacts(artifacts, refreshJobs) {
+  const completed = new Set();
+  const plannedRefreshKeys = new Set(refreshJobs.map((job) => job.key));
+  for (const artifact of artifacts) {
+    for (const row of artifact.payload.refreshes ?? []) {
+      const key = refreshKeyForRow(row);
+      if (isMeasuredRow(row) && plannedRefreshKeys.has(key)) {
+        completed.add(key);
+      }
+    }
+  }
+  return completed;
+}
+
+function nextTransitionBatch(completedIndexes, edgeCount, transitionBatchSize) {
+  let startIndex = null;
+  for (let index = 1; index <= edgeCount; index += 1) {
+    if (!completedIndexes.has(index)) {
+      startIndex = index;
+      break;
+    }
+  }
+  if (startIndex === null) {
+    return null;
+  }
+
+  let maxTransitions = 0;
+  for (let index = startIndex; index <= edgeCount && maxTransitions < transitionBatchSize; index += 1) {
+    if (completedIndexes.has(index)) {
+      break;
+    }
+    maxTransitions += 1;
+  }
+  return { startTransitionIndex: startIndex, maxTransitions };
+}
+
+function nextRefreshBatch(completedRefreshKeys, refreshJobs, refreshBatchSize) {
+  const jobs = [];
+  for (const job of refreshJobs) {
+    if (!completedRefreshKeys.has(job.key)) {
+      jobs.push(job);
+      if (jobs.length >= refreshBatchSize) {
+        break;
+      }
+    }
+  }
+  return jobs.length ? jobs : null;
+}
+
+// Used by the CLI batch-plan command and the Browser helper to inspect local
+// row-level artifacts before selecting the next bounded route-performance batch.
+export async function planDevRoutePerformanceBatches({
+  outputDir = DEFAULT_OUTPUT_DIR,
+  refreshSamples = DEFAULT_REFRESH_SAMPLES,
+  transitionBatchSize = DEFAULT_TRANSITION_BATCH_SIZE,
+  refreshBatchSize = DEFAULT_REFRESH_BATCH_SIZE,
+  includeTransitions = true,
+  includeRefreshes = true,
+} = {}) {
+  const routes = buildRouteTargets();
+  const edgePath = buildEdgeCoveragePath(routes);
+  const coverage = validateCoverage(routes, edgePath);
+  const artifacts = await loadCurrentPerformanceArtifacts(outputDir, routes, coverage);
+  const completedTransitions = completedTransitionIndexesFromArtifacts(artifacts);
+  const refreshJobs = buildRefreshJobs(routes, refreshSamples);
+  const completedRefreshes = completedRefreshKeysFromArtifacts(artifacts, refreshJobs);
+  const nextTransition = includeTransitions
+    ? nextTransitionBatch(completedTransitions, coverage.expectedEdgeCount, transitionBatchSize)
+    : null;
+  const nextRefresh = includeRefreshes ? nextRefreshBatch(completedRefreshes, refreshJobs, refreshBatchSize) : null;
+
+  return {
+    outputDir,
+    artifactCount: artifacts.length,
+    routeCount: routes.length,
+    transitionBatchSize,
+    refreshBatchSize,
+    refreshSamples,
+    transitions: {
+      completed: completedTransitions.size,
+      total: coverage.expectedEdgeCount,
+      remaining: coverage.expectedEdgeCount - completedTransitions.size,
+      next: nextTransition,
+    },
+    refreshes: {
+      completed: completedRefreshes.size,
+      total: refreshJobs.length,
+      remaining: refreshJobs.length - completedRefreshes.size,
+      next: nextRefresh
+        ? {
+            count: nextRefresh.length,
+            first: { route: nextRefresh[0].route.url, sample: nextRefresh[0].sample },
+            last: { route: nextRefresh.at(-1).route.url, sample: nextRefresh.at(-1).sample },
+          }
+        : null,
+    },
+    complete: (!includeTransitions || !nextTransition) && (!includeRefreshes || !nextRefresh),
   };
 }
 
@@ -516,6 +686,75 @@ async function measureRefresh(tab, baseUrl, route, sample, timeoutMs) {
       logs: await collectLogs(tab),
     });
   }
+}
+
+async function runRefreshJobBatch({
+  tab,
+  baseUrl,
+  outputDir,
+  timeoutMs,
+  refreshSamples,
+  refreshJobs,
+  routes,
+  coverage,
+  persona,
+  stopOnBrowserPipeError,
+  devServerHealthy,
+}) {
+  const generatedAt = nowISO();
+  const stamp = generatedAt.replace(/[:.]/g, "-");
+  const refreshes = [];
+  let stopReason = "";
+
+  const persist = async () => {
+    const result = buildResult({
+      generatedAt,
+      baseUrl,
+      timeoutMs,
+      refreshSamples,
+      persona,
+      routes,
+      coverage,
+      startTransitionIndex: 1,
+      maxTransitions: 0,
+      refreshStartIndex: refreshJobs[0]?.routeIndex ?? 0,
+      refreshLimit: refreshJobs.length,
+      includeRefreshes: true,
+      transitions: [],
+      refreshes,
+      stoppedAtTransitionIndex: null,
+      stopReason,
+      devServerHealthy,
+    });
+    result.refreshJobRange = refreshJobs.length
+      ? {
+          first: { route: refreshJobs[0].route.url, sample: refreshJobs[0].sample },
+          last: { route: refreshJobs.at(-1).route.url, sample: refreshJobs.at(-1).sample },
+          count: refreshJobs.length,
+        }
+      : null;
+    return writeMatrixArtifacts(result, outputDir, stamp);
+  };
+
+  for (const job of refreshJobs) {
+    const row = await measureRefresh(tab, baseUrl, job.route, job.sample, timeoutMs);
+    row.routeIndex = job.routeIndex;
+    refreshes.push(row);
+    await persist();
+    if (stopOnBrowserPipeError && isBrowserPipeFailure(row)) {
+      stopReason = "browser_pipe_failure";
+      await persist();
+      break;
+    }
+  }
+
+  const files = await persist();
+  return {
+    phase: "refresh",
+    stopReason,
+    refreshes,
+    files,
+  };
 }
 
 async function ensureItAdminPersona(tab, timeoutMs) {
@@ -956,6 +1195,117 @@ export async function runDevRoutePerformanceMatrix({
   };
 }
 
+// Browser-skill entrypoint for issue-sized evidence collection. Callers provide
+// the active Browser tab; this helper resumes from matching local artifacts,
+// runs bounded transition batches before refresh batches, and relies on the
+// lower-level row writer so each measured row survives Browser interruptions.
+export async function runDevRoutePerformanceBatches({
+  tab,
+  baseUrl = DEFAULT_BASE_URL,
+  outputDir = DEFAULT_OUTPUT_DIR,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  refreshSamples = DEFAULT_REFRESH_SAMPLES,
+  transitionBatchSize = DEFAULT_TRANSITION_BATCH_SIZE,
+  refreshBatchSize = DEFAULT_REFRESH_BATCH_SIZE,
+  includeTransitions = true,
+  includeRefreshes = true,
+  maxBatches = DEFAULT_MAX_BROWSER_BATCHES_PER_CALL,
+  stopOnBrowserPipeError = true,
+  devServerHealthy = null,
+} = {}) {
+  if (!tab) {
+    throw new Error("runDevRoutePerformanceBatches requires the Browser skill tab object.");
+  }
+
+  const routes = buildRouteTargets();
+  const edgePath = buildEdgeCoveragePath(routes);
+  const coverage = validateCoverage(routes, edgePath);
+  const refreshJobs = buildRefreshJobs(routes, refreshSamples);
+  const persona = await ensureItAdminPersona(tab, timeoutMs);
+  const batches = [];
+  let stopped = false;
+
+  for (let batchNumber = 0; batchNumber < maxBatches && !stopped; batchNumber += 1) {
+    const artifacts = await loadCurrentPerformanceArtifacts(outputDir, routes, coverage);
+    const completedTransitions = completedTransitionIndexesFromArtifacts(artifacts);
+    const completedRefreshes = completedRefreshKeysFromArtifacts(artifacts, refreshJobs);
+    const transitionBatch = includeTransitions
+      ? nextTransitionBatch(completedTransitions, coverage.expectedEdgeCount, transitionBatchSize)
+      : null;
+
+    if (transitionBatch) {
+      const result = await runDevRoutePerformanceMatrix({
+        tab,
+        baseUrl,
+        outputDir,
+        timeoutMs,
+        refreshSamples,
+        maxTransitions: transitionBatch.maxTransitions,
+        startTransitionIndex: transitionBatch.startTransitionIndex,
+        includeRefreshes: false,
+        stopOnBrowserPipeError,
+        devServerHealthy,
+      });
+      batches.push({
+        phase: "transition",
+        startTransitionIndex: transitionBatch.startTransitionIndex,
+        maxTransitions: transitionBatch.maxTransitions,
+        measured: result.transitions.length,
+        stopReason: result.stopReason,
+        files: result.files,
+      });
+      stopped = Boolean(result.stopReason);
+      continue;
+    }
+
+    const refreshBatch = includeRefreshes ? nextRefreshBatch(completedRefreshes, refreshJobs, refreshBatchSize) : null;
+    if (refreshBatch) {
+      const result = await runRefreshJobBatch({
+        tab,
+        baseUrl,
+        outputDir,
+        timeoutMs,
+        refreshSamples,
+        refreshJobs: refreshBatch,
+        routes,
+        coverage,
+        persona,
+        stopOnBrowserPipeError,
+        devServerHealthy,
+      });
+      batches.push({
+        phase: "refresh",
+        first: refreshBatch[0] ? { route: refreshBatch[0].route.url, sample: refreshBatch[0].sample } : null,
+        last: refreshBatch.at(-1) ? { route: refreshBatch.at(-1).route.url, sample: refreshBatch.at(-1).sample } : null,
+        planned: refreshBatch.length,
+        measured: result.refreshes.length,
+        stopReason: result.stopReason,
+        files: result.files,
+      });
+      stopped = Boolean(result.stopReason);
+      continue;
+    }
+
+    break;
+  }
+
+  const plan = await planDevRoutePerformanceBatches({
+    outputDir,
+    refreshSamples,
+    transitionBatchSize,
+    refreshBatchSize,
+    includeTransitions,
+    includeRefreshes,
+  });
+
+  return {
+    ...plan,
+    maxBatches,
+    batches,
+    stopped,
+  };
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [, , command, maybeDir] = process.argv;
   if (command === "merge" || command === "--merge") {
@@ -964,6 +1314,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       outputDir: DEFAULT_OUTPUT_DIR,
     });
     console.log(JSON.stringify({ files: result.files, transitions: result.transitions.length, refreshes: result.refreshes.length }, null, 2));
+  } else if (command === "batch-plan" || command === "--batch-plan") {
+    const result = await planDevRoutePerformanceBatches({
+      outputDir: maybeDir || DEFAULT_OUTPUT_DIR,
+    });
+    console.log(JSON.stringify(result, null, 2));
   } else {
     const routes = buildRouteTargets();
     const edgePath = buildEdgeCoveragePath(routes);

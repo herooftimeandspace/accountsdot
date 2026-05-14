@@ -77,6 +77,7 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `npm run build:web`
 - `npm run a11y:check`
 - `npm run perf:routes:plan`
+- `npm run perf:routes:batch-plan -- [artifact-input-dir]`
 - `npm run perf:routes:merge -- [artifact-input-dir]`
 
 `make vulncheck` uses a local `govulncheck` binary when available, otherwise it runs `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`. If the host does not have Go installed, it falls back to `make vulncheck-container`, which runs the same scan inside the repo's configured Go Docker image.
@@ -108,19 +109,24 @@ The preflight should return `200 OK` with DEV session JSON. An unauthenticated b
 
 `npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
 
-The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object:
+`npm run perf:routes:batch-plan -- artifacts/performance` scans local artifacts that match the current route plan and reports the next transition or refresh batch without opening a browser.
+
+The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object. Prefer the automatic batch helper for full-matrix evidence so Browser work stays inside bounded calls and the helper resumes from existing local artifacts without manual index bookkeeping:
 
 ```js
-const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
-await runDevRoutePerformanceMatrix({
+const { runDevRoutePerformanceBatches } = await import("./scripts/dev_route_performance_matrix.mjs");
+await runDevRoutePerformanceBatches({
   tab,
   baseUrl: "http://localhost:5173",
-  maxTransitions: 50,
-  includeRefreshes: false
+  outputDir: "artifacts/performance",
+  transitionBatchSize: 50,
+  refreshBatchSize: 12
 });
 ```
 
-The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. If the Browser pipe fails, restart the Browser automation session and resume with the reported `resumeFromTransitionIndex` or `nextTransitionIndex`:
+By default `runDevRoutePerformanceBatches` executes one bounded Browser batch per call. Re-run the same snippet until it returns `"complete": true`; it measures all directed transitions first, then measures refresh samples across the same route targets. The default batch sizes are 50 directed transitions or 12 route-refresh samples per Browser call. If a local Browser session is stable and the tool response window allows it, pass `maxBatches` to run more than one bounded batch in the same call.
+
+The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. If the Browser pipe fails, restart the Browser automation session and run the same automatic batch helper again. For manual recovery or targeted investigation, the lower-level runner still accepts the reported `resumeFromTransitionIndex` or `nextTransitionIndex`:
 
 ```js
 const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
