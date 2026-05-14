@@ -2024,10 +2024,6 @@ function drawDataQuality(scene) {
   metricCard(scene, MAIN_X + 220, 190, 204, "Room Mapping", "23", "Required", { valueColor: colors.orange });
   metricCard(scene, MAIN_X + 440, 190, 204, "Source Conflicts", "41", "Open", { valueColor: colors.red });
   metricCard(scene, MAIN_X + 660, 190, 204, "Resolved Today", "29", "Cleared", { valueColor: colors.green });
-  metricCard(scene, MAIN_X + 880, 190, 388, "Routing", "HR, Site, and IT queues", [
-    "Issues are owned by the team that can correct the upstream source.",
-    "This dashboard surfaces blockers rather than silently patching data.",
-  ], { valueSize: 16 });
 
   tableCard(scene, MAIN_X, 374, 864, "Data Quality Queue", [
     { label: "Issue", key: "issue", x: 14 },
@@ -2042,14 +2038,6 @@ function drawDataQuality(scene) {
     { issue: "Missing mandatory field", source: "HR intake", owner: "HR", impact: "Blocks onboarding", action: "Update record" },
     { issue: "Site mismatch", source: "Escape / Aeries", owner: "HR", impact: "Blocks baseline site selection", action: "Apply temporary override" },
   ], { height: 520, footerRight: "View full queue →" });
-
-  railCard(scene, MAIN_X + 882, 374, 386, 520, "Issue Routing Rules", [
-    { type: "kv", label: "HR queues", value: "Sensitive lifecycle or title issues" },
-    { type: "kv", label: "Site queues", value: "Room and student data corrections" },
-    { type: "kv", label: "IT queues", value: "Provider conflicts and security mismatches" },
-    { type: "divider" },
-    { type: "button", label: "Open Mapping Dashboard", fill: colors.gold, stroke: colors.gold },
-  ]);
 }
 
 function drawSyncTransparency(scene) {
@@ -2475,7 +2463,7 @@ const screens = [
     activeNav: "Data Quality",
     scopeLabel: "District-wide",
     scopeSub: "All Sites",
-    subtitleLines: ["Source-system conflict and missing-data queues routed to the teams that can fix upstream records."],
+    subtitleLines: [],
     draw: drawDataQuality,
   },
   {

@@ -7,8 +7,7 @@ export const dataQualityDesign = {
   "width": 1672,
   "height": 1080,
   "hotspots": {
-    "refresh": "f104",
-    "openMappingDashboard": "f183"
+    "refresh": "f104"
   },
   "slots": {
     "shell": {
@@ -24,7 +23,6 @@ export const dataQualityDesign = {
     },
     "page": {
       "title": "t99",
-      "description": "t102",
       "lastRefreshed": "t103",
       "refreshLabel": "t105"
     },
@@ -46,11 +44,6 @@ export const dataQualityDesign = {
         "count": "t120"
       }
     ],
-    "routingCard": {
-      "title": "t123",
-      "headline": "t124",
-      "body": "t125"
-    },
     "queue": {
       "headers": {
         "issue": "t131",
@@ -116,24 +109,6 @@ export const dataQualityDesign = {
           ]
         }
       ]
-    },
-    "routingRules": {
-      "title": "t170",
-      "rows": [
-        {
-          "queue": "t173",
-          "description": "t174"
-        },
-        {
-          "queue": "t176",
-          "description": "t177"
-        },
-        {
-          "queue": "t179",
-          "description": "t180"
-        }
-      ],
-      "primaryActionLabel": "t184"
     }
   }
 };

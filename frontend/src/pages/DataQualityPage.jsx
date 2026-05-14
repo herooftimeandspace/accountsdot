@@ -12,7 +12,6 @@ import {
   createSharedShellRenderOverlay,
 } from "../lib/sharedShellPresentation";
 
-const apiOrigin = import.meta.env.VITE_API_ORIGIN || "http://localhost:8080";
 const DATA_QUALITY_ENDPOINT = "/api/v1/dev/pages/data-quality";
 const MAIN_CONTENT_ID = "main-content";
 const DATA_QUALITY_HEADING_ID = "data-quality-heading";
@@ -30,14 +29,18 @@ const DATA_QUALITY_QUEUE_COLUMNS = Object.entries(QUEUE_SORT_HEADERS).map(([key,
 }));
 
 /**
- * readableLine loads or decodes data for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * readableLine keeps multi-line DEV queue fields readable in the generated
+ * artboard and semantic fallback table by flattening backend newline-separated
+ * labels into a single row-cell string.
  */
 function readableLine(value) {
   return String(value ?? "").replaceAll("\n", " ");
 }
 
 /**
- * assignValue documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * assignValue writes a string override for one generated PEN node id. It skips
+ * missing slot ids so Data Quality can remove obsolete static nodes from the
+ * authoritative PEN without forcing runtime callers to keep stale mappings.
  */
 function assignValue(overrides, slotId, value) {
   if (!slotId || value == null) {
@@ -47,7 +50,9 @@ function assignValue(overrides, slotId, value) {
 }
 
 /**
- * assignLines documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * assignLines maps newline-separated backend cell text onto the fixed set of
+ * generated text nodes available for one PEN table cell. Missing lines become
+ * empty strings so old content is cleared when the visible queue has fewer rows.
  */
 function assignLines(overrides, slotIds, value) {
   const values = Array.isArray(value) ? value : String(value ?? "").split("\n");
@@ -57,7 +62,9 @@ function assignLines(overrides, slotIds, value) {
 }
 
 /**
- * queueHeaderLabel documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * queueHeaderLabel adds the current sort indicator to generated table headers.
+ * RuntimeTableControls owns the sort state; this helper only turns that state
+ * into operator-visible text for the PEN artboard layer.
  */
 function queueHeaderLabel(key, sortState) {
   const config = QUEUE_SORT_HEADERS[key];
@@ -71,7 +78,10 @@ function queueHeaderLabel(key, sortState) {
 }
 
 /**
- * buildDataQualityTextOverrides builds derived data for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * buildDataQualityTextOverrides combines DEV page JSON, shell persona labels,
+ * and runtime table sort/filter state into PEN node text overrides. It only
+ * targets documented Data Quality slots, leaving help text and unsupported
+ * mapping navigation out of the visible page pane.
  */
 function buildDataQualityTextOverrides(session, payload, sortState) {
   const overrides = buildSharedShellTextOverrides(session);
@@ -88,7 +98,6 @@ function buildDataQualityTextOverrides(session, payload, sortState) {
   assignValue(overrides, dataQualityDesign.slots.shell.platformStatus, shell.platform_status);
 
   assignValue(overrides, dataQualityDesign.slots.page.title, page.title);
-  assignValue(overrides, dataQualityDesign.slots.page.description, page.description);
   assignValue(overrides, dataQualityDesign.slots.page.lastRefreshed, page.last_refreshed);
   assignValue(overrides, dataQualityDesign.slots.page.refreshLabel, page.refresh_label);
 
@@ -100,10 +109,6 @@ function buildDataQualityTextOverrides(session, payload, sortState) {
     assignValue(overrides, slot.title, card.title);
     assignValue(overrides, slot.count, card.count);
   });
-
-  assignValue(overrides, dataQualityDesign.slots.routingCard.title, page.routing_card.title);
-  assignValue(overrides, dataQualityDesign.slots.routingCard.headline, page.routing_card.headline);
-  assignValue(overrides, dataQualityDesign.slots.routingCard.body, page.routing_card.body);
 
   Object.entries(dataQualityDesign.slots.queue.headers || {}).forEach(([key, slotId]) => {
     assignValue(overrides, slotId, queueHeaderLabel(key, sortState));
@@ -125,29 +130,15 @@ function buildDataQualityTextOverrides(session, payload, sortState) {
     assignLines(overrides, slot.impact, row.impact);
     assignLines(overrides, slot.nextAction, row.next_action);
   });
-
-  assignValue(overrides, dataQualityDesign.slots.routingRules.title, page.routing_rules.title);
-  page.routing_rules.rules.forEach((rule, index) => {
-    const slot = dataQualityDesign.slots.routingRules.rows[index];
-    if (!slot) {
-      return;
-    }
-    assignValue(overrides, slot.queue, rule.queue);
-    assignValue(overrides, slot.description, rule.description);
-  });
-  assignValue(
-    overrides,
-    dataQualityDesign.slots.routingRules.primaryActionLabel,
-    page.routing_rules.primary_action_label
-  );
-
   return overrides;
 }
 
 /**
- * DataQualitySemanticContent renders the UI surface for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * DataQualitySemanticContent provides the accessible semantic mirror for the
+ * generated artboard. It exposes refresh, summary cards, search, sorting, and
+ * queue rows without rendering the removed mapping-dashboard shortcut.
  */
-function DataQualitySemanticContent({ payload, onRefresh, mappingHref, table }) {
+function DataQualitySemanticContent({ payload, onRefresh, table }) {
   if (!payload) {
     return null;
   }
@@ -159,16 +150,12 @@ function DataQualitySemanticContent({ payload, onRefresh, mappingHref, table }) 
       <div className="data-quality-semantic__header">
         <div>
           <h1 id={DATA_QUALITY_HEADING_ID}>{page.title}</h1>
-          <p>{page.description}</p>
           <p style={{ whiteSpace: "pre-line" }}>{page.last_refreshed}</p>
         </div>
         <div className="data-quality-semantic__mobile-actions">
           <button type="button" onClick={onRefresh}>
             Refresh Data Quality
           </button>
-          <a href={mappingHref} target="_blank" rel="noopener noreferrer">
-            Open Mapping Dashboard
-          </a>
         </div>
       </div>
 
@@ -215,21 +202,15 @@ function DataQualitySemanticContent({ payload, onRefresh, mappingHref, table }) 
           ))}
         </tbody>
       </table>
-
-      <h2>{page.routing_rules.title}</h2>
-      <ul>
-        {page.routing_rules.rules.map((rule) => (
-          <li key={rule.queue}>
-            <strong>{rule.queue}</strong>: {readableLine(rule.description)}
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
 
 /**
- * DataQualityPage renders the UI surface for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * DataQualityPage is the `/data-quality` React route. It fetches the DEV mock
+ * payload, handles auth errors by delegating to the app-level router, wires
+ * refresh and table sorting hotspots, and renders shared-shell overlays around
+ * the PEN-generated Data Quality artboard.
  */
 export function DataQualityPage({
   session,
@@ -255,7 +236,9 @@ export function DataQualityPage({
     const controller = new AbortController();
 
     /**
-     * loadPage loads or decodes data for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     * loadPage retrieves the current DEV Data Quality JSON from the Go backend.
+     * The abort controller prevents stale responses from replacing state after
+     * persona changes, route changes, or explicit refreshes.
      */
     async function loadPage() {
       setPageState("loading");
@@ -317,7 +300,6 @@ export function DataQualityPage({
     () => buildDataQualityTextOverrides(session, viewPayload, table.sortState),
     [session, table.sortState, viewPayload]
   );
-  const mappingDashboardHref = `${apiOrigin}/sync-dashboard/mappings`;
   const refreshDataQuality = useCallback(() => setReloadKey((value) => value + 1), []);
 
   const hotspots = useMemo(() => {
@@ -334,16 +316,6 @@ export function DataQualityPage({
       };
     }
 
-    const mappingNodeId = viewPayload.hotspots.open_mapping_dashboard?.node_id;
-    if (mappingNodeId) {
-      mapping[mappingNodeId] = {
-        label: viewPayload.hotspots.open_mapping_dashboard.label,
-        href: mappingDashboardHref,
-        target: "_blank",
-        rel: "noopener noreferrer",
-      };
-    }
-
     Object.entries(dataQualityDesign.slots.queue.headers || {}).forEach(([key, nodeId]) => {
       mapping[nodeId] = {
         label: `Sort by ${QUEUE_SORT_HEADERS[key]?.label ?? key}`,
@@ -352,7 +324,7 @@ export function DataQualityPage({
     });
 
     return mapping;
-  }, [mappingDashboardHref, pageState, refreshDataQuality, table, viewPayload]);
+  }, [pageState, refreshDataQuality, table, viewPayload]);
 
   const imageNodeOverrides = useMemo(
     () => buildSharedShellImageOverrides(session),
@@ -383,7 +355,8 @@ export function DataQualityPage({
   );
 
   /**
-   * overlay documents runtime data flow for frontend/src/pages/DataQualityPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   * overlay renders transient loading/error/empty states above the generated
+   * artboard while preserving the shared shell and accessible status messages.
    */
   const overlay = (() => {
     if (pageState === "loading") {
@@ -419,7 +392,6 @@ export function DataQualityPage({
         <DataQualitySemanticContent
           payload={viewPayload}
           onRefresh={refreshDataQuality}
-          mappingHref={mappingDashboardHref}
           table={table}
         />
         <DataQualityGeneratedView

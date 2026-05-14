@@ -154,7 +154,6 @@ const dataQualityDesign = {
   height: 1080,
   hotspots: {
     refresh: "f104",
-    openMappingDashboard: "f183",
   },
   slots: {
     shell: {
@@ -170,7 +169,6 @@ const dataQualityDesign = {
     },
     page: {
       title: "t99",
-      description: "t102",
       lastRefreshed: "t103",
       refreshLabel: "t105",
     },
@@ -180,11 +178,6 @@ const dataQualityDesign = {
       { title: "t115", count: "t116" },
       { title: "t119", count: "t120" },
     ],
-    routingCard: {
-      title: "t123",
-      headline: "t124",
-      body: "t125",
-    },
     queue: {
       headers: {
         issue: "t131",
@@ -200,15 +193,6 @@ const dataQualityDesign = {
         { issue: "t155", source: "t156", owner: "t157", impact: ["t158"], nextAction: ["t159"] },
         { issue: "t161", source: "t162", owner: "t163", impact: ["t164"], nextAction: ["t166"] },
       ],
-    },
-    routingRules: {
-      title: "t170",
-      rows: [
-        { queue: "t173", description: "t174" },
-        { queue: "t176", description: "t177" },
-        { queue: "t179", description: "t180" },
-      ],
-      primaryActionLabel: "t184",
     },
   },
 };

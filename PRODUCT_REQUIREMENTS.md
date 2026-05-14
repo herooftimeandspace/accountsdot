@@ -790,6 +790,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the one next action needed to resume safely
 - No new feature work may begin after a hard loop termination until that state report has been delivered.
 - The `Data Quality` queue should remain inline on the page rather than linking to a separate full-queue screen, and the queue card should expand or contract with the current row count.
+- The `Data Quality` page should not show a mapping-dashboard navigation button unless the destination and operator workflow are explicitly defined in this PRD and `IMPLEMENTATION_PLAN.md`; routing guidance for HR, Site, and IT queues should live in the shared help drawer in the current DEV slice.
 - The `Data Quality` queue column headers should be clickable and support three sort states: `ASC`, `DESC`, and `NONE`.
 - The `Data Quality` refresh control should render as a Vegas Gold primary action and, when used, should re-collect the full current set of Data Quality issues for the page rather than performing a cosmetic-only refresh.
 - `Next Action` values in the `Data Quality` queue should link directly to the page where the corrective action can be taken whenever an in-app destination exists.
