@@ -1,7 +1,8 @@
 import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
 import { devMark, devMeasureAsync } from "./lib/devPerformance";
-import { isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
+import { prefetchArtboards } from "./lib/generatedArtboards";
+import { artboardKeysForAllowedRoutes, isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
 
 function lazyNamed(importer, exportName) {
   return lazy(() => importer().then((module) => ({ default: module[exportName] })));
@@ -383,6 +384,38 @@ export function App() {
       sessionState,
     });
   }, [currentPath, currentSearch, currentRoute?.kind, sessionState]);
+
+  useEffect(() => {
+    if (sessionState !== "ready" || !authenticated) {
+      return undefined;
+    }
+    const artboardKeys = artboardKeysForAllowedRoutes(session);
+    if (artboardKeys.length === 0) {
+      return undefined;
+    }
+
+    /**
+     * runPrefetch starts only after React has committed the authorized session.
+     * The keys come from session.allowed_routes rather than the global route
+     * table, which keeps this warmup from loading generated content for personas
+     * that would receive 403 on direct navigation.
+     */
+    const runPrefetch = () => {
+      devMark("artboard-prefetch-start", {
+        personaId: session?.current_persona?.id ?? null,
+        artboardCount: artboardKeys.length,
+      });
+      prefetchArtboards(artboardKeys);
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleHandle = window.requestIdleCallback(runPrefetch, { timeout: 1500 });
+      return () => window.cancelIdleCallback(idleHandle);
+    }
+
+    const timeoutHandle = window.setTimeout(runPrefetch, 250);
+    return () => window.clearTimeout(timeoutHandle);
+  }, [authenticated, session, sessionState]);
 
   const handleSharedSearch = useCallback(
     (query) => {

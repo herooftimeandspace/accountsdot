@@ -142,6 +142,25 @@ export function isRouteAllowed(session, path) {
 }
 
 /**
+ * artboardKeysForAllowedRoutes converts the backend-issued session.allowed_routes
+ * list into generated artboard keys that may be warmed in the current browser
+ * session. App calls this before prefetching, so direct-route authorization stays
+ * tied to the same route registry used for rendering and unauthorized personas
+ * never warm artboards for hidden sidebar destinations.
+ */
+export function artboardKeysForAllowedRoutes(session) {
+  const allowedRoutes = session?.allowed_routes ?? [];
+  const keys = new Set();
+  allowedRoutes.forEach((path) => {
+    const route = resolveRoute(path);
+    if (route?.artboardKey) {
+      keys.add(route.artboardKey);
+    }
+  });
+  return [...keys];
+}
+
+/**
  * navGroupVisible documents runtime data flow for frontend/src/lib/routeRegistry.js. App routing and navigation helpers call this function to decide visibility and destinations; debug it with persona role data and URL paths. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
 export function navGroupVisible(navKey, session) {
