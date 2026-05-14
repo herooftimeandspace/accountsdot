@@ -26,10 +26,11 @@ const (
 )
 
 var (
-	onboardingPersonalEmailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
-	onboardingLast4Pattern         = regexp.MustCompile(`^\d{4}$`)
-	onboardingPersonalPhonePattern = regexp.MustCompile(`^\d{10}$`)
-	devOnboardingStore             = newDevOnboardingStore()
+	onboardingPersonalEmailPattern  = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+	onboardingLast4Pattern          = regexp.MustCompile(`^\d{4}$`)
+	onboardingPersonalPhonePattern  = regexp.MustCompile(`^\d{10}$`)
+	onboardingFormattedPhonePattern = regexp.MustCompile(`^\(\d{3}\) \d{3}-\d{4}$`)
+	devOnboardingStore              = newDevOnboardingStore()
 )
 
 type onboardingPagePayload struct {
@@ -845,6 +846,7 @@ func (s *devOnboardingStoreState) applyDerivedDraftStateLocked(draft *onboarding
 
 // sanitizeManualDraftRequest documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config devPersonaConfig) (onboardingManualDraftRequest, map[string]string) {
+	personalPhoneInput := strings.TrimSpace(request.PersonalPhone)
 	clean := onboardingManualDraftRequest{
 		StartDate:             strings.TrimSpace(request.StartDate),
 		SSNLast4:              strings.TrimSpace(request.SSNLast4),
@@ -855,7 +857,7 @@ func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config dev
 		JobTitle:              normalizeSpaces(request.JobTitle),
 		SiteID:                strings.TrimSpace(request.SiteID),
 		PersonalEmail:         strings.ToLower(strings.TrimSpace(request.PersonalEmail)),
-		PersonalPhone:         normalizePersonalPhone(request.PersonalPhone),
+		PersonalPhone:         normalizePersonalPhone(personalPhoneInput),
 		PreferredDevice:       normalizeSpaces(request.PreferredDevice),
 		RequestedAeriesAccess: normalizeSpaces(request.RequestedAeriesAccess),
 		ReplacingEmployeeID:   strings.TrimSpace(request.ReplacingEmployeeID),
@@ -874,8 +876,10 @@ func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config dev
 	if clean.PersonalEmail != "" && !onboardingPersonalEmailPattern.MatchString(clean.PersonalEmail) {
 		errors["personal_email"] = "Personal email must be a valid email address."
 	}
-	if clean.PersonalPhone != "" && !onboardingPersonalPhonePattern.MatchString(clean.PersonalPhone) {
-		errors["personal_phone"] = "Personal phone must contain a 10-digit US phone number."
+	if personalPhoneInput != "" &&
+		!onboardingPersonalPhonePattern.MatchString(personalPhoneInput) &&
+		!onboardingFormattedPhonePattern.MatchString(personalPhoneInput) {
+		errors["personal_phone"] = "Personal phone must use (NNN) NNN-NNNN or 10 digits."
 	}
 	options := devOnboardingFormOptions(config)
 	validateOption(errors, "employee_type", clean.EmployeeType, options.EmployeeTypes)

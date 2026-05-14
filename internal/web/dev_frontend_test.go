@@ -1634,6 +1634,32 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("invalid draft update returned %d, want 400", invalidRec.Code)
 		}
 
+		malformedPhoneBody, err := json.Marshal(map[string]string{
+			"start_date":              "2026-05-10",
+			"ssn_last4":               "1234",
+			"employee_type":           "Contractor",
+			"classification":          "Certificated",
+			"first_name":              "Quincy",
+			"last_name":               "Zephyr",
+			"job_title":               "Counselor",
+			"site_id":                 "district-office",
+			"personal_email":          "quincy.zephyr@example.com",
+			"personal_phone":          "707-555-0134",
+			"preferred_device":        "Mac",
+			"requested_aeries_access": "Teacher",
+		})
+		if err != nil {
+			t.Fatalf("marshal malformed phone draft: %v", err)
+		}
+		malformedPhoneReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(malformedPhoneBody))
+		malformedPhoneReq.Header.Set("Content-Type", "application/json")
+		malformedPhoneReq.AddCookie(cookie)
+		malformedPhoneRec := httptest.NewRecorder()
+		handler.ServeHTTP(malformedPhoneRec, malformedPhoneReq)
+		if malformedPhoneRec.Code != http.StatusBadRequest {
+			t.Fatalf("malformed phone draft update returned %d, want 400", malformedPhoneRec.Code)
+		}
+
 		validBody, err := json.Marshal(map[string]string{
 			"start_date":              "2026-05-10",
 			"ssn_last4":               "1234",

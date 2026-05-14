@@ -113,19 +113,6 @@
           "textGrowth": "auto"
         },
         {
-          "type": "text",
-          "id": "t96",
-          "content": "Common path",
-          "x": 306,
-          "y": 268,
-          "fontFamily": "Arial",
-          "fontSize": 12,
-          "fontWeight": "400",
-          "fill": "#01161E",
-          "width": 184,
-          "textGrowth": "auto"
-        },
-        {
           "type": "frame",
           "id": "f97",
           "name": "Rect",
@@ -164,19 +151,6 @@
           "fontFamily": "Arial",
           "fontSize": 24,
           "fontWeight": "800",
-          "fill": "#01161E",
-          "width": 184,
-          "textGrowth": "auto"
-        },
-        {
-          "type": "text",
-          "id": "t100",
-          "content": "Needs upstream fix",
-          "x": 542,
-          "y": 268,
-          "fontFamily": "Arial",
-          "fontSize": 12,
-          "fontWeight": "400",
           "fill": "#01161E",
           "width": 184,
           "textGrowth": "auto"
@@ -225,19 +199,6 @@
           "textGrowth": "auto"
         },
         {
-          "type": "text",
-          "id": "t104",
-          "content": "External status",
-          "x": 778,
-          "y": 268,
-          "fontFamily": "Arial",
-          "fontSize": 12,
-          "fontWeight": "400",
-          "fill": "#01161E",
-          "width": 184,
-          "textGrowth": "auto"
-        },
-        {
           "type": "frame",
           "id": "f105",
           "name": "Rect",
@@ -276,19 +237,6 @@
           "fontFamily": "Arial",
           "fontSize": 24,
           "fontWeight": "800",
-          "fill": "#01161E",
-          "width": 184,
-          "textGrowth": "auto"
-        },
-        {
-          "type": "text",
-          "id": "t108",
-          "content": "Contractors / volunteers",
-          "x": 1014,
-          "y": 268,
-          "fontFamily": "Arial",
-          "fontSize": 12,
-          "fontWeight": "400",
           "fill": "#01161E",
           "width": 184,
           "textGrowth": "auto"

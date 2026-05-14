@@ -605,7 +605,7 @@ input {
 }
 
 .onboarding-runtime__add-hotspot {
-  border: 1px solid rgba(1, 22, 30, 0.14);
+  border: 1px solid var(--color-vegas-gold);
   border-radius: 8px;
   background: var(--color-vegas-gold);
   color: var(--color-text);
