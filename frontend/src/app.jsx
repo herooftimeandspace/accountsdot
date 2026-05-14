@@ -54,9 +54,6 @@ const PHONE_DIRECTORY_TITLES = {
   department: "Phone Directory by Department",
 };
 
-/**
- * pageTitleForRoute documents runtime data flow for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function pageTitleForRoute(route, currentPath) {
   if (currentPath === "/") {
     return "Routing";
@@ -99,9 +96,6 @@ function pageTitleForRoute(route, currentPath) {
   }
 }
 
-/**
- * readStoredPersona loads or decodes data for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
- */
 function readStoredPersona() {
   if (typeof window === "undefined") {
     return DEFAULT_PERSONA_ID;
@@ -113,9 +107,6 @@ function readStoredPersona() {
   }
 }
 
-/**
- * storePersona documents runtime data flow for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
- */
 function storePersona(personaId) {
   if (typeof window === "undefined") {
     return;
@@ -127,9 +118,6 @@ function storePersona(personaId) {
   }
 }
 
-/**
- * readLocationState loads or decodes data for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function readLocationState() {
   return {
     pathname: normalizePath(window.location.pathname),
@@ -137,9 +125,6 @@ function readLocationState() {
   };
 }
 
-/**
- * PageStatus renders the UI surface for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function PageStatus({ title, message }) {
   return (
     // WCAG 4.1.3: app-level loading and redirect state changes are exposed as polite status updates.
@@ -152,9 +137,6 @@ function PageStatus({ title, message }) {
   );
 }
 
-/**
- * PersonaSwitchOverlay renders the UI surface for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function PersonaSwitchOverlay({ label }) {
   if (!label) {
     return null;
@@ -167,9 +149,6 @@ function PersonaSwitchOverlay({ label }) {
   );
 }
 
-/**
- * readJSON loads or decodes data for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -181,9 +160,6 @@ async function readJSON(response) {
   return payload;
 }
 
-/**
- * resolvePersonaSwitchTarget builds derived data for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function resolvePersonaSwitchTarget(payload, pathname) {
   const currentPath = normalizePath(pathname);
   const currentRoute = resolveRoute(currentPath);
@@ -200,9 +176,6 @@ function resolvePersonaSwitchTarget(payload, pathname) {
   return allowedRoutes.includes(currentRoute.path) ? null : payload?.landing_path || "/dashboard";
 }
 
-/**
- * App renders the UI surface for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function App() {
   const [currentLocation, setCurrentLocation] = useState(readLocationState);
   const [session, setSession] = useState(null);
@@ -262,9 +235,6 @@ export function App() {
   }, [loadSession]);
 
   useEffect(() => {
-    /**
-     * handlePopState handles the user or network event for frontend/src/app.jsx. The frontend entry flow reaches this function during session loading, routing, navigation, and persona switching; debug it with browser breakpoints and network requests. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
-     */
     const handlePopState = () => {
       setCurrentLocation(readLocationState());
     };

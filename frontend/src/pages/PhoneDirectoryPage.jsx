@@ -366,29 +366,17 @@ function renderTelLink(value) {
   );
 }
 
-/**
- * paneNodeId documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function paneNodeId(artboardKey, baseId) {
   return `${artboardKey}__${baseId}`;
 }
 
-/**
- * clone documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-/**
- * uniquifyNodeIds documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function uniquifyNodeIds(artboard) {
   const seen = new Map();
 
-  /**
-   * visit documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
-   */
   function visit(node) {
     const count = (seen.get(node.id) ?? 0) + 1;
     seen.set(node.id, count);
@@ -404,9 +392,6 @@ function uniquifyNodeIds(artboard) {
   return artboard;
 }
 
-/**
- * buildNodeIndex builds derived data for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function buildNodeIndex(node, map = new Map()) {
   map.set(node.id, node);
   for (const child of node.children || []) {
@@ -415,9 +400,6 @@ function buildNodeIndex(node, map = new Map()) {
   return map;
 }
 
-/**
- * descendantIds documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function descendantIds(node) {
   const ids = [];
   for (const child of node?.children || []) {
@@ -426,9 +408,6 @@ function descendantIds(node) {
   return ids;
 }
 
-/**
- * pushDuplicateIds documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function pushDuplicateIds(target, nodeIndex, baseId) {
   if (!baseId) {
     return;
@@ -440,9 +419,6 @@ function pushDuplicateIds(target, nodeIndex, baseId) {
   }
 }
 
-/**
- * resolvePaneId builds derived data for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function resolvePaneId(nodeIndex, config, baseId) {
   const prefixedId = paneNodeId(config.artboardKey, baseId);
   if (nodeIndex.has(prefixedId)) {
@@ -451,9 +427,6 @@ function resolvePaneId(nodeIndex, config, baseId) {
   return baseId;
 }
 
-/**
- * nodeBounds documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function nodeBounds(node) {
   if (!node) {
     return null;
@@ -466,9 +439,6 @@ function nodeBounds(node) {
   };
 }
 
-/**
- * phoneDirectoryResultsBounds documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function phoneDirectoryResultsBounds(bounds) {
   if (!bounds) {
     return null;
@@ -480,9 +450,6 @@ function phoneDirectoryResultsBounds(bounds) {
   };
 }
 
-/**
- * phoneDirectoryExpandedArtboardHeight documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function phoneDirectoryExpandedArtboardHeight(baseHeight, resultCount) {
   const rows = Math.max(1, resultCount || 0);
   const tableChromeHeight = 104;
@@ -497,9 +464,6 @@ function phoneDirectoryExpandedArtboardHeight(baseHeight, resultCount) {
   );
 }
 
-/**
- * boundsIntersect documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function boundsIntersect(a, b, tolerance = 1) {
   if (!a || !b) {
     return false;
@@ -512,9 +476,6 @@ function boundsIntersect(a, b, tolerance = 1) {
   );
 }
 
-/**
- * canViewEmployeeId documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function canViewEmployeeId(session) {
   const personaId = session?.current_persona?.id;
   return (
@@ -524,9 +485,6 @@ function canViewEmployeeId(session) {
   );
 }
 
-/**
- * sharedLineColumns documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function sharedLineColumns(titleLabel) {
   return [
     { key: "title", label: titleLabel, render: (result) => result.title, primary: true },
@@ -534,9 +492,6 @@ function sharedLineColumns(titleLabel) {
   ];
 }
 
-/**
- * resultsColumnsForMode documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function resultsColumnsForMode(mode) {
   switch (mode) {
     case "room":
@@ -561,18 +516,12 @@ function resultsColumnsForMode(mode) {
   }
 }
 
-/**
- * resultSummary documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function resultSummary(result, columns) {
   return columns
     .map((column) => `${column.label}: ${runtimeTableColumnValue(result, column, "search") || "none"}`)
     .join("; ");
 }
 
-/**
- * PhoneDirectoryResultsOverlay renders the UI surface for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function PhoneDirectoryResultsOverlay({
   bounds,
   mode,
@@ -673,9 +622,6 @@ function PhoneDirectoryResultsOverlay({
   );
 }
 
-/**
- * PhoneDirectoryDetailOverlay renders the UI surface for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function PhoneDirectoryDetailOverlay({ bounds, mode, result, session, onClose }) {
   if (!bounds || !result) {
     return null;
@@ -704,9 +650,6 @@ function PhoneDirectoryDetailOverlay({ bounds, mode, result, session, onClose })
   );
 }
 
-/**
- * PhoneDirectoryModeToggleOverlay renders the UI surface for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function PhoneDirectoryModeToggleOverlay({ nodeIndex, config, activeMode, searchQuery, onNavigate }) {
   const buttons = MODE_BUTTONS.map((button) => {
     const bounds = nodeBounds(nodeIndex.get(resolvePaneId(nodeIndex, config, button.buttonId)));
@@ -742,9 +685,6 @@ function PhoneDirectoryModeToggleOverlay({ nodeIndex, config, activeMode, search
   return buttons.filter(Boolean);
 }
 
-/**
- * buildTextOverrides builds derived data for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function buildTextOverrides(session, payload, config, searchQuery) {
   const overrides = buildSharedShellTextOverrides(session);
   if (!payload) {
@@ -758,9 +698,6 @@ function buildTextOverrides(session, payload, config, searchQuery) {
   return overrides;
 }
 
-/**
- * buildHiddenNodeIds builds derived data for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function buildHiddenNodeIds(session, artboard, nodeIndex, config) {
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
     hideNavHighlight: true,
