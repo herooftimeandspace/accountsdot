@@ -1,0 +1,117 @@
+name: quality
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - staging
+      - main
+  push:
+    branches:
+      - dev
+      - staging
+      - main
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Branch gate to run.
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - staging
+          - main
+  schedule:
+    - cron: "17 12 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  dev-gate:
+    name: dev gate
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'dev' || inputs.target == 'staging' || inputs.target == 'main'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Run dev branch gate
+        run: python3 scripts/run_local_ci.py --target dev
+
+  staging-gate:
+    name: staging gate
+    runs-on: ubuntu-latest
+    needs: dev-gate
+    if: >-
+      always() &&
+      needs.dev-gate.result == 'success' &&
+      (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'push' && (github.ref_name == 'staging' || github.ref_name == 'main')) ||
+        (github.event_name == 'pull_request' && (github.base_ref == 'staging' || github.base_ref == 'main')) ||
+        (github.event_name == 'workflow_dispatch' && (inputs.target == 'staging' || inputs.target == 'main'))
+      )
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Run staging branch gate
+        run: python3 scripts/run_local_ci.py --target staging
+
+  main-gate:
+    name: main gate
+    runs-on: ubuntu-latest
+    needs: staging-gate
+    if: >-
+      always() &&
+      needs.staging-gate.result == 'success' &&
+      (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'push' && github.ref_name == 'main') ||
+        (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+        (github.event_name == 'workflow_dispatch' && inputs.target == 'main')
+      )
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Run main branch gate
+        run: python3 scripts/run_local_ci.py --target main

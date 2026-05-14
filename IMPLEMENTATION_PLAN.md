@@ -134,6 +134,15 @@
   - the user-provided reason for overriding it
 
 ## Delivery Phases and Gates
+- Branch Gate Semantics:
+  - checked-in CI/CD promotion details live in `docs/promotion-pipeline.md`
+  - `dev` is the developer integration branch and must pass the `dev gate` before automated promotion to `staging` is opened or refreshed
+  - `staging` is the realistic proving ground and must pass the `staging gate`, which includes the `dev gate` checks plus security and frontend accessibility validation, before automated promotion to `main` is opened or refreshed
+  - `main` is production and must pass the `main gate`, which includes the `staging gate` checks plus release-prep static validation and the PR-level `release-prep-check`
+  - promotion PRs must be created or refreshed with the dedicated `PROMOTION_PR_TOKEN` secret rather than `github.token` so required `pull_request` checks are created normally
+  - `staging` to `main` promotion uses the disposable `promote/staging-to-main` branch so production branch protection does not require direct bot pushes to `main`
+  - this repository does not yet define package version files, semver labels, release notes, or deployment manifests for The WIZARD; until those product decisions are documented, promotion PR release metadata is captured in the PR body and checked for external runbook, IncidentIQ testing-ticket, and release/deployment references before merge
+  - branch protection, required reviews, required status checks, GitHub environments, deployment secrets, badge publishing, and the `PROMOTION_PR_TOKEN` secret are manual repository-administration prerequisites documented in `docs/promotion-pipeline.md`
 - Pre-phase rule:
   - before the promotable engineering phases begin, the project uses a `Pre-Phase 0` frontend-design and DEV-implementation track to establish the UI shell, design authority model, and mock-backed page pattern
   - `Pre-Phase 0` is preparatory only and does not replace or bypass the existing `Phase 0 → Phase 5` promotion model
