@@ -127,7 +127,24 @@ await runDevRoutePerformanceBatches({
 
 By default `runDevRoutePerformanceBatches` executes one bounded Browser batch per call. Re-run the same snippet until it returns `"complete": true`; it measures all directed transitions first, then measures refresh samples across the same route targets. The default batch sizes are 50 directed transitions or 12 route-refresh samples per Browser call. If a local Browser session is stable and the tool response window allows it, pass `maxBatches` to run more than one bounded batch in the same call.
 
-The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. If the Browser pipe fails, restart the Browser automation session and run the same automatic batch helper again. For manual recovery or targeted investigation, the lower-level runner still accepts the reported `resumeFromTransitionIndex` or `nextTransitionIndex`:
+The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. Each measured row includes additive performance-budget fields: `budgetStatus`, `budgetWarningMs`, `budgetFailureMs`, and `budgetExceededByMs`. The default transition and refresh budgets warn when readiness time is over `3000 ms` and fail when readiness time is over `7000 ms`; readiness failures still use the existing `status`, `failureClass`, and Browser/app failure sections so slow-but-ready rows are not confused with pages that never became ready.
+
+Override budgets for local investigations by setting environment variables before running the Browser helper or merge command:
+
+```bash
+ROUTE_PERF_TRANSITION_WARNING_MS=2500 ROUTE_PERF_TRANSITION_FAILURE_MS=6500 npm run perf:routes:merge -- artifacts/performance
+ROUTE_PERF_REFRESH_WARNING_MS=3500 ROUTE_PERF_REFRESH_FAILURE_MS=8000 npm run perf:routes:merge -- artifacts/performance
+```
+
+The merge command also accepts one-off threshold flags when reclassifying historical artifacts:
+
+```bash
+npm run perf:routes:merge -- artifacts/performance --transition-warning-ms 2500 --transition-failure-ms 6500 --refresh-warning-ms 3500 --refresh-failure-ms 8000
+```
+
+Use `--budget-strict` only when the current task explicitly needs a budget-only quality gate. It exits nonzero when budget failure rows exist, but it does not replace the separate strict merge gate work for route coverage, duplicate rows, Browser transport failures, or app readiness failures.
+
+If the Browser pipe fails, restart the Browser automation session and run the same automatic batch helper again. For manual recovery or targeted investigation, the lower-level runner still accepts the reported `resumeFromTransitionIndex` or `nextTransitionIndex`:
 
 ```js
 const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
