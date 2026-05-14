@@ -692,7 +692,7 @@
   - the onboarding table renders `Date Added` first; it is the first Escape import date, the inactive-to-active Escape reactivation date, or the manual Non-Escape creation date
   - row drawers show workflow steps; user-action steps include status, resolution instructions, and deterministic mock links for this DEV slice
   - the action opens the shared right-hand drawer with required fields for start date, last 4 SSN, employee type, classification, first name, last name, job title, site, personal email, preferred device, and requested Aeries access
-  - manual drawer fields use compact two-column desktop rows, with missing required fields summarized in the status bubble and controls highlighted with `var(--color-accent-red)` / `#D73533`
+  - manual drawer fields use compact two-column desktop rows, with missing required fields summarized in the status bubble and controls highlighted with `var(--color-accent-red)` / `#D73533` only after the operator explicitly clicks Save; first-open draft creation and autosave keep validation feedback quiet
   - optional fields are limited to replacing employee, room/classroom, and notes
   - excluded People Tracker columns are district email guess, Google groups, other platforms, trainings, keys/building access, alarm codes, and ID card
   - incomplete DEV drafts appear in the onboarding table as `Incomplete Data`, autosave every 60 seconds while dirty, and reopen in the drawer for continued editing

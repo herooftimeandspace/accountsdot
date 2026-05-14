@@ -95,7 +95,7 @@ Draft create/finalize/delete responses use `onboardingManualDraftResponse`:
 }
 ```
 
-`PUT` accepts `onboardingManualDraftRequest` fields: `start_date`, `ssn_last4`, `employee_type`, `classification`, `first_name`, `last_name`, `job_title`, `site_id`, `personal_email`, `personal_phone`, `preferred_device`, `requested_aeries_access`, `replacing_employee_id`, `room_id`, and `notes`. Personal phone is required for manual Non-Escape drafts, canonicalized to a `10`-digit United States number, and used only by planned Aeries upload serialization for `manual_non_escape` source rows.
+`PUT` accepts `onboardingManualDraftRequest` fields: `start_date`, `ssn_last4`, `employee_type`, `classification`, `first_name`, `last_name`, `job_title`, `site_id`, `personal_email`, `personal_phone`, `preferred_device`, `requested_aeries_access`, `replacing_employee_id`, `room_id`, and `notes`. Personal phone is required for manual Non-Escape drafts, accepted only as canonical `10` digits or the drawer-submitted `(NNN) NNN-NNNN` display format, canonicalized to a `10`-digit United States number, and used only by planned Aeries upload serialization for `manual_non_escape` source rows.
 
 ## Authorization And Persona Behavior
 

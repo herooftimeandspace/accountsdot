@@ -170,13 +170,27 @@ function draftToForm(draft) {
     job_title: draft?.job_title ?? "",
     site_id: draft?.site_id ?? "",
     personal_email: draft?.personal_email ?? "",
-    personal_phone: draft?.personal_phone ?? "",
+    personal_phone: formatPersonalPhoneInput(draft?.personal_phone ?? ""),
     preferred_device: draft?.preferred_device ?? "",
     requested_aeries_access: draft?.requested_aeries_access ?? "",
     replacing_employee_id: draft?.replacing_employee_id ?? "",
     room_id: draft?.room_id ?? "",
     notes: draft?.notes ?? "",
   };
+}
+
+/**
+ * formatPersonalPhoneInput keeps the manual Non-Escape drawer display aligned with the backend contract. The drawer and DEV mock API both accept operator-entered punctuation, but the API stores only the canonical ten digits needed for the planned Aeries upload path, so every render and keystroke is converted back to the familiar `(NNN) NNN-NNNN` shape without exposing raw phone text elsewhere.
+ */
+function formatPersonalPhoneInput(value) {
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) {
+    return digits;
+  }
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
 /**
@@ -302,17 +316,17 @@ function missingFieldLabel(field) {
 /**
  * fieldHasProblem documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
-function fieldHasProblem(field, draft, errors) {
-  return Boolean(errors?.[field] || draft?.missing_fields?.includes(field));
+function fieldHasProblem(field, draft, errors, showValidationFeedback) {
+  return Boolean(showValidationFeedback && (errors?.[field] || draft?.missing_fields?.includes(field)));
 }
 
 /**
  * fieldClassName documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
-function fieldClassName(field, draft, errors, extraClass = "") {
+function fieldClassName(field, draft, errors, showValidationFeedback, extraClass = "") {
   return [
     "onboarding-runtime__field",
-    fieldHasProblem(field, draft, errors) ? "onboarding-runtime__field--problem" : "",
+    fieldHasProblem(field, draft, errors, showValidationFeedback) ? "onboarding-runtime__field--problem" : "",
     extraClass,
   ]
     .filter(Boolean)
@@ -646,6 +660,7 @@ function ManualDraftDrawer({
   formOptions,
   currentDate,
   errors,
+  showValidationFeedback,
   saving,
   onChange,
   onClose,
@@ -655,7 +670,7 @@ function ManualDraftDrawer({
   const leadTimeDays = daysBetween(form.start_date, currentDate);
   const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays <= 3;
   const replacingEmployee = formOptions.replacing_employees.find((employee) => employee.id === form.replacing_employee_id);
-  const missingSummary = draft.missing_fields?.length
+  const missingSummary = showValidationFeedback && draft.missing_fields?.length
     ? `Missing required fields: ${draft.missing_fields.map(missingFieldLabel).join(", ")}`
     : "";
   const isCollision =
@@ -734,7 +749,7 @@ function ManualDraftDrawer({
           ) : null}
         </div>
 
-        <label className={fieldClassName("start_date", draft, errors)} htmlFor="manual-start-date">
+        <label className={fieldClassName("start_date", draft, errors, showValidationFeedback)} htmlFor="manual-start-date">
           <span>
             Start date
             {showLeadTimeWarning ? (
@@ -748,10 +763,10 @@ function ManualDraftDrawer({
             value={form.start_date}
             onChange={(event) => onChange("start_date", event.target.value)}
           />
-          <FieldError value={errors.start_date} />
+          <FieldError value={showValidationFeedback ? errors.start_date : ""} />
         </label>
 
-        <label className={fieldClassName("ssn_last4", draft, errors)} htmlFor="manual-ssn-last4">
+        <label className={fieldClassName("ssn_last4", draft, errors, showValidationFeedback)} htmlFor="manual-ssn-last4">
           <span>Last 4 SSN</span>
           <input
             id="manual-ssn-last4"
@@ -762,24 +777,24 @@ function ManualDraftDrawer({
             value={form.ssn_last4}
             onChange={(event) => onChange("ssn_last4", event.target.value.replace(/\D/g, "").slice(0, 4))}
           />
-          <FieldError value={errors.ssn_last4} />
+          <FieldError value={showValidationFeedback ? errors.ssn_last4 : ""} />
         </label>
 
-        <SelectField id="manual-employee-type" label="Employee type" value={form.employee_type} options={formOptions.employee_types} required className={fieldClassName("employee_type", draft, errors)} onChange={(value) => onChange("employee_type", value)} />
-        <SelectField id="manual-classification" label="Classification" value={form.classification} options={formOptions.classifications} required className={fieldClassName("classification", draft, errors)} onChange={(value) => onChange("classification", value)} />
+        <SelectField id="manual-employee-type" label="Employee type" value={form.employee_type} options={formOptions.employee_types} required className={fieldClassName("employee_type", draft, errors, showValidationFeedback)} onChange={(value) => onChange("employee_type", value)} />
+        <SelectField id="manual-classification" label="Classification" value={form.classification} options={formOptions.classifications} required className={fieldClassName("classification", draft, errors, showValidationFeedback)} onChange={(value) => onChange("classification", value)} />
 
-        <label className={fieldClassName("first_name", draft, errors)} htmlFor="manual-first-name">
+        <label className={fieldClassName("first_name", draft, errors, showValidationFeedback)} htmlFor="manual-first-name">
           <span>First name</span>
           <input id="manual-first-name" type="text" required value={form.first_name} onChange={(event) => onChange("first_name", event.target.value)} />
         </label>
 
-        <label className={fieldClassName("last_name", draft, errors)} htmlFor="manual-last-name">
+        <label className={fieldClassName("last_name", draft, errors, showValidationFeedback)} htmlFor="manual-last-name">
           <span>Last name</span>
           <input id="manual-last-name" type="text" required value={form.last_name} onChange={(event) => onChange("last_name", event.target.value)} />
         </label>
 
-        <SelectField id="manual-job-title" label="Job title" value={form.job_title} options={formOptions.job_titles} required className={fieldClassName("job_title", draft, errors)} onChange={(value) => onChange("job_title", value)} />
-        <SelectField id="manual-site" label="Site" value={form.site_id} options={formOptions.sites} required className={fieldClassName("site_id", draft, errors)} onChange={(value) => onChange("site_id", value)} />
+        <SelectField id="manual-job-title" label="Job title" value={form.job_title} options={formOptions.job_titles} required className={fieldClassName("job_title", draft, errors, showValidationFeedback)} onChange={(value) => onChange("job_title", value)} />
+        <SelectField id="manual-site" label="Site" value={form.site_id} options={formOptions.sites} required className={fieldClassName("site_id", draft, errors, showValidationFeedback)} onChange={(value) => onChange("site_id", value)} />
 
         <SelectField id="manual-replacing" label="Replacing" value={form.replacing_employee_id} options={formOptions.replacing_employees} onChange={(value) => onChange("replacing_employee_id", value)} />
         <SelectField id="manual-room" label="Room / classroom" value={form.room_id} options={formOptions.rooms} onChange={(value) => onChange("room_id", value)} />
@@ -787,28 +802,30 @@ function ManualDraftDrawer({
           <p className="onboarding-runtime__hint">{replacingEmployee.email}</p>
         ) : null}
 
-        <label className={fieldClassName("personal_email", draft, errors, "onboarding-runtime__field--full")} htmlFor="manual-personal-email">
+        <label className={fieldClassName("personal_email", draft, errors, showValidationFeedback, "onboarding-runtime__field--full")} htmlFor="manual-personal-email">
           <span>Personal email</span>
           <input id="manual-personal-email" type="email" required value={form.personal_email} onChange={(event) => onChange("personal_email", event.target.value)} />
-          <FieldError value={errors.personal_email} />
+          <FieldError value={showValidationFeedback ? errors.personal_email : ""} />
         </label>
 
-        <label className={fieldClassName("personal_phone", draft, errors)} htmlFor="manual-personal-phone">
-          <span>Personal phone</span>
+        <label className={fieldClassName("personal_phone", draft, errors, showValidationFeedback, "onboarding-runtime__field--full")} htmlFor="manual-personal-phone">
+          <span>Personal phone number</span>
           <input
             id="manual-personal-phone"
             type="tel"
             inputMode="tel"
             autoComplete="tel"
+            pattern="\([0-9]{3}\) [0-9]{3}-[0-9]{4}"
+            placeholder="(707) 555-0134"
             required
             value={form.personal_phone}
-            onChange={(event) => onChange("personal_phone", event.target.value)}
+            onChange={(event) => onChange("personal_phone", formatPersonalPhoneInput(event.target.value))}
           />
-          <FieldError value={errors.personal_phone} />
+          <FieldError value={showValidationFeedback ? errors.personal_phone : ""} />
         </label>
 
-        <SelectField id="manual-device" label="Preferred device" value={form.preferred_device} options={formOptions.preferred_devices} required className={fieldClassName("preferred_device", draft, errors)} onChange={(value) => onChange("preferred_device", value)} />
-        <SelectField id="manual-aeries" label="Requested Aeries access" value={form.requested_aeries_access} options={formOptions.requested_aeries_access} required className={fieldClassName("requested_aeries_access", draft, errors)} onChange={(value) => onChange("requested_aeries_access", value)} />
+        <SelectField id="manual-device" label="Preferred device" value={form.preferred_device} options={formOptions.preferred_devices} required className={fieldClassName("preferred_device", draft, errors, showValidationFeedback)} onChange={(value) => onChange("preferred_device", value)} />
+        <SelectField id="manual-aeries" label="Requested Aeries access" value={form.requested_aeries_access} options={formOptions.requested_aeries_access} required className={fieldClassName("requested_aeries_access", draft, errors, showValidationFeedback)} onChange={(value) => onChange("requested_aeries_access", value)} />
 
         <label className="onboarding-runtime__field onboarding-runtime__field--full" htmlFor="manual-notes">
           <span>Notes</span>
@@ -834,6 +851,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   const [addManualError, setAddManualError] = useState("");
   const [draftForm, setDraftForm] = useState(EMPTY_DRAFT_FORM);
   const [draftErrors, setDraftErrors] = useState({});
+  const [manualSaveAttempted, setManualSaveAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
   const dirtyRef = useRef(false);
   const activeDraftRef = useRef(null);
@@ -872,6 +890,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     setActiveDraft(null);
     setAddManualError("");
     setDraftErrors({});
+    setManualSaveAttempted(false);
     dirtyRef.current = false;
     void loadPage();
   }, [loadPage]);
@@ -925,6 +944,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     setSelectedRow(null);
     setActiveDraft(null);
     setDraftErrors({});
+    setManualSaveAttempted(false);
     setAddManualError("");
     try {
       const created = await readJSON(
@@ -952,11 +972,13 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
         setActiveDraft(draft);
         setDraftForm(draftToForm(draft));
         setDraftErrors({});
+        setManualSaveAttempted(false);
         dirtyRef.current = false;
       }
       return;
     }
     setActiveDraft(null);
+    setManualSaveAttempted(false);
   }, [payload]);
 
   const handleDraftChange = useCallback((field, value) => {
@@ -977,6 +999,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   }, [saveDraft]);
 
   const handleSaveDraft = useCallback(async () => {
+    setManualSaveAttempted(true);
     const saved = await saveDraft();
     if (!saved) {
       return;
@@ -1089,6 +1112,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
             formOptions={formOptions}
             currentDate={payload?.page?.current_date}
             errors={draftErrors}
+            showValidationFeedback={manualSaveAttempted}
             saving={saving}
             onChange={handleDraftChange}
             onClose={handleCloseDraft}
@@ -1114,6 +1138,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     handleSaveDraft,
     handleSelectRow,
     payload,
+    manualSaveAttempted,
     rows,
     saving,
     selectedRow,
