@@ -577,7 +577,7 @@
     - evidence that multi-line dashboard tables use a shared top baseline across all cells and do not vertically center sparse cells
   - `1D` student invalid-name visibility
     - site-secretary scope evidence
-    - invalid-name detail evidence including suggested correction and Aeries link
+    - invalid-name detail evidence including secretary-friendly current/suggested first-name and last-name labels, source-value preservation, suggested correction, and Aeries base-site link behavior
     - student-denial evidence for this dashboard surface
   - `1E` Frequent Fliers visibility
     - runtime evidence of threshold/lookback behavior
