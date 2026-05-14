@@ -589,11 +589,15 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 ### Departing Seniors Page
 - The pre-phase 0 DEV frontend includes a bare-bones `Departing Seniors` page for current senior-class account retirement and device-return review.
 - The page is visible only to IT Admin and Device Wrangler personas. Other personas must receive the normal access-denied behavior for direct links.
-- The page lists the current school year's graduating senior class and refreshes the source cohort each school year from the current senior graduation year.
-- Each row shows first and last name, student email address, graduation year, student ID, current end date, deprovision status, and outstanding IncidentIQ devices assigned to the student. Device display must include the assigned asset serial and IncidentIQ asset ID.
+- The page lists the current school year's graduating senior class by default, using Aeries school-year data to select the current senior graduation year. Operators may choose retained previous senior years from the school-year dropdown.
+- The retained senior-year list includes the current senior year plus four previous senior years. Older years should not be returned by the DEV API or future retained database projection.
+- Each visible table row shows first and last name, student email address, student ID, current end date, deprovision status, and outstanding IncidentIQ devices assigned to the student. Graduation year belongs in the selected school-year context and row detail rather than the default visible table columns.
+- Device display must include assigned asset serial numbers. Serial numbers should link to `https://{incidentiq_domain}/agent/assets/{asset_id}` only when a real asset id and domain are available. `No outstanding devices` must render as plain text.
+- Device-return warning details belong in the shared right-hand row drawer, not as persistent helper text inside the table cell.
 - The page provides a local end-date override date picker for each student. The override is DEV mock behavior in this slice and does not change Aeries source data.
 - Each row provides a deprovision-account action. A student remains on the list until the account is deprovisioned and IncidentIQ shows no outstanding assigned devices. If the account is deprovisioned while devices remain assigned, the row remains visible as device-return work.
-- The page-level search/filter must search all table data available in the row, including first name, last name, email address, graduation year, assigned asset serial, assigned asset ID, and student ID.
+- Selecting a row opens the shared right-hand drawer with detailed student, school-year, device-return, and offboarding/account-retirement information.
+- The page-level search/filter must search all table data available in the row, including first name, last name, email address, selected school year, assigned asset serial, assigned asset ID, and student ID.
 
 ### 3. Student Invalid-Name Dashboard
 - Show only active unresolved student name failures for the secretary’s site.

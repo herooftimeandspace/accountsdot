@@ -141,14 +141,16 @@ const DEFAULT_HELP_BY_NAV_KEY = {
       {
         heading: "What this page shows",
         paragraphs: [
-          "This page lists seniors who are expected to leave at the end of the current school year.",
-          "It shows each student, graduation year, student ID, district email, planned end date, and any outstanding devices from IncidentIQ.",
+          "This page lists current senior class account retirement and outstanding IncidentIQ device review work.",
+          "It shows each student, school-year context, student ID, district email, planned end date, and any outstanding devices from IncidentIQ.",
         ],
       },
       {
         heading: "How to use it",
         paragraphs: [
-          "Use the table search to find a student by name, email, graduation year, student ID, assigned asset serial, or assigned asset ID.",
+          "Use the school-year dropdown to review the current senior year or one of the four retained previous senior years.",
+          "Use the table search to find a student by name, email, school year, student ID, assigned asset serial, or assigned asset ID.",
+          "Select a row to open the right drawer for detailed student, account-retirement, and device-return information.",
           "IT and Device Wranglers can adjust a local end-date override, then deprovision the account when it is ready. A student stays on the list until the account is deprovisioned and all assigned devices are cleared.",
         ],
       },
