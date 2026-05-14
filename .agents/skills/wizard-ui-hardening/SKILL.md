@@ -80,3 +80,12 @@ If the same annotation set or generated result repeats more than twice without m
 ## Feedback Thread Handoff
 
 When reporting progress in a UI feedback thread, include the active page, active primitive, ledger rows touched, layer classification, files expected to change, checks to run, and whether any item was reclassified as behavior.
+
+## Repository Branch Policy
+
+This repository uses `dev` as the integration branch.
+
+- New issue branches must start from `dev`.
+- UI feedback issue PRs created from feedback review sessions should target `ui-hardening` first.
+- The `ui-hardening` branch should then promote through PRs into `dev`, then `staging`, then `main`.
+- Issues are considered complete when the resolving PR is merged into the active UI hardening integration branch unless the maintainer sets a different completion branch.
