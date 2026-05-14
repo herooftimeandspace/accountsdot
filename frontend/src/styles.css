@@ -2434,8 +2434,17 @@ input {
 .student-data-runtime__table-header,
 .student-data-runtime__row {
   display: grid;
-  grid-template-columns: 0.75fr 1.05fr 1.05fr 1.15fr 1fr 0.5fr 1.25fr;
-  column-gap: 12px;
+  grid-template-columns:
+    minmax(82px, 0.62fr)
+    minmax(130px, 0.95fr)
+    minmax(118px, 0.86fr)
+    minmax(118px, 0.9fr)
+    minmax(122px, 0.86fr)
+    minmax(122px, 0.92fr)
+    minmax(120px, 0.88fr)
+    minmax(54px, 0.42fr)
+    minmax(150px, 1fr);
+  column-gap: 10px;
   align-items: center;
   padding: 10px 14px;
 }

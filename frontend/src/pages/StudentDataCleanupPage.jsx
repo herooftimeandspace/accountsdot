@@ -17,9 +17,9 @@ const ARTBOARD_KEY = "student-data-cleanup";
 const STUDENT_DATA_HEADING_ID = "student-data-cleanup-heading";
 const PANE_LEFT = 306;
 const PANE_TOP = 118;
-const PANE_WIDTH = 1260;
+const PANE_WIDTH = 1348;
 const DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
-const AERIES_LINK_BASE = "https://mock.wusd.local/aeries/students";
+const AERIES_LINK_BASE = "https://mock.wusd.local/aeries";
 
 const STUDENT_DATA_HELP_CONTENT = {
   title: "Student Data Cleanup help",
@@ -32,7 +32,7 @@ const STUDENT_DATA_HELP_CONTENT = {
     {
       heading: "How to use it",
       body:
-        "Use table search, issue type, grade filters, and column sorting to find a record. Select a row to review the raw Aeries values and the cleaned values the system expects.",
+        "Use table search, issue type, grade filters, and column sorting to find a record. Select a row to compare the current Aeries name values with the suggested values to paste back into Aeries.",
     },
     {
       heading: "Where corrections happen",
@@ -196,14 +196,24 @@ const STUDENT_COLUMNS = [
   { key: "studentId", label: "Student ID", value: (row) => row.studentId },
   { key: "studentName", label: "Student Name", value: (row) => row.studentName },
   {
+    key: "firstNameRaw",
+    label: "Current first name",
+    value: (row) => row.firstNameRaw,
+  },
+  {
     key: "firstNameClean",
-    label: "FirstName",
-    value: (row) => `${row.firstNameRaw} → ${row.firstNameClean}`,
+    label: "Suggested first name",
+    value: (row) => row.firstNameClean,
+  },
+  {
+    key: "lastNameRaw",
+    label: "Current last name",
+    value: (row) => row.lastNameRaw,
   },
   {
     key: "lastNameClean",
-    label: "LastName",
-    value: (row) => `${row.lastNameRaw} → ${row.lastNameClean}`,
+    label: "Suggested last name",
+    value: (row) => row.lastNameClean,
   },
   { key: "issueType", label: "Issue Type", value: (row) => row.issueType },
   { key: "grade", label: "Grade", value: (row) => row.grade, sortValue: (row) => Number(row.grade) },
@@ -211,7 +221,7 @@ const STUDENT_COLUMNS = [
 ];
 
 /**
- * collectAllNodeIds builds derived data for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * collectAllNodeIds appends a generated artboard subtree to the hidden-node list used by StudentDataCleanupPage. It receives one .pen node plus the accumulator owned by collectPaneNodeIds, and it returns through that accumulator so the runtime table, filters, and drawer can replace the static page-pane artwork without hiding shared shell nodes.
  */
 function collectAllNodeIds(node, ids) {
   ids.push(node.id);
@@ -221,7 +231,7 @@ function collectAllNodeIds(node, ids) {
 }
 
 /**
- * collectPaneNodeIds builds derived data for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * collectPaneNodeIds finds the generated Student Data Cleanup pane descendants that should be hidden under the runtime overlay. StudentDataCleanupPage calls it after loading the generated artboard; the returned ids preserve the shared shell while preventing duplicate static filters, rows, helper copy, or stale labels from rendering behind the live React controls.
  */
 function collectPaneNodeIds(node, ids = []) {
   const isPaneNode = (node.x ?? 0) >= 280 && (node.y ?? 0) >= 88;
@@ -236,14 +246,14 @@ function collectPaneNodeIds(node, ids = []) {
 }
 
 /**
- * aeriesLink documents runtime data flow for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * aeriesLink returns the configured Aeries base site used by StudentDataDrawer. The Student Data Cleanup route links to the general Aeries site because the dashboard cannot safely deep-link to a specific student record; operators use the displayed Student ID after the new tab opens.
  */
-function aeriesLink(studentId) {
-  return `${AERIES_LINK_BASE}/${encodeURIComponent(studentId)}`;
+function aeriesLink() {
+  return AERIES_LINK_BASE;
 }
 
 /**
- * uniqueValues documents runtime data flow for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * uniqueValues derives the issue-type and grade filter options from the current DEV mock rows. StudentDataOverlay calls it during render so the select controls reflect the available queue data while preserving the source values displayed in each row.
  */
 function uniqueValues(rows, key) {
   return [...new Set(rows.map((row) => row[key]))].sort((left, right) =>
@@ -252,7 +262,7 @@ function uniqueValues(rows, key) {
 }
 
 /**
- * StudentDataDrawer renders the UI surface for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * StudentDataDrawer shows the selected Student Data Cleanup row in the shared right-hand drawer. StudentDataOverlay passes the selected row here; the drawer returns read-only current and suggested Aeries name values, explains that edits happen in Aeries, and links only to the base Aeries site so the page does not imply a record-level deep link or local student-data write path.
  */
 function StudentDataDrawer({ row, onClose }) {
   if (!row) {
@@ -266,19 +276,22 @@ function StudentDataDrawer({ row, onClose }) {
           { label: "Grade", value: row.grade },
           { label: "Issue Type", value: row.issueType },
           { label: "Submitted", value: row.submitted },
-          { label: "FirstName raw", value: row.firstNameRaw },
-          { label: "FirstName clean", value: row.firstNameClean },
-          { label: "LastName raw", value: row.lastNameRaw },
-          { label: "LastName clean", value: row.lastNameClean },
+          { label: "Current first name", value: row.firstNameRaw },
+          { label: "Suggested first name", value: row.firstNameClean },
+          { label: "Current last name", value: row.lastNameRaw },
+          { label: "Suggested last name", value: row.lastNameClean },
         ]}
       />
       <div className="runtime-drawer__section">
         <p>
           <strong>Source system</strong>
-          <span>Corrections must be made in Aeries. This dashboard cannot edit student data.</span>
+          <span>
+            Corrections must be made in Aeries. Open Aeries in a new tab, search for this Student ID, and update the
+            source name fields there. This dashboard cannot edit student data.
+          </span>
         </p>
-        <a className="student-data-runtime__aeries-link" href={aeriesLink(row.studentId)} target="_blank" rel="noreferrer">
-          Open Aeries student record
+        <a className="student-data-runtime__aeries-link" href={aeriesLink()} target="_blank" rel="noreferrer">
+          Open Aeries
         </a>
       </div>
     </RuntimeDrawer>
@@ -286,7 +299,7 @@ function StudentDataDrawer({ row, onClose }) {
 }
 
 /**
- * StudentDataOverlay renders the UI surface for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * StudentDataOverlay owns the live Student Data Cleanup table over the generated .pen shell. StudentDataCleanupPage supplies DEV mock rows, filter state, row-selection handlers, and sync button state; this component returns the searchable/sortable runtime table and keeps all displayed current-name values faithful to the Aeries source strings.
  */
 function StudentDataOverlay({
   rows,
@@ -400,8 +413,10 @@ function StudentDataOverlay({
             >
               <div>{row.studentId}</div>
               <div>{row.studentName}</div>
-              <div>{row.firstNameRaw} → {row.firstNameClean}</div>
-              <div>{row.lastNameRaw} → {row.lastNameClean}</div>
+              <div>{row.firstNameRaw}</div>
+              <div>{row.firstNameClean}</div>
+              <div>{row.lastNameRaw}</div>
+              <div>{row.lastNameClean}</div>
               <div>{row.issueType}</div>
               <div>{row.grade}</div>
               <div>{row.submitted}</div>
@@ -420,7 +435,7 @@ function StudentDataOverlay({
 }
 
 /**
- * StudentDataCleanupPage renders the UI surface for frontend/src/pages/StudentDataCleanupPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * StudentDataCleanupPage is the /student-data-cleanup route rendered by frontend/src/app.jsx after route authorization. It loads the generated artboard shell, hides the obsolete static pane, renders runtime-owned filters/table/drawer behavior, and keeps the page informational only: the local sync button changes temporary UI state, but no student record or provider data is written.
  */
 export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQuery }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);

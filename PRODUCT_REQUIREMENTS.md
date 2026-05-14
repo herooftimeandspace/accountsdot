@@ -599,11 +599,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Do not parse or validate a combined `LastName, FirstName` string, and do not treat a missing comma as a valid failure case.
 - Display the student in human-readable form as `FirstName LastName`.
 - Sort the queue ascending by `Student ID`.
-- Show separate table columns for `Student ID`, `FirstName`, and `LastName`.
+- Show separate table columns for `Student ID`, student name, the current Aeries first and last name values, and the suggested first and last name values.
+- Use plain-language labels such as `Current first name`, `Suggested first name`, `Current last name`, and `Suggested last name`; do not expose `raw`, `clean`, `FirstName raw`, or `LastName clean` terminology to site secretaries.
+- Preserve the exact source-system values in current-value fields, including leading or trailing whitespace when those characters are the reason the row appears in the queue.
 - Show normalized correction output separately for first name and last name.
 - Provide a copy button next to each normalized first-name and last-name suggestion so a secretary can copy the corrected field value directly to the clipboard for pasting into Aeries.
 - Display invalid-character examples such as `Nuño` and the corresponding normalized correction.
-- Provide a link to Aeries so the user can correct the source data there.
+- Provide a link to the configured Aeries website root so the user can correct the source data there. The dashboard must not imply it can deep-link to a specific student record; drawer copy should tell the secretary to search Aeries by the displayed Student ID.
 - The live page should use the shared runtime table primitives for page-local search, issue type filtering, grade filtering, and three-way sortable column headers.
 - The table should expand or collapse to the visible result count rather than leaving large empty fixed artboard space after the rows.
 - Informational copy explaining that corrections happen in Aeries belongs in the shared help drawer, not as persistent blue helper blocks inside the page pane.
