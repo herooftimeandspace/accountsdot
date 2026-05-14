@@ -283,9 +283,6 @@ const DEFAULT_HELP_BY_NAV_KEY = {
   },
 };
 
-/**
- * estimateTextHeight documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function estimateTextHeight(node, textOverrides) {
   const content = String(textOverrides?.[node.id] ?? node.content ?? "");
   const fontSize = node.fontSize ?? 14;
@@ -299,9 +296,6 @@ function estimateTextHeight(node, textOverrides) {
   return node.height ?? Math.ceil(lineCount * fontSize * 1.35);
 }
 
-/**
- * nodeBounds documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function nodeBounds(node, textOverrides) {
   if (!node) {
     return null;
@@ -319,9 +313,6 @@ function nodeBounds(node, textOverrides) {
   };
 }
 
-/**
- * mergeBounds documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function mergeBounds(current, next) {
   if (!current) {
     return next;
@@ -337,9 +328,6 @@ function mergeBounds(current, next) {
   };
 }
 
-/**
- * textContent documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function textContent(node, textOverrides = {}) {
   if (!node) {
     return "";
@@ -347,9 +335,6 @@ function textContent(node, textOverrides = {}) {
   return String(textOverrides?.[node.id] ?? node.content ?? "");
 }
 
-/**
- * containsBounds documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function containsBounds(outer, inner) {
   if (!outer || !inner) {
     return false;
@@ -362,9 +347,6 @@ function containsBounds(outer, inner) {
   );
 }
 
-/**
- * findTopRightRefreshButtonBounds documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function findTopRightRefreshButtonBounds(nodeIndex, textOverrides = {}) {
   const nodes = Array.from(nodeIndex.values());
   const refreshTextNode = nodes
@@ -422,9 +404,6 @@ function findTopRightRefreshButtonBounds(nodeIndex, textOverrides = {}) {
   return nodeBounds(refreshFrame, textOverrides);
 }
 
-/**
- * parseRefreshMetadata documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function parseRefreshMetadata(value) {
   const normalized = String(value ?? "")
     .split("\n")
@@ -557,9 +536,6 @@ function SharedShellPageSyncControl({ buttonBounds, pageSyncControl }) {
   );
 }
 
-/**
- * deriveInitials builds derived data for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function deriveInitials(persona) {
   const explicit = String(persona?.initials ?? "").trim();
   if (explicit) {
@@ -579,9 +555,6 @@ export function deriveInitials(persona) {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
-/**
- * buildSharedShellTextOverrides builds derived data for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function buildSharedShellTextOverrides(session) {
   if (!session?.current_persona) {
     return {};
@@ -602,9 +575,6 @@ export function buildSharedShellTextOverrides(session) {
   };
 }
 
-/**
- * buildSharedShellImageOverrides builds derived data for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function buildSharedShellImageOverrides(session) {
   const profilePhotoUrl = session?.current_persona?.profile_photo_url;
   if (!profilePhotoUrl) {
@@ -616,16 +586,10 @@ export function buildSharedShellImageOverrides(session) {
   };
 }
 
-/**
- * staticRefreshMetadataForArtboard documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function staticRefreshMetadataForArtboard(artboardKey) {
   return STATIC_PAGE_REFRESH_METADATA[artboardKey] ?? null;
 }
 
-/**
- * buildSharedShellHiddenNodeIds builds derived data for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function buildSharedShellHiddenNodeIds(session, options = {}) {
   const hiddenNodeIds = [];
   const visibleNavGroups = new Set(buildVisibleNavGroups(session));
@@ -658,9 +622,6 @@ export function buildSharedShellHiddenNodeIds(session, options = {}) {
   return hiddenNodeIds;
 }
 
-/**
- * navLabelContent documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function navLabelContent(navKey, nodeIndex, textOverrides) {
   if (NAV_LABELS[navKey]) {
     return NAV_LABELS[navKey];
@@ -675,9 +636,6 @@ function navLabelContent(navKey, nodeIndex, textOverrides) {
   return labelNode.content ?? navKey;
 }
 
-/**
- * navIconMarkup documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function navIconMarkup(navKey) {
   const svg = NAV_ICON_MARKUP[navKey];
   if (!svg) {
@@ -688,9 +646,6 @@ function navIconMarkup(navKey) {
     .replace(/height="[^"]+"/, 'height="18"');
 }
 
-/**
- * sidebarRowMetrics documents runtime data flow for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function sidebarRowMetrics(index) {
   const labelY = SIDEBAR_TEMPLATE.firstLabelY + index * SIDEBAR_TEMPLATE.rowStep;
   return {
@@ -700,9 +655,6 @@ function sidebarRowMetrics(index) {
   };
 }
 
-/**
- * SharedShellSidebarRow renders the UI surface for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function SharedShellSidebarRow({
   index,
   navKey,
@@ -775,9 +727,6 @@ function SharedShellSidebarRow({
   );
 }
 
-/**
- * SharedShellSearchOverlay renders the UI surface for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function SharedShellSearchOverlay({ bounds, iconBounds, initialQuery, placeholder, onSearch }) {
   const [value, setValue] = useState(initialQuery ?? "");
 
@@ -829,9 +778,6 @@ function SharedShellSearchOverlay({ bounds, iconBounds, initialQuery, placeholde
   );
 }
 
-/**
- * SharedShellScopeDropdown renders the UI surface for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function SharedShellScopeDropdown({
   bounds,
   label = "Header scope",
@@ -879,9 +825,6 @@ export function SharedShellScopeDropdown({
   );
 }
 
-/**
- * SharedShellHelpOverlay renders the UI surface for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function SharedShellHelpOverlay({ bounds, helpContent }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -930,9 +873,6 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
   );
 }
 
-/**
- * defaultHelpContent builds derived data for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function defaultHelpContent(activeNavKey) {
   if (activeNavKey && DEFAULT_HELP_BY_NAV_KEY[activeNavKey]) {
     return DEFAULT_HELP_BY_NAV_KEY[activeNavKey];
@@ -956,9 +896,6 @@ function defaultHelpContent(activeNavKey) {
   };
 }
 
-/**
- * createSharedShellRenderOverlay builds derived data for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function createSharedShellRenderOverlay({
   session,
   onNavigate,
