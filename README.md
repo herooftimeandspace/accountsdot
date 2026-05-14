@@ -106,7 +106,13 @@ npm run dev:web
 curl -i http://localhost:5173/api/v1/dev/session
 ```
 
-The preflight should return `200 OK` with DEV session JSON. An unauthenticated but correctly started DEV API includes fields such as `"environment":"development"`, `"authenticated":false`, `"authorized":false`, and a non-empty `"personas"` array. A `404` at this step is a startup/configuration failure; restart the API with `APP_ENV=development` before collecting Browser evidence. A passing preflight followed by lost automation connection, missing `iab` tab access, or interrupted pipe output is a Browser transport failure. A passing preflight with an app-rendered error, timeout after navigation, or missing route content is a page readiness failure for the route being measured.
+If Vite is not running yet, check the API directly on the default Go port instead:
+
+```bash
+curl -i http://localhost:8080/api/v1/dev/session
+```
+
+The preflight should return `200 OK` with DEV session JSON from either URL. An unauthenticated but correctly started DEV API includes fields such as `"environment":"development"`, `"authenticated":false`, `"authorized":false`, and a non-empty `"personas"` array. A `404` from the direct API URL is a startup/configuration failure; restart the API with `APP_ENV=development` before collecting Browser evidence. A `200 OK` from the direct API URL but a failed Vite URL means the route matrix is still blocked by frontend proxy startup or port wiring, not by Browser or page readiness. A passing preflight followed by lost automation connection, missing `iab` tab access, or interrupted pipe output is a Browser transport failure. A passing preflight with an app-rendered error, timeout after navigation, or missing route content is a page readiness failure for the route being measured.
 
 `npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
 
