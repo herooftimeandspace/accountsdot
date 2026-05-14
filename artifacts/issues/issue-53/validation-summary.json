@@ -1,0 +1,10 @@
+{
+  "browser": "local headless Chrome CDP fallback",
+  "browserPlugin": "unavailable: agent.browsers.list() returned []",
+  "baseUrl": "http://localhost:5175",
+  "apiUrl": "http://localhost:18080",
+  "loginStatus": 200,
+  "loginText": "Skip to main content\nThe WIZARD Login\nthe wizard\nLog in with Google",
+  "error404Text": "Skip to main content\nDEV\nIT Admin\npage not found\n\nThe requested page could not be found.\n\nThe WIZARD\nWindsor Identity Zync, Access, & Retirement Dashboard\nHave you checked with The WIZARD?\n3\nAR\nAlex Ramirez\nIT Admin\nSupport\nPlatform Status\nAll Systems Operational\nHeader scope\nDistrict-wide\nDashboard\nOnboarding\nOffboarding\nDeparting Seniors\nRoom Moves\nPhone Directory\nData Quality\nFrequent Fliers\nStudent Data Cleanup\nReports\nAdmin\n\n404\n\npage not found\n\nThe requested page could not be found.\n\nReturn to Dashboard",
+  "error500Text": "Skip to main content\nDEV\nIT Admin\napplication error\n\nThe application encountered an unexpected problem while handling this request.\n\nThe WIZARD\nWindsor Identity Zync, Access, & Retirement Dashboard\nHave you checked with The WIZARD?\n3\nAR\nAlex Ramirez\nIT Admin\nSupport\nPlatform Status\nAll Systems Operational\nHeader scope\nDistrict-wide\nDashboard\nOnboarding\nOffboarding\nDeparting Seniors\nRoom Moves\nPhone Directory\nData Quality\nFrequent Fliers\nStudent Data Cleanup\nReports\nAdmin\n\n500\n\napplication error\n\nThe application encountered an unexpected problem while handling this request.\n\nReturn to Dashboard"
+}
