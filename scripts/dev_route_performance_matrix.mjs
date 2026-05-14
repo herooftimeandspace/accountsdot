@@ -17,6 +17,13 @@ const DEFAULT_REFRESH_BUDGET_FAILURE_MS = 7000;
 const IT_ADMIN_PERSONA_LABEL = "IT Admin";
 const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ROUTE_REGISTRY_PATH = path.join(REPO_ROOT, "frontend/src/lib/routeRegistry.js");
+const PHASE_TIMING_KEYS = [
+  "navigationLoadMs",
+  "readinessPollingMs",
+  "setupNavigationLoadMs",
+  "frontendSessionFetchMs",
+  "frontendGeneratedArtboardImportMs",
+];
 
 // Route variants stay content-sensitive by default so query-specific pages, such as
 // search results, still prove that the expected body content rendered. Use
@@ -382,6 +389,42 @@ function buildBudgetSummary(transitions, refreshes) {
       failures: transitionFailures.length + refreshFailures.length,
     },
   };
+}
+
+function phaseTimingRowSummary(row, phaseKey) {
+  return {
+    type: row.type,
+    from: row.from,
+    to: row.to,
+    route: row.route,
+    sample: row.sample,
+    index: row.index,
+    phaseMs: row.phaseTimings?.[phaseKey] ?? null,
+    totalMs: row.phaseTimings?.totalMs ?? row.elapsedMs ?? null,
+    elapsedMs: row.elapsedMs,
+    readinessSignal: row.readinessSignal,
+    status: row.status,
+  };
+}
+
+function summarizePhaseTimingRows(rows, phaseKey, limit = 5) {
+  const measuredRows = rows
+    .filter((row) => row.status === "ok" && Number.isFinite(row.phaseTimings?.[phaseKey]))
+    .sort((a, b) => b.phaseTimings[phaseKey] - a.phaseTimings[phaseKey]);
+  const values = measuredRows.map((row) => row.phaseTimings[phaseKey]).sort((a, b) => a - b);
+
+  return {
+    sampleCount: values.length,
+    minMs: values[0] ?? null,
+    medianMs: values.length ? values[Math.floor(values.length / 2)] : null,
+    maxMs: values[values.length - 1] ?? null,
+    slowestRows: measuredRows.slice(0, limit).map((row) => phaseTimingRowSummary(row, phaseKey)),
+  };
+}
+
+function buildPhaseTimingSummary(transitions, refreshes) {
+  const rows = [...transitions, ...refreshes];
+  return Object.fromEntries(PHASE_TIMING_KEYS.map((phaseKey) => [phaseKey, summarizePhaseTimingRows(rows, phaseKey)]));
 }
 
 function normalizePhaseTimings(row) {
@@ -1228,6 +1271,7 @@ function buildResult({
       refreshes: failureCounts(budgetedRefreshes),
     },
     budgetSummary: buildBudgetSummary(budgetedTransitions, budgetedRefreshes),
+    phaseTimingSummary: buildPhaseTimingSummary(budgetedTransitions, budgetedRefreshes),
     transitionSummaryByTarget: summarizeTimings(budgetedTransitions, "to"),
     refreshSummaryByRoute: summarizeTimings(budgetedRefreshes, "route"),
   };
