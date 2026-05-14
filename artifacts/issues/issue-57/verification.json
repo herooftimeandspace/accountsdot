@@ -1,0 +1,10 @@
+{
+  "url": "http://127.0.0.1:5173/data-quality",
+  "hasMappingButton": false,
+  "routingHelpOnPage": false,
+  "helpDrawerHasRoutingCopy": true,
+  "screenshots": [
+    "/Users/lcampbell/code.internal/accountsdot/.worktrees/issue-57-data-quality-help-routing/artifacts/issues/issue-57/data-quality-page.png",
+    "/Users/lcampbell/code.internal/accountsdot/.worktrees/issue-57-data-quality-help-routing/artifacts/issues/issue-57/data-quality-help-drawer.png"
+  ]
+}

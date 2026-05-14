@@ -200,12 +200,15 @@ const DEFAULT_HELP_BY_NAV_KEY = {
         heading: "What this page shows",
         paragraphs: [
           "This page lists data issues that can block or delay account and access work.",
+          "Source-system conflicts and missing-data queues route to the teams that can correct upstream records instead of being silently patched on this page.",
         ],
       },
       {
         heading: "How to use it",
         paragraphs: [
           "Start with high-severity issues and follow the next action listed for each row. Refresh when you need the latest DEV mock queue.",
+          "HR queues cover sensitive lifecycle or title issues. Site queues cover room and student data corrections. IT queues cover provider conflicts and security mismatches.",
+          "This page keeps the Data Quality queue inline. Mapping and policy changes belong in documented IT Admin configuration surfaces, so unsupported mapping-dashboard shortcuts are not shown here.",
         ],
       },
     ],

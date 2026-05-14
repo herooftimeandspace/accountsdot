@@ -1,6 +1,6 @@
 # Sync Dashboard Overrides Walkthrough
 
-Sync dashboard overrides represent high-risk manual exception handling for sync dry runs. The current checkout does not persist override records or call live providers; it exposes route stubs, DEV data-quality links, sync projection logic, and planner operation names that document how future write-capable sync override work must be guarded.
+Sync dashboard overrides represent high-risk manual exception handling for sync dry runs. The current checkout does not persist override records or call live providers; it exposes route stubs, sync projection logic, and planner operation names that document how future write-capable sync override work must be guarded.
 
 ## Frontend Entrypoint
 
@@ -9,7 +9,7 @@ There are two visible entrypoints:
 - Static sync dashboard route: `/sync-dashboard`, served by Go HTML in `internal/web/app.go`.
 - DEV implemented-page route: `/data-quality`, registered in `frontend/src/lib/routeRegistry.js` and rendered by `frontend/src/pages/DataQualityPage.jsx`.
 
-`DataQualityPage` loads `/api/v1/dev/pages/data-quality` and presents the `Open Mapping Dashboard` action. The link target is `${VITE_API_ORIGIN || "http://localhost:8080"}/sync-dashboard/mappings`, which opens the Go-served room mapping dashboard. The page payload includes a `Site mismatch` queue row whose next action is `Apply temporary override`, but the implemented DEV page does not currently post an override.
+`DataQualityPage` loads `/api/v1/dev/pages/data-quality` and presents the inline Data Quality queue. The implemented `/data-quality` page intentionally does not link to `/sync-dashboard/mappings`: the current PRD and implementation plan do not define a supported mapping-dashboard workflow from Data Quality, so routing guidance lives in the shared help drawer until a documented IT Admin mapping surface replaces the legacy stub. The page payload includes a `Site mismatch` queue row whose next action is `Apply temporary override`, but the implemented DEV page does not currently post an override.
 
 The legacy or API-level sync override route is:
 
@@ -84,13 +84,7 @@ The DEV data-quality page payload includes queue rows and mapping-dashboard hots
           "next_action": "Apply temporary override"
         }
       ]
-    },
-    "routing_rules": {
-      "primary_action_label": "Open Mapping Dashboard"
     }
-  },
-  "hotspots": {
-    "open_mapping_dashboard": { "node_id": "f183", "label": "Open Mapping Dashboard" }
   }
 }
 ```
@@ -142,7 +136,7 @@ Frontend breakpoints:
 
 - `frontend/src/app.jsx`, where `/data-quality` dispatches to `DataQualityPage`.
 - `frontend/src/pages/DataQualityPage.jsx` `loadPage`, `buildDataQualityTextOverrides`, and `DataQualitySemanticContent`.
-- Browser Network tab on `/api/v1/dev/pages/data-quality` and the external navigation to `/sync-dashboard/mappings`.
+- Browser Network tab on `/api/v1/dev/pages/data-quality`; the Data Quality page should not expose a mapping-dashboard navigation control unless a future PRD/plan update documents that route.
 
 Backend breakpoints:
 

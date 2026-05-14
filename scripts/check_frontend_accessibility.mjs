@@ -30,7 +30,6 @@ const hotspotTargetsByArtboard = new Map([
     "data-quality.artboard.json",
     {
       refresh: "f104",
-      openMappingDashboard: "f183",
     },
   ],
   [

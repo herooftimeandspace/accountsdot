@@ -219,24 +219,15 @@ type directoryScopeOption struct {
 
 type dataQualityContentPayload struct {
 	Title         string                  `json:"title"`
-	Description   string                  `json:"description"`
 	LastRefreshed string                  `json:"last_refreshed"`
 	RefreshLabel  string                  `json:"refresh_label"`
 	SummaryCards  []summaryCardPayload    `json:"summary_cards"`
-	RoutingCard   routingCardPayload      `json:"routing_card"`
 	Queue         dataQualityQueuePayload `json:"queue"`
-	RoutingRules  routingRulesPayload     `json:"routing_rules"`
 }
 
 type summaryCardPayload struct {
 	Title string `json:"title"`
 	Count string `json:"count"`
-}
-
-type routingCardPayload struct {
-	Title    string `json:"title"`
-	Headline string `json:"headline"`
-	Body     string `json:"body"`
 }
 
 type dataQualityQueuePayload struct {
@@ -249,17 +240,6 @@ type dataQualityQueueRow struct {
 	Owner      string `json:"owner"`
 	Impact     string `json:"impact"`
 	NextAction string `json:"next_action"`
-}
-
-type routingRulesPayload struct {
-	Title              string               `json:"title"`
-	Rules              []routingRulePayload `json:"rules"`
-	PrimaryActionLabel string               `json:"primary_action_label"`
-}
-
-type routingRulePayload struct {
-	Queue       string `json:"queue"`
-	Description string `json:"description"`
 }
 
 type hotspotPayload struct {
@@ -908,7 +888,6 @@ func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleDevDataQualityPage handles the request path for internal/web/dev_frontend.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 // handleDevFeatureFlags returns the IT Admin-only feature flag management payload.
 func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() {
@@ -1087,7 +1066,6 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 		Shell:       config.Shell,
 		Page: dataQualityContentPayload{
 			Title:         "Data Quality",
-			Description:   "Source-system conflict and missing-data queues routed to the teams that can fix upstream records.",
 			LastRefreshed: "Last refreshed:\nApr 30, 2026\n12:00 PM PT",
 			RefreshLabel:  "Refresh",
 			SummaryCards: []summaryCardPayload{
@@ -1095,11 +1073,6 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 				{Title: "Room Mapping", Count: "23"},
 				{Title: "Source Conflicts", Count: "41"},
 				{Title: "Resolved Today", Count: "29"},
-			},
-			RoutingCard: routingCardPayload{
-				Title:    "Routing",
-				Headline: "HR, Site, and IT queues",
-				Body:     "Issues are owned by the team that can correct the upstream source. This dashboard surfaces blockers rather than silently patching data.",
 			},
 			Queue: dataQualityQueuePayload{
 				Rows: []dataQualityQueueRow{
@@ -1110,24 +1083,11 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 					{Issue: "Site mismatch", Source: "Escape / Aeries", Owner: "HR", Impact: "Blocks baseline site selection", NextAction: "Apply temporary override"},
 				},
 			},
-			RoutingRules: routingRulesPayload{
-				Title: "Issue Routing Rules",
-				Rules: []routingRulePayload{
-					{Queue: "HR queues", Description: "Sensitive lifecycle or title issues"},
-					{Queue: "Site queues", Description: "Room and student data corrections"},
-					{Queue: "IT queues", Description: "Provider conflicts and security mismatches"},
-				},
-				PrimaryActionLabel: "Open Mapping Dashboard",
-			},
 		},
 		Hotspots: map[string]hotspotPayload{
 			"refresh": {
 				NodeID: "f104",
 				Label:  "Refresh Data Quality",
-			},
-			"open_mapping_dashboard": {
-				NodeID: "f183",
-				Label:  "Open Mapping Dashboard",
 			},
 		},
 	})
