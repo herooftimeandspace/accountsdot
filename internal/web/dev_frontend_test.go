@@ -664,6 +664,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !slices.Contains(sessionPayload.AllowedRoutes, "/data-quality") {
 			t.Fatalf("expected /data-quality in allowed routes: %#v", sessionPayload.AllowedRoutes)
 		}
+		if !slices.Contains(sessionPayload.AllowedRoutes, "/reports/security-issues") {
+			t.Fatalf("expected /reports/security-issues in allowed routes: %#v", sessionPayload.AllowedRoutes)
+		}
 
 		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
 		pageReq.AddCookie(cookie)
@@ -1318,7 +1321,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !itPayload.Page.CanManageEndDates || !itPayload.Page.ShowEmployeeIDs {
 			t.Fatalf("it flags = manage:%v ids:%v, want true/true", itPayload.Page.CanManageEndDates, itPayload.Page.ShowEmployeeIDs)
 		}
-		if len(itPayload.Page.Rows) < 6 {
+		if len(itPayload.Page.Rows) < 5 {
 			t.Fatalf("it rows = %d, want seeded escape and orphan rows", len(itPayload.Page.Rows))
 		}
 		if itPayload.Page.Rows[0].EmployeeID == "" {
@@ -1327,6 +1330,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		foundOrphanAction := false
 		foundNamedLicenseReclaim := false
 		for _, row := range itPayload.Page.Rows {
+			if row.Status == "Security risk" || row.ID == "orphan-riley-park" {
+				t.Fatalf("offboarding returned security issue row %#v", row)
+			}
 			if row.Kind == "orphan" && row.Warning != "" && len(row.Actions) > 0 {
 				foundOrphanAction = true
 			}
@@ -1356,6 +1362,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("site flags = manage:%v ids:%v, want false/false", sitePayload.Page.CanManageEndDates, sitePayload.Page.ShowEmployeeIDs)
 		}
 		for _, row := range sitePayload.Page.Rows {
+			if row.Status == "Security risk" || row.ID == "orphan-riley-park" {
+				t.Fatalf("site offboarding returned security issue row %#v", row)
+			}
 			if row.EmployeeID != "" {
 				t.Fatalf("site admin received employee id in row %#v", row)
 			}
@@ -1375,6 +1384,60 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		hrPayload := decodeJSON[offboardingResponse](t, rec)
 		if !hrPayload.Page.CanManageEndDates || !hrPayload.Page.ShowEmployeeIDs {
 			t.Fatalf("hr flags = manage:%v ids:%v, want true/true", hrPayload.Page.CanManageEndDates, hrPayload.Page.ShowEmployeeIDs)
+		}
+		for _, row := range hrPayload.Page.Rows {
+			if row.Status == "Security risk" || row.ID == "orphan-riley-park" {
+				t.Fatalf("hr offboarding returned security issue row %#v", row)
+			}
+		}
+	})
+
+	t.Run("security issues report owns moved offboarding security rows", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/reports/security-issues", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated security report returned %d, want 401", rec.Code)
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/reports/security-issues", nil)
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("hr security report returned %d, want 403", rec.Code)
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/reports/security-issues", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it security report returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[offboardingResponse](t, rec)
+		if payload.PageID != "reports-security-issues" {
+			t.Fatalf("page id = %q, want reports-security-issues", payload.PageID)
+		}
+		if len(payload.Page.Rows) == 0 {
+			t.Fatal("expected migrated security issue rows")
+		}
+		foundRiley := false
+		for _, row := range payload.Page.Rows {
+			if row.Status != "Security risk" {
+				t.Fatalf("security report returned non-security row %#v", row)
+			}
+			if row.EndDateEditable {
+				t.Fatalf("security report row is editable: %#v", row)
+			}
+			if row.ID == "orphan-riley-park" && row.Warning != "" && len(row.Actions) > 0 {
+				foundRiley = true
+			}
+		}
+		if !foundRiley {
+			t.Fatalf("expected Riley Park security issue row with warning/actions, got %#v", payload.Page.Rows)
 		}
 	})
 
@@ -1413,8 +1476,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		req.AddCookie(hrCookie)
 		rec = httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("hr orphan end date update returned %d, want 200: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("hr security issue end date update returned %d, want 404: %s", rec.Code, rec.Body.String())
 		}
 
 		badBody, err := json.Marshal(map[string]string{"end_date": "07/15/2026"})

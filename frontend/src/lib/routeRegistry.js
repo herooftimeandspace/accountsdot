@@ -32,6 +32,7 @@ export const APP_ROUTES = [
   { path: "/frequent-fliers", kind: "frequent-fliers", artboardKey: "frequent-fliers" },
   { path: "/student-data-cleanup", kind: "student-data-cleanup", artboardKey: "student-data-cleanup" },
   { path: "/reports", kind: "reports", artboardKey: "reports" },
+  { path: "/reports/security-issues", kind: "security-issues-report", artboardKey: "reports" },
   {
     path: "/reports/sync-transparency",
     kind: "static",

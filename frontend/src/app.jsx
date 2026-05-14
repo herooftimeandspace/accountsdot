@@ -21,6 +21,10 @@ const PhoneDirectoryPage = lazyNamed(() => import("./pages/PhoneDirectoryPage"),
 const ReportsPage = lazyNamed(() => import("./pages/ReportsPage"), "ReportsPage");
 const RoomMovesPage = lazyNamed(() => import("./pages/RoomMovesPage"), "RoomMovesPage");
 const SearchPage = lazyNamed(() => import("./pages/SearchPage"), "SearchPage");
+const SecurityIssuesReportPage = lazyNamed(
+  () => import("./pages/SecurityIssuesReportPage"),
+  "SecurityIssuesReportPage"
+);
 const StaticPenPage = lazyNamed(() => import("./pages/StaticPenPage"), "StaticPenPage");
 const StudentDataCleanupPage = lazyNamed(
   () => import("./pages/StudentDataCleanupPage"),
@@ -80,6 +84,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Student Data Cleanup";
     case "reports":
       return "Reports";
+    case "security-issues-report":
+      return "Security Issues";
     case "feature-flags":
       return "Feature Flags";
     case "room-moves":
@@ -590,6 +596,17 @@ export function App() {
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}
+      />
+    );
+  } else if (currentRoute?.kind === "security-issues-report") {
+    page = (
+      <SecurityIssuesReportPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
       />
     );
   } else if (currentRoute?.kind === "feature-flags") {

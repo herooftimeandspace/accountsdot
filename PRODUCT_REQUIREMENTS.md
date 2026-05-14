@@ -124,6 +124,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/frequent-fliers`
   - `/student-data-cleanup`
   - `/reports`
+  - `/reports/security-issues`
   - `/reports/sync-transparency`
   - `/reports/ticketing-human-work`
   - `/admin`
@@ -198,6 +199,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/dashboard/it-admin`
   - `/data-quality`
   - `/reports`
+  - `/reports/security-issues`
   - `/reports/sync-transparency`
   - `/reports/ticketing-human-work`
   - `/admin`
@@ -216,11 +218,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - Flagged route backend coverage exception: /frequent-fliers is frontend/static-only in this slice; it remains gated by sidebar/direct-route feature-flag checks, but it does not yet expose a route-specific Go page or mutation API
 - Reports page behavior for the current foundation slice:
   - `/reports` is an IT Admin operational reporting hub for report inventory, queue summaries, and provider refresh state
+  - `/reports/security-issues` is an IT Admin-only report nested under Reports for account-security issues such as orphaned accounts with recent Google activity after source-system inactivity
   - report inventory rows and recent refresh rows should open the shared right-hand drawer when selected
   - the drawer should show the row's scope, source systems, included data, open-item count, last run or refresh time, refresh cadence, status, and a short plain-language explanation of what the row means
   - report rows may include an `Open Report` action that routes to the owning implemented page or report route
   - fixed report-detail panels in the artboard are layout artifacts for review only and should not remain visible in the live runtime page
   - the Reports table should use the shared page-level table search and three-way sort primitives rather than static text-only rows
+  - the Security Issues report should reuse the Reports shell, runtime table search/sort, shared right-hand drawer, and migrated Offboarding security issue details/actions while remaining read-only in this slice
 - Shared-header search behavior for the current foundation slice:
   - the shared header search is a global search entrypoint rather than Phone Directory-only chrome
   - submitting a query from any logged-in page should route the user to `/search?q=...`
@@ -536,7 +540,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Escape-backed end dates are read-only source data. HR and IT must correct incorrect Escape-backed end dates in Escape rather than overriding them in the dashboard.
 - Non-Escape, orphan, or local override records may expose an `End date` date picker in the row drawer for HR and IT Admin. Site Admin may view applicable rows but cannot update end dates.
 - Manual actions are shown per selected row in the drawer with owner, status, resolution, and the relevant external-system link when available. Pre-phase 0 DEV links use deterministic mock URLs.
-- Orphan accounts are rows in the Offboarding table, not a separate fixed side-panel action. Flagged accounts show the security-risk note as hover/focus row help and contextual drawer text rather than a persistent red note card.
+- Orphan accounts without recent source-system inactivity risk are rows in the Offboarding table, not a separate fixed side-panel action.
+- Orphaned accounts with recent Google activity after source-system inactivity are security issues owned by IT Admin, not HR offboarding work. They must appear on the `/reports/security-issues` report and must not appear in the Offboarding summary cards, Offboarding table, or HR-editable Offboarding end-date route.
 - Reclaim licenses and access during offboarding, including limited Zoom customer-engagement licenses.
 - Track assets assigned directly to humans and create retrieval tasks for site admins.
 - Do not treat room equipment such as phones, TVs, and clock speakers as person-assigned assets.
