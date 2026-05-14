@@ -55,7 +55,7 @@ test("artboardKeysForAllowedRoutes deduplicates shared artboards across allowed 
 
   assert.deepEqual(
     artboardKeysForAllowedRoutes({
-      allowed_routes: ["/offboarding", "/departing-seniors", "/reports", "/reports"],
+      allowed_routes: ["/offboarding", "/departing-seniors", "/reports", "/reports/security-issues", "/reports"],
     }).sort(),
     ["offboarding", "reports"]
   );

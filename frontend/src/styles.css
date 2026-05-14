@@ -2723,6 +2723,11 @@ input {
   color: var(--color-text);
 }
 
+.reports-runtime__status--critical {
+  background: var(--color-accent-red);
+  color: #ffffff;
+}
+
 .reports-runtime__status--neutral {
   background: var(--color-canvas);
   color: var(--color-text);
@@ -2736,6 +2741,80 @@ input {
   color: var(--color-text);
   cursor: pointer;
   font-weight: 900;
+}
+
+.security-issues-runtime__cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.security-issues-runtime__table-header,
+.security-issues-runtime__row {
+  grid-template-columns: 0.85fr 1.1fr 1.35fr 0.85fr 1.1fr 0.75fr 0.7fr;
+}
+
+.security-issues-runtime__warning,
+.security-issues-runtime__action {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.security-issues-runtime__warning {
+  border-color: rgba(215, 53, 51, 0.45);
+  background: rgba(215, 53, 51, 0.08);
+}
+
+.security-issues-runtime__warning p,
+.security-issues-runtime__action p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.security-issues-runtime__actions {
+  display: grid;
+  gap: 10px;
+}
+
+.security-issues-runtime__actions h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.security-issues-runtime__action > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.security-issues-runtime__action ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.security-issues-runtime__action li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.security-issues-runtime__action a {
+  color: var(--color-accent-blue);
+  font-weight: 900;
+}
+
+.security-issues-runtime__action li span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .phone-directory-runtime {

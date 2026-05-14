@@ -19,6 +19,22 @@ type offboardingPagePayload struct {
 	Page        offboardingPageContent `json:"page"`
 }
 
+type securityIssuesReportPagePayload struct {
+	PageID      string                      `json:"page_id"`
+	Persona     devPersona                  `json:"persona"`
+	Shell       devShellPayload             `json:"shell"`
+	GeneratedAt string                      `json:"generated_at"`
+	Page        securityIssuesReportContent `json:"page"`
+}
+
+type securityIssuesReportContent struct {
+	Title         string                  `json:"title"`
+	Description   string                  `json:"description"`
+	LastRefreshed string                  `json:"last_refreshed"`
+	SummaryCards  []summaryCardPayload    `json:"summary_cards"`
+	Rows          []offboardingRowPayload `json:"rows"`
+}
+
 type offboardingPageContent struct {
 	Title             string                  `json:"title"`
 	Description       string                  `json:"description"`
@@ -107,7 +123,11 @@ func newDevOffboardingStore() *devOffboardingStoreState {
 	return &devOffboardingStoreState{endDates: map[string]string{}}
 }
 
-// handleDevOffboardingPage handles the request path for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// handleDevOffboardingPage serves the DEV Offboarding read model consumed by
+// frontend/src/pages/OffboardingPage.jsx. It requires an authenticated persona
+// with /offboarding access, returns HR lifecycle rows plus editable end-date
+// flags, and deliberately excludes account-security rows because issue #42
+// moved recent-activity security risk review to /reports/security-issues.
 func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -139,7 +159,7 @@ func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
 		GeneratedAt: now.Format(time.RFC3339),
 		Page: offboardingPageContent{
 			Title:             "Offboarding Dashboard",
-			Description:       "Offboarding status by person across accounts, licenses, assets, and security review queues.",
+			Description:       "Offboarding status by person across accounts, licenses, assets, and closeout tasks.",
 			LastRefreshed:     "Last refreshed:\nMay 3, 2026 9:00 AM PT",
 			CanManageEndDates: canManageOffboardingEndDates(config),
 			ShowEmployeeIDs:   canSeeOffboardingEmployeeIDs(config),
@@ -147,7 +167,54 @@ func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
 				{Title: "Scheduled Leaves", Count: "58"},
 				{Title: "Immediate Terms", Count: "9"},
 				{Title: "Asset Retrieval", Count: "37"},
-				{Title: "Security Risk", Count: "6"},
+			},
+			Rows: rows,
+		},
+	})
+}
+
+// handleDevSecurityIssuesReportPage serves the IT Admin-only DEV report behind
+// /reports/security-issues. It reuses the Offboarding seed row shape so the
+// migrated security issue keeps the same detail fields, owner/action context,
+// and deterministic mock external links without exposing the Offboarding
+// end-date mutation path to HR workflows.
+func handleDevSecurityIssuesReportPage(w http.ResponseWriter, r *http.Request) {
+	if !devModeEnabled() || r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	config, ok := resolveAuthenticatedDevPersona(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{
+			"code":    "not_authorized",
+			"message": "You need to sign in before you can view this page.",
+		})
+		return
+	}
+	if !routeAllowed(r.Context(), config, "/reports/security-issues") {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"code":    "forbidden",
+			"message": "Security issue reports are available only to IT Admin.",
+			"persona": config.Persona,
+		})
+		return
+	}
+
+	now := time.Now().UTC()
+	rows := devOffboardingStore.securityIssueRows(config)
+	writeJSON(w, http.StatusOK, securityIssuesReportPagePayload{
+		PageID:      "reports-security-issues",
+		Persona:     config.Persona,
+		Shell:       config.Shell,
+		GeneratedAt: now.Format(time.RFC3339),
+		Page: securityIssuesReportContent{
+			Title:         "Security Issues Report",
+			Description:   "Account-security issues that need IT Admin review before or during deprovisioning.",
+			LastRefreshed: "Last refreshed:\nMay 3, 2026 9:00 AM PT",
+			SummaryCards: []summaryCardPayload{
+				{Title: "Security Issues", Count: "6"},
+				{Title: "Recent Activity", Count: "1"},
+				{Title: "Review Owner", Count: "IT Admin"},
 			},
 			Rows: rows,
 		},
@@ -222,7 +289,10 @@ func canSeeOffboardingEmployeeIDs(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin" || config.Persona.ID == "human_resources"
 }
 
-// rows documents the data flow for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// rows returns only the Offboarding-owned records for the DEV page and update
+// route. The caller holds no persistent database transaction; this in-memory
+// store applies local end-date overrides for eligible orphan records and leaves
+// security-risk rows for securityIssueRows so HR workflows cannot edit them.
 func (s *devOffboardingStoreState) rows(config devPersonaConfig) []offboardingRowPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -233,6 +303,26 @@ func (s *devOffboardingStoreState) rows(config devPersonaConfig) []offboardingRo
 			continue
 		}
 		rows = append(rows, s.rowPayloadLocked(record, config))
+	}
+	return rows
+}
+
+// securityIssueRows returns the IT Admin report projection for orphan-account
+// records whose current owner is security review rather than HR Offboarding.
+// The endpoint is read-only in this slice, so the returned rows keep detail and
+// action context but mark local end dates as non-editable.
+func (s *devOffboardingStoreState) securityIssueRows(config devPersonaConfig) []offboardingRowPayload {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rows := make([]offboardingRowPayload, 0, len(devOffboardingSeedRecords))
+	for _, record := range devOffboardingSeedRecords {
+		if !securityIssueRecordVisible(record, config) {
+			continue
+		}
+		row := s.rowPayloadLocked(record, config)
+		row.EndDateEditable = false
+		rows = append(rows, row)
 	}
 	return rows
 }
@@ -297,6 +387,9 @@ func (s *devOffboardingStoreState) rowPayloadLocked(record offboardingSeedRecord
 
 // offboardingRecordVisible documents the data flow for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func offboardingRecordVisible(record offboardingSeedRecord, config devPersonaConfig) bool {
+	if record.Status == "Security risk" {
+		return false
+	}
 	if config.Persona.ID != "site_admin" {
 		return true
 	}
@@ -306,6 +399,14 @@ func offboardingRecordVisible(record offboardingSeedRecord, config devPersonaCon
 	return slices.ContainsFunc(config.VisibleSites, func(site devSiteContext) bool {
 		return site.ID == record.SiteID
 	})
+}
+
+// securityIssueRecordVisible scopes moved account-security rows to the IT Admin
+// Reports surface. Non-IT personas do not receive these rows through the report
+// endpoint, and Offboarding filtering remains separate so HR can still manage
+// non-security orphan-account end dates.
+func securityIssueRecordVisible(record offboardingSeedRecord, config devPersonaConfig) bool {
+	return config.Persona.ID == "it_admin" && record.Status == "Security risk"
 }
 
 // findOffboardingSeedRecord resolves decision data for internal/web/dev_offboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.

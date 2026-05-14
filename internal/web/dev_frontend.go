@@ -49,7 +49,7 @@ var (
 	devITOnlyRoutes = []string{
 		"/dashboard/it-admin",
 		"/data-quality",
-		"/reports",
+		"/reports", "/reports/security-issues",
 		"/reports/sync-transparency",
 		"/reports/ticketing-human-work",
 		"/admin",
