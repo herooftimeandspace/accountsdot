@@ -94,9 +94,17 @@ Inside the devcontainer, `govulncheck` is installed during `postCreateCommand`.
 Use the DEV route performance harness when route transitions, reload behavior, or Browser-pipe stability needs runtime evidence. Start the Go API and Vite frontend first:
 
 ```bash
-npm run dev:api
+APP_ENV=development npm run dev:api
 npm run dev:web
 ```
+
+`APP_ENV=development` is required for the DEV-only frontend APIs. The application may otherwise log development-mode configuration defaults while `/api/v1/dev/session` still returns `404`, because the DEV frontend route guard reads `APP_ENV` directly. Before opening Browser or running the route matrix, verify the Vite proxy can reach the DEV session endpoint:
+
+```bash
+curl -i http://localhost:5173/api/v1/dev/session
+```
+
+The preflight should return `200 OK` with DEV session JSON. An unauthenticated but correctly started DEV API includes fields such as `"environment":"development"`, `"authenticated":false`, `"authorized":false`, and a non-empty `"personas"` array. A `404` at this step is a startup/configuration failure; restart the API with `APP_ENV=development` before collecting Browser evidence. A passing preflight followed by lost automation connection, missing `iab` tab access, or interrupted pipe output is a Browser transport failure. A passing preflight with an app-rendered error, timeout after navigation, or missing route content is a page readiness failure for the route being measured.
 
 `npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
 
