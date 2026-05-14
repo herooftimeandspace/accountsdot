@@ -13,6 +13,10 @@ const IT_ADMIN_PERSONA_LABEL = "IT Admin";
 const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ROUTE_REGISTRY_PATH = path.join(REPO_ROOT, "frontend/src/lib/routeRegistry.js");
 
+// Route variants stay content-sensitive by default so query-specific pages, such as
+// search results, still prove that the expected body content rendered. Use
+// allowTitleAndUrlReadiness only for static generated-page variants whose mock
+// body text is intentionally not durable, such as annotated room-move drafts.
 const ROUTE_VARIANTS = new Map([
   ["/search", [{ suffix: "?q=alex", label: "search alex", expectedText: "Alex", expectedTitle: "Global Search" }]],
   [

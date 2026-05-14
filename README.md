@@ -98,7 +98,9 @@ npm run dev:api
 npm run dev:web
 ```
 
-`npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, and the first transitions without opening a browser. The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object:
+`npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
+
+The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object:
 
 ```js
 const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
