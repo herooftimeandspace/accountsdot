@@ -222,6 +222,7 @@ type onboardingDraftResponse struct {
 		FirstName            string `json:"first_name"`
 		LastName             string `json:"last_name"`
 		PersonalEmail        string `json:"personal_email"`
+		PersonalPhone        string `json:"personal_phone"`
 		GeneratedEmail       string `json:"generated_email"`
 		GeneratedEmployeeID  string `json:"generated_employee_id"`
 		ChangeReason         string `json:"change_reason"`
@@ -569,6 +570,7 @@ func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cooki
 		"job_title":               "Counselor",
 		"site_id":                 "district-office",
 		"personal_email":          strings.ToLower(firstName + "." + lastName + "@example.com"),
+		"personal_phone":          "7075550177",
 		"preferred_device":        "Windows",
 		"requested_aeries_access": "Counselor",
 	})
@@ -1610,6 +1612,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"job_title":               "Counselor",
 			"site_id":                 "district-office",
 			"personal_email":          "not-an-email",
+			"personal_phone":          "555",
 			"preferred_device":        "Mac",
 			"requested_aeries_access": "Teacher",
 		})
@@ -1635,6 +1638,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"job_title":               "Counselor",
 			"site_id":                 "district-office",
 			"personal_email":          "  Quincy.Zephyr@Example.COM  ",
+			"personal_phone":          " (707) 555-0134 ",
 			"preferred_device":        "Mac",
 			"requested_aeries_access": "Teacher",
 			"notes":                   "  Needs   account  ",
@@ -1656,6 +1660,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if updated.Draft.PersonalEmail != "quincy.zephyr@example.com" {
 			t.Fatalf("personal email = %q, want lowercase sanitized email", updated.Draft.PersonalEmail)
+		}
+		if updated.Draft.PersonalPhone != "7075550134" {
+			t.Fatalf("personal phone = %q, want canonical 10-digit phone", updated.Draft.PersonalPhone)
 		}
 		if len(updated.Draft.MissingFields) != 0 {
 			t.Fatalf("missing fields = %#v, want none", updated.Draft.MissingFields)
@@ -1724,6 +1731,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"job_title":               "Counselor",
 			"site_id":                 "business-office",
 			"personal_email":          "harper.sloan@example.com",
+			"personal_phone":          "7075550188",
 			"preferred_device":        "Windows",
 			"requested_aeries_access": "Staff",
 		})
@@ -1787,6 +1795,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"job_title":               "Counselor",
 			"site_id":                 "district-office",
 			"personal_email":          "nia.brooks.contractor@example.com",
+			"personal_phone":          "7075550199",
 			"preferred_device":        "Mac",
 			"requested_aeries_access": "Staff",
 		})
@@ -1899,6 +1908,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"job_title":               "Counselor",
 			"site_id":                 "district-office",
 			"personal_email":          "ari.pender@example.com",
+			"personal_phone":          "7075550166",
 			"preferred_device":        "Windows",
 			"requested_aeries_access": "Staff",
 		})
