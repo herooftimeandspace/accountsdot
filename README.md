@@ -79,6 +79,7 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `npm run perf:routes:plan`
 - `npm run perf:routes:batch-plan -- [artifact-input-dir]`
 - `npm run perf:routes:merge -- [artifact-input-dir]`
+- `npm run perf:routes:merge:strict -- [artifact-input-dir]`
 
 `make vulncheck` uses a local `govulncheck` binary when available, otherwise it runs `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`. If the host does not have Go installed, it falls back to `make vulncheck-container`, which runs the same scan inside the repo's configured Go Docker image.
 
@@ -146,6 +147,14 @@ After collecting multiple partial runs, merge them with:
 ```bash
 npm run perf:routes:merge -- artifacts/performance
 ```
+
+Use the non-strict merge command for historical handoff context and interrupted-run diagnosis. For issue or PR closure evidence, use the strict quality gate:
+
+```bash
+npm run perf:routes:merge:strict -- artifacts/performance
+```
+
+Strict merge still writes the merged Markdown and JSON artifacts, but exits nonzero when the merged evidence is not release-quality. Blocking conditions include transition failures, refresh failures, Browser transport failures, app timeout rows, stale route-plan coverage, missing or duplicate transition indexes, missing refresh samples, invalid directed-edge coverage, and current route-count or directed-transition-count mismatches. The failure message names the blocking counts and points to the merged artifact paths so the Markdown summary can be attached or copied into external evidence.
 
 The merged Markdown file is the human-readable summary to copy into external evidence. The merged JSON file is for debugging and reproducibility; keep it local unless a PR explicitly asks for a curated repository artifact.
 

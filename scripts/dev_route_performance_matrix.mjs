@@ -892,6 +892,203 @@ function cleanRowsAfterPipeFailure(rows) {
   return rows.slice(0, pipeIndex + 1);
 }
 
+function validateTransitionRowsCoverage(routes, transitions) {
+  const expectedEdges = new Set(buildDirectedEdges(routes).map((edge) => `${edge.from.url}->${edge.to.url}`));
+  const actualEdges = new Set();
+  const duplicates = [];
+  const selfTransitions = [];
+  const invalidRows = [];
+
+  for (const row of transitions) {
+    if (!row.from || !row.to) {
+      invalidRows.push(row.index ?? null);
+      continue;
+    }
+    const key = `${row.from}->${row.to}`;
+    if (row.from === row.to) {
+      selfTransitions.push(key);
+    }
+    if (actualEdges.has(key)) {
+      duplicates.push(key);
+    }
+    actualEdges.add(key);
+  }
+
+  const missing = [...expectedEdges].filter((key) => !actualEdges.has(key));
+  const extra = [...actualEdges].filter((key) => !expectedEdges.has(key));
+
+  return {
+    routeCount: routes.length,
+    expectedEdgeCount: expectedEdges.size,
+    actualEdgeCount: actualEdges.size,
+    missing,
+    extra,
+    duplicates,
+    selfTransitions,
+    invalidRows,
+    valid:
+      missing.length === 0 &&
+      extra.length === 0 &&
+      duplicates.length === 0 &&
+      selfTransitions.length === 0 &&
+      invalidRows.length === 0 &&
+      actualEdges.size === expectedEdges.size,
+  };
+}
+
+function missingTransitionIndexes(transitions, expectedEdgeCount) {
+  const indexes = new Set(
+    transitions
+      .map((row) => row.index)
+      .filter((index) => Number.isInteger(index) && index >= 1 && index <= expectedEdgeCount)
+  );
+  const missing = [];
+  for (let index = 1; index <= expectedEdgeCount; index += 1) {
+    if (!indexes.has(index)) {
+      missing.push(index);
+    }
+  }
+  return missing;
+}
+
+function uniqueSortedNumbers(values) {
+  return [...new Set(values.filter((value) => Number.isInteger(value)))].sort((a, b) => a - b);
+}
+
+function buildRefreshCoverage(routes, refreshSamples, refreshes) {
+  const expectedKeys = new Set(buildRefreshJobs(routes, refreshSamples).map((job) => job.key));
+  const actualKeys = new Set();
+  const duplicates = [];
+  const invalidRows = [];
+
+  for (const row of refreshes) {
+    const key = refreshKeyForRow(row);
+    if (!row.route || !Number.isInteger(row.sample)) {
+      invalidRows.push(key);
+      continue;
+    }
+    if (actualKeys.has(key)) {
+      duplicates.push(key);
+    }
+    actualKeys.add(key);
+  }
+
+  const missing = [...expectedKeys].filter((key) => !actualKeys.has(key));
+  const extra = [...actualKeys].filter((key) => !expectedKeys.has(key));
+
+  return {
+    expectedCount: expectedKeys.size,
+    actualCount: actualKeys.size,
+    missing,
+    extra,
+    duplicates: [...new Set(duplicates)].sort(),
+    invalidRows,
+    valid: missing.length === 0 && extra.length === 0 && duplicates.length === 0 && invalidRows.length === 0,
+  };
+}
+
+function buildQualityGate(result, { duplicateTransitionIndexes = [] } = {}) {
+  const transitionFailures = result.transitions.filter((row) => row.status !== "ok");
+  const refreshFailures = result.refreshes.filter((row) => row.status !== "ok");
+  const failedRows = [...transitionFailures, ...refreshFailures];
+  const appTimeoutRows = failedRows.filter((row) => row.failureClass === "app_timeout");
+  const browserTransportRows = failedRows.filter((row) => row.failureClass === "browser_pipe_failure");
+  const expectedTransitionCount = result.transitionCoverage?.expectedEdgeCount ?? result.coverage.expectedEdgeCount;
+  const missingIndexes = missingTransitionIndexes(result.transitions, expectedTransitionCount);
+  const duplicateIndexes = uniqueSortedNumbers(duplicateTransitionIndexes);
+  const routeCountMismatch =
+    result.currentRoutePlan?.routeCount !== undefined && result.currentRoutePlan.routeCount !== result.routes.length;
+  const directedEdgeCountMismatch =
+    result.currentRoutePlan?.expectedEdgeCount !== undefined &&
+    result.currentRoutePlan.expectedEdgeCount !== expectedTransitionCount;
+  const refreshCoverage = buildRefreshCoverage(result.routes, result.refreshSamples, result.refreshes);
+  const staleCurrentRoutePlan = result.currentRoutePlan?.differsFromMergedArtifacts === true;
+  const invalidDirectedEdgeCoverage = result.transitionCoverage?.valid === false || result.coverage?.valid === false;
+
+  const blockers = {
+    transitionFailures: transitionFailures.length,
+    refreshFailures: refreshFailures.length,
+    browserTransportFailures: browserTransportRows.length,
+    appTimeoutRows: appTimeoutRows.length,
+    staleCurrentRoutePlan,
+    missingTransitionIndexes: missingIndexes.length,
+    duplicateTransitionIndexes: duplicateIndexes.length,
+    missingRefreshSamples: refreshCoverage.missing.length,
+    duplicateRefreshSamples: refreshCoverage.duplicates.length,
+    extraRefreshSamples: refreshCoverage.extra.length,
+    invalidRefreshRows: refreshCoverage.invalidRows.length,
+    invalidDirectedEdgeCoverage,
+    routeCountMismatch,
+    directedEdgeCountMismatch,
+  };
+
+  const passed = Object.values(blockers).every((value) => value === 0 || value === false);
+  const messages = [
+    blockers.transitionFailures ? `transition failures=${blockers.transitionFailures}` : null,
+    blockers.refreshFailures ? `refresh failures=${blockers.refreshFailures}` : null,
+    blockers.browserTransportFailures ? `Browser transport failures=${blockers.browserTransportFailures}` : null,
+    blockers.appTimeoutRows ? `app timeout rows=${blockers.appTimeoutRows}` : null,
+    blockers.staleCurrentRoutePlan ? "current route plan differs from merged artifacts" : null,
+    blockers.missingTransitionIndexes ? `missing transition indexes=${blockers.missingTransitionIndexes}` : null,
+    blockers.duplicateTransitionIndexes ? `duplicate transition indexes=${blockers.duplicateTransitionIndexes}` : null,
+    blockers.missingRefreshSamples ? `missing refresh samples=${blockers.missingRefreshSamples}` : null,
+    blockers.duplicateRefreshSamples ? `duplicate refresh samples=${blockers.duplicateRefreshSamples}` : null,
+    blockers.extraRefreshSamples ? `extra refresh samples=${blockers.extraRefreshSamples}` : null,
+    blockers.invalidRefreshRows ? `invalid refresh rows=${blockers.invalidRefreshRows}` : null,
+    blockers.invalidDirectedEdgeCoverage ? "directed-edge coverage is invalid" : null,
+    blockers.routeCountMismatch ? "route-count mismatch with current route plan" : null,
+    blockers.directedEdgeCountMismatch ? "directed-transition count mismatch with current route plan" : null,
+  ].filter(Boolean);
+
+  return {
+    mode: "strict",
+    passed,
+    blockers,
+    expectedTransitionCount,
+    actualTransitionCount: result.transitions.length,
+    expectedRefreshCount: refreshCoverage.expectedCount,
+    actualRefreshCount: refreshCoverage.actualCount,
+    refreshCoverage,
+    missingTransitionIndexes: missingIndexes,
+    duplicateTransitionIndexes: duplicateIndexes,
+    messages,
+  };
+}
+
+function formatQualityGateFailure(result) {
+  const messages = result.qualityGate?.messages ?? ["unknown route performance quality-gate failure"];
+  const artifactLine = result.files
+    ? `Artifacts: markdown=${result.files.markdown}; json=${result.files.json}`
+    : "Artifacts: unavailable";
+  return [
+    "Route performance strict merge quality gate failed.",
+    `Blocking counts: ${messages.join("; ")}.`,
+    artifactLine,
+  ].join("\n");
+}
+
+function parseMergeCliArgs(args) {
+  let strict = false;
+  let inputDir = DEFAULT_OUTPUT_DIR;
+
+  for (const arg of args) {
+    if (arg === "--strict") {
+      strict = true;
+      continue;
+    }
+    if (arg === "--no-strict") {
+      strict = false;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      throw new Error(`Unknown merge option: ${arg}`);
+    }
+    inputDir = arg;
+  }
+
+  return { inputDir, strict };
+}
+
 export async function mergePerformanceArtifacts({
   outputDir = DEFAULT_OUTPUT_DIR,
   inputDir = outputDir,
@@ -915,6 +1112,8 @@ export async function mergePerformanceArtifacts({
   const routes = artifacts[0].payload.routes;
   const coverage = artifacts[0].payload.coverage;
   const transitionByIndex = new Map();
+  const seenTransitionIndexes = new Set();
+  const duplicateTransitionIndexes = [];
   const refreshes = [];
   const sourceFiles = [];
 
@@ -927,6 +1126,10 @@ export async function mergePerformanceArtifacts({
         index: rawRow.index ?? transitionStartIndex + offset,
         failureClass: rawRow.failureClass ?? failureClassForRow(rawRow),
       };
+      if (seenTransitionIndexes.has(row.index)) {
+        duplicateTransitionIndexes.push(row.index);
+      }
+      seenTransitionIndexes.add(row.index);
       transitionByIndex.set(row.index, row);
     }
     refreshes.push(
@@ -938,6 +1141,7 @@ export async function mergePerformanceArtifacts({
   }
 
   const transitions = [...transitionByIndex.values()].sort((a, b) => a.index - b.index);
+  const transitionCoverage = validateTransitionRowsCoverage(routes, transitions);
   const firstPipeFailure = transitions.find(isBrowserPipeFailure) || refreshes.find(isBrowserPipeFailure) || null;
   const devServerHealthValues = artifacts
     .map((artifact) => artifact.payload.devServerHealthy)
@@ -966,6 +1170,7 @@ export async function mergePerformanceArtifacts({
   });
   result.sourceFiles = sourceFiles;
   result.cleanedAfterPipeFailures = true;
+  result.transitionCoverage = transitionCoverage;
   const currentRoutes = buildRouteTargets();
   const currentCoverage = validateCoverage(currentRoutes, buildEdgeCoveragePath(currentRoutes));
   result.currentRoutePlan = {
@@ -976,6 +1181,7 @@ export async function mergePerformanceArtifacts({
       currentCoverage.expectedEdgeCount !== coverage.expectedEdgeCount ||
       !routePlanSignaturesMatch(currentRoutes, routes),
   };
+  result.qualityGate = buildQualityGate(result, { duplicateTransitionIndexes });
 
   const stamp = `merged-${result.generatedAt.replace(/[:.]/g, "-")}`;
   const filesWritten = await writeMatrixArtifacts(result, outputDir, stamp);
@@ -1016,8 +1222,12 @@ function renderMarkdownSummary(result) {
     `Base URL: ${result.baseUrl}`,
     `Routes: ${result.routes.length}`,
     `Directed transitions: ${result.coverage.actualEdgeCount}/${result.coverage.expectedEdgeCount}`,
+    result.transitionCoverage
+      ? `Merged directed transitions: ${result.transitionCoverage.actualEdgeCount}/${result.transitionCoverage.expectedEdgeCount}`
+      : null,
     `Refresh samples: ${result.refreshes.length}`,
     `Coverage valid: ${result.coverage.valid ? "yes" : "no"}`,
+    result.transitionCoverage ? `Merged transition coverage valid: ${result.transitionCoverage.valid ? "yes" : "no"}` : null,
     result.currentRoutePlan
       ? `Current route plan: ${result.currentRoutePlan.routeCount} routes / ${result.currentRoutePlan.expectedEdgeCount} directed transitions`
       : null,
@@ -1054,6 +1264,27 @@ function renderMarkdownSummary(result) {
     `Refresh classes: \`${JSON.stringify(result.failureCounts?.refreshes ?? {})}\``,
     `App timeout rows: ${appTimeoutFailures.length}`,
     `Browser transport rows: ${browserTransportFailures.length}`,
+    "",
+    "## Strict Quality Gate",
+    "",
+    result.qualityGate
+      ? `Status: ${result.qualityGate.passed ? "pass" : "fail"}`
+      : "Status: not evaluated",
+    result.qualityGate
+      ? `Blocking counts: \`${JSON.stringify(result.qualityGate.blockers)}\``
+      : null,
+    result.qualityGate?.missingTransitionIndexes?.length
+      ? `Missing transition indexes: ${result.qualityGate.missingTransitionIndexes.join(", ")}`
+      : null,
+    result.qualityGate?.duplicateTransitionIndexes?.length
+      ? `Duplicate transition indexes: ${result.qualityGate.duplicateTransitionIndexes.join(", ")}`
+      : null,
+    result.qualityGate?.refreshCoverage?.missing?.length
+      ? `Missing refresh samples: ${result.qualityGate.refreshCoverage.missing.join(", ")}`
+      : null,
+    result.qualityGate?.refreshCoverage?.duplicates?.length
+      ? `Duplicate refresh samples: ${result.qualityGate.refreshCoverage.duplicates.join(", ")}`
+      : null,
     "",
     "## Slowest Transitions",
     "",
@@ -1307,16 +1538,32 @@ export async function runDevRoutePerformanceBatches({
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [, , command, maybeDir] = process.argv;
+  const [, , command, ...args] = process.argv;
   if (command === "merge" || command === "--merge") {
+    const options = parseMergeCliArgs(args);
     const result = await mergePerformanceArtifacts({
-      inputDir: maybeDir || DEFAULT_OUTPUT_DIR,
+      inputDir: options.inputDir,
       outputDir: DEFAULT_OUTPUT_DIR,
     });
-    console.log(JSON.stringify({ files: result.files, transitions: result.transitions.length, refreshes: result.refreshes.length }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          files: result.files,
+          transitions: result.transitions.length,
+          refreshes: result.refreshes.length,
+          qualityGate: result.qualityGate,
+        },
+        null,
+        2
+      )
+    );
+    if (options.strict && !result.qualityGate.passed) {
+      console.error(formatQualityGateFailure(result));
+      process.exitCode = 1;
+    }
   } else if (command === "batch-plan" || command === "--batch-plan") {
     const result = await planDevRoutePerformanceBatches({
-      outputDir: maybeDir || DEFAULT_OUTPUT_DIR,
+      outputDir: args[0] || DEFAULT_OUTPUT_DIR,
     });
     console.log(JSON.stringify(result, null, 2));
   } else {
