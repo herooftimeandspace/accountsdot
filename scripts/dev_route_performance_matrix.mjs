@@ -90,6 +90,10 @@ function nowISO() {
   return new Date().toISOString();
 }
 
+function elapsedMsSince(startedAt) {
+  return Date.now() - startedAt;
+}
+
 function parsePositiveInteger(value, fallback, label) {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -289,6 +293,7 @@ function failureClassForRow(row) {
 function withFailureClass(row) {
   return {
     ...row,
+    phaseTimings: normalizePhaseTimings(row),
     failureClass: failureClassForRow(row),
   };
 }
@@ -377,6 +382,118 @@ function buildBudgetSummary(transitions, refreshes) {
       failures: transitionFailures.length + refreshFailures.length,
     },
   };
+}
+
+function normalizePhaseTimings(row) {
+  const existing = row.phaseTimings ?? {};
+  return {
+    totalMs: numberOrNull(existing.totalMs ?? row.elapsedMs),
+    navigationLoadMs: numberOrNull(existing.navigationLoadMs),
+    readinessPollingMs: numberOrNull(existing.readinessPollingMs),
+    setupNavigationLoadMs: numberOrNull(existing.setupNavigationLoadMs),
+    frontendSessionFetchMs: numberOrNull(existing.frontendSessionFetchMs),
+    frontendGeneratedArtboardImportMs: numberOrNull(existing.frontendGeneratedArtboardImportMs),
+    frontendGeneratedArtboardRenderMarks: numberOrNull(existing.frontendGeneratedArtboardRenderMarks),
+    routeRenderCommitMarks: numberOrNull(existing.routeRenderCommitMarks),
+  };
+}
+
+function numberOrNull(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function summarizeFrontendTimingEntries(entries) {
+  const summary = {
+    frontendSessionFetchMs: null,
+    frontendGeneratedArtboardImportMs: null,
+    frontendGeneratedArtboardRenderMarks: 0,
+    routeRenderCommitMarks: 0,
+    measureCount: 0,
+    markCount: 0,
+  };
+
+  for (const entry of entries) {
+    if (entry?.type === "measure") {
+      summary.measureCount += 1;
+      if (entry.name === "session-fetch") {
+        summary.frontendSessionFetchMs = (summary.frontendSessionFetchMs ?? 0) + (entry.elapsedMs ?? 0);
+      }
+      if (entry.name === "generated-artboard-import") {
+        summary.frontendGeneratedArtboardImportMs =
+          (summary.frontendGeneratedArtboardImportMs ?? 0) + (entry.elapsedMs ?? 0);
+      }
+    }
+    if (entry?.type === "mark") {
+      summary.markCount += 1;
+      if (entry.name === "generated-artboard-render") {
+        summary.frontendGeneratedArtboardRenderMarks += 1;
+      }
+      if (entry.name === "route-render-commit") {
+        summary.routeRenderCommitMarks += 1;
+      }
+    }
+  }
+
+  return summary;
+}
+
+function buildPhaseTimings({
+  totalMs,
+  navigationLoadMs = null,
+  readinessPollingMs = null,
+  setupNavigationLoadMs = null,
+  frontendTimings = {},
+}) {
+  return normalizePhaseTimings({
+    elapsedMs: totalMs,
+    phaseTimings: {
+      totalMs,
+      navigationLoadMs,
+      readinessPollingMs,
+      setupNavigationLoadMs,
+      frontendSessionFetchMs: frontendTimings.frontendSessionFetchMs,
+      frontendGeneratedArtboardImportMs: frontendTimings.frontendGeneratedArtboardImportMs,
+      frontendGeneratedArtboardRenderMarks: frontendTimings.frontendGeneratedArtboardRenderMarks,
+      routeRenderCommitMarks: frontendTimings.routeRenderCommitMarks,
+    },
+  });
+}
+
+function parseFrontendTimingLog(message) {
+  const marker = "[wizard-perf]";
+  const markerIndex = message.indexOf(marker);
+  if (markerIndex === -1) {
+    return null;
+  }
+  const payload = message.slice(markerIndex + marker.length).trim();
+  try {
+    const entry = JSON.parse(payload);
+    return {
+      type: entry.type,
+      name: entry.name,
+      elapsedMs: entry.elapsedMs ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function readFrontendTimings(tab, sinceISO) {
+  try {
+    const sinceMs = Date.parse(sinceISO);
+    const logs = await tab.dev.logs({ levels: ["debug"], filter: "[wizard-perf]", limit: 200 });
+    return summarizeFrontendTimingEntries(
+      logs
+        .filter((log) => {
+          const loggedAt = Date.parse(log.timestamp);
+          return Number.isNaN(sinceMs) || Number.isNaN(loggedAt) || loggedAt >= sinceMs;
+        })
+        .map((log) => parseFrontendTimingLog(log.message))
+        .filter(Boolean)
+    );
+  } catch {
+    return summarizeFrontendTimingEntries([]);
+  }
 }
 
 function isMeasuredRow(row) {
@@ -718,8 +835,10 @@ async function readReadyState(tab, route, timeoutMs) {
   let title = "";
   let finalUrl = "";
   let readinessSignal = "";
+  let pollCount = 0;
 
   while (Date.now() - startedAt < timeoutMs) {
+    pollCount += 1;
     title = (await tab.title()) || "";
     finalUrl = (await tab.url()) || "";
     snapshot = await tab.playwright.domSnapshot();
@@ -733,6 +852,8 @@ async function readReadyState(tab, route, timeoutMs) {
         expectedTitle,
         title,
         finalUrl,
+        pollingMs: elapsedMsSince(startedAt),
+        pollCount,
       };
     }
     if (
@@ -749,6 +870,8 @@ async function readReadyState(tab, route, timeoutMs) {
         expectedTitle,
         title,
         finalUrl,
+        pollingMs: elapsedMsSince(startedAt),
+        pollCount,
       };
     }
     await sleep(100);
@@ -761,42 +884,67 @@ async function readReadyState(tab, route, timeoutMs) {
     expectedTitle,
     title,
     finalUrl,
+    pollingMs: elapsedMsSince(startedAt),
+    pollCount,
   };
 }
 
 async function measureNavigation(tab, baseUrl, from, to, timeoutMs) {
   const startedAt = Date.now();
   const startedAtISO = nowISO();
+  let navigationLoadMs = null;
+  let readinessPollingMs = null;
+  let frontendTimings = summarizeFrontendTimingEntries([]);
   try {
+    const navigationStartedAt = Date.now();
     await withTimeout(`navigate ${from.url} -> ${to.url}`, timeoutMs, async () => {
       await tab.goto(normalizeUrl(baseUrl, to.url));
       await tab.playwright.waitForLoadState({ state: "load", timeoutMs });
     });
+    navigationLoadMs = elapsedMsSince(navigationStartedAt);
     const ready = await withTimeout(`ready ${to.url}`, timeoutMs, () => readReadyState(tab, to, timeoutMs));
+    readinessPollingMs = ready.pollingMs;
+    frontendTimings = await readFrontendTimings(tab, startedAtISO);
+    const elapsedMs = elapsedMsSince(startedAt);
     return withFailureClass({
       type: "transition",
       from: from.url,
       to: to.url,
       startedAt: startedAtISO,
       endedAt: nowISO(),
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs,
+      phaseTimings: buildPhaseTimings({
+        totalMs: elapsedMs,
+        navigationLoadMs,
+        readinessPollingMs,
+        frontendTimings,
+      }),
       finalUrl: ready.finalUrl,
       title: ready.title,
       expectedText: ready.expectedText,
       expectedTitle: ready.expectedTitle,
       readinessSignal: ready.readinessSignal,
+      readinessPollCount: ready.pollCount,
       ready: ready.ready,
       status: ready.ready ? "ok" : "not_ready",
       logs: await collectLogs(tab),
     });
   } catch (error) {
+    frontendTimings = await readFrontendTimings(tab, startedAtISO);
+    const elapsedMs = elapsedMsSince(startedAt);
     return withFailureClass({
       type: "transition",
       from: from.url,
       to: to.url,
       startedAt: startedAtISO,
       endedAt: nowISO(),
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs,
+      phaseTimings: buildPhaseTimings({
+        totalMs: elapsedMs,
+        navigationLoadMs,
+        readinessPollingMs,
+        frontendTimings,
+      }),
       finalUrl: await tab.url().catch(() => ""),
       title: await tab.title().catch(() => ""),
       expectedText: routeExpectedText(to),
@@ -813,40 +961,68 @@ async function measureNavigation(tab, baseUrl, from, to, timeoutMs) {
 async function measureRefresh(tab, baseUrl, route, sample, timeoutMs) {
   const startedAt = Date.now();
   const startedAtISO = nowISO();
+  let setupNavigationLoadMs = null;
+  let navigationLoadMs = null;
+  let readinessPollingMs = null;
+  let frontendTimings = summarizeFrontendTimingEntries([]);
   try {
+    const setupStartedAt = Date.now();
     await withTimeout(`open ${route.url} before refresh`, timeoutMs, async () => {
       await tab.goto(normalizeUrl(baseUrl, route.url));
       await tab.playwright.waitForLoadState({ state: "load", timeoutMs });
     });
+    setupNavigationLoadMs = elapsedMsSince(setupStartedAt);
+    const navigationStartedAt = Date.now();
     await withTimeout(`refresh ${route.url}`, timeoutMs, async () => {
       await tab.reload();
       await tab.playwright.waitForLoadState({ state: "load", timeoutMs });
     });
+    navigationLoadMs = elapsedMsSince(navigationStartedAt);
     const ready = await withTimeout(`ready after refresh ${route.url}`, timeoutMs, () => readReadyState(tab, route, timeoutMs));
+    readinessPollingMs = ready.pollingMs;
+    frontendTimings = await readFrontendTimings(tab, startedAtISO);
+    const elapsedMs = elapsedMsSince(startedAt);
     return withFailureClass({
       type: "refresh",
       route: route.url,
       sample,
       startedAt: startedAtISO,
       endedAt: nowISO(),
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs,
+      phaseTimings: buildPhaseTimings({
+        totalMs: elapsedMs,
+        navigationLoadMs,
+        readinessPollingMs,
+        setupNavigationLoadMs,
+        frontendTimings,
+      }),
       finalUrl: ready.finalUrl,
       title: ready.title,
       expectedText: ready.expectedText,
       expectedTitle: ready.expectedTitle,
       readinessSignal: ready.readinessSignal,
+      readinessPollCount: ready.pollCount,
       ready: ready.ready,
       status: ready.ready ? "ok" : "not_ready",
       logs: await collectLogs(tab),
     });
   } catch (error) {
+    frontendTimings = await readFrontendTimings(tab, startedAtISO);
+    const elapsedMs = elapsedMsSince(startedAt);
     return withFailureClass({
       type: "refresh",
       route: route.url,
       sample,
       startedAt: startedAtISO,
       endedAt: nowISO(),
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs,
+      phaseTimings: buildPhaseTimings({
+        totalMs: elapsedMs,
+        navigationLoadMs,
+        readinessPollingMs,
+        setupNavigationLoadMs,
+        frontendTimings,
+      }),
       finalUrl: await tab.url().catch(() => ""),
       title: await tab.title().catch(() => ""),
       expectedText: routeExpectedText(route),
@@ -1008,8 +1184,16 @@ function buildResult({
   devServerHealthy,
 }) {
   const performanceBudgets = normalizePerformanceBudgets(budgets);
-  const budgetedTransitions = applyPerformanceBudgets(transitions, performanceBudgets);
-  const budgetedRefreshes = applyPerformanceBudgets(refreshes, performanceBudgets);
+  const normalizedTransitions = transitions.map((row) => ({
+    ...row,
+    phaseTimings: normalizePhaseTimings(row),
+  }));
+  const normalizedRefreshes = refreshes.map((row) => ({
+    ...row,
+    phaseTimings: normalizePhaseTimings(row),
+  }));
+  const budgetedTransitions = applyPerformanceBudgets(normalizedTransitions, performanceBudgets);
+  const budgetedRefreshes = applyPerformanceBudgets(normalizedRefreshes, performanceBudgets);
   const nextTransitionIndex =
     stoppedAtTransitionIndex ?? (budgetedTransitions.length ? startTransitionIndex + budgetedTransitions.length : startTransitionIndex);
   return {
@@ -1348,6 +1532,30 @@ function formatBudgetGateFailure(result) {
   ].join("\n");
 }
 
+function rowLabel(row) {
+  if (row.type === "transition") {
+    return `${row.from} -> ${row.to}`;
+  }
+  return `${row.route} refresh ${row.sample}`;
+}
+
+function slowestRowsByPhase(rows, phaseKey, limit = 5) {
+  return rows
+    .filter((row) => row.status === "ok" && Number.isFinite(row.phaseTimings?.[phaseKey]))
+    .sort((a, b) => b.phaseTimings[phaseKey] - a.phaseTimings[phaseKey])
+    .slice(0, limit);
+}
+
+function renderPhaseRows(rows, phaseKey) {
+  if (rows.length === 0) {
+    return [`| ${markdownCell(phaseKey)} | none | n/a | n/a |`];
+  }
+  return rows.map((row) => {
+    const timing = row.phaseTimings ?? {};
+    return `| ${markdownCell(phaseKey)} | \`${markdownCell(rowLabel(row))}\` | ${timing[phaseKey]} | ${timing.totalMs ?? row.elapsedMs ?? ""} |`;
+  });
+}
+
 export async function mergePerformanceArtifacts({
   outputDir = DEFAULT_OUTPUT_DIR,
   inputDir = outputDir,
@@ -1467,6 +1675,7 @@ function renderMarkdownSummary(result) {
   const browserTransportFailures = [...transitionFailures, ...refreshFailures].filter(
     (row) => row.failureClass === "browser_pipe_failure"
   );
+  const okRows = [...result.transitions, ...result.refreshes].filter((row) => row.status === "ok");
   const firstBrowserPipeFailure =
     result.transitions.find(isBrowserPipeFailure) || result.refreshes.find(isBrowserPipeFailure) || null;
   const failedTransitionIndex = firstBrowserPipeFailure?.index ?? null;
@@ -1567,6 +1776,15 @@ function renderMarkdownSummary(result) {
     "| From | To | ms | Ready Signal | Final URL |",
     "| --- | --- | ---: | --- | --- |",
     ...slowestTransitions.map((row) => `| \`${markdownCell(row.from)}\` | \`${markdownCell(row.to)}\` | ${row.elapsedMs} | ${markdownCell(row.readinessSignal)} | \`${markdownCell(row.finalUrl)}\` |`),
+    "",
+    "## Slowest Phase Timings",
+    "",
+    "| Phase | Row | Phase ms | Total ms |",
+    "| --- | --- | ---: | ---: |",
+    ...renderPhaseRows(slowestRowsByPhase(okRows, "navigationLoadMs"), "navigationLoadMs"),
+    ...renderPhaseRows(slowestRowsByPhase(okRows, "readinessPollingMs"), "readinessPollingMs"),
+    ...renderPhaseRows(slowestRowsByPhase(okRows, "frontendSessionFetchMs"), "frontendSessionFetchMs"),
+    ...renderPhaseRows(slowestRowsByPhase(okRows, "frontendGeneratedArtboardImportMs"), "frontendGeneratedArtboardImportMs"),
     "",
     "## Slowest Refreshes",
     "",

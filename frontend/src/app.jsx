@@ -379,6 +379,7 @@ export function App() {
       path: currentPath,
       search: currentSearch,
       routeKind: currentRoute?.kind ?? null,
+      title: pageTitleForRoute(currentRoute, currentPath),
       sessionState,
     });
   }, [currentPath, currentSearch, currentRoute?.kind, sessionState]);
