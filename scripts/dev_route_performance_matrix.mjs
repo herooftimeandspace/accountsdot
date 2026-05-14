@@ -407,6 +407,17 @@ function phaseTimingRowSummary(row, phaseKey) {
   };
 }
 
+function medianMs(sortedValues) {
+  if (!sortedValues.length) {
+    return null;
+  }
+  const midpoint = Math.floor(sortedValues.length / 2);
+  if (sortedValues.length % 2 === 1) {
+    return sortedValues[midpoint];
+  }
+  return (sortedValues[midpoint - 1] + sortedValues[midpoint]) / 2;
+}
+
 function summarizePhaseTimingRows(rows, phaseKey, limit = 5) {
   const measuredRows = rows
     .filter((row) => row.status === "ok" && Number.isFinite(row.phaseTimings?.[phaseKey]))
@@ -416,7 +427,7 @@ function summarizePhaseTimingRows(rows, phaseKey, limit = 5) {
   return {
     sampleCount: values.length,
     minMs: values[0] ?? null,
-    medianMs: values.length ? values[Math.floor(values.length / 2)] : null,
+    medianMs: medianMs(values),
     maxMs: values[values.length - 1] ?? null,
     slowestRows: measuredRows.slice(0, limit).map((row) => phaseTimingRowSummary(row, phaseKey)),
   };
@@ -1186,7 +1197,7 @@ function summarizeTimings(rows, keyName) {
       ok: okRows.length,
       failed: group.length - okRows.length,
       minMs: elapsed[0] ?? null,
-      medianMs: elapsed.length ? elapsed[Math.floor(elapsed.length / 2)] : null,
+      medianMs: medianMs(elapsed),
       maxMs: elapsed[elapsed.length - 1] ?? null,
     };
   });
