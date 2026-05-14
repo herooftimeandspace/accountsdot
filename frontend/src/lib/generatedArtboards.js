@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import { loadGeneratedArtboard } from "../generated/artboards.generated.js";
+import { devMark, devMeasureAsync } from "./devPerformance";
 
 const resolvedArtboards = new Map();
 
+/**
+ * loadArtboard returns cached generated artboards or imports them once for static PEN pages.
+ * DEV route-performance runs use the sanitized timing marker to separate generated artboard
+ * import cost from Browser navigation/load and readiness polling time.
+ */
 export async function loadArtboard(key) {
   if (!key) {
     throw new Error("Generated artboard key is required.");
@@ -10,7 +16,9 @@ export async function loadArtboard(key) {
   if (resolvedArtboards.has(key)) {
     return resolvedArtboards.get(key);
   }
-  const artboard = await loadGeneratedArtboard(key);
+  const artboard = await devMeasureAsync("generated-artboard-import", { artboardKey: key }, () =>
+    loadGeneratedArtboard(key)
+  );
   resolvedArtboards.set(key, artboard);
   return artboard;
 }
@@ -55,6 +63,12 @@ export function useGeneratedArtboard(key) {
       cancelled = true;
     };
   }, [key]);
+
+  useEffect(() => {
+    if (key && state.status === "ready") {
+      devMark("generated-artboard-render", { artboardKey: key });
+    }
+  }, [key, state.status]);
 
   return state;
 }
