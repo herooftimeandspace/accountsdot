@@ -10,6 +10,10 @@ const DEFAULT_REFRESH_SAMPLES = 2;
 const DEFAULT_TRANSITION_BATCH_SIZE = 50;
 const DEFAULT_REFRESH_BATCH_SIZE = 12;
 const DEFAULT_MAX_BROWSER_BATCHES_PER_CALL = 1;
+const DEFAULT_TRANSITION_BUDGET_WARNING_MS = 3000;
+const DEFAULT_TRANSITION_BUDGET_FAILURE_MS = 7000;
+const DEFAULT_REFRESH_BUDGET_WARNING_MS = 3000;
+const DEFAULT_REFRESH_BUDGET_FAILURE_MS = 7000;
 const IT_ADMIN_PERSONA_LABEL = "IT Admin";
 const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ROUTE_REGISTRY_PATH = path.join(REPO_ROOT, "frontend/src/lib/routeRegistry.js");
@@ -84,6 +88,88 @@ const GENERATED_ARTBOARD_LOADING_PATTERN = /Preparing the generated .+ artboard\
 
 function nowISO() {
   return new Date().toISOString();
+}
+
+function parsePositiveInteger(value, fallback, label) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${label} must be a positive integer number of milliseconds.`);
+  }
+  return parsed;
+}
+
+function readBudgetEnv(name) {
+  return typeof process !== "undefined" ? process.env[name] : undefined;
+}
+
+export function defaultPerformanceBudgets() {
+  return {
+    transitions: {
+      warningMs: parsePositiveInteger(
+        readBudgetEnv("ROUTE_PERF_TRANSITION_WARNING_MS"),
+        DEFAULT_TRANSITION_BUDGET_WARNING_MS,
+        "ROUTE_PERF_TRANSITION_WARNING_MS"
+      ),
+      failureMs: parsePositiveInteger(
+        readBudgetEnv("ROUTE_PERF_TRANSITION_FAILURE_MS"),
+        DEFAULT_TRANSITION_BUDGET_FAILURE_MS,
+        "ROUTE_PERF_TRANSITION_FAILURE_MS"
+      ),
+    },
+    refreshes: {
+      warningMs: parsePositiveInteger(
+        readBudgetEnv("ROUTE_PERF_REFRESH_WARNING_MS"),
+        DEFAULT_REFRESH_BUDGET_WARNING_MS,
+        "ROUTE_PERF_REFRESH_WARNING_MS"
+      ),
+      failureMs: parsePositiveInteger(
+        readBudgetEnv("ROUTE_PERF_REFRESH_FAILURE_MS"),
+        DEFAULT_REFRESH_BUDGET_FAILURE_MS,
+        "ROUTE_PERF_REFRESH_FAILURE_MS"
+      ),
+    },
+  };
+}
+
+function normalizePerformanceBudgets(overrides = {}) {
+  overrides ??= {};
+  const defaults = defaultPerformanceBudgets();
+  const transitions = {
+    warningMs: parsePositiveInteger(
+      overrides.transitions?.warningMs ?? overrides.transitionWarningMs,
+      defaults.transitions.warningMs,
+      "transition warning budget"
+    ),
+    failureMs: parsePositiveInteger(
+      overrides.transitions?.failureMs ?? overrides.transitionFailureMs,
+      defaults.transitions.failureMs,
+      "transition failure budget"
+    ),
+  };
+  const refreshes = {
+    warningMs: parsePositiveInteger(
+      overrides.refreshes?.warningMs ?? overrides.refreshWarningMs,
+      defaults.refreshes.warningMs,
+      "refresh warning budget"
+    ),
+    failureMs: parsePositiveInteger(
+      overrides.refreshes?.failureMs ?? overrides.refreshFailureMs,
+      defaults.refreshes.failureMs,
+      "refresh failure budget"
+    ),
+  };
+
+  if (transitions.warningMs >= transitions.failureMs) {
+    throw new Error("Transition warning budget must be lower than transition failure budget.");
+  }
+  if (refreshes.warningMs >= refreshes.failureMs) {
+    throw new Error("Refresh warning budget must be lower than refresh failure budget.");
+  }
+
+  return { transitions, refreshes };
 }
 
 function sleep(ms) {
@@ -204,6 +290,92 @@ function withFailureClass(row) {
   return {
     ...row,
     failureClass: failureClassForRow(row),
+  };
+}
+
+function budgetForRow(row, budgets) {
+  return row.type === "refresh" ? budgets.refreshes : budgets.transitions;
+}
+
+function budgetStatusForRow(row, budget) {
+  if (row.status !== "ok" || !Number.isFinite(row.elapsedMs)) {
+    return "not_evaluated";
+  }
+  if (row.elapsedMs > budget.failureMs) {
+    return "failure";
+  }
+  if (row.elapsedMs > budget.warningMs) {
+    return "warning";
+  }
+  return "ok";
+}
+
+function withPerformanceBudget(row, budgets) {
+  const budget = budgetForRow(row, budgets);
+  const budgetStatus = budgetStatusForRow(row, budget);
+  const threshold = budgetStatus === "failure" ? budget.failureMs : budgetStatus === "warning" ? budget.warningMs : null;
+  return {
+    ...row,
+    budgetStatus,
+    budgetWarningMs: budget.warningMs,
+    budgetFailureMs: budget.failureMs,
+    budgetExceededByMs: threshold === null ? 0 : Math.max(0, row.elapsedMs - threshold),
+  };
+}
+
+function applyPerformanceBudgets(rows, budgets) {
+  return rows.map((row) => withPerformanceBudget(row, budgets));
+}
+
+function budgetCounts(rows) {
+  return rows.reduce(
+    (counts, row) => {
+      const key = row.budgetStatus || "not_evaluated";
+      counts[key] = (counts[key] ?? 0) + 1;
+      return counts;
+    },
+    { ok: 0, warning: 0, failure: 0, not_evaluated: 0 }
+  );
+}
+
+function budgetRowSummary(row) {
+  return {
+    type: row.type,
+    from: row.from,
+    to: row.to,
+    route: row.route,
+    sample: row.sample,
+    index: row.index,
+    elapsedMs: row.elapsedMs,
+    budgetStatus: row.budgetStatus,
+    budgetWarningMs: row.budgetWarningMs,
+    budgetFailureMs: row.budgetFailureMs,
+    budgetExceededByMs: row.budgetExceededByMs,
+    readinessSignal: row.readinessSignal,
+    status: row.status,
+  };
+}
+
+function buildBudgetSummary(transitions, refreshes) {
+  const transitionWarnings = transitions.filter((row) => row.budgetStatus === "warning");
+  const transitionFailures = transitions.filter((row) => row.budgetStatus === "failure");
+  const refreshWarnings = refreshes.filter((row) => row.budgetStatus === "warning");
+  const refreshFailures = refreshes.filter((row) => row.budgetStatus === "failure");
+  return {
+    transitions: {
+      counts: budgetCounts(transitions),
+      warnings: transitionWarnings.map(budgetRowSummary),
+      failures: transitionFailures.map(budgetRowSummary),
+    },
+    refreshes: {
+      counts: budgetCounts(refreshes),
+      warnings: refreshWarnings.map(budgetRowSummary),
+      failures: refreshFailures.map(budgetRowSummary),
+    },
+    totals: {
+      warnings: transitionWarnings.length + refreshWarnings.length,
+      failures: transitionFailures.length + refreshFailures.length,
+    },
   };
 }
 
@@ -820,6 +992,7 @@ function buildResult({
   baseUrl,
   timeoutMs,
   refreshSamples,
+  budgets,
   persona,
   routes,
   coverage,
@@ -834,13 +1007,17 @@ function buildResult({
   stopReason,
   devServerHealthy,
 }) {
+  const performanceBudgets = normalizePerformanceBudgets(budgets);
+  const budgetedTransitions = applyPerformanceBudgets(transitions, performanceBudgets);
+  const budgetedRefreshes = applyPerformanceBudgets(refreshes, performanceBudgets);
   const nextTransitionIndex =
-    stoppedAtTransitionIndex ?? (transitions.length ? startTransitionIndex + transitions.length : startTransitionIndex);
+    stoppedAtTransitionIndex ?? (budgetedTransitions.length ? startTransitionIndex + budgetedTransitions.length : startTransitionIndex);
   return {
     generatedAt,
     baseUrl,
     timeoutMs,
     refreshSamples,
+    performanceBudgets,
     persona,
     routes,
     coverage,
@@ -860,14 +1037,15 @@ function buildResult({
     stopReason,
     devServerHealthy,
     browserSessionRestartNeeded: stopReason === "browser_pipe_failure",
-    transitions,
-    refreshes,
+    transitions: budgetedTransitions,
+    refreshes: budgetedRefreshes,
     failureCounts: {
-      transitions: failureCounts(transitions),
-      refreshes: failureCounts(refreshes),
+      transitions: failureCounts(budgetedTransitions),
+      refreshes: failureCounts(budgetedRefreshes),
     },
-    transitionSummaryByTarget: summarizeTimings(transitions, "to"),
-    refreshSummaryByRoute: summarizeTimings(refreshes, "route"),
+    budgetSummary: buildBudgetSummary(budgetedTransitions, budgetedRefreshes),
+    transitionSummaryByTarget: summarizeTimings(budgetedTransitions, "to"),
+    refreshSummaryByRoute: summarizeTimings(budgetedRefreshes, "route"),
   };
 }
 
@@ -1067,31 +1245,113 @@ function formatQualityGateFailure(result) {
   ].join("\n");
 }
 
+function parseValueArg(args, index, name) {
+  const arg = args[index];
+  if (arg.includes("=")) {
+    return { value: arg.slice(arg.indexOf("=") + 1), consumed: 1 };
+  }
+  const value = args[index + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${name} requires a millisecond value.`);
+  }
+  return { value, consumed: 2 };
+}
+
+function isValueFlag(arg, name) {
+  return arg === name || arg.startsWith(`${name}=`);
+}
+
 function parseMergeCliArgs(args) {
   let strict = false;
   let inputDir = DEFAULT_OUTPUT_DIR;
+  let budgetStrict = false;
+  const budgets = {};
+  let hasBudgetOverrides = false;
 
-  for (const arg of args) {
+  for (let index = 0; index < args.length; ) {
+    const arg = args[index];
     if (arg === "--strict") {
       strict = true;
+      index += 1;
       continue;
     }
     if (arg === "--no-strict") {
       strict = false;
+      index += 1;
+      continue;
+    }
+    if (arg === "--budget-strict") {
+      budgetStrict = true;
+      index += 1;
+      continue;
+    }
+    if (arg === "--no-budget-strict") {
+      budgetStrict = false;
+      index += 1;
+      continue;
+    }
+    if (isValueFlag(arg, "--transition-warning-ms")) {
+      const parsed = parseValueArg(args, index, "--transition-warning-ms");
+      budgets.transitionWarningMs = parsed.value;
+      hasBudgetOverrides = true;
+      index += parsed.consumed;
+      continue;
+    }
+    if (isValueFlag(arg, "--transition-failure-ms")) {
+      const parsed = parseValueArg(args, index, "--transition-failure-ms");
+      budgets.transitionFailureMs = parsed.value;
+      hasBudgetOverrides = true;
+      index += parsed.consumed;
+      continue;
+    }
+    if (isValueFlag(arg, "--refresh-warning-ms")) {
+      const parsed = parseValueArg(args, index, "--refresh-warning-ms");
+      budgets.refreshWarningMs = parsed.value;
+      hasBudgetOverrides = true;
+      index += parsed.consumed;
+      continue;
+    }
+    if (isValueFlag(arg, "--refresh-failure-ms")) {
+      const parsed = parseValueArg(args, index, "--refresh-failure-ms");
+      budgets.refreshFailureMs = parsed.value;
+      index += parsed.consumed;
+      hasBudgetOverrides = true;
       continue;
     }
     if (arg.startsWith("--")) {
       throw new Error(`Unknown merge option: ${arg}`);
     }
     inputDir = arg;
+    index += 1;
   }
 
-  return { inputDir, strict };
+  return {
+    inputDir,
+    strict,
+    budgetStrict,
+    budgets: hasBudgetOverrides ? normalizePerformanceBudgets(budgets) : undefined,
+  };
+}
+
+function budgetGatePassed(result) {
+  return (result.budgetSummary?.totals?.failures ?? 0) === 0;
+}
+
+function formatBudgetGateFailure(result) {
+  const failures = result.budgetSummary?.totals?.failures ?? 0;
+  const transitionFailures = result.budgetSummary?.transitions?.counts?.failure ?? 0;
+  const refreshFailures = result.budgetSummary?.refreshes?.counts?.failure ?? 0;
+  return [
+    "Route performance budget gate failed.",
+    `Budget failures: total=${failures}; transitions=${transitionFailures}; refreshes=${refreshFailures}.`,
+    result.files ? `Artifacts: markdown=${result.files.markdown}; json=${result.files.json}` : "Artifacts: unavailable",
+  ].join("\n");
 }
 
 export async function mergePerformanceArtifacts({
   outputDir = DEFAULT_OUTPUT_DIR,
   inputDir = outputDir,
+  budgets,
 } = {}) {
   const absoluteInputDir = path.resolve(REPO_ROOT, inputDir);
   const files = (await readdir(absoluteInputDir))
@@ -1154,6 +1414,7 @@ export async function mergePerformanceArtifacts({
     baseUrl: artifacts[0].payload.baseUrl ?? DEFAULT_BASE_URL,
     timeoutMs: artifacts[0].payload.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     refreshSamples: artifacts[0].payload.refreshSamples ?? DEFAULT_REFRESH_SAMPLES,
+    budgets: budgets ?? artifacts[0].payload.performanceBudgets,
     persona: artifacts[0].payload.persona ?? null,
     routes,
     coverage,
@@ -1194,6 +1455,12 @@ export async function mergePerformanceArtifacts({
 function renderMarkdownSummary(result) {
   const transitionFailures = result.transitions.filter((row) => row.status !== "ok");
   const refreshFailures = result.refreshes.filter((row) => row.status !== "ok");
+  const transitionBudgetWarnings = result.transitions.filter((row) => row.budgetStatus === "warning");
+  const transitionBudgetFailures = result.transitions.filter((row) => row.budgetStatus === "failure");
+  const refreshBudgetWarnings = result.refreshes.filter((row) => row.budgetStatus === "warning");
+  const refreshBudgetFailures = result.refreshes.filter((row) => row.budgetStatus === "failure");
+  const budgetWarnings = [...transitionBudgetWarnings, ...refreshBudgetWarnings];
+  const budgetFailures = [...transitionBudgetFailures, ...refreshBudgetFailures];
   const appTimeoutFailures = [...transitionFailures, ...refreshFailures].filter(
     (row) => row.failureClass === "app_timeout"
   );
@@ -1228,6 +1495,8 @@ function renderMarkdownSummary(result) {
     `Refresh samples: ${result.refreshes.length}`,
     `Coverage valid: ${result.coverage.valid ? "yes" : "no"}`,
     result.transitionCoverage ? `Merged transition coverage valid: ${result.transitionCoverage.valid ? "yes" : "no"}` : null,
+    `Transition budget: warning > ${result.performanceBudgets.transitions.warningMs} ms; failure > ${result.performanceBudgets.transitions.failureMs} ms`,
+    `Refresh budget: warning > ${result.performanceBudgets.refreshes.warningMs} ms; failure > ${result.performanceBudgets.refreshes.failureMs} ms`,
     result.currentRoutePlan
       ? `Current route plan: ${result.currentRoutePlan.routeCount} routes / ${result.currentRoutePlan.expectedEdgeCount} directed transitions`
       : null,
@@ -1286,6 +1555,13 @@ function renderMarkdownSummary(result) {
       ? `Duplicate refresh samples: ${result.qualityGate.refreshCoverage.duplicates.join(", ")}`
       : null,
     "",
+    "## Performance Budgets",
+    "",
+    `Budget warning rows: ${budgetWarnings.length}`,
+    `Budget failure rows: ${budgetFailures.length}`,
+    `Transition budget counts: \`${JSON.stringify(result.budgetSummary?.transitions?.counts ?? {})}\``,
+    `Refresh budget counts: \`${JSON.stringify(result.budgetSummary?.refreshes?.counts ?? {})}\``,
+    "",
     "## Slowest Transitions",
     "",
     "| From | To | ms | Ready Signal | Final URL |",
@@ -1314,6 +1590,28 @@ function renderMarkdownSummary(result) {
     lines.push(...refreshFailures.map((row) => `| \`${markdownCell(row.route)}\` | ${row.sample} | ${markdownCell(row.status)} | ${markdownCell(row.failureClass)} | ${markdownCell(row.expectedText)} | ${markdownCell(row.title)} | ${markdownCell(row.error)} |`));
   }
 
+  if (budgetWarnings.length > 0) {
+    lines.push("", "### Budget Warnings", "", "| Type | Route / Edge | Index / Sample | ms | Warning ms | Failure ms | Ready Signal |", "| --- | --- | ---: | ---: | ---: | ---: | --- |");
+    lines.push(
+      ...budgetWarnings.map((row) => {
+        const route = row.type === "transition" ? `${row.from} -> ${row.to}` : row.route;
+        const index = row.type === "transition" ? row.index ?? "" : row.sample ?? "";
+        return `| ${markdownCell(row.type)} | \`${markdownCell(route)}\` | ${index} | ${row.elapsedMs} | ${row.budgetWarningMs} | ${row.budgetFailureMs} | ${markdownCell(row.readinessSignal)} |`;
+      })
+    );
+  }
+
+  if (budgetFailures.length > 0) {
+    lines.push("", "### Budget Failures", "", "| Type | Route / Edge | Index / Sample | ms | Warning ms | Failure ms | Ready Signal |", "| --- | --- | ---: | ---: | ---: | ---: | --- |");
+    lines.push(
+      ...budgetFailures.map((row) => {
+        const route = row.type === "transition" ? `${row.from} -> ${row.to}` : row.route;
+        const index = row.type === "transition" ? row.index ?? "" : row.sample ?? "";
+        return `| ${markdownCell(row.type)} | \`${markdownCell(route)}\` | ${index} | ${row.elapsedMs} | ${row.budgetWarningMs} | ${row.budgetFailureMs} | ${markdownCell(row.readinessSignal)} |`;
+      })
+    );
+  }
+
   return `${lines.join("\n")}\n`;
 }
 
@@ -1323,6 +1621,7 @@ export async function runDevRoutePerformanceMatrix({
   outputDir = DEFAULT_OUTPUT_DIR,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   refreshSamples = DEFAULT_REFRESH_SAMPLES,
+  budgets,
   maxTransitions = DEFAULT_TRANSITION_BATCH_SIZE,
   startTransitionIndex = 1,
   includeRefreshes = false,
@@ -1352,6 +1651,7 @@ export async function runDevRoutePerformanceMatrix({
       baseUrl,
       timeoutMs,
       refreshSamples,
+      budgets,
       persona,
       routes,
       coverage,
@@ -1404,6 +1704,7 @@ export async function runDevRoutePerformanceMatrix({
     baseUrl,
     timeoutMs,
     refreshSamples,
+    budgets,
     persona,
     routes,
     coverage,
@@ -1544,6 +1845,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const result = await mergePerformanceArtifacts({
       inputDir: options.inputDir,
       outputDir: DEFAULT_OUTPUT_DIR,
+      budgets: options.budgets,
     });
     console.log(
       JSON.stringify(
@@ -1552,6 +1854,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
           transitions: result.transitions.length,
           refreshes: result.refreshes.length,
           qualityGate: result.qualityGate,
+          budgetSummary: result.budgetSummary,
         },
         null,
         2
@@ -1559,6 +1862,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     );
     if (options.strict && !result.qualityGate.passed) {
       console.error(formatQualityGateFailure(result));
+      process.exitCode = 1;
+    }
+    if (options.budgetStrict && !budgetGatePassed(result)) {
+      console.error(formatBudgetGateFailure(result));
       process.exitCode = 1;
     }
   } else if (command === "batch-plan" || command === "--batch-plan") {
@@ -1570,6 +1877,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const routes = buildRouteTargets();
     const edgePath = buildEdgeCoveragePath(routes);
     const coverage = validateCoverage(routes, edgePath);
+    const budgets = defaultPerformanceBudgets();
     const payload = {
       routes,
       coverage,
@@ -1577,6 +1885,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         transitionBatchSize: DEFAULT_TRANSITION_BATCH_SIZE,
         refreshBatchSize: DEFAULT_REFRESH_BATCH_SIZE,
         includeRefreshes: false,
+        performanceBudgets: budgets,
       },
       firstTransitions: edgePath.slice(1, 8).map((route, index) => ({
         from: edgePath[index].url,
