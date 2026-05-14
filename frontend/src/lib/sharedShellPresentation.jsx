@@ -307,13 +307,15 @@ function nodeBounds(node, textOverrides) {
     return null;
   }
 
+  const width = node.width ?? 0;
+  const height = node.type === "text" ? estimateTextHeight(node, textOverrides) : (node.height ?? 0);
   return {
     left: node.x ?? 0,
     top: node.y ?? 0,
-    right: (node.x ?? 0) + (node.width ?? 0),
-    bottom:
-      (node.y ?? 0) +
-      (node.type === "text" ? estimateTextHeight(node, textOverrides) : (node.height ?? 0)),
+    right: (node.x ?? 0) + width,
+    bottom: (node.y ?? 0) + height,
+    width,
+    height,
   };
 }
 
@@ -443,32 +445,115 @@ function parseRefreshMetadata(value) {
 }
 
 /**
- * SharedShellRefreshMetadataOverlay renders the UI surface for frontend/src/lib/sharedShellPresentation.jsx. Implemented-page shell overlays call this helper to align runtime shell behavior with .pen-derived artboards; debug it by checking node bounds, text overrides, and persona/session data. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * normalizePageSyncControl prepares the page sync/refresh primitive for createSharedShellRenderOverlay.
+ * React page components pass either passive freshness text or an intentional action contract; this helper
+ * converts both shapes into one render model so callers do not hand-place Last refreshed, Refresh, or Sync now
+ * controls. It does not mutate provider or DEV mock state itself; action side effects remain in the page callback.
  */
-function SharedShellRefreshMetadataOverlay({ buttonBounds, refreshMetadata }) {
-  const parsed = parseRefreshMetadata(refreshMetadata);
-  if (!buttonBounds || !parsed) {
+function normalizePageSyncControl(pageSyncControl, fallbackRefreshMetadata) {
+  const source = pageSyncControl ?? (fallbackRefreshMetadata ? { lastRefreshed: fallbackRefreshMetadata } : null);
+  if (!source) {
     return null;
   }
 
-  const width = 156;
+  const parsed = parseRefreshMetadata(source.lastRefreshed ?? source.refreshMetadata ?? fallbackRefreshMetadata);
+  if (!parsed && !source.label) {
+    return null;
+  }
+
+  const label = String(source.label ?? "").trim();
+  const loadingLabel = String(source.loadingLabel ?? "").trim();
+  const resolvedLabel = source.loading && loadingLabel ? loadingLabel : label;
+  const actionName = String(source.ariaLabel ?? source.accessibleName ?? resolvedLabel).trim();
+  const nextSyncText = String(source.nextSyncText ?? source.nextSync ?? "").trim();
+  const hasAction = typeof source.onAction === "function";
+
+  return {
+    label: resolvedLabel,
+    actionName: actionName || resolvedLabel || "Refresh page data",
+    lastRefreshedLabel: source.lastRefreshedLabel ?? parsed?.label ?? "Last refreshed",
+    lastRefreshedValue: source.lastRefreshedValue ?? parsed?.value ?? "",
+    nextSyncText,
+    disabled: Boolean(source.disabled || source.loading || (!hasAction && label)),
+    loading: Boolean(source.loading),
+    onAction: hasAction ? source.onAction : undefined,
+    primary: source.primary !== false,
+  };
+}
+
+/**
+ * SharedShellPageSyncControl renders the shared runtime primitive for page-level freshness controls.
+ * Generated .pen artboards still provide the canonical header geometry, while this overlay supplies the
+ * real button semantics, disabled/loading state, and optional next-sync text used by pages such as Data
+ * Quality and Student Data Cleanup. A click only calls the page-owned callback; the primitive never writes
+ * to providers, databases, or DEV mock stores directly.
+ */
+function SharedShellPageSyncControl({ buttonBounds, pageSyncControl }) {
+  const control = normalizePageSyncControl(pageSyncControl);
+  if (!buttonBounds || !control) {
+    return null;
+  }
+
+  const metadataWidth = control.nextSyncText ? 184 : 156;
+  const buttonLabel = control.label;
+  const usesStaticRefreshVisual = buttonLabel === "Refresh" && control.primary && !control.loading;
+  const buttonAriaLabel = [
+    control.actionName,
+    control.lastRefreshedValue ? `${control.lastRefreshedLabel} ${control.lastRefreshedValue}` : "",
+    control.nextSyncText,
+  ]
+    .filter(Boolean)
+    .join(". ");
 
   return (
-    <div
-      aria-hidden="true"
-      className="shared-shell-refresh-meta"
-      style={{
-        position: "absolute",
-        left: buttonBounds.left - width - 5,
-        top: buttonBounds.top,
-        width,
-        height: buttonBounds.height,
-        zIndex: 2,
-      }}
-    >
-      <span className="shared-shell-refresh-meta__label">{parsed.label}</span>
-      <span className="shared-shell-refresh-meta__value">{parsed.value}</span>
-    </div>
+    <>
+      {control.lastRefreshedValue ? (
+        <div
+          aria-hidden="true"
+          className="shared-shell-page-sync__meta"
+          style={{
+            position: "absolute",
+            left: buttonBounds.left - metadataWidth - 5,
+            top: buttonBounds.top,
+            width: metadataWidth,
+            height: buttonBounds.height,
+            zIndex: 24,
+          }}
+        >
+          <span className="shared-shell-page-sync__label">{control.lastRefreshedLabel}</span>
+          <span className="shared-shell-page-sync__value">{control.lastRefreshedValue}</span>
+          {control.nextSyncText ? (
+            <span className="shared-shell-page-sync__next">{control.nextSyncText}</span>
+          ) : null}
+        </div>
+      ) : null}
+      {buttonLabel ? (
+        <button
+          type="button"
+          className={[
+            "shared-shell-page-sync__button",
+            control.primary ? "shared-shell-page-sync__button--primary" : "",
+            usesStaticRefreshVisual ? "shared-shell-page-sync__button--static-visual" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          aria-label={buttonAriaLabel}
+          aria-busy={control.loading ? "true" : undefined}
+          disabled={control.disabled}
+          onClick={control.onAction}
+          style={{
+            position: "absolute",
+            left: buttonBounds.left,
+            top: buttonBounds.top,
+            width: Math.max(buttonBounds.width, buttonLabel.length > 8 ? 104 : buttonBounds.width),
+            height: buttonBounds.height,
+            zIndex: 25,
+          }}
+        >
+          {usesStaticRefreshVisual ? null : <span>{buttonLabel}</span>}
+        </button>
+      ) : null}
+    </>
   );
 }
 
@@ -881,6 +966,7 @@ export function createSharedShellRenderOverlay({
   onSearch = null,
   searchQuery = "",
   refreshMetadata = null,
+  pageSyncControl = null,
   helpContent = null,
   scopeDropdown = null,
 }) {
@@ -902,6 +988,7 @@ export function createSharedShellRenderOverlay({
     );
     const scopeBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.scopeField), textOverrides);
     const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
+    const resolvedPageSyncControl = normalizePageSyncControl(pageSyncControl, refreshMetadata);
     const helpIconBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.helpIcon), textOverrides);
     const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey);
     const resolvedScopeDropdown = scopeDropdown ?? {
@@ -916,10 +1003,10 @@ export function createSharedShellRenderOverlay({
     };
 
     return [
-      <SharedShellRefreshMetadataOverlay
-        key="shared-shell-refresh-meta"
+      <SharedShellPageSyncControl
+        key="shared-shell-page-sync"
         buttonBounds={refreshButtonBounds}
-        refreshMetadata={refreshMetadata}
+        pageSyncControl={resolvedPageSyncControl}
       />,
       <SharedShellScopeDropdown
         key="shared-shell-scope"

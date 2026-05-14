@@ -21,6 +21,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 ## Shared Primitives
 
 - `Refresh`: the standard header refresh action is a Vegas Gold primary action with black text, `8px` radius, and the canonical header location declared in the generated implemented-page design manifest. Pages that expose header refresh must use this primitive.
+- `Page Sync/Refresh`: pages with last-refreshed metadata, next-sync metadata, manual refresh, or manual sync behavior use the shared runtime primitive aligned to the header refresh bounds. Use `Refresh` for targeted page rereads and `Sync now` for source reconciliation or DEV mock source-sync simulation. The primitive owns disabled/loading copy and accessible button names; page-local refresh buttons should only remain when a product requirement explicitly places an action outside the shared header.
 - `Header Scope Dropdown`: implemented pages use one shared runtime dropdown primitive for the header scope field. The primitive owns the visible white control and focus ring so static `.pen` scope text cannot show behind it; pages with documented scope behavior, such as Phone Directory directory focus, provide their own options and change handler while preserving the shared style.
 - `Table`: tables use a shared top baseline across row cells. Multi-line cells grow the row downward; sparse cells and badges remain top-aligned.
 - `Table Controls`: runtime tables expose a shared table search field plus three-way sortable headers. Header sort cycles `None → Ascending → Descending → None`; each page defines its own default sort column. The search field filters against data available in that table and must not include values hidden from users who lack permission.
@@ -55,7 +56,7 @@ Known cleanup target: migrate status rendering to a shared badge primitive so ru
 | Feedback touches | Primitive | Default layer | Durable guard |
 | --- | --- | --- | --- |
 | Header, sidebar, profile, search, scope, nav, support, notification, help, platform status | `shared shell` | `.pen layout` or `runtime behavior` | Shared shell manifest, lint rule, runtime access/navigation test, or docs update |
-| Header refresh or repeated action placement/style | `refresh` or `action link` | `.pen layout` or `runtime behavior` | Standard primitive manifest, lint rule, runtime interaction test, or docs update |
+| Header refresh, sync, freshness metadata, or repeated action placement/style | `refresh` or `action link` | `.pen layout` or `runtime behavior` | Standard primitive manifest, shared page sync/refresh primitive, lint rule, runtime interaction test, or docs update |
 | Row spacing, row baseline, dividers, table overflow | `table` | `.pen layout` | `npm run pen:lint` table diagnostics or promoted failure rule |
 | Card, rail, notice, panel, bordered control spacing | `wrapper/card/rail` | `.pen layout` | Spacing lint diagnostic, shared primitive rule, or accepted shared-border exception |
 | Split helper copy, paragraph fragments, table-cell body fragments | `helper paragraph` | `.pen layout` | Fragmented-paragraph lint diagnostic or explicit semantic split note |

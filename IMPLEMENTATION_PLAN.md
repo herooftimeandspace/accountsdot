@@ -2404,6 +2404,7 @@
   - `InformedK12`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
 - Projection-backed list and queue surfaces should show `Last synced` or equivalent freshness context.
 - Explicit UI refresh actions should prefer targeted live provider reads for the selected surface instead of indiscriminately rebuilding every projection.
+- Implemented React pages that expose manual freshness actions should pass page-level metadata and action handlers through the shared shell page sync/refresh primitive. `Refresh` means a targeted reread for the current page surface; `Sync now` means source reconciliation or a DEV mock simulation of that reconciliation. Pages with no intentional manual action may continue to show passive freshness metadata without adding a new callback.
 - AD is managed directly by this application where applicable; downstream AD → Entra propagation is externally managed and should be treated as complete within `1h` maximum for workflow timing.
 - Entra propagation is considered complete for app workflow gating when the user exists in Entra and `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled` match expected state.
 - If Entra convergence has not occurred after `1h`, continue the workflow with warning rather than blocking the entire run.
