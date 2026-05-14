@@ -22,6 +22,14 @@ const PANE_HEIGHT = 730;
 const DRAWER_BOUNDS = { left: 1280, top: 92, width: 388, height: 802 };
 const DEVICE_LINK_BASE = "https://mock.wusd.local/incidentiq/assets";
 const TICKET_LINK_BASE = "https://mock.wusd.local/incidentiq/tickets";
+const DEFAULT_FREQUENT_FLIERS_FILTERS = { threshold: 2, metric: "devices", range: "90" };
+const FREQUENT_FLIERS_RANGE_OPTIONS = [
+  { value: "30", label: "30 days" },
+  { value: "60", label: "60 days" },
+  { value: "90", label: "90 days" },
+  { value: "180", label: "6 months" },
+  { value: "365", label: "1 year" },
+];
 
 const FREQUENT_FLIERS_HELP_CONTENT = {
   title: "Frequent Fliers help",
@@ -29,7 +37,7 @@ const FREQUENT_FLIERS_HELP_CONTENT = {
     {
       heading: "What this page shows",
       body:
-        "This page helps staff find students with repeated device assignments or IncidentIQ tickets during the last 90 days. Use it to plan support, repairs, and follow-up before the pattern becomes harder to resolve.",
+        "This page helps staff find students with repeated device assignments or IncidentIQ tickets during the selected date range. Use it to plan support, repairs, and follow-up before the pattern becomes harder to resolve.",
     },
     {
       heading: "How to use it",
@@ -53,9 +61,11 @@ const FREQUENT_FLIER_ROWS = [
     site: "Desert View",
     deviceAssignments: 4,
     linkedTickets: 3,
+    assignmentCountsByRange: { 30: 1, 60: 3, 90: 4, 180: 4, 365: 5 },
+    ticketCountsByRange: { 30: 0, 60: 2, 90: 3, 180: 3, 365: 4 },
     daysSinceLastTicket: 42,
     trend: [1, 2, 3, 4, 4, 3],
-    note: "Multiple physical damage incidents within 90 days. Tech Support follow-up scheduled for May 2, 2025.",
+    note: "Multiple physical damage incidents in the selected range. Tech Support follow-up scheduled for May 2, 2025.",
     devices: [
       { serial: "CLA-24-27891", type: "Chromebook", status: "Active" },
       { serial: "CLA-24-26412", type: "Chromebook", status: "Returned" },
@@ -76,6 +86,8 @@ const FREQUENT_FLIER_ROWS = [
     site: "Clover High School",
     deviceAssignments: 3,
     linkedTickets: 2,
+    assignmentCountsByRange: { 30: 2, 60: 2, 90: 3, 180: 3, 365: 4 },
+    ticketCountsByRange: { 30: 1, 60: 2, 90: 2, 180: 3, 365: 3 },
     daysSinceLastTicket: 18,
     trend: [0, 1, 1, 2, 3, 3],
     note: "Two recent device exchanges are tied to keyboard damage. Library staff should confirm storage expectations.",
@@ -97,6 +109,8 @@ const FREQUENT_FLIER_ROWS = [
     site: "Franklin Middle School",
     deviceAssignments: 2,
     linkedTickets: 4,
+    assignmentCountsByRange: { 30: 1, 60: 2, 90: 2, 180: 3, 365: 3 },
+    ticketCountsByRange: { 30: 2, 60: 3, 90: 4, 180: 4, 365: 5 },
     daysSinceLastTicket: 9,
     trend: [1, 1, 2, 2, 3, 4],
     note: "Ticket volume is higher than assignment count. Review charger and case notes before assigning a replacement.",
@@ -119,6 +133,8 @@ const FREQUENT_FLIER_ROWS = [
     site: "Canyon Ridge",
     deviceAssignments: 2,
     linkedTickets: 1,
+    assignmentCountsByRange: { 30: 0, 60: 0, 90: 2, 180: 2, 365: 2 },
+    ticketCountsByRange: { 30: 0, 60: 0, 90: 1, 180: 1, 365: 2 },
     daysSinceLastTicket: 61,
     trend: [0, 0, 1, 1, 2, 2],
     note: "Meets the assignment threshold only. No recent ticket pattern is visible.",
@@ -136,6 +152,8 @@ const FREQUENT_FLIER_ROWS = [
     site: "District Office",
     deviceAssignments: 1,
     linkedTickets: 2,
+    assignmentCountsByRange: { 30: 1, 60: 1, 90: 1, 180: 2, 365: 2 },
+    ticketCountsByRange: { 30: 1, 60: 2, 90: 2, 180: 2, 365: 3 },
     daysSinceLastTicket: 27,
     trend: [0, 0, 1, 1, 1, 2],
     note: "Ticket threshold match without repeated assignments. Review before escalating.",
@@ -147,28 +165,57 @@ const FREQUENT_FLIER_ROWS = [
   },
 ];
 
-const FREQUENT_FLIERS_COLUMNS = [
-  { key: "student", label: "Student", value: (row) => row.student },
-  { key: "studentId", label: "Student ID", value: (row) => row.studentId },
-  { key: "grade", label: "Grade", value: (row) => row.grade },
-  { key: "site", label: "Site", value: (row) => row.site },
-  {
-    key: "deviceAssignments",
-    label: "Devices",
-    value: (row) => row.deviceAssignments,
-    sortValue: (row) => row.deviceAssignments,
-  },
-  {
-    key: "linkedTickets",
-    label: "Tickets",
-    value: (row) => row.linkedTickets,
-    sortValue: (row) => row.linkedTickets,
-  },
-  { key: "trend", label: "Trend", value: (row) => row.trend.join(" "), sortValue: (row) => row.trend.at(-1) ?? 0 },
-];
+/**
+ * rangeLabelForValue keeps the user-facing lookback labels in one place so the
+ * filter control, drawer rule summary, and fallback behavior stay aligned when
+ * the documented Frequent Fliers range set changes.
+ */
+function rangeLabelForValue(range) {
+  return FREQUENT_FLIERS_RANGE_OPTIONS.find((option) => option.value === range)?.label || "90 days";
+}
 
 /**
- * collectPaneNodeIds builds derived data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * metricCountForRange reads the DEV mock count for the selected Frequent
+ * Fliers lookback. The route is frontend/static-only in this slice, so this
+ * helper is the local equivalent of the future API range parameter.
+ */
+function metricCountForRange(row, metric, range) {
+  const counts = metric === "tickets" ? row.ticketCountsByRange : row.assignmentCountsByRange;
+  const fallback = metric === "tickets" ? row.linkedTickets : row.deviceAssignments;
+  return counts?.[range] ?? fallback;
+}
+
+/**
+ * buildFrequentFliersColumns creates the sortable/searchable table contract
+ * after the user applies a lookback range, ensuring visible counts and sort
+ * values use the same committed range.
+ */
+function buildFrequentFliersColumns(range) {
+  return [
+    { key: "student", label: "Student", value: (row) => row.student },
+    { key: "studentId", label: "Student ID", value: (row) => row.studentId },
+    { key: "grade", label: "Grade", value: (row) => row.grade },
+    { key: "site", label: "Site", value: (row) => row.site },
+    {
+      key: "deviceAssignments",
+      label: "Devices",
+      value: (row) => metricCountForRange(row, "devices", range),
+      sortValue: (row) => metricCountForRange(row, "devices", range),
+    },
+    {
+      key: "linkedTickets",
+      label: "Tickets",
+      value: (row) => metricCountForRange(row, "tickets", range),
+      sortValue: (row) => metricCountForRange(row, "tickets", range),
+    },
+    { key: "trend", label: "Trend", value: (row) => row.trend.join(" "), sortValue: (row) => row.trend.at(-1) ?? 0 },
+  ];
+}
+
+/**
+ * collectPaneNodeIds finds every generated artboard node inside the page pane
+ * so FrequentFliersPage can hide the static mock table/detail layout and render
+ * the runtime-owned filters, table, and drawer over the shared shell.
  */
 function collectPaneNodeIds(node, ids = []) {
   const children = node.children || [];
@@ -187,7 +234,9 @@ function collectPaneNodeIds(node, ids = []) {
 }
 
 /**
- * collectAllNodeIds builds derived data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * collectAllNodeIds appends a generated node and all descendants after a pane
+ * root is found, preventing hidden static children from leaking underneath the
+ * runtime Frequent Fliers controls.
  */
 function collectAllNodeIds(node, ids) {
   ids.push(node.id);
@@ -197,21 +246,27 @@ function collectAllNodeIds(node, ids) {
 }
 
 /**
- * linkForDevice formats display data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * linkForDevice builds deterministic DEV IncidentIQ asset URLs for drawer rows;
+ * it never contacts IncidentIQ and keeps demo navigation free of live provider
+ * credentials or production identifiers.
  */
 function linkForDevice(serial) {
   return `${DEVICE_LINK_BASE}/${encodeURIComponent(serial)}`;
 }
 
 /**
- * linkForTicket formats display data for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * linkForTicket builds deterministic DEV IncidentIQ ticket URLs for the row
+ * drawer, matching the documented mock-link behavior without a live ticketing
+ * read.
  */
 function linkForTicket(ticketId) {
   return `${TICKET_LINK_BASE}/${encodeURIComponent(ticketId)}`;
 }
 
 /**
- * trendClass documents runtime data flow for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * trendClass maps a trend bucket to the shared severity palette relative to the
+ * committed threshold, letting the table show below-threshold, review, and
+ * critical patterns without adding another status field to the mock rows.
  */
 function trendClass(value, threshold) {
   if (value >= threshold + 2) {
@@ -224,7 +279,9 @@ function trendClass(value, threshold) {
 }
 
 /**
- * TrendGraph renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * TrendGraph renders the compact Frequent Fliers sparkline for a table row. It
+ * receives the already-selected threshold from FrequentFliersOverlay and emits
+ * only visual bars with an accessible count summary.
  */
 function TrendGraph({ values, threshold }) {
   const maxValue = Math.max(threshold, ...values, 1);
@@ -244,13 +301,16 @@ function TrendGraph({ values, threshold }) {
 }
 
 /**
- * FrequentFliersDrawer renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * FrequentFliersDrawer presents the selected student's range-scoped counts plus
+ * all related mock device and ticket context. The drawer is read-only in this
+ * DEV slice and uses deterministic IncidentIQ links instead of provider calls.
  */
-function FrequentFliersDrawer({ row, threshold, metric, onClose }) {
+function FrequentFliersDrawer({ row, threshold, metric, range, onClose }) {
   if (!row) {
     return null;
   }
   const metricLabel = metric === "tickets" ? "linked tickets" : "device assignments";
+  const rangeLabel = rangeLabelForValue(range);
   return (
     <RuntimeDrawer title={row.student} bounds={DRAWER_BOUNDS} onClose={onClose}>
       <RuntimeDetailList
@@ -258,10 +318,11 @@ function FrequentFliersDrawer({ row, threshold, metric, onClose }) {
           { label: "Student ID", value: row.studentId },
           { label: "Grade", value: row.grade },
           { label: "Site", value: row.site },
-          { label: "Device Assignments", value: row.deviceAssignments },
-          { label: "Linked Tickets", value: row.linkedTickets },
+          { label: "Device Assignments", value: metricCountForRange(row, "devices", range) },
+          { label: "Linked Tickets", value: metricCountForRange(row, "tickets", range) },
+          { label: "Date Range", value: rangeLabel },
           { label: "Days Since Last Ticket", value: row.daysSinceLastTicket },
-          { label: "Current Rule", value: `Show ${metricLabel} greater than or equal to ${threshold}` },
+          { label: "Current Rule", value: `Show ${metricLabel} greater than or equal to ${threshold} in ${rangeLabel}` },
         ]}
       />
       <div className="runtime-drawer__section">
@@ -299,13 +360,14 @@ function FrequentFliersDrawer({ row, threshold, metric, onClose }) {
 }
 
 /**
- * FrequentFliersOverlay renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ * FrequentFliersOverlay owns the runtime-only filter form and table that replace
+ * the hidden static artboard pane. Pending controls do not affect rows until
+ * Apply commits threshold, metric, and range into parent state.
  */
 function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, onPendingChange, onApply, onSelectRow }) {
-  const columns = useMemo(() => FREQUENT_FLIERS_COLUMNS, []);
+  const columns = useMemo(() => buildFrequentFliersColumns(filters.range), [filters.range]);
   const tableRows = useMemo(() => {
-    const metricKey = filters.metric === "tickets" ? "linkedTickets" : "deviceAssignments";
-    return rows.filter((row) => row[metricKey] >= filters.threshold);
+    return rows.filter((row) => metricCountForRange(row, filters.metric, filters.range) >= filters.threshold);
   }, [filters, rows]);
   const table = useRuntimeTableData(tableRows, columns, {
     defaultSort: { key: filters.metric === "tickets" ? "linkedTickets" : "deviceAssignments", direction: "desc" },
@@ -326,7 +388,7 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
       <header className="frequent-fliers-runtime__header">
         <div>
           <h1 id={FREQUENT_FLIERS_HEADING_ID}>Frequent Fliers</h1>
-          <p>Students with repeated device assignments or IncidentIQ tickets in the last 90 days.</p>
+          <p>Students with repeated device assignments or IncidentIQ tickets during the selected date range.</p>
         </div>
       </header>
       <form className="frequent-fliers-runtime__filters" onSubmit={onApply}>
@@ -357,7 +419,20 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
             <option value="tickets">Tickets</option>
           </select>
         </label>
-        <span>in the last 90 days</span>
+        <span>during</span>
+        <label>
+          <span className="sr-only">Date range</span>
+          <select
+            value={pendingFilters.range}
+            onChange={(event) => onPendingChange({ range: event.target.value })}
+          >
+            {FREQUENT_FLIERS_RANGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="submit">Apply</button>
       </form>
       <div className="frequent-fliers-runtime__table-card">
@@ -385,8 +460,8 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
               <div>{row.studentId}</div>
               <div>{row.grade}</div>
               <div>{row.site}</div>
-              <div>{row.deviceAssignments}</div>
-              <div>{row.linkedTickets}</div>
+              <div>{metricCountForRange(row, "devices", filters.range)}</div>
+              <div>{metricCountForRange(row, "tickets", filters.range)}</div>
               <div>
                 <TrendGraph values={row.trend} threshold={filters.threshold} />
               </div>
@@ -402,13 +477,15 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
 }
 
 /**
- * FrequentFliersPage renders the UI surface for frontend/src/pages/FrequentFliersPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * FrequentFliersPage is the route component for `/frequent-fliers`. It loads the
+ * generated shared-shell artboard, hides the static Frequent Fliers pane, and
+ * keeps the selected row drawer synchronized with the applied runtime filters.
  */
 export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
-  const [filters, setFilters] = useState({ threshold: 2, metric: "devices" });
-  const [pendingFilters, setPendingFilters] = useState({ threshold: 2, metric: "devices" });
+  const [filters, setFilters] = useState(DEFAULT_FREQUENT_FLIERS_FILTERS);
+  const [pendingFilters, setPendingFilters] = useState(DEFAULT_FREQUENT_FLIERS_FILTERS);
   const [selectedRow, setSelectedRow] = useState(null);
 
   const textOverrides = buildSharedShellTextOverrides(session);
@@ -463,6 +540,7 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
         row={selectedPayloadRow}
         threshold={filters.threshold}
         metric={filters.metric}
+        range={filters.range}
         onClose={() => setSelectedRow(null)}
       />
     </>

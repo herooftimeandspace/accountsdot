@@ -1,0 +1,75 @@
+{
+  "summaries": [
+    {
+      "label": "30 days",
+      "selectedRange": "30 days",
+      "header": "Students with repeated device assignments or IncidentIQ tickets during the selected date range.",
+      "rowCount": 1,
+      "rows": [
+        "Maria Nguyen 3501187 9 Clover High School 2 1"
+      ]
+    },
+    {
+      "label": "60 days",
+      "selectedRange": "60 days",
+      "header": "Students with repeated device assignments or IncidentIQ tickets during the selected date range.",
+      "rowCount": 3,
+      "rows": [
+        "Jason Rodriguez 3504011 10 Desert View 3 2",
+        "Maria Nguyen 3501187 9 Clover High School 2 2",
+        "Devon Price 3502235 11 Franklin Middle School 2 3"
+      ]
+    },
+    {
+      "label": "90 days",
+      "selectedRange": "90 days",
+      "header": "Students with repeated device assignments or IncidentIQ tickets during the selected date range.",
+      "rowCount": 4,
+      "rows": [
+        "Jason Rodriguez 3504011 10 Desert View 4 3",
+        "Maria Nguyen 3501187 9 Clover High School 3 2",
+        "Devon Price 3502235 11 Franklin Middle School 2 4",
+        "Sophia Patel 3503407 8 Canyon Ridge 2 1"
+      ]
+    },
+    {
+      "label": "6 months",
+      "selectedRange": "6 months",
+      "header": "Students with repeated device assignments or IncidentIQ tickets during the selected date range.",
+      "rowCount": 5,
+      "rows": [
+        "Jason Rodriguez 3504011 10 Desert View 4 3",
+        "Maria Nguyen 3501187 9 Clover High School 3 3",
+        "Devon Price 3502235 11 Franklin Middle School 3 4",
+        "Sophia Patel 3503407 8 Canyon Ridge 2 1",
+        "Eli Washington 3505128 12 District Office 2 2"
+      ]
+    },
+    {
+      "label": "1 year",
+      "selectedRange": "1 year",
+      "header": "Students with repeated device assignments or IncidentIQ tickets during the selected date range.",
+      "rowCount": 5,
+      "rows": [
+        "Jason Rodriguez 3504011 10 Desert View 5 4",
+        "Maria Nguyen 3501187 9 Clover High School 4 3",
+        "Devon Price 3502235 11 Franklin Middle School 3 5",
+        "Sophia Patel 3503407 8 Canyon Ridge 2 2",
+        "Eli Washington 3505128 12 District Office 2 3"
+      ]
+    }
+  ],
+  "drawerSummary": {
+    "title": "Jason Rodriguez",
+    "text": "Jason Rodriguez\n×\nStudent ID\n3504011\nGrade\n10\nSite\nDesert View\nDevice Assignments\n4\nLinked Tickets\n3\nDate Range\n90 days\nDays Since Last Ticket\n42\nCurrent Rule\nShow device assignments greater than or equal to 2 in 90 days\nDevice Assignment History\nCLA-24-27891 · Chromebook\nActive\nCLA-24-26412 · Chromebook\nReturned\nCLA-24-25103 · Chromebook\nReturned\nCLA-24-23987 · Chromebook\nReturned\nRecent Tickets\nINC-1782345 Broken Screen\nClosed\nINC-1758991 Broken Hinge\nClosed\nINC-1741123 Keyboard Not Working\nClosed\nFollow-up context\n\nMultiple physical damage incidents in the selected range. Tech Support follow-up scheduled for May 2, 2025.",
+    "rect": {
+      "x": 1090,
+      "y": 101,
+      "width": 323,
+      "height": 668
+    },
+    "scrollHeight": 956,
+    "clientHeight": 800
+  },
+  "drawerShot": "/Users/lcampbell/code.internal/accountsdot/.worktrees/issue-58-frequent-fliers-range-drawer/artifacts/issues/issue-58/frequent-fliers-drawer-jason-rodriguez.png"
+}
