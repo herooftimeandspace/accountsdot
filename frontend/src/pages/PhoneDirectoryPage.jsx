@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
-import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
+import {
+  RuntimeSortableHeader,
+  RuntimeTableSearch,
+  runtimeTableColumnValue,
+  useRuntimeTableData,
+} from "../components/RuntimeTableControls";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -312,17 +317,54 @@ const MODE_PAGE_TITLES = {
   room: "Phone Directory by Room",
   department: "Phone Directory by Department",
 };
+const PHONE_COLUMN = {
+  key: "phone",
+  label: "Phone",
+  value: (result) => result.phone || "—",
+  render: (result) => renderTelLink(result.phone),
+};
+const EXTENSION_COLUMN = {
+  key: "extension",
+  label: "Extension",
+  value: (result) => result.extension || "—",
+  render: (result) => renderTelLink(result.extension),
+};
 const SHARED_LINE_RESULT_COLUMNS = [
-  {
-    key: "details",
-    label: "Details",
-    render: (result) => result.department || result.location || result.role || "—",
-  },
-  { key: "phone", label: "Phone", render: (result) => result.phone || "—" },
-  { key: "extension", label: "Extension", render: (result) => result.extension || "—" },
+  PHONE_COLUMN,
+  EXTENSION_COLUMN,
   { key: "site", label: "Site", render: (result) => result.site_name || "—" },
   { key: "type", label: "Type", pill: true, render: (result) => result.type_label },
 ];
+
+/**
+ * telHrefForDirectoryValue creates the dialable href used by Phone Directory table cells and the detail drawer. Project docs require numeric-only extensions and allow 4-, 5-, and 6-digit internal dialing, so the safest documented extension format is `tel:<digits>`; formatted phone numbers use the same digit-only href form after punctuation is stripped.
+ */
+function telHrefForDirectoryValue(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits ? `tel:${digits}` : "";
+}
+
+/**
+ * renderTelLink turns a phone or extension display value into an accessible link while preserving the source display text. Empty values stay as the muted dash used by other directory cells, and click/keyboard activation does not select the surrounding result row.
+ */
+function renderTelLink(value) {
+  const displayValue = String(value ?? "").trim();
+  const href = telHrefForDirectoryValue(displayValue);
+  if (!displayValue || !href) {
+    return "—";
+  }
+
+  return (
+    <a
+      className="phone-directory-runtime__tel-link"
+      href={href}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {displayValue}
+    </a>
+  );
+}
 
 /**
  * paneNodeId documents runtime data flow for frontend/src/pages/PhoneDirectoryPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
@@ -511,8 +553,8 @@ function resultsColumnsForMode(mode) {
           secondary: (result) => result.role || "",
         },
         { key: "room", label: "Room", render: (result) => result.location || "—" },
-        { key: "extension", label: "Extension", render: (result) => result.extension || "—" },
-        { key: "phone", label: "Phone", render: (result) => result.phone || "—" },
+        PHONE_COLUMN,
+        EXTENSION_COLUMN,
         { key: "site", label: "Site", render: (result) => result.site_name || "—" },
         { key: "type", label: "Type", pill: true, render: (result) => result.type_label },
       ];
@@ -524,7 +566,7 @@ function resultsColumnsForMode(mode) {
  */
 function resultSummary(result, columns) {
   return columns
-    .map((column) => `${column.label}: ${column.render(result) || "none"}`)
+    .map((column) => `${column.label}: ${runtimeTableColumnValue(result, column, "search") || "none"}`)
     .join("; ");
 }
 
@@ -577,15 +619,12 @@ function PhoneDirectoryResultsOverlay({
             ))}
           </div>
           {table.visibleRows.map((result) => (
-            <button
+            <div
               key={result.id}
-              type="button"
               className={`phone-directory-runtime__row phone-directory-runtime__row--${mode} ${
                 result.id === selectedResultId ? "phone-directory-runtime__row--selected" : ""
               }`}
-              aria-label={`Select ${resultSummary(result, columns)}`}
-              aria-pressed={result.id === selectedResultId}
-              onClick={() => onSelect(result.id)}
+              data-selected={result.id === selectedResultId ? "true" : "false"}
             >
               {columns.map((column) => {
                 const primaryValue = column.render(result);
@@ -599,7 +638,15 @@ function PhoneDirectoryResultsOverlay({
                 if (column.primary) {
                   return (
                     <div key={column.key}>
-                      <div className="phone-directory-runtime__primary">{primaryValue}</div>
+                      <button
+                        type="button"
+                        className="phone-directory-runtime__row-action"
+                        aria-label={`View details for ${resultSummary(result, columns)}`}
+                        aria-pressed={result.id === selectedResultId}
+                        onClick={() => onSelect(result.id)}
+                      >
+                        <span className="phone-directory-runtime__primary">{primaryValue}</span>
+                      </button>
                     </div>
                   );
                 }
@@ -614,7 +661,7 @@ function PhoneDirectoryResultsOverlay({
                   </div>
                 );
               })}
-            </button>
+            </div>
           ))}
         </div>
       ) : (
@@ -645,8 +692,8 @@ function PhoneDirectoryDetailOverlay({ bounds, mode, result, session, onClose })
               { label: "Role", value: result.role },
               { label: "Department", value: result.department },
               { label: mode === "room" ? "Area" : "Room", value: result.location },
-              { label: "Extension", value: result.extension },
-              { label: "Phone", value: result.phone },
+              { label: "Phone", value: renderTelLink(result.phone) },
+              { label: "Extension", value: renderTelLink(result.extension) },
               { label: "Email", value: result.email },
               canViewEmployeeId(session) ? { label: "ID", value: result.identifier } : null,
             ]}

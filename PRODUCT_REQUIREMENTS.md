@@ -708,6 +708,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Device Wrangler`
   - `Faculty and Staff`
 - All dashboard tables must use the same multi-line row-rendering behavior, not just the phone directory.
+- Phone Directory tables must show phone number before extension in every mode.
+- Phone and extension values in Phone Directory result tables and detail surfaces must render as `tel:` links. Extension links use the numeric internal-dial form `tel:<digits>`; formatted phone numbers strip punctuation for the `href` while preserving the displayed source value.
 - Runtime-backed dashboard tables must use shared table controls: a local search/filter field that searches data available in that table, and sortable headers that cycle through ascending, descending, and no sort. Each page may define a workflow-appropriate default sort column.
 - Any table row with multi-line content must render with a shared top baseline across all columns in the row.
 - The first visible line of content in every cell for a given row must align horizontally across the full row.

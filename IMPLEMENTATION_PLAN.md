@@ -2321,6 +2321,10 @@
   - cells must not vertically center themselves relative to taller neighboring cells
   - row height should expand downward to fit the tallest cell while the remaining cells stay top-aligned
   - badges or state pills in sparse columns such as `State` must align to the top of the row when adjacent cells contain multiple lines
+- Phone Directory result tables:
+  - must show phone number before extension in `By Person`, `By Room`, and `By Department`
+  - must not keep a `Details` column in `By Room` or `By Department` when the title, site, type, phone, and extension columns already carry the same information
+  - must render phone and extension values as `tel:` links; internal extensions use the numeric-only `tel:<digits>` href, and formatted phone numbers strip punctuation for the href while preserving their displayed value
 - Global dashboard select/disclosure rendering rules:
   - dropdown and expandable-field indicators must use a normalized icon rather than a text glyph such as `V` or `v`
   - every field or control with a dropdown/disclosure indicator must reserve fixed right-side padding so the indicator never overlaps labels, values, or scope text

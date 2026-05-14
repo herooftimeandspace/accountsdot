@@ -337,7 +337,7 @@ input {
 .shared-shell-search:focus-within,
 .phone-directory-runtime__local-search:focus-within,
 .shared-shell-scope-dropdown:focus-within,
-.phone-directory-runtime__row:focus-visible,
+.phone-directory-runtime__row-action:focus-visible,
 .phone-directory-runtime__mode-button:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
@@ -2705,14 +2705,14 @@ input {
 
 .phone-directory-runtime__table--person .phone-directory-runtime__table-header,
 .phone-directory-runtime__table--person .phone-directory-runtime__row {
-  grid-template-columns: 1.45fr 1.4fr 0.7fr 0.75fr 1fr 1fr 0.8fr;
+  grid-template-columns: 1.45fr 1.4fr 0.7fr 1fr 0.75fr 1fr 0.8fr;
 }
 
 .phone-directory-runtime__table--room .phone-directory-runtime__table-header,
 .phone-directory-runtime__table--room .phone-directory-runtime__row,
 .phone-directory-runtime__table--department .phone-directory-runtime__table-header,
 .phone-directory-runtime__table--department .phone-directory-runtime__row {
-  grid-template-columns: 1.4fr 1.45fr 1fr 0.8fr 1fr 0.95fr;
+  grid-template-columns: 1.7fr 1fr 0.82fr 1fr 0.95fr;
 }
 
 .phone-directory-runtime__table-header {
@@ -2732,7 +2732,6 @@ input {
   border-top: 1px solid var(--color-canvas);
   background: transparent;
   color: var(--color-text);
-  cursor: pointer;
   font-size: 13px;
   line-height: 1.4;
   min-height: 48px;
@@ -2747,6 +2746,23 @@ input {
   background: rgba(206, 183, 112, 0.14);
 }
 
+.phone-directory-runtime__row-action {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.phone-directory-runtime__row-action:hover,
+.phone-directory-runtime__row-action:focus-visible {
+  color: var(--color-accent-deep-navy);
+  text-decoration: underline;
+}
+
 .phone-directory-runtime__primary {
   font-weight: 700;
   color: var(--color-text);
@@ -2756,6 +2772,18 @@ input {
   margin-top: 3px;
   color: var(--color-accent-slate);
   font-size: 12px;
+}
+
+.phone-directory-runtime__tel-link {
+  color: var(--color-accent-navy);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.phone-directory-runtime__tel-link:hover,
+.phone-directory-runtime__tel-link:focus-visible {
+  color: var(--color-accent-deep-navy);
 }
 
 .phone-directory-runtime__pill {
