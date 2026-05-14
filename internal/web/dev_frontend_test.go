@@ -337,15 +337,19 @@ type roomMovesResponse struct {
 			CurrentRoomID string `json:"current_room_id"`
 		} `json:"people"`
 		Rows []struct {
-			ID            string `json:"id"`
-			DraftID       string `json:"draft_id"`
-			MoveType      string `json:"move_type"`
-			Person        string `json:"person"`
-			CurrentSiteID string `json:"current_site_id"`
-			Phone         string `json:"phone"`
-			Author        string `json:"author"`
-			State         string `json:"state"`
-			Warning       string `json:"warning"`
+			ID                string   `json:"id"`
+			DraftID           string   `json:"draft_id"`
+			MoveType          string   `json:"move_type"`
+			Person            string   `json:"person"`
+			CurrentSiteID     string   `json:"current_site_id"`
+			Phone             string   `json:"phone"`
+			Author            string   `json:"author"`
+			State             string   `json:"state"`
+			Warning           string   `json:"warning"`
+			AttentionReason   string   `json:"attention_reason"`
+			AutomationOutcome string   `json:"automation_outcome"`
+			ResolutionSteps   []string `json:"resolution_steps"`
+			ExternalSystems   []string `json:"external_systems"`
 		} `json:"rows"`
 	} `json:"page"`
 }
@@ -375,12 +379,17 @@ type roomMoveDraftTestPayload struct {
 	CanManageDistrict bool     `json:"can_manage_district"`
 	Warnings          []string `json:"warnings"`
 	Rows              []struct {
-		PersonID          string `json:"person_id"`
-		CurrentSiteID     string `json:"current_site_id"`
-		CurrentRoomID     string `json:"current_room_id"`
-		DestinationSiteID string `json:"destination_site_id"`
-		DestinationRoomID string `json:"destination_room_id"`
-		Warning           string `json:"warning"`
+		PersonID          string   `json:"person_id"`
+		CurrentSiteID     string   `json:"current_site_id"`
+		CurrentRoomID     string   `json:"current_room_id"`
+		DestinationSiteID string   `json:"destination_site_id"`
+		DestinationRoomID string   `json:"destination_room_id"`
+		Warning           string   `json:"warning"`
+		Phone             string   `json:"phone"`
+		AttentionReason   string   `json:"attention_reason"`
+		AutomationOutcome string   `json:"automation_outcome"`
+		ResolutionSteps   []string `json:"resolution_steps"`
+		ExternalSystems   []string `json:"external_systems"`
 	} `json:"rows"`
 }
 
@@ -2380,6 +2389,40 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("created draft rows = %#v, want current room as same-site default", created.Draft.Rows)
 		}
 
+		primaryConflictBody, err := json.Marshal(map[string]any{
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{{
+				"person_id":           "morgan-lee",
+				"destination_site_id": "clover-hs",
+				"destination_room_id": "cla-b204",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal primary-conflict draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(primaryConflictBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("primary-conflict room move draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		primaryConflictDraft := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(primaryConflictDraft.Draft.Rows) != 1 {
+			t.Fatalf("primary-conflict draft rows = %#v, want one Morgan Lee row", primaryConflictDraft.Draft.Rows)
+		}
+		conflictRow := primaryConflictDraft.Draft.Rows[0]
+		if conflictRow.Phone != "Add to room shared line group; keep primary phone owner" {
+			t.Fatalf("primary-conflict phone outcome = %q, want shared-line-group automation", conflictRow.Phone)
+		}
+		if !strings.Contains(conflictRow.AttentionReason, "Jordan Patel") || !strings.Contains(conflictRow.AutomationOutcome, "shared line group") {
+			t.Fatalf("primary-conflict details = %#v, want owner and automation outcome", conflictRow)
+		}
+		if len(conflictRow.ResolutionSteps) == 0 || len(conflictRow.ExternalSystems) == 0 {
+			t.Fatalf("primary-conflict operator guidance = %#v, want resolution steps and external systems", conflictRow)
+		}
+
 		crossSiteBody, err := json.Marshal(map[string]any{
 			"mode":      "mid_year_targeted_move",
 			"person_id": "taylor-quinn",
@@ -2413,6 +2456,27 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if noneRoomOptions != 1 {
 			t.Fatalf("it room options have %d None entries, want exactly 1: %#v", noneRoomOptions, itRoomMoves.Page.Rooms)
+		}
+		foundMorganLee := false
+		for _, row := range itRoomMoves.Page.Rows {
+			if row.DraftID == "single-morgan-lee" {
+				foundMorganLee = true
+				if row.State != "Ready" || row.Phone != "Add to room shared line group; keep primary phone owner" {
+					t.Fatalf("Morgan Lee room move row = %#v, want ready shared-line-group automation", row)
+				}
+				if row.Warning == "Primary conflict" || row.Phone == "Manual ticket" {
+					t.Fatalf("Morgan Lee room move row = %#v, want no generic conflict/manual-ticket copy", row)
+				}
+				if !strings.Contains(row.AttentionReason, "Jordan Patel") || !strings.Contains(row.AutomationOutcome, "shared line group") {
+					t.Fatalf("Morgan Lee room move details = %#v, want primary owner and automation explanation", row)
+				}
+				if len(row.ResolutionSteps) == 0 || len(row.ExternalSystems) == 0 {
+					t.Fatalf("Morgan Lee guidance = %#v, want resolution steps and external systems", row)
+				}
+			}
+		}
+		if !foundMorganLee {
+			t.Fatalf("it room moves rows = %#v, want Morgan Lee seed row", itRoomMoves.Page.Rows)
 		}
 		foundSeedBulkMove := false
 		for _, row := range itRoomMoves.Page.Rows {

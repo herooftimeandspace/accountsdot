@@ -77,7 +77,9 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `npm run build:web`
 - `npm run a11y:check`
 - `npm run perf:routes:plan`
+- `npm run perf:routes:batch-plan -- [artifact-input-dir]`
 - `npm run perf:routes:merge -- [artifact-input-dir]`
+- `npm run perf:routes:merge:strict -- [artifact-input-dir]`
 
 `make vulncheck` uses a local `govulncheck` binary when available, otherwise it runs `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`. If the host does not have Go installed, it falls back to `make vulncheck-container`, which runs the same scan inside the repo's configured Go Docker image.
 
@@ -94,23 +96,55 @@ Inside the devcontainer, `govulncheck` is installed during `postCreateCommand`.
 Use the DEV route performance harness when route transitions, reload behavior, or Browser-pipe stability needs runtime evidence. Start the Go API and Vite frontend first:
 
 ```bash
-npm run dev:api
+APP_ENV=development npm run dev:api
 npm run dev:web
 ```
 
-`npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, and the first transitions without opening a browser. The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object:
+`APP_ENV=development` is required for the DEV-only frontend APIs. The application may otherwise log development-mode configuration defaults while `/api/v1/dev/session` still returns `404`, because the DEV frontend route guard reads `APP_ENV` directly. Before opening Browser or running the route matrix, verify the Vite proxy can reach the DEV session endpoint:
+
+```bash
+curl -i http://localhost:5173/api/v1/dev/session
+```
+
+The preflight should return `200 OK` with DEV session JSON. An unauthenticated but correctly started DEV API includes fields such as `"environment":"development"`, `"authenticated":false`, `"authorized":false`, and a non-empty `"personas"` array. A `404` at this step is a startup/configuration failure; restart the API with `APP_ENV=development` before collecting Browser evidence. A passing preflight followed by lost automation connection, missing `iab` tab access, or interrupted pipe output is a Browser transport failure. A passing preflight with an app-rendered error, timeout after navigation, or missing route content is a page readiness failure for the route being measured.
+
+`npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
+
+`npm run perf:routes:batch-plan -- artifacts/performance` scans local artifacts that match the current route plan and reports the next transition or refresh batch without opening a browser.
+
+The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object. Prefer the automatic batch helper for full-matrix evidence so Browser work stays inside bounded calls and the helper resumes from existing local artifacts without manual index bookkeeping:
 
 ```js
-const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
-await runDevRoutePerformanceMatrix({
+const { runDevRoutePerformanceBatches } = await import("./scripts/dev_route_performance_matrix.mjs");
+await runDevRoutePerformanceBatches({
   tab,
   baseUrl: "http://localhost:5173",
-  maxTransitions: 50,
-  includeRefreshes: false
+  outputDir: "artifacts/performance",
+  transitionBatchSize: 50,
+  refreshBatchSize: 12
 });
 ```
 
-The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. If the Browser pipe fails, restart the Browser automation session and resume with the reported `resumeFromTransitionIndex` or `nextTransitionIndex`:
+By default `runDevRoutePerformanceBatches` executes one bounded Browser batch per call. Re-run the same snippet until it returns `"complete": true`; it measures all directed transitions first, then measures refresh samples across the same route targets. The default batch sizes are 50 directed transitions or 12 route-refresh samples per Browser call. If a local Browser session is stable and the tool response window allows it, pass `maxBatches` to run more than one bounded batch in the same call.
+
+The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. Each measured row includes additive performance-budget fields: `budgetStatus`, `budgetWarningMs`, `budgetFailureMs`, and `budgetExceededByMs`. The default transition and refresh budgets warn when readiness time is over `3000 ms` and fail when readiness time is over `7000 ms`; readiness failures still use the existing `status`, `failureClass`, and Browser/app failure sections so slow-but-ready rows are not confused with pages that never became ready.
+
+Override budgets for local investigations by setting environment variables before running the Browser helper or merge command:
+
+```bash
+ROUTE_PERF_TRANSITION_WARNING_MS=2500 ROUTE_PERF_TRANSITION_FAILURE_MS=6500 npm run perf:routes:merge -- artifacts/performance
+ROUTE_PERF_REFRESH_WARNING_MS=3500 ROUTE_PERF_REFRESH_FAILURE_MS=8000 npm run perf:routes:merge -- artifacts/performance
+```
+
+The merge command also accepts one-off threshold flags when reclassifying historical artifacts:
+
+```bash
+npm run perf:routes:merge -- artifacts/performance --transition-warning-ms 2500 --transition-failure-ms 6500 --refresh-warning-ms 3500 --refresh-failure-ms 8000
+```
+
+Use `--budget-strict` only when the current task explicitly needs a budget-only quality gate. It exits nonzero when budget failure rows exist, but it does not replace the separate strict merge gate work for route coverage, duplicate rows, Browser transport failures, or app readiness failures.
+
+If the Browser pipe fails, restart the Browser automation session and run the same automatic batch helper again. For manual recovery or targeted investigation, the lower-level runner still accepts the reported `resumeFromTransitionIndex` or `nextTransitionIndex`:
 
 ```js
 const { runDevRoutePerformanceMatrix } = await import("./scripts/dev_route_performance_matrix.mjs");
@@ -123,6 +157,8 @@ await runDevRoutePerformanceMatrix({
 });
 ```
 
+Each transition or refresh row keeps the historical `elapsedMs` field and also includes a backward-compatible `phaseTimings` object. The required phase fields are `navigationLoadMs` for the Browser navigation or refresh load-state wait and `readinessPollingMs` for the app-readiness polling loop. Refresh rows may also include `setupNavigationLoadMs` for the initial route open before reload. When the DEV frontend emits sanitized performance markers, rows can include `frontendSessionFetchMs`, `frontendGeneratedArtboardImportMs`, generated-artboard render mark counts, and route-render commit mark counts. These fields are limited to durations, paths, route titles, artboard keys, and non-secret labels; do not add session payloads, provider data, credentials, or raw Browser traces to committed artifacts.
+
 If the Browser skill cannot provide an active in-app browser target, such as when `agent.browsers.get("iab")` reports that `iab` is unavailable and `agent.browsers.list()` returns an empty list, the matrix cannot produce current Browser evidence. Keep any generated blocked or merged summaries local under `artifacts/performance/`, cite their paths in the GitHub issue or PR, and do not close the route-performance issue from historical artifacts alone. Historical merged artifacts are only useful as handoff context when their recorded route count and directed-transition count match the current `npm run perf:routes:plan` output.
 
 After collecting multiple partial runs, merge them with:
@@ -130,6 +166,14 @@ After collecting multiple partial runs, merge them with:
 ```bash
 npm run perf:routes:merge -- artifacts/performance
 ```
+
+Use the non-strict merge command for historical handoff context and interrupted-run diagnosis. For issue or PR closure evidence, use the strict quality gate:
+
+```bash
+npm run perf:routes:merge:strict -- artifacts/performance
+```
+
+Strict merge still writes the merged Markdown and JSON artifacts, but exits nonzero when the merged evidence is not release-quality. Blocking conditions include transition failures, refresh failures, Browser transport failures, app timeout rows, stale route-plan coverage, missing or duplicate transition indexes, missing refresh samples, invalid directed-edge coverage, and current route-count or directed-transition-count mismatches. The failure message names the blocking counts and points to the merged artifact paths so the Markdown summary can be attached or copied into external evidence.
 
 The merged Markdown file is the human-readable summary to copy into external evidence. The merged JSON file is for debugging and reproducibility; keep it local unless a PR explicitly asks for a curated repository artifact.
 

@@ -471,6 +471,12 @@ async function buildArtboard(spec, shellRoot) {
 
     const root = await normalizeNode(shellRoot, 0, 0);
     root.name = sourceRoot.name || spec.key;
+    // Merged logged-in pages inherit the shared shell frame, but page-local
+    // panes may intentionally extend below the first viewport for runtime
+    // overlays or long tables. Preserve the larger source bounds so generated
+    // artboards do not clip valid page-local layout nodes.
+    root.width = Math.max(root.width ?? 0, sourceRoot.width ?? 0);
+    root.height = Math.max(root.height ?? 0, sourceRoot.height ?? 0);
     root.children = children;
     return root;
   }

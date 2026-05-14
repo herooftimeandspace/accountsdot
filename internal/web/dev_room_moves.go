@@ -63,22 +63,30 @@ type roomMovesBulkDraftContent struct {
 }
 
 type roomMoveReviewRow struct {
-	ID              string `json:"id"`
-	DraftID         string `json:"draft_id"`
-	MoveType        string `json:"move_type"`
-	Person          string `json:"person"`
-	Email           string `json:"email"`
-	EmployeeID      string `json:"employee_id"`
-	CurrentSiteID   string `json:"current_site_id"`
-	CurrentSite     string `json:"current_site"`
-	CurrentRoom     string `json:"current_room"`
-	DestinationSite string `json:"destination_site"`
-	DestinationRoom string `json:"destination_room"`
-	Phone           string `json:"phone"`
-	Author          string `json:"author"`
-	State           string `json:"state"`
-	Warning         string `json:"warning,omitempty"`
-	WarningLevel    string `json:"warning_level,omitempty"`
+	ID                 string   `json:"id"`
+	DraftID            string   `json:"draft_id"`
+	MoveType           string   `json:"move_type"`
+	Person             string   `json:"person"`
+	Email              string   `json:"email"`
+	EmployeeID         string   `json:"employee_id"`
+	CurrentSiteID      string   `json:"current_site_id"`
+	CurrentSite        string   `json:"current_site"`
+	CurrentRoom        string   `json:"current_room"`
+	DestinationSiteID  string   `json:"destination_site_id"`
+	DestinationSite    string   `json:"destination_site"`
+	DestinationRoomID  string   `json:"destination_room_id"`
+	DestinationRoom    string   `json:"destination_room"`
+	Phone              string   `json:"phone"`
+	Author             string   `json:"author"`
+	State              string   `json:"state"`
+	Warning            string   `json:"warning,omitempty"`
+	WarningLevel       string   `json:"warning_level,omitempty"`
+	AttentionReason    string   `json:"attention_reason,omitempty"`
+	AutomationOutcome  string   `json:"automation_outcome,omitempty"`
+	ManualActionOwner  string   `json:"manual_action_owner,omitempty"`
+	ManualActionReason string   `json:"manual_action_reason,omitempty"`
+	ResolutionSteps    []string `json:"resolution_steps,omitempty"`
+	ExternalSystems    []string `json:"external_systems,omitempty"`
 }
 
 type roomMoveDraftPayload struct {
@@ -117,22 +125,28 @@ type roomMoveCompletedJobsResponse struct {
 }
 
 type roomMoveDraftRow struct {
-	ID                string `json:"id"`
-	PersonID          string `json:"person_id"`
-	Person            string `json:"person"`
-	Email             string `json:"email"`
-	EmployeeID        string `json:"employee_id"`
-	CurrentSiteID     string `json:"current_site_id"`
-	CurrentSite       string `json:"current_site"`
-	CurrentRoomID     string `json:"current_room_id"`
-	CurrentRoom       string `json:"current_room"`
-	DestinationSiteID string `json:"destination_site_id"`
-	DestinationSite   string `json:"destination_site"`
-	DestinationRoomID string `json:"destination_room_id"`
-	DestinationRoom   string `json:"destination_room"`
-	Phone             string `json:"phone"`
-	Action            string `json:"action"`
-	Warning           string `json:"warning,omitempty"`
+	ID                 string   `json:"id"`
+	PersonID           string   `json:"person_id"`
+	Person             string   `json:"person"`
+	Email              string   `json:"email"`
+	EmployeeID         string   `json:"employee_id"`
+	CurrentSiteID      string   `json:"current_site_id"`
+	CurrentSite        string   `json:"current_site"`
+	CurrentRoomID      string   `json:"current_room_id"`
+	CurrentRoom        string   `json:"current_room"`
+	DestinationSiteID  string   `json:"destination_site_id"`
+	DestinationSite    string   `json:"destination_site"`
+	DestinationRoomID  string   `json:"destination_room_id"`
+	DestinationRoom    string   `json:"destination_room"`
+	Phone              string   `json:"phone"`
+	Action             string   `json:"action"`
+	Warning            string   `json:"warning,omitempty"`
+	AttentionReason    string   `json:"attention_reason,omitempty"`
+	AutomationOutcome  string   `json:"automation_outcome,omitempty"`
+	ManualActionOwner  string   `json:"manual_action_owner,omitempty"`
+	ManualActionReason string   `json:"manual_action_reason,omitempty"`
+	ResolutionSteps    []string `json:"resolution_steps,omitempty"`
+	ExternalSystems    []string `json:"external_systems,omitempty"`
 }
 
 type roomMovePersonOption struct {
@@ -424,7 +438,7 @@ func (s *devRoomMoveStoreState) page(config devPersonaConfig) roomMovesPageConte
 func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveReviewRow {
 	base := []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
-		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Avery Shah", "Review", "Primary conflict"),
+		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
 		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
 		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
@@ -449,42 +463,52 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 		if len(draft.Rows) == 1 && draft.Mode == roomMoveTypeSingle {
 			row := draft.Rows[0]
 			base = append(base, roomMoveReviewRow{
-				ID:              row.ID,
-				DraftID:         draft.ID,
-				MoveType:        roomMoveTypeSingle,
-				Person:          row.Person,
-				Email:           row.Email,
-				EmployeeID:      row.EmployeeID,
-				CurrentSiteID:   row.CurrentSiteID,
-				CurrentSite:     row.CurrentSite,
-				CurrentRoom:     row.CurrentRoom,
-				DestinationSite: row.DestinationSite,
-				DestinationRoom: row.DestinationRoom,
-				Phone:           row.Phone,
-				Author:          draft.Author,
-				State:           draftStatusLabel(draft.Status),
-				Warning:         row.Warning,
-				WarningLevel:    warningLevel(row.Warning),
+				ID:                 row.ID,
+				DraftID:            draft.ID,
+				MoveType:           roomMoveTypeSingle,
+				Person:             row.Person,
+				Email:              row.Email,
+				EmployeeID:         row.EmployeeID,
+				CurrentSiteID:      row.CurrentSiteID,
+				CurrentSite:        row.CurrentSite,
+				CurrentRoom:        row.CurrentRoom,
+				DestinationSiteID:  row.DestinationSiteID,
+				DestinationSite:    row.DestinationSite,
+				DestinationRoomID:  row.DestinationRoomID,
+				DestinationRoom:    row.DestinationRoom,
+				Phone:              row.Phone,
+				Author:             draft.Author,
+				State:              draftStatusLabel(draft.Status),
+				Warning:            row.Warning,
+				WarningLevel:       warningLevel(row.Warning),
+				AttentionReason:    row.AttentionReason,
+				AutomationOutcome:  row.AutomationOutcome,
+				ManualActionOwner:  row.ManualActionOwner,
+				ManualActionReason: row.ManualActionReason,
+				ResolutionSteps:    row.ResolutionSteps,
+				ExternalSystems:    row.ExternalSystems,
 			})
 			continue
 		}
 		base = append(base, roomMoveReviewRow{
-			ID:              "bulk-" + draft.ID,
-			DraftID:         draft.ID,
-			MoveType:        draft.Mode,
-			Person:          "Bulk Move",
-			Email:           "",
-			EmployeeID:      "",
-			CurrentSiteID:   draft.ScopeSiteID,
-			CurrentSite:     draft.ScopeSite,
-			CurrentRoom:     "Multiple",
-			DestinationSite: draft.ScopeSite,
-			DestinationRoom: "Multiple",
-			Phone:           fmt.Sprintf("%d rows", len(draft.Rows)),
-			Author:          draft.Author,
-			State:           draftStatusLabel(draft.Status),
-			Warning:         strings.Join(draft.Warnings, " "),
-			WarningLevel:    warningLevel(strings.Join(draft.Warnings, " ")),
+			ID:                "bulk-" + draft.ID,
+			DraftID:           draft.ID,
+			MoveType:          draft.Mode,
+			Person:            "Bulk Move",
+			Email:             "",
+			EmployeeID:        "",
+			CurrentSiteID:     draft.ScopeSiteID,
+			CurrentSite:       draft.ScopeSite,
+			CurrentRoom:       "Multiple",
+			DestinationSiteID: draft.ScopeSiteID,
+			DestinationSite:   draft.ScopeSite,
+			DestinationRoomID: "",
+			DestinationRoom:   "Multiple",
+			Phone:             fmt.Sprintf("%d rows", len(draft.Rows)),
+			Author:            draft.Author,
+			State:             draftStatusLabel(draft.Status),
+			Warning:           strings.Join(draft.Warnings, " "),
+			WarningLevel:      warningLevel(strings.Join(draft.Warnings, " ")),
 		})
 	}
 
@@ -502,30 +526,61 @@ func seedRoomMoveReviewRow(id string, draftID string, moveType string, person st
 	currentSite := siteByID(currentSiteID)
 	destinationSite := siteByID(destinationSiteID)
 	return roomMoveReviewRow{
-		ID:              id,
-		DraftID:         draftID,
-		MoveType:        moveType,
-		Person:          person,
-		Email:           email,
-		EmployeeID:      employeeID,
-		CurrentSiteID:   currentSiteID,
-		CurrentSite:     currentSite.Name,
-		CurrentRoom:     currentRoom,
-		DestinationSite: destinationSite.Name,
-		DestinationRoom: destinationRoom,
-		Phone:           phone,
-		Author:          author,
-		State:           state,
-		Warning:         warning,
-		WarningLevel:    warningLevel(warning),
+		ID:                id,
+		DraftID:           draftID,
+		MoveType:          moveType,
+		Person:            person,
+		Email:             email,
+		EmployeeID:        employeeID,
+		CurrentSiteID:     currentSiteID,
+		CurrentSite:       currentSite.Name,
+		CurrentRoom:       currentRoom,
+		DestinationSiteID: destinationSiteID,
+		DestinationSite:   destinationSite.Name,
+		DestinationRoomID: roomMoveRoomIDByLabel(destinationSiteID, destinationRoom),
+		DestinationRoom:   destinationRoom,
+		Phone:             phone,
+		Author:            author,
+		State:             state,
+		Warning:           warning,
+		WarningLevel:      warningLevel(warning),
 	}
+}
+
+// primaryConflictReviewRow builds the seeded Morgan Lee-style row that issue
+// #54 uses as browser evidence. It returns the same review-row contract as
+// normal draft rows, but pre-populates the primary-room conflict explanation so
+// the page demonstrates the shared-line-group automation path before a user
+// creates a new draft in the DEV mock store.
+func primaryConflictReviewRow(id string, draftID string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, author string) roomMoveReviewRow {
+	row := seedRoomMoveReviewRow(
+		id,
+		draftID,
+		roomMoveTypeSingle,
+		person,
+		email,
+		employeeID,
+		currentSiteID,
+		currentRoom,
+		destinationSiteID,
+		destinationRoom,
+		"Add to room shared line group; keep primary phone owner",
+		author,
+		"Ready",
+		primaryConflictWarning(person, destinationRoom, "Jordan Patel"),
+	)
+	row.AttentionReason = primaryConflictAttentionReason(person, destinationRoom, "Jordan Patel")
+	row.AutomationOutcome = primaryConflictAutomationOutcome(person, destinationRoom)
+	row.ResolutionSteps = primaryConflictResolutionSteps(person, destinationRoom)
+	row.ExternalSystems = primaryConflictExternalSystems()
+	return row
 }
 
 // seedRoomMoveReviewRowByDraftID documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	for _, row := range []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
-		seedRoomMoveReviewRow("single-morgan-lee", "single-morgan-lee", roomMoveTypeSingle, "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Manual ticket", "Avery Shah", "Review", "Primary conflict"),
+		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
 		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
 		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
@@ -665,16 +720,25 @@ func (s *devRoomMoveStoreState) cancelDraft(config devPersonaConfig, draftID str
 			ScopeSiteID: seed.CurrentSiteID,
 			ScopeSite:   seed.CurrentSite,
 			Rows: []roomMoveDraftRow{{
-				ID:              seed.ID,
-				Person:          seed.Person,
-				Email:           seed.Email,
-				EmployeeID:      seed.EmployeeID,
-				CurrentSiteID:   seed.CurrentSiteID,
-				CurrentSite:     seed.CurrentSite,
-				CurrentRoom:     seed.CurrentRoom,
-				DestinationSite: seed.DestinationSite,
-				DestinationRoom: seed.DestinationRoom,
-				Phone:           seed.Phone,
+				ID:                 seed.ID,
+				Person:             seed.Person,
+				Email:              seed.Email,
+				EmployeeID:         seed.EmployeeID,
+				CurrentSiteID:      seed.CurrentSiteID,
+				CurrentSite:        seed.CurrentSite,
+				CurrentRoom:        seed.CurrentRoom,
+				DestinationSiteID:  seed.DestinationSiteID,
+				DestinationSite:    seed.DestinationSite,
+				DestinationRoomID:  seed.DestinationRoomID,
+				DestinationRoom:    seed.DestinationRoom,
+				Phone:              seed.Phone,
+				Warning:            seed.Warning,
+				AttentionReason:    seed.AttentionReason,
+				AutomationOutcome:  seed.AutomationOutcome,
+				ManualActionOwner:  seed.ManualActionOwner,
+				ManualActionReason: seed.ManualActionReason,
+				ResolutionSteps:    seed.ResolutionSteps,
+				ExternalSystems:    seed.ExternalSystems,
 			}},
 			CanManageDistrict: canManageDistrictRoomMoves(config),
 		}, http.StatusOK, nil
@@ -868,12 +932,31 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		}
 		room := roomMoveRoomByID(destinationRoomID, destinationSiteID)
 		warning := row.Warning
+		attentionReason := row.AttentionReason
+		automationOutcome := row.AutomationOutcome
+		manualActionOwner := row.ManualActionOwner
+		manualActionReason := row.ManualActionReason
+		resolutionSteps := row.ResolutionSteps
+		externalSystems := row.ExternalSystems
+		phoneOutcome := person.Phone
 		if destinationRoomID == "none" && person.CurrentRoomID != "none" {
 			warning = "Destination room is none; phone and room assignments will be removed."
 			warnings = appendUniqueString(warnings, warning)
+			phoneOutcome = "Remove phone and SLGs; convert room to common area"
 		}
 		if destinationSiteID != person.SiteID {
 			warning = "Inter-site move: destination room is set to none until the destination site confirms the room."
+			warnings = appendUniqueString(warnings, warning)
+		}
+		if primaryOwner, ok := roomMoveActivePrimaryOwner(destinationRoomID, person.ID); ok {
+			warning = primaryConflictWarning(person.Name, room.Label, primaryOwner)
+			attentionReason = primaryConflictAttentionReason(person.Name, room.Label, primaryOwner)
+			automationOutcome = primaryConflictAutomationOutcome(person.Name, room.Label)
+			resolutionSteps = primaryConflictResolutionSteps(person.Name, room.Label)
+			externalSystems = primaryConflictExternalSystems()
+			phoneOutcome = "Add to room shared line group; keep primary phone owner"
+			manualActionOwner = ""
+			manualActionReason = ""
 			warnings = appendUniqueString(warnings, warning)
 		}
 		action := row.Action
@@ -881,22 +964,28 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			action = "change"
 		}
 		normalized = append(normalized, roomMoveDraftRow{
-			ID:                firstNonEmpty(row.ID, fmt.Sprintf("row-%02d-%s", index+1, person.ID)),
-			PersonID:          person.ID,
-			Person:            person.Name,
-			Email:             person.Email,
-			EmployeeID:        person.EmployeeID,
-			CurrentSiteID:     person.SiteID,
-			CurrentSite:       person.Site,
-			CurrentRoomID:     person.CurrentRoomID,
-			CurrentRoom:       person.CurrentRoom,
-			DestinationSiteID: destinationSiteID,
-			DestinationSite:   destinationSite.Name,
-			DestinationRoomID: destinationRoomID,
-			DestinationRoom:   room.Label,
-			Phone:             person.Phone,
-			Action:            action,
-			Warning:           warning,
+			ID:                 firstNonEmpty(row.ID, fmt.Sprintf("row-%02d-%s", index+1, person.ID)),
+			PersonID:           person.ID,
+			Person:             person.Name,
+			Email:              person.Email,
+			EmployeeID:         person.EmployeeID,
+			CurrentSiteID:      person.SiteID,
+			CurrentSite:        person.Site,
+			CurrentRoomID:      person.CurrentRoomID,
+			CurrentRoom:        person.CurrentRoom,
+			DestinationSiteID:  destinationSiteID,
+			DestinationSite:    destinationSite.Name,
+			DestinationRoomID:  destinationRoomID,
+			DestinationRoom:    room.Label,
+			Phone:              phoneOutcome,
+			Action:             action,
+			Warning:            warning,
+			AttentionReason:    attentionReason,
+			AutomationOutcome:  automationOutcome,
+			ManualActionOwner:  manualActionOwner,
+			ManualActionReason: manualActionReason,
+			ResolutionSteps:    resolutionSteps,
+			ExternalSystems:    externalSystems,
 		})
 	}
 	return normalized, warnings, http.StatusOK, nil
@@ -1064,6 +1153,73 @@ func roomMoveRoomByID(roomID string, siteID string) roomMoveRoomOption {
 		}
 	}
 	return roomMoveRoomsForSite(siteID)[0]
+}
+
+// roomMoveRoomIDByLabel maps seeded review-row display labels back to DEV room
+// option ids so the React drawer can reopen an existing mock row with the same
+// target room selected. It is used only for deterministic seed rows; normal
+// draft rows already carry their destination room id from the API request.
+func roomMoveRoomIDByLabel(siteID string, label string) string {
+	for _, room := range roomMoveRoomsForSite(siteID) {
+		if room.Label == label {
+			return room.ID
+		}
+	}
+	return "none"
+}
+
+// roomMoveActivePrimaryOwner models the DEV Zoom inventory condition that makes
+// a destination classroom unsafe for primary-phone reassignment. Room Moves
+// normalization calls this before returning mock rows so the page can explain
+// that the correct automated path is shared-line-group membership, not a vague
+// manual ticket.
+func roomMoveActivePrimaryOwner(destinationRoomID string, movingPersonID string) (string, bool) {
+	if destinationRoomID == "cla-b204" && movingPersonID != "jordan-patel" {
+		return "Jordan Patel", true
+	}
+	return "", false
+}
+
+// primaryConflictWarning is the short warning line surfaced in summary and
+// drawer warning areas when a destination room already has an active primary
+// room owner. It keeps the table state compact while the structured fields below
+// provide the L1-operable explanation.
+func primaryConflictWarning(personName string, destinationRoom string, primaryOwner string) string {
+	return fmt.Sprintf("%s already has active primary room owner %s; %s will be added to the room shared line group.", destinationRoom, primaryOwner, personName)
+}
+
+// primaryConflictAttentionReason explains why a Room Moves row needs operator
+// attention without implying that IT must create a manual ticket. The frontend
+// renders this in the shared right drawer for seeded and newly created DEV rows.
+func primaryConflictAttentionReason(personName string, destinationRoom string, primaryOwner string) string {
+	return fmt.Sprintf("%s already has %s as the active primary room owner, so %s should not take over the primary phone assignment.", destinationRoom, primaryOwner, personName)
+}
+
+// primaryConflictAutomationOutcome describes the planned automated Zoom outcome
+// for active primary-room conflicts. Future live worker code should implement
+// this as an idempotent shared-line-group membership update and leave the
+// existing primary phone owner unchanged.
+func primaryConflictAutomationOutcome(personName string, destinationRoom string) string {
+	return fmt.Sprintf("Add %s to the %s room shared line group and leave the room's primary phone owner unchanged.", personName, destinationRoom)
+}
+
+// primaryConflictResolutionSteps gives L1 operators enough detail to review and
+// release a primary-room conflict row without opening a separate manual ticket
+// unless the later Zoom verification step fails.
+func primaryConflictResolutionSteps(personName string, destinationRoom string) []string {
+	return []string{
+		fmt.Sprintf("Confirm %s is the correct destination room.", destinationRoom),
+		fmt.Sprintf("Schedule or apply the draft; automation will add %s to the %s room shared line group.", personName, destinationRoom),
+		"Escalate to IT only if Zoom cannot verify the shared line group membership during execution.",
+	}
+}
+
+// primaryConflictExternalSystems lists the external systems named in the drawer
+// explanation for this mock automation path. Keeping the list structured lets
+// tests lock down that the row points operators at Zoom rather than a generic
+// manual-ticket bucket.
+func primaryConflictExternalSystems() []string {
+	return []string{"Zoom room shared line group", "IncidentIQ room association"}
 }
 
 // draftRowFromPerson documents the data flow for internal/web/dev_room_moves.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.

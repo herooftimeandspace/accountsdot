@@ -1,0 +1,61 @@
+{
+  "capturedAt": "2026-05-14T01:06:21.022Z",
+  "baseUrl": "http://127.0.0.1:5179",
+  "evidenceSource": "Headless Chrome via Chrome DevTools Protocol because the in-app Browser endpoint listed no available browsers.",
+  "itAdmin": {
+    "allowedRouteCount": 22,
+    "prefetchedArtboardRequestCount": 19,
+    "samplePrefetchedArtboards": [
+      "http://127.0.0.1:5179/src/generated/admin-feature-flags.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/admin.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/dashboard-hr-lifecycle.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/dashboard-it-admin.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/dashboard-site-admin.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/data-quality.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/frequent-fliers.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/my-profile.artboard.json?import"
+    ],
+    "transitionResults": [
+      {
+        "route": "/reports/sync-transparency",
+        "expectedText": "Sync Transparency",
+        "elapsedMs": 101
+      },
+      {
+        "route": "/admin/feature-flags",
+        "expectedText": "Feature Flags",
+        "elapsedMs": 315
+      },
+      {
+        "route": "/frequent-fliers",
+        "expectedText": "Frequent Fliers",
+        "elapsedMs": 321
+      }
+    ]
+  },
+  "siteSecretary": {
+    "allowedRoutes": [
+      "/my-profile",
+      "/search",
+      "/student-data-cleanup",
+      "/room-moves",
+      "/room-moves/bulk-draft",
+      "/phone-directory/by-person",
+      "/phone-directory/by-room",
+      "/phone-directory/by-department"
+    ],
+    "prefetchedArtboardRequestCount": 7,
+    "prefetchedArtboards": [
+      "http://127.0.0.1:5179/src/generated/my-profile.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/phone-directory-by-department.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/phone-directory-by-person.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/phone-directory-by-room.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/room-moves-bulk-draft.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/room-moves.artboard.json?import",
+      "http://127.0.0.1:5179/src/generated/student-data-cleanup.artboard.json?import"
+    ],
+    "unauthorizedPrefetches": [],
+    "directAdminFeatureFlagsForbidden": true
+  },
+  "screenshot": "/Users/lcampbell/code.internal/accountsdot/.worktrees/issue-49-artboard-prefetch/artifacts/issues/issue-49/issue-49-it-admin-prefetched-route.png"
+}

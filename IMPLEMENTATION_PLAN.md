@@ -578,7 +578,7 @@
     - evidence that multi-line dashboard tables use a shared top baseline across all cells and do not vertically center sparse cells
   - `1D` student invalid-name visibility
     - site-secretary scope evidence
-    - invalid-name detail evidence including suggested correction and Aeries link
+    - invalid-name detail evidence including secretary-friendly current/suggested first-name and last-name labels, source-value preservation, suggested correction, and Aeries base-site link behavior
     - student-denial evidence for this dashboard surface
   - `1E` Frequent Fliers visibility
     - runtime evidence of threshold/lookback behavior
@@ -803,6 +803,8 @@
   - user-facing guidance placement:
     - Execution Rules and Cutover Controls copy belongs in the Room Moves help drawer
     - single-move warnings belong in right-drawer details
+    - primary-room conflicts in the right drawer must identify the destination room, the active primary room owner, the reason the primary phone assignment is left unchanged, and the expected automation outcome of adding the moving user to the destination room shared line group
+    - if a primary-room conflict cannot be planned or verified as shared-line-group automation, the drawer must show the manual owner, failure reason, resolution steps, and linked external systems instead of a terse `Primary conflict` or `Manual ticket` label
     - bulk-draft warnings belong in a top warning bar above the bulk table
     - the main Move Set Review table shows both persona-visible single moves and persona-visible scheduled bulk moves; bulk rows use `Bulk Move` as the name value and include an Author column immediately before State
     - IT Admin can open any Room Moves draft that is visible in the review table, even when another operator authored the draft
@@ -2323,6 +2325,10 @@
   - cells must not vertically center themselves relative to taller neighboring cells
   - row height should expand downward to fit the tallest cell while the remaining cells stay top-aligned
   - badges or state pills in sparse columns such as `State` must align to the top of the row when adjacent cells contain multiple lines
+- Phone Directory result tables:
+  - must show phone number before extension in `By Person`, `By Room`, and `By Department`
+  - must not keep a `Details` column in `By Room` or `By Department` when the title, site, type, phone, and extension columns already carry the same information
+  - must render phone and extension values as `tel:` links; internal extensions use the numeric-only `tel:<digits>` href, and formatted phone numbers strip punctuation for the href while preserving their displayed value
 - Global dashboard select/disclosure rendering rules:
   - dropdown and expandable-field indicators must use a normalized icon rather than a text glyph such as `V` or `v`
   - every field or control with a dropdown/disclosure indicator must reserve fixed right-side padding so the indicator never overlaps labels, values, or scope text

@@ -1,0 +1,168 @@
+{
+  "browser": "Headless Chrome via CDP fallback; in-app Browser iab unavailable",
+  "baseUrl": "http://127.0.0.1:5176",
+  "apiUrl": "http://127.0.0.1:8096",
+  "evidence": [
+    {
+      "route": "/phone-directory/by-person",
+      "mode": "person",
+      "screenshot": "/Users/lcampbell/code.internal/accountsdot/.worktrees/issue-56-phone-directory-tel-links/artifacts/issues/issue-56/phone-directory-by-person.png",
+      "verification": {
+        "headerLabels": [
+          "Name or Line",
+          "Details",
+          "Room",
+          "Phone",
+          "Extension",
+          "Site",
+          "Type"
+        ],
+        "telLinks": [
+          {
+            "text": "(707) 555-0013",
+            "href": "tel:7075550013"
+          },
+          {
+            "text": "110013",
+            "href": "tel:110013"
+          },
+          {
+            "text": "(707) 555-2171",
+            "href": "tel:7075552171"
+          },
+          {
+            "text": "22171",
+            "href": "tel:22171"
+          },
+          {
+            "text": "(707) 555-0017",
+            "href": "tel:7075550017"
+          },
+          {
+            "text": "360017",
+            "href": "tel:360017"
+          },
+          {
+            "text": "(707) 555-4017",
+            "href": "tel:7075554017"
+          },
+          {
+            "text": "34017",
+            "href": "tel:34017"
+          }
+        ],
+        "linkCount": 18,
+        "rowsBeforeSearch": 9,
+        "rowsAfterSearch": 1,
+        "searchNeedle": "110013",
+        "sortPressed": "Sort Phone; currently ascending"
+      }
+    },
+    {
+      "route": "/phone-directory/by-room",
+      "mode": "room",
+      "screenshot": "/Users/lcampbell/code.internal/accountsdot/.worktrees/issue-56-phone-directory-tel-links/artifacts/issues/issue-56/phone-directory-by-room.png",
+      "verification": {
+        "headerLabels": [
+          "Room or Line",
+          "Phone",
+          "Extension",
+          "Site",
+          "Type"
+        ],
+        "telLinks": [
+          {
+            "text": "(707) 555-2171",
+            "href": "tel:7075552171"
+          },
+          {
+            "text": "22171",
+            "href": "tel:22171"
+          },
+          {
+            "text": "(707) 555-0099",
+            "href": "tel:7075550099"
+          },
+          {
+            "text": "40099",
+            "href": "tel:40099"
+          },
+          {
+            "text": "(707) 555-0098",
+            "href": "tel:7075550098"
+          },
+          {
+            "text": "40098",
+            "href": "tel:40098"
+          },
+          {
+            "text": "(707) 555-0155",
+            "href": "tel:7075550155"
+          },
+          {
+            "text": "330155",
+            "href": "tel:330155"
+          }
+        ],
+        "linkCount": 16,
+        "rowsBeforeSearch": 8,
+        "rowsAfterSearch": 1,
+        "searchNeedle": "22171",
+        "sortPressed": "Sort Phone; currently ascending"
+      }
+    },
+    {
+      "route": "/phone-directory/by-department",
+      "mode": "department",
+      "screenshot": "/Users/lcampbell/code.internal/accountsdot/.worktrees/issue-56-phone-directory-tel-links/artifacts/issues/issue-56/phone-directory-by-department.png",
+      "verification": {
+        "headerLabels": [
+          "Department or Line",
+          "Phone",
+          "Extension",
+          "Site",
+          "Type"
+        ],
+        "telLinks": [
+          {
+            "text": "(707) 555-0009",
+            "href": "tel:7075550009"
+          },
+          {
+            "text": "150009",
+            "href": "tel:150009"
+          },
+          {
+            "text": "(707) 555-0022",
+            "href": "tel:7075550022"
+          },
+          {
+            "text": "150022",
+            "href": "tel:150022"
+          },
+          {
+            "text": "(707) 555-0021",
+            "href": "tel:7075550021"
+          },
+          {
+            "text": "350021",
+            "href": "tel:350021"
+          },
+          {
+            "text": "(707) 555-0003",
+            "href": "tel:7075550003"
+          },
+          {
+            "text": "350003",
+            "href": "tel:350003"
+          }
+        ],
+        "linkCount": 16,
+        "rowsBeforeSearch": 8,
+        "rowsAfterSearch": 1,
+        "searchNeedle": "150009",
+        "sortPressed": "Sort Phone; currently ascending"
+      }
+    }
+  ]
+}

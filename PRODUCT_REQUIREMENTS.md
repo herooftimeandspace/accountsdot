@@ -599,11 +599,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Do not parse or validate a combined `LastName, FirstName` string, and do not treat a missing comma as a valid failure case.
 - Display the student in human-readable form as `FirstName LastName`.
 - Sort the queue ascending by `Student ID`.
-- Show separate table columns for `Student ID`, `FirstName`, and `LastName`.
+- Show separate table columns for `Student ID`, student name, the current Aeries first and last name values, and the suggested first and last name values.
+- Use plain-language labels such as `Current first name`, `Suggested first name`, `Current last name`, and `Suggested last name`; do not expose `raw`, `clean`, `FirstName raw`, or `LastName clean` terminology to site secretaries.
+- Preserve the exact source-system values in current-value fields, including leading or trailing whitespace when those characters are the reason the row appears in the queue.
 - Show normalized correction output separately for first name and last name.
 - Provide a copy button next to each normalized first-name and last-name suggestion so a secretary can copy the corrected field value directly to the clipboard for pasting into Aeries.
 - Display invalid-character examples such as `Nuño` and the corresponding normalized correction.
-- Provide a link to Aeries so the user can correct the source data there.
+- Provide a link to the configured Aeries website root so the user can correct the source data there. The dashboard must not imply it can deep-link to a specific student record; drawer copy should tell the secretary to search Aeries by the displayed Student ID.
 - The live page should use the shared runtime table primitives for page-local search, issue type filtering, grade filtering, and three-way sortable column headers.
 - The table should expand or collapse to the visible result count rather than leaving large empty fixed artboard space after the rows.
 - Informational copy explaining that corrections happen in Aeries belongs in the shared help drawer, not as persistent blue helper blocks inside the page pane.
@@ -646,6 +648,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Allow draft save, review, scheduling, and commit.
 - Support add, change, and removal actions per person.
 - Support warnings, primary-teacher selection, null-room outcomes, and manual ticket fallback when automation cannot complete a phone assignment safely.
+- Primary-room conflicts are not a default manual-ticket path. When a destination room already has an active primary room owner, the Room Moves review drawer must explain the conflicting primary owner, keep the existing primary phone assignment unchanged, and identify the automated outcome as adding the moving user to that room shared line group. A manual action should appear only when automation cannot plan or verify the shared-line-group outcome safely, and then the drawer must name the owner, reason, resolution steps, and linked external systems.
 - Null-room outcomes are an automation path, not a manual review path:
   - remove the user from all assigned phones
   - remove the user from all shared line groups
@@ -708,6 +711,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Device Wrangler`
   - `Faculty and Staff`
 - All dashboard tables must use the same multi-line row-rendering behavior, not just the phone directory.
+- Phone Directory tables must show phone number before extension in every mode.
+- Phone and extension values in Phone Directory result tables and detail surfaces must render as `tel:` links. Extension links use the numeric internal-dial form `tel:<digits>`; formatted phone numbers strip punctuation for the `href` while preserving the displayed source value.
 - Runtime-backed dashboard tables must use shared table controls: a local search/filter field that searches data available in that table, and sortable headers that cycle through ascending, descending, and no sort. Each page may define a workflow-appropriate default sort column.
 - Any table row with multi-line content must render with a shared top baseline across all columns in the row.
 - The first visible line of content in every cell for a given row must align horizontally across the full row.

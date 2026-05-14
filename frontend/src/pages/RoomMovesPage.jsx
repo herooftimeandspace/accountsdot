@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
@@ -194,6 +194,19 @@ function defaultDestinationRoom(person, destinationSiteId) {
 }
 
 /**
+ * detailLines formats structured API detail fields for the shared drawer detail
+ * list. Room Moves uses it for issue #54 primary-room conflict explanations so
+ * backend-owned resolution steps and external systems stay readable without
+ * creating a page-local drawer variant.
+ */
+function detailLines(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return "";
+  }
+  return values.join("\n");
+}
+
+/**
  * RoomMovesStatusBadge renders the UI surface for frontend/src/pages/RoomMovesPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
 function RoomMovesStatusBadge({ status }) {
@@ -293,8 +306,10 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   const [query, setQuery] = useState(initialPerson?.email || "");
   const [selectedPersonId, setSelectedPersonId] = useState(initialPerson?.id || "");
   const selectedPerson = people.find((person) => person.id === selectedPersonId) || null;
-  const [destinationSiteId, setDestinationSiteId] = useState(selectedPerson?.site_id || row?.current_site_id || sites[0]?.id || "");
-  const [destinationRoomId, setDestinationRoomId] = useState(defaultDestinationRoom(selectedPerson, destinationSiteId));
+  const initialDestinationSiteId = row?.destination_site_id || selectedPerson?.site_id || row?.current_site_id || sites[0]?.id || "";
+  const [destinationSiteId, setDestinationSiteId] = useState(initialDestinationSiteId);
+  const [destinationRoomId, setDestinationRoomId] = useState(row?.destination_room_id || defaultDestinationRoom(selectedPerson, initialDestinationSiteId));
+  const didPreserveInitialRowRoom = useRef(false);
   const [saving, setSaving] = useState(false);
   const [createdDraftId, setCreatedDraftId] = useState("");
   const [error, setError] = useState("");
@@ -307,8 +322,12 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   }, [selectedPerson]);
 
   useEffect(() => {
+    if (row && !didPreserveInitialRowRoom.current) {
+      didPreserveInitialRowRoom.current = true;
+      return;
+    }
     setDestinationRoomId(defaultDestinationRoom(selectedPerson, destinationSiteId));
-  }, [destinationSiteId, selectedPerson]);
+  }, [destinationSiteId, row, selectedPerson]);
 
   const autocompleteOptions = people.filter((person) => personMatchesQuery(person, query));
   const availableRooms = roomOptionsForSite(rooms, destinationSiteId);
@@ -409,7 +428,16 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           { label: "Author", value: row?.author },
           { label: "Current room", value: selectedPerson?.current_room || row?.current_room },
           { label: "Current site", value: selectedPerson?.site || row?.current_site },
-          { label: "Phone", value: selectedPerson?.phone || row?.phone },
+          { label: "Target room", value: row?.destination_room },
+          { label: "Target site", value: row?.destination_site },
+          { label: "Current phone", value: selectedPerson?.phone },
+          { label: "Phone outcome", value: row?.phone },
+          { label: "Reason", value: row?.attention_reason },
+          { label: "Automation", value: row?.automation_outcome },
+          { label: "Manual owner", value: row?.manual_action_owner },
+          { label: "Manual reason", value: row?.manual_action_reason },
+          { label: "Resolution steps", value: detailLines(row?.resolution_steps) },
+          { label: "External systems", value: detailLines(row?.external_systems) },
         ]}
       />
       <div className="runtime-drawer__section">

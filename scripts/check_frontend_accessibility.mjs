@@ -293,7 +293,7 @@ function assertFocusStyles() {
     ".pen-hotspot:focus-visible",
     ".shared-shell-search:focus-within",
     ".phone-directory-runtime__local-search:focus-within",
-    ".phone-directory-runtime__row:focus-visible",
+    ".phone-directory-runtime__row-action:focus-visible",
     ".phone-directory-runtime__mode-button:focus-visible",
     "@media (max-width: 900px)",
     ".data-quality-semantic",

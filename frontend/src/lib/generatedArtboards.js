@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { loadGeneratedArtboard } from "../generated/artboards.generated.js";
+import { devMark, devMeasureAsync } from "./devPerformance";
 
 const resolvedArtboards = new Map();
+const prefetchedArtboards = new Set();
 
+/**
+ * loadArtboard returns cached generated artboards or imports them once for static PEN pages.
+ * DEV route-performance runs use the sanitized timing marker to separate generated artboard
+ * import cost from Browser navigation/load and readiness polling time.
+ */
 export async function loadArtboard(key) {
   if (!key) {
     throw new Error("Generated artboard key is required.");
@@ -10,9 +17,31 @@ export async function loadArtboard(key) {
   if (resolvedArtboards.has(key)) {
     return resolvedArtboards.get(key);
   }
-  const artboard = await loadGeneratedArtboard(key);
+  const artboard = await devMeasureAsync("generated-artboard-import", { artboardKey: key }, () =>
+    loadGeneratedArtboard(key)
+  );
   resolvedArtboards.set(key, artboard);
   return artboard;
+}
+
+/**
+ * prefetchArtboards warms generated .pen-derived JSON chunks after App has already
+ * received an authorized session route list. It accepts artboard keys that were
+ * derived from allowed routes, schedules at most one loader per key, and keeps
+ * failures non-fatal because foreground navigation still reports artboard load
+ * errors through useGeneratedArtboard.
+ */
+export function prefetchArtboards(keys) {
+  const uniqueKeys = [...new Set(keys.filter(Boolean))];
+  uniqueKeys.forEach((key) => {
+    if (resolvedArtboards.has(key) || prefetchedArtboards.has(key)) {
+      return;
+    }
+    prefetchedArtboards.add(key);
+    loadArtboard(key).catch(() => {
+      prefetchedArtboards.delete(key);
+    });
+  });
 }
 
 export function useGeneratedArtboard(key) {
@@ -55,6 +84,12 @@ export function useGeneratedArtboard(key) {
       cancelled = true;
     };
   }, [key]);
+
+  useEffect(() => {
+    if (key && state.status === "ready") {
+      devMark("generated-artboard-render", { artboardKey: key });
+    }
+  }, [key, state.status]);
 
   return state;
 }

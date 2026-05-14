@@ -236,13 +236,13 @@ const DEFAULT_HELP_BY_NAV_KEY = {
       {
         heading: "What this page shows",
         paragraphs: [
-          "This page shows student data cleanup items that need correction in source systems.",
+          "This page shows student name values from Aeries that need correction before account creation or matching can continue.",
         ],
       },
       {
         heading: "How to use it",
         paragraphs: [
-          "Review the listed issue, update the source system named in the row, then return to confirm the cleanup is complete.",
+          "Review the current Aeries value and the suggested value, open Aeries, search by Student ID, and make the correction in Aeries. This dashboard does not edit student records.",
         ],
       },
     ],
