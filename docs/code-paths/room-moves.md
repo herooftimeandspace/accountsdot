@@ -20,6 +20,7 @@ Key frontend helpers:
 - `transitionBulkDraft` calls `POST /api/v1/dev/room-moves/drafts/{id}/schedule` or `/apply`.
 - `deleteBulkDraft` calls `DELETE /api/v1/dev/room-moves/drafts/{id}`.
 - `cancelMove` calls `POST /api/v1/dev/room-moves/drafts/{draft_id}/cancel`.
+- `BulkDraftTable.updateRow` keeps client-side row edits aligned with DEV API normalization: `add` rows clear current-room display, and `removal` rows immediately set destination room to `None` before save.
 
 The completed-job revert UI is on static implemented pages, not this primary room-move page. `frontend/src/pages/StaticPenPage.jsx` loads completed jobs and calls `POST /api/v1/dev/room-moves/completed/{id}/revert` for the admin-facing revert action.
 
@@ -45,6 +46,7 @@ The handler/store/helper chain lives in `internal/web/dev_room_moves.go`:
 - Revert handlers authenticate with `authenticatedRoomMoveRevertPersona`, then call `scheduleRevert`.
 - Scope and option helpers include `canManageDistrictRoomMoves`, `roomMovesScopeSite`, `roomMoveVisibleSites`, `roomMoveRoomsForConfig`, `roomMovePeopleForConfig`, and `canAccessRoomMoveSite`.
 - Draft validation and construction flows through `buildRoomMoveDraft`, mode-specific row builders, and warning helpers.
+- `normalizeRoomMoveRows` is the backend guard for bulk-draft action semantics. It canonicalizes `add` and `removal` rows so reloads, saved drafts, and scheduled/applied drafts agree with the browser feedback shown while editing.
 
 ## Payload Shape
 
@@ -112,6 +114,8 @@ Successful mutations return `roomMoveDraftResponse`:
   }
 }
 ```
+
+Bulk draft row actions have persisted room-clearing semantics. `change` is the default and preserves the person's current-room context while planning a destination. `add` represents a person who should be added to the selected destination room without a prior room association in this draft, so the saved payload returns `current_room_id: "none"` and a blank `current_room`. `removal` represents removing the person from room phones, shared line groups, and call queues at the site, so the saved payload always returns `destination_room_id: "none"` and `destination_room: "None"` even if the browser submitted an older destination room value.
 
 ## Authorization And Persona Behavior
 

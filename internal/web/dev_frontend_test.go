@@ -382,8 +382,11 @@ type roomMoveDraftTestPayload struct {
 		PersonID          string   `json:"person_id"`
 		CurrentSiteID     string   `json:"current_site_id"`
 		CurrentRoomID     string   `json:"current_room_id"`
+		CurrentRoom       string   `json:"current_room"`
 		DestinationSiteID string   `json:"destination_site_id"`
 		DestinationRoomID string   `json:"destination_room_id"`
+		DestinationRoom   string   `json:"destination_room"`
+		Action            string   `json:"action"`
 		Warning           string   `json:"warning"`
 		Phone             string   `json:"phone"`
 		AttentionReason   string   `json:"attention_reason"`
@@ -2516,6 +2519,17 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if seedBulkDraft.Page.Draft.ID != "rm-draft-103" || len(seedBulkDraft.Page.Draft.Rows) == 0 {
 			t.Fatalf("seeded bulk draft = %#v, want rm-draft-103 with visible rows", seedBulkDraft.Page.Draft)
 		}
+		if len(seedBulkDraft.Page.Draft.Rows) < 2 {
+			t.Fatalf("seeded bulk draft rows = %#v, want add and removal fixture rows", seedBulkDraft.Page.Draft.Rows)
+		}
+		addRow := seedBulkDraft.Page.Draft.Rows[0]
+		if addRow.Action != "add" || addRow.CurrentRoomID != "none" || addRow.CurrentRoom != "" {
+			t.Fatalf("seeded add row = %#v, want add action with cleared current room", addRow)
+		}
+		removalRow := seedBulkDraft.Page.Draft.Rows[1]
+		if removalRow.Action != "removal" || removalRow.DestinationRoomID != "none" || removalRow.DestinationRoom != "None" {
+			t.Fatalf("seeded removal row = %#v, want removal action with destination room None", removalRow)
+		}
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/cancel", nil)
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
@@ -2633,6 +2647,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"effective_date": "2026-07-27",
 			"rows": []map[string]string{
 				{"person_id": "alex-ramirez", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "action": "removal"},
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "action": "add"},
 			},
 		})
 		if err != nil {
@@ -2647,8 +2663,14 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("build-list update returned %d, want 200: %s", rec.Code, rec.Body.String())
 		}
 		updated := decodeJSON[roomMoveDraftTestResponse](t, rec)
-		if len(updated.Draft.Rows) != 1 || updated.Draft.Rows[0].DestinationRoomID != "cla-a108" {
+		if len(updated.Draft.Rows) != 3 || updated.Draft.Rows[0].DestinationRoomID != "cla-a108" {
 			t.Fatalf("updated build-list rows = %#v, want selected destination room", updated.Draft.Rows)
+		}
+		if updated.Draft.Rows[1].Action != "removal" || updated.Draft.Rows[1].DestinationRoomID != "none" {
+			t.Fatalf("updated removal row = %#v, want destination room cleared to none", updated.Draft.Rows[1])
+		}
+		if updated.Draft.Rows[2].Action != "add" || updated.Draft.Rows[2].CurrentRoomID != "none" || updated.Draft.Rows[2].CurrentRoom != "" {
+			t.Fatalf("updated add row = %#v, want current room cleared", updated.Draft.Rows[2])
 		}
 
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+build.Draft.ID+"/schedule", nil)

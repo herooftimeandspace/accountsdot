@@ -1241,16 +1241,20 @@ input {
   flex: 1 1 auto;
 }
 
+.room-moves-runtime__table-tools button {
+  min-height: 38px;
+}
+
 .room-moves-runtime__bulk-header,
 .room-moves-runtime__bulk-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.35fr) minmax(150px, 1fr) 112px minmax(150px, 0.9fr) minmax(140px, 0.85fr) 96px 112px;
+  grid-template-columns: minmax(300px, 1.7fr) 112px minmax(150px, 0.9fr) minmax(140px, 0.85fr) 96px 92px;
   column-gap: 12px;
   align-items: center;
 }
 
 .room-moves-runtime__bulk-header {
-  margin-top: 34px;
+  margin-top: 8px;
   padding: 8px 0;
   border-top: 1px solid var(--color-canvas);
   font-size: 11px;
@@ -1259,6 +1263,7 @@ input {
 
 .room-moves-runtime__bulk-body {
   display: grid;
+  align-content: start;
   overflow: visible;
 }
 
