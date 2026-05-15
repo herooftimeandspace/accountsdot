@@ -100,6 +100,7 @@ const artboardSpecs = [
     key: "admin",
     source: "docs/mocks/wireframes/wireframe-it-admin-admin-controls.pen",
     mode: "merge-shell",
+    standardPrimitives: [],
   },
   {
     key: "admin-feature-flags",

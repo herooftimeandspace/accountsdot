@@ -64,7 +64,6 @@ const STATIC_PAGE_REFRESH_METADATA = {
   reports: DEFAULT_STATIC_REFRESH_METADATA,
   "reports-sync-transparency": DEFAULT_STATIC_REFRESH_METADATA,
   "reports-ticketing-human-work": DEFAULT_STATIC_REFRESH_METADATA,
-  admin: DEFAULT_STATIC_REFRESH_METADATA,
   "my-profile": DEFAULT_STATIC_REFRESH_METADATA,
 };
 
@@ -281,13 +280,16 @@ const DEFAULT_HELP_BY_NAV_KEY = {
       {
         heading: "What this page shows",
         paragraphs: [
-          "This page shows administrator controls and health information for the DEV dashboard.",
+          "This page is the IT Admin control surface for sync health, admin warnings, deprovisioning exceptions, default account actions, completed room-move reversal, feature flags, and emergency provisioning controls.",
         ],
       },
       {
         heading: "How to use it",
         paragraphs: [
-          "Use admin controls carefully and review warnings before changing shared settings or workflow behavior.",
+          "Start with Sync Health and Admin Warnings before changing defaults. Slow provider convergence, repeated schedule overlap, or stale sync times should be investigated before new write-capable workflow changes are enabled.",
+          "Use Deprovisioning Exceptions and Google-active / Aeries-inactive Defaults to confirm which accounts are intentionally held out of normal retirement. These controls can affect district-wide access, so review scope, expiration, and notification behavior before changing them.",
+          "Use Room Move Reversal only for a completed room-move job that should be fully undone. IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.",
+          "Open Feature Flags for DEV-only rollout controls. Emergency controls such as Global Pause should be reserved for stopping unsafe provisioning or sync behavior while the underlying warning is investigated.",
         ],
       },
     ],

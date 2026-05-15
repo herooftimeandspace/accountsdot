@@ -354,9 +354,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "admin",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "admin-feature-flags",
