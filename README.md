@@ -87,6 +87,7 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `npm run perf:routes:batch-plan -- [artifact-input-dir]`
 - `npm run perf:routes:merge -- [artifact-input-dir]`
 - `npm run perf:routes:merge:strict -- [artifact-input-dir]`
+- `npm run perf:routes:self-test`
 
 `make vulncheck` uses a local `govulncheck` binary when available, otherwise it runs `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`. If the host does not have Go installed, it falls back to `make vulncheck-container`, which runs the same scan inside the repo's configured Go Docker image.
 
@@ -149,6 +150,8 @@ Supported persona ids are the ids returned by `/api/v1/dev/session`, including `
 `npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
 
 `npm run perf:routes:batch-plan -- artifacts/performance` scans local artifacts that match the current route plan and reports the next transition or refresh batch without opening a browser.
+
+`npm run perf:routes:self-test` builds temporary synthetic route-performance artifacts and verifies the local-only batch planner and strict merge gate without opening a browser. It checks that completed transition indexes resume at the next gap, Browser-pipe failures are not counted as completed resume points, a full clean synthetic matrix passes the strict gate, and app-timeout or duplicate-index artifacts fail the strict gate. This command is a harness sanity check, not Browser evidence for issue or PR closure; use it before or after Browser collection when changing the batch runner, merge gate, route plan metadata, or README workflow.
 
 The full measurement run uses the Codex Browser skill because `scripts/dev_route_performance_matrix.mjs` needs the active Browser tab object. Prefer the automatic batch helper for full-matrix evidence so Browser work stays inside bounded calls and the helper resumes from existing local artifacts without manual index bookkeeping:
 

@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import assert from "node:assert/strict";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -1955,6 +1957,223 @@ function renderMarkdownSummary(result) {
   return `${lines.join("\n")}\n`;
 }
 
+function syntheticTransitionRow(edgePath, index, overrides = {}) {
+  const from = edgePath[index - 1];
+  const to = edgePath[index];
+  return {
+    type: "transition",
+    from: from.url,
+    to: to.url,
+    index,
+    startedAt: nowISO(),
+    endedAt: nowISO(),
+    elapsedMs: 10,
+    phaseTimings: buildPhaseTimings({ totalMs: 10, navigationLoadMs: 5, readinessPollingMs: 5 }),
+    finalUrl: normalizeUrl(DEFAULT_BASE_URL, to.url),
+    title: routeExpectedTitle(to),
+    expectedText: routeExpectedText(to),
+    expectedTitle: routeExpectedTitle(to),
+    readinessSignal: "expected_text",
+    readinessPollCount: 1,
+    ready: true,
+    status: "ok",
+    logs: [],
+    ...overrides,
+  };
+}
+
+function syntheticRefreshRow(route, sample, routeIndex, overrides = {}) {
+  return {
+    type: "refresh",
+    route: route.url,
+    routeIndex,
+    sample,
+    startedAt: nowISO(),
+    endedAt: nowISO(),
+    elapsedMs: 12,
+    phaseTimings: buildPhaseTimings({
+      totalMs: 12,
+      setupNavigationLoadMs: 3,
+      navigationLoadMs: 4,
+      readinessPollingMs: 5,
+    }),
+    finalUrl: normalizeUrl(DEFAULT_BASE_URL, route.url),
+    title: routeExpectedTitle(route),
+    expectedText: routeExpectedText(route),
+    expectedTitle: routeExpectedTitle(route),
+    readinessSignal: "expected_text",
+    readinessPollCount: 1,
+    ready: true,
+    status: "ok",
+    logs: [],
+    ...overrides,
+  };
+}
+
+async function writeSyntheticArtifact({
+  outputDir,
+  stamp,
+  routes,
+  coverage,
+  transitions = [],
+  refreshes = [],
+  startTransitionIndex = transitions[0]?.index ?? 1,
+}) {
+  const result = buildResult({
+    generatedAt: nowISO(),
+    baseUrl: DEFAULT_BASE_URL,
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+    refreshSamples: DEFAULT_REFRESH_SAMPLES,
+    persona: { ensured: true, synthetic: true },
+    routes,
+    coverage,
+    startTransitionIndex,
+    maxTransitions: transitions.length,
+    refreshStartIndex: 0,
+    refreshLimit: routes.length,
+    includeRefreshes: true,
+    transitions,
+    refreshes,
+    stoppedAtTransitionIndex: null,
+    stopReason: "",
+    devServerHealthy: true,
+  });
+  return writeMatrixArtifacts(result, outputDir, stamp);
+}
+
+async function runRoutePerformanceSelfTest() {
+  const routes = buildRouteTargets();
+  const edgePath = buildEdgeCoveragePath(routes);
+  const coverage = validateCoverage(routes, edgePath);
+  const root = await mkdtemp(path.join(os.tmpdir(), "accountsdot-route-perf-self-test-"));
+  try {
+    const partialDir = path.join(root, "partial");
+    await writeSyntheticArtifact({
+      outputDir: partialDir,
+      stamp: "2026-01-01T00-00-00-000Z",
+      routes,
+      coverage,
+      transitions: [syntheticTransitionRow(edgePath, 1), syntheticTransitionRow(edgePath, 2)],
+      startTransitionIndex: 1,
+    });
+    let plan = await planDevRoutePerformanceBatches({
+      outputDir: partialDir,
+      transitionBatchSize: 2,
+      refreshBatchSize: 2,
+    });
+    assert.equal(plan.transitions.completed, 2);
+    assert.equal(plan.transitions.next.startTransitionIndex, 3);
+    assert.equal(plan.transitions.next.maxTransitions, 2);
+
+    await writeSyntheticArtifact({
+      outputDir: partialDir,
+      stamp: "2026-01-01T00-01-00-000Z",
+      routes,
+      coverage,
+      transitions: [
+        syntheticTransitionRow(edgePath, 3, {
+          status: "error",
+          ready: false,
+          error: "IAB pipe closed during synthetic validation",
+        }),
+      ],
+      startTransitionIndex: 3,
+    });
+    plan = await planDevRoutePerformanceBatches({
+      outputDir: partialDir,
+      transitionBatchSize: 2,
+      refreshBatchSize: 2,
+    });
+    assert.equal(plan.transitions.completed, 2);
+    assert.equal(plan.transitions.next.startTransitionIndex, 3);
+
+    const cleanDir = path.join(root, "clean");
+    const cleanTransitions = [];
+    for (let index = 1; index < edgePath.length; index += 1) {
+      cleanTransitions.push(syntheticTransitionRow(edgePath, index));
+    }
+    const cleanRefreshes = buildRefreshJobs(routes, DEFAULT_REFRESH_SAMPLES).map((job) =>
+      syntheticRefreshRow(job.route, job.sample, job.routeIndex)
+    );
+    await writeSyntheticArtifact({
+      outputDir: cleanDir,
+      stamp: "2026-01-01T00-02-00-000Z",
+      routes,
+      coverage,
+      transitions: cleanTransitions,
+      refreshes: cleanRefreshes,
+      startTransitionIndex: 1,
+    });
+    const cleanMerge = await mergePerformanceArtifacts({
+      inputDir: cleanDir,
+      outputDir: path.join(root, "clean-merged"),
+    });
+    assert.equal(cleanMerge.qualityGate.passed, true);
+
+    const failingDir = path.join(root, "failing");
+    const failingTransitions = cleanTransitions.map((row) =>
+      row.index === 1
+        ? {
+            ...row,
+            status: "timeout",
+            ready: false,
+            error: "synthetic app readiness timeout",
+          }
+        : row
+    );
+    await writeSyntheticArtifact({
+      outputDir: failingDir,
+      stamp: "2026-01-01T00-03-00-000Z",
+      routes,
+      coverage,
+      transitions: failingTransitions,
+      refreshes: cleanRefreshes,
+      startTransitionIndex: 1,
+    });
+    const failingMerge = await mergePerformanceArtifacts({
+      inputDir: failingDir,
+      outputDir: path.join(root, "failing-merged"),
+    });
+    assert.equal(failingMerge.qualityGate.passed, false);
+    assert.equal(failingMerge.qualityGate.blockers.transitionFailures, 1);
+    assert.equal(failingMerge.qualityGate.blockers.appTimeoutRows, 1);
+
+    const duplicateDir = path.join(root, "duplicate");
+    await writeSyntheticArtifact({
+      outputDir: duplicateDir,
+      stamp: "2026-01-01T00-04-00-000Z",
+      routes,
+      coverage,
+      transitions: [syntheticTransitionRow(edgePath, 1)],
+      startTransitionIndex: 1,
+    });
+    await writeSyntheticArtifact({
+      outputDir: duplicateDir,
+      stamp: "2026-01-01T00-05-00-000Z",
+      routes,
+      coverage,
+      transitions: [syntheticTransitionRow(edgePath, 1)],
+      startTransitionIndex: 1,
+    });
+    const duplicateMerge = await mergePerformanceArtifacts({
+      inputDir: duplicateDir,
+      outputDir: path.join(root, "duplicate-merged"),
+    });
+    assert.equal(duplicateMerge.qualityGate.passed, false);
+    assert.deepEqual(duplicateMerge.qualityGate.duplicateTransitionIndexes, [1]);
+
+    return {
+      routeCount: routes.length,
+      directedTransitions: coverage.expectedEdgeCount,
+      cleanStrictGate: cleanMerge.qualityGate.passed,
+      failingBlockers: failingMerge.qualityGate.blockers,
+      duplicateTransitionIndexes: duplicateMerge.qualityGate.duplicateTransitionIndexes,
+    };
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
 export async function runDevRoutePerformanceMatrix({
   tab,
   baseUrl = DEFAULT_BASE_URL,
@@ -2278,6 +2497,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const result = await planDevRoutePerformanceBatches({
       outputDir: args[0] || DEFAULT_OUTPUT_DIR,
     });
+    console.log(JSON.stringify(result, null, 2));
+  } else if (command === "self-test" || command === "--self-test") {
+    const result = await runRoutePerformanceSelfTest();
     console.log(JSON.stringify(result, null, 2));
   } else {
     const routes = buildRouteTargets();
