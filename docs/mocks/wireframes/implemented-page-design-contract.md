@@ -13,6 +13,8 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 
 - The logged-in shell uses `docs/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header source.
 - Sidebar/header shell defects must be fixed at the shared-shell pattern level, not by patching individual pages.
+- Logged-in implemented pages use one shared inner-page scroll container. The generated page body scrolls inside that container while the shared header and left sidebar stay anchored to the viewport through the shared renderer/CSS primitive.
+- The shared header owns the top edge of the logged-in shell. Runtime drawers, help drawers, search, scope, notification/help controls, account controls, and page refresh controls must use the header's bottom edge as their top offset rather than page-local offsets.
 - Role-based navigation filtering remains runtime behavior. Hidden nav groups must reflow upward in canonical order with no blank gaps.
 - The active nav highlight must sit behind the active icon and label so the destination remains readable.
 - Documented nested route buttons, such as IT Admin's `/admin/feature-flags` child under Admin, must render visually subordinate to their parent row, use the same role-filtered no-gap compaction as top-level rows, and align their active dot, label, focus target, and highlight to one row center.
@@ -29,7 +31,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 - `Wrapper/Card/Rail`: bordered containers keep clean separation from neighboring bordered elements and reserve space for titles, badges, icons, and actions.
 - `Helper Paragraph`: a card, rail, notice, or table cell that conveys one logical paragraph uses one wrapping text node.
 - `Status Badge`: badges must fit their text without colliding with card headers, table content, or action controls. Reused status bubbles/buttons must use the canonical severity palette below rather than page-local colors.
-- `Drawer`: row-selected detail/context surfaces use the shared right-hand runtime drawer. The drawer is closed by default, opens only after an explicit row selection, updates in place when another row is selected, and closes through its upper-right `X`.
+- `Drawer`: row-selected detail/context surfaces use the shared right-hand runtime drawer. The drawer is closed by default, opens only after an explicit row selection, updates in place when another row is selected, and closes through its upper-right `X`. The drawer anchors to the right edge directly below the shared header, avoids normal internal drawer scrolling, and relies on the shared page scroll range plus trailing space when drawer content is taller than the visible page.
 - `Page Help`: every page that renders the shared-shell help icon opens the shared right-hand runtime drawer with end-user documentation for the current page. The copy explains what the page does and how a non-technical operator should use it; it is not implementation help.
 - `Action Link`: links that lead to external systems must be defined by product behavior, not created solely because a mock contains link-like text.
 - `Varsity Display Text`: any UI text rendered with the Varsity font must be authored in all lowercase. The product name remains `The WIZARD` in prose, metadata, and non-Varsity UI, but Varsity-rendered display text uses lowercase source copy rather than CSS-only transformation.
