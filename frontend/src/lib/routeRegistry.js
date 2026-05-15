@@ -64,6 +64,22 @@ export const NAV_GROUP_ORDER = [
   "admin",
 ];
 
+const NAV_CHILD_ROUTE_GROUPS = {
+  phoneDirectory: [
+    { path: "/phone-directory/by-person", label: "By Person" },
+    { path: "/phone-directory/by-room", label: "By Room" },
+    { path: "/phone-directory/by-department", label: "By Department" },
+  ],
+  reports: [
+    { path: "/reports/security-issues", label: "Security Issues" },
+    { path: "/reports/sync-transparency", label: "Sync Transparency" },
+    { path: "/reports/ticketing-human-work", label: "Human Work" },
+  ],
+  admin: [
+    { path: "/admin/feature-flags", label: "Feature Flags" },
+  ],
+};
+
 export function normalizePath(pathname) {
   if (!pathname || pathname === "/") {
     return "/";
@@ -178,4 +194,15 @@ export function navGroupVisible(navKey, session) {
 
 export function buildVisibleNavGroups(session) {
   return NAV_GROUP_ORDER.filter((navKey) => navGroupVisible(navKey, session));
+}
+
+/**
+ * visibleNavChildrenForKey returns documented child route buttons for a visible
+ * sidebar parent. The shared shell calls this with the same session.allowed_routes
+ * list used for direct-route authorization, so role-filtered nested buttons
+ * cannot advertise routes that would resolve to the app-level 403 page.
+ */
+export function visibleNavChildrenForKey(navKey, session) {
+  const allowedRoutes = new Set(session?.allowed_routes ?? []);
+  return (NAV_CHILD_ROUTE_GROUPS[navKey] ?? []).filter((child) => allowedRoutes.has(child.path));
 }

@@ -31,6 +31,12 @@ const STATIC_PAGE_TITLES = {
   "my-profile": "My Profile",
 };
 
+const STATIC_PAGE_ACTIVE_ROUTE_PATHS = {
+  "reports-sync-transparency": "/reports/sync-transparency",
+  "reports-ticketing-human-work": "/reports/ticketing-human-work",
+  admin: "/admin",
+};
+
 const STATIC_DRAWER_CONFIGS = {
   onboarding: {
     title: "Selected Workflow",
@@ -559,6 +565,7 @@ export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, sear
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
+    activeRoutePath: STATIC_PAGE_ACTIVE_ROUTE_PATHS[artboardKey] ?? null,
     refreshMetadata: staticRefreshMetadataForArtboard(artboardKey),
   });
   /**

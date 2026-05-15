@@ -1636,6 +1636,27 @@
           }
         },
         {
+          "type": "ellipse",
+          "id": "e92a",
+          "x": 62,
+          "y": 603,
+          "name": "Admin nested route dot",
+          "width": 5,
+          "height": 5,
+          "fill": "#6E7E85"
+        },
+        {
+          "type": "text",
+          "id": "t92a",
+          "x": 82,
+          "y": 596,
+          "fill": "#01161E",
+          "content": "Feature Flags",
+          "fontFamily": "Arial",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
           "type": "path",
           "id": "p92",
           "x": 22,

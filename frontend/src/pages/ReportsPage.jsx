@@ -448,6 +448,7 @@ export function ReportsPage({ session, onNavigate, onSearch, searchQuery }) {
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "reports",
+    activeRoutePath: "/reports",
     refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
   const semanticSummary = artboard

@@ -230,7 +230,7 @@ const shellSpec = {
     frequentFliers: ["p69", "p70", "p71", "p72", "t73"],
     studentDataCleanup: ["p74", "p75", "p76", "p77", "p78", "t79"],
     reports: ["p80", "p81", "p82", "p83", "t84", "p85"],
-    admin: ["p86", "p87", "p88", "p89", "t90", "p91"],
+    admin: ["p86", "p87", "p88", "p89", "t90", "p91", "e92a", "t92a"],
   },
   navLabelIds: {
     dashboard: "t45",
