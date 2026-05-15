@@ -32,9 +32,13 @@ const STATIC_PAGE_TITLES = {
 };
 
 const STATIC_PAGE_ACTIVE_ROUTE_PATHS = {
+  "dashboard-it-admin": "/dashboard/it-admin",
+  "dashboard-hr-lifecycle": "/dashboard/hr-lifecycle",
+  "dashboard-site-admin": "/dashboard/site-admin",
   "reports-sync-transparency": "/reports/sync-transparency",
   "reports-ticketing-human-work": "/reports/ticketing-human-work",
   admin: "/admin",
+  "my-profile": "/my-profile",
 };
 
 const STATIC_DRAWER_CONFIGS = {

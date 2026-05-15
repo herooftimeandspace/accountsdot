@@ -3,6 +3,7 @@ import * as lucideIcons from "lucide-static";
 import { DEFAULT_RUNTIME_DRAWER_BOUNDS, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey } from "./routeRegistry";
+import { helpContentForRoute } from "./routeHelpContent";
 
 const SIDEBAR_TEMPLATE = {
   firstLabelY: 128,
@@ -80,221 +81,6 @@ const SCOPE_STATIC_NODE_IDS = [
   "p20",
   "p21",
 ];
-
-const DEFAULT_HELP_BY_NAV_KEY = {
-  dashboard: {
-    title: "Dashboard help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This dashboard gives a quick view of current account, access, data quality, and workflow health.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review the cards and tables for anything that needs attention. Select rows or use page actions when a page offers more detail.",
-        ],
-      },
-    ],
-  },
-  onboarding: {
-    title: "Onboarding help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page shows upcoming staff onboarding work. Each row is a person who needs accounts, access, rooms, or follow-up before they are fully ready.",
-          "The status badge tells you whether the work is ready, running, waiting, missing information, or blocked.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Select a row to open details in the right drawer. The drawer explains what is happening and lists any action needed from HR, IT, or another system.",
-          "Use Add Non-Escape Record when a contractor or other manual record needs onboarding before the person appears from Escape.",
-        ],
-      },
-      {
-        heading: "Warnings",
-        paragraphs: [
-          "A warning icon beside the start date means the start date is very close to the date the record was added. Some systems may not be ready by that date.",
-          "Incomplete or blocked records need attention before normal onboarding can continue.",
-        ],
-      },
-    ],
-  },
-  offboarding: {
-    title: "Offboarding help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page tracks upcoming account retirement work, including accounts, licenses, devices, and security follow-up.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review rows with blocked, manual action, or security risk statuses first. Select any row to open the right drawer, then follow the listed owner and resolution steps.",
-          "Escape-backed end dates are read-only and must be corrected in Escape. Non-Escape and orphan account rows may show an end-date picker for HR and IT.",
-        ],
-      },
-    ],
-  },
-  departingSeniors: {
-    title: "Departing Seniors help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page lists current senior class account retirement and outstanding IncidentIQ device review work.",
-          "It shows each student, school-year context, student ID, district email, planned end date, and any outstanding devices from IncidentIQ.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Use the school-year dropdown to review the current senior year or one of the four retained previous senior years.",
-          "Use the table search to find a student by name, email, school year, student ID, assigned asset serial, or assigned asset ID.",
-          "Select a row to open the right drawer for detailed student, account-retirement, and device-return information.",
-          "IT and Device Wranglers can adjust a local end-date override, then deprovision the account when it is ready. A student stays on the list until the account is deprovisioned and all assigned devices are cleared.",
-        ],
-      },
-    ],
-  },
-  roomMoves: {
-    title: "Room Moves help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page helps review room moves and phone changes before scheduled cutover work runs.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review warnings in the right drawer before scheduling a cutover. Rows marked for review need a person to resolve the warning before automation can safely continue.",
-          "Use Move Person for one-person corrections, Site Rollover for summer room updates across a site, and Batch Move when you only need to add selected people.",
-          "Batch Move and Site Rollover drafts update destination rooms for a site roster or a manually built room-move list.",
-          "Five or fewer reviewed moves may run immediately after final review. More than five moves use a batch cutover. Non-IT cutovers run off-hours between 8:00 PM and 4:00 AM Pacific; IT may schedule broader multi-site windows when needed.",
-          "If a person is moving sites, the destination room should be set to none until the destination site confirms the room.",
-          "IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.",
-        ],
-      },
-    ],
-  },
-  phoneDirectory: {
-    title: "Phone Directory help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page shows phone directory information by person, room, or department.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Use the mode buttons and filters to find the directory view you need. Select a result to see more detail when the page provides it.",
-        ],
-      },
-    ],
-  },
-  dataQuality: {
-    title: "Data Quality help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This IT Admin awareness page lists district-wide data issues that can block or delay account and access work.",
-          "Source-system conflicts and missing-data queues route to the owner surfaces where upstream records can be corrected instead of being silently patched on this page.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Start with high-severity issues and follow the next action listed for each row. Refresh when you need the latest DEV mock queue.",
-          "HR lifecycle owns sensitive employee lifecycle or title issues. Onboarding owns missing intake data. Student Data Cleanup and site-owned workflows cover student and room corrections. Admin owns IT-only provider conflicts and security mismatches.",
-          "This page keeps the Data Quality queue inline. Mapping and policy changes belong in documented IT Admin configuration surfaces, so unsupported mapping-dashboard shortcuts are not shown here.",
-        ],
-      },
-    ],
-  },
-  frequentFliers: {
-    title: "Frequent Fliers help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page highlights people or devices that repeatedly need support attention.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Use the repeated patterns to decide where follow-up, cleanup, or prevention work may be needed.",
-        ],
-      },
-    ],
-  },
-  studentDataCleanup: {
-    title: "Student Data Cleanup help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page shows student name values from Aeries that need correction before account creation or matching can continue.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review the current Aeries value and the suggested value, open Aeries, search by Student ID, and make the correction in Aeries. This dashboard does not edit student records.",
-        ],
-      },
-    ],
-  },
-  reports: {
-    title: "Reports help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page collects operational reports for account, access, onboarding, offboarding, and sync work.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Choose the report that matches the question you need to answer. Use row details when available for follow-up context.",
-        ],
-      },
-    ],
-  },
-  admin: {
-    title: "Admin help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page is the IT Admin control surface for sync health, admin warnings, deprovisioning exceptions, default account actions, completed room-move reversal, feature flags, and emergency provisioning controls.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Start with Sync Health and Admin Warnings before changing defaults. Slow provider convergence, repeated schedule overlap, or stale sync times should be investigated before new write-capable workflow changes are enabled.",
-          "Use Deprovisioning Exceptions and Google-active / Aeries-inactive Defaults to confirm which accounts are intentionally held out of normal retirement. These controls can affect district-wide access, so review scope, expiration, and notification behavior before changing them.",
-          "Use Room Move Reversal only for a completed room-move job that should be fully undone. IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.",
-          "Open Feature Flags for DEV-only rollout controls. Emergency controls such as Global Pause should be reserved for stopping unsafe provisioning or sync behavior while the underlying warning is investigated.",
-        ],
-      },
-    ],
-  },
-};
 
 function estimateTextHeight(node, textOverrides) {
   const content = String(textOverrides?.[node.id] ?? node.content ?? "");
@@ -993,27 +779,8 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
   );
 }
 
-function defaultHelpContent(activeNavKey) {
-  if (activeNavKey && DEFAULT_HELP_BY_NAV_KEY[activeNavKey]) {
-    return DEFAULT_HELP_BY_NAV_KEY[activeNavKey];
-  }
-  return {
-    title: "Page help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page is part of The WIZARD staff dashboard and shows operational information for the current workflow.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review the visible rows, badges, and actions. If a row opens a drawer, use the drawer to see more detail and next steps.",
-        ],
-      },
-    ],
-  };
+function defaultHelpContent(activeNavKey, activeRoutePath) {
+  return helpContentForRoute(activeRoutePath, activeNavKey);
 }
 
 export function createSharedShellRenderOverlay({
@@ -1048,7 +815,7 @@ export function createSharedShellRenderOverlay({
     const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
     const resolvedPageSyncControl = normalizePageSyncControl(pageSyncControl, refreshMetadata);
     const helpIconBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.helpIcon), textOverrides);
-    const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey);
+    const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey, activeRoutePath);
     const resolvedScopeDropdown = scopeDropdown ?? {
       label: "Header scope",
       value: session?.shell?.scope_title ?? "",

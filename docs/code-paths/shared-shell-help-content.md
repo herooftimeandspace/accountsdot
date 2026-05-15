@@ -5,16 +5,21 @@ Shared-shell help content is the route-aware help drawer rendered on implemented
 ## Frontend Entrypoint
 
 - Route registry: `frontend/src/lib/routeRegistry.js`
+- Route help content: `frontend/src/lib/routeHelpContent.js`
 - App dispatch: `frontend/src/app.jsx`
 - Shared helper: `frontend/src/lib/sharedShellPresentation.jsx`
 - Page-level callers: implemented pages under `frontend/src/pages/`
 
 The app resolves the URL to a route, checks whether it is public or allowed for the current session, then renders a page component. Implemented pages call `createSharedShellRenderOverlay` and pass it to `PenArtboard` or the generated view. The helper overlays runtime shell behavior over `.pen`-derived artboards.
 
-Shared help can come from two places:
+Shared help resolves in this order:
 
-- Page-specific `helpContent`, such as `ONBOARDING_HELP_CONTENT` in `frontend/src/pages/OnboardingPage.jsx`, `STUDENT_DATA_HELP_CONTENT` in `StudentDataCleanupPage.jsx`, or `FREQUENT_FLIERS_HELP_CONTENT` in `FrequentFliersPage.jsx`.
-- `defaultHelpContent(activeNavKey)`, which reads `DEFAULT_HELP_BY_NAV_KEY` in `frontend/src/lib/sharedShellPresentation.jsx` and falls back to generic `Page help`.
+- A page may still pass explicit `helpContent` to `createSharedShellRenderOverlay` when it has a documented special case.
+- Otherwise `createSharedShellRenderOverlay` calls `helpContentForRoute(activeRoutePath, activeNavKey)` from `frontend/src/lib/routeHelpContent.js`.
+- `activeRoutePath` wins over `activeNavKey` so child routes such as `/reports/sync-transparency`, `/reports/security-issues`, and `/admin/feature-flags` do not inherit generic parent copy.
+- The nav-key fallback is only a safety net for legacy callers that have not yet supplied a route path. New implemented pages should pass `activeRoutePath`.
+
+`routeHelpContent.js` also stores a short source note per route. The notes identify the PRD and implementation-plan areas used to author the drawer copy. Keep these notes current when page behavior changes so reviewers can trace help text back to the source-of-truth documents without reading every section again.
 
 ## Handler, Store, And Helper Chain
 
@@ -23,7 +28,7 @@ There is no backend handler for help drawer content. The route/page data chain s
 - `frontend/src/app.jsx` calls `/api/v1/dev/session` through `loadSession` and stores the session payload.
 - `frontend/src/lib/routeRegistry.js` uses `allowed_routes` to decide route access and visible nav groups.
 - `frontend/src/lib/sharedShellPresentation.jsx` `createSharedShellRenderOverlay` exits early when the session is not authenticated or authorized.
-- `createSharedShellRenderOverlay` locates shell node bounds, resolves help content, and renders `SharedShellHelpOverlay`.
+- `createSharedShellRenderOverlay` locates shell node bounds, resolves route-specific help content, and renders `SharedShellHelpOverlay`.
 - `SharedShellHelpOverlay` renders the invisible hit target over the artboard help icon and opens `RuntimeDrawer`.
 
 The DEV session and persona payload is served from `internal/web/dev_frontend.go`, especially `handleDevSession`, `handleDevLogin`, `buildDevSessionPayload`, `resolveAuthenticatedDevPersona`, and `routeAllowed`.
@@ -84,7 +89,7 @@ Because there is no external write, this path is not listed as a DEV mock mutati
 Relevant coverage:
 
 - `internal/web/dev_frontend_test.go` covers DEV session payloads, `allowed_routes`, persona access, and implemented-page API authorization.
-- Frontend runtime behavior is currently verified through build and accessibility checks rather than a dedicated shared-shell help unit test.
+- `frontend/src/lib/routeRegistry.test.mjs` covers route help content completeness for implemented logged-in routes, source-note coverage, child-route specificity, and required correction-path warnings.
 - UI-heavy changes to this path should run the implemented-page checks documented in `README.md`: `npm run build:web` and `npm run a11y:check`; `.pen` layout changes should additionally run `npm run pen:check` and `npm run pen:lint`.
 
 ## Debugging Breakpoints
@@ -94,7 +99,8 @@ Frontend breakpoints:
 - `frontend/src/app.jsx` `loadSession`, route resolution, and page dispatch.
 - `frontend/src/lib/routeRegistry.js` `isRouteAllowed`, `navGroupVisible`, and `buildVisibleNavGroups`.
 - `frontend/src/lib/sharedShellPresentation.jsx` `createSharedShellRenderOverlay`, `defaultHelpContent`, and `SharedShellHelpOverlay`.
-- Page-specific `helpContent` constants when a page overrides the default help content.
+- `frontend/src/lib/routeHelpContent.js` `helpContentForRoute`, route entries, and source notes.
+- Page-specific `helpContent` constants only when a page intentionally overrides the route-level model.
 - `frontend/src/components/RuntimeDrawer.jsx`, if the drawer does not close or focus/pointer behavior is wrong.
 
 Backend breakpoints:
@@ -105,5 +111,5 @@ Backend breakpoints:
 Useful symptoms:
 
 - Help button missing on an implemented page usually means the session is unauthenticated/unauthorized, `onNavigate` and `onSearch` are both missing, or the generated artboard does not expose the shared help icon node.
-- Wrong help text usually means the page passed stale `helpContent` or `activeNavKey` does not match `DEFAULT_HELP_BY_NAV_KEY`.
-- Sidebar/help mismatch usually means `allowed_routes` or `activeNavKey` changed without corresponding route-registry or shared-shell updates.
+- Wrong help text usually means the page passed stale `helpContent`, omitted `activeRoutePath`, or has a stale entry in `routeHelpContent.js`.
+- Sidebar/help mismatch usually means `allowed_routes`, `activeRoutePath`, or `activeNavKey` changed without corresponding route-registry or shared-shell updates.

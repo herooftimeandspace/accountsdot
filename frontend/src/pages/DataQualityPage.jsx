@@ -349,6 +349,7 @@ export function DataQualityPage({
         onSearch,
         searchQuery,
         activeNavKey: "dataQuality",
+        activeRoutePath: "/data-quality",
         pageSyncControl: {
           label: "Refresh",
           loadingLabel: "Refreshing",

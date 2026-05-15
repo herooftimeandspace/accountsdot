@@ -25,27 +25,6 @@ const PANE_WIDTH = 1348;
 const DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
 const AERIES_LINK_BASE = "https://windsorusd.aeries.net/admin/Default.aspx";
 
-const STUDENT_DATA_HELP_CONTENT = {
-  title: "Student Data Cleanup help",
-  sections: [
-    {
-      heading: "What this page shows",
-      body:
-        "This page lists active, unresolved student name issues detected during sync. These records can affect account creation or downstream matching if they are not corrected in Aeries.",
-    },
-    {
-      heading: "How to use it",
-      body:
-        "Use table search, issue type, grade filters, and column sorting to find a record. Select a row to compare the current Aeries name values with the suggested values to paste back into Aeries.",
-    },
-    {
-      heading: "Where corrections happen",
-      body:
-        "This dashboard is informational only. Student records cannot be edited here. All corrections must be made in Aeries, then the sync button can be used to recheck the queue.",
-    },
-  ],
-};
-
 // Mirrors the legacy Aeries AD sync invalid-name gate:
 // after removing ordinary spaces, first + last name must match /^[a-zA-Z]+$/,
 // and neither first nor last name may begin or end with a space.
@@ -472,6 +451,7 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "studentDataCleanup",
+    activeRoutePath: "/student-data-cleanup",
     pageSyncControl: {
       label: "Sync now",
       loadingLabel: "Syncing",
@@ -481,7 +461,6 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
       disabled: syncState === "syncing",
       onAction: handleSync,
     },
-    helpContent: STUDENT_DATA_HELP_CONTENT,
   });
   const semanticSummary = artboard
     ? buildArtboardSemanticSummary(artboard, {

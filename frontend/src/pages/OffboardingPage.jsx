@@ -367,6 +367,7 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
+    activeRoutePath: "/offboarding",
     refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard("offboarding"),
   });
   const semanticSummary = artboard
