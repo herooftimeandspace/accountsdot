@@ -175,6 +175,11 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, selectedRowId, er
         <div>Action</div>
       </div>
       <div className="departing-seniors-runtime__table-body">
+        {table.visibleRows.length === 0 ? (
+          <p className="departing-seniors-runtime__empty" role="status">
+            No departing seniors match the current search.
+          </p>
+        ) : null}
         {table.visibleRows.map((row) => {
           const dateValue = dateDrafts[row.id] ?? row.end_date ?? "";
           const hasDevices = (row.outstanding_devices ?? []).length > 0;
