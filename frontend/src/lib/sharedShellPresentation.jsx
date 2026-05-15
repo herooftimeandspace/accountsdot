@@ -2,16 +2,25 @@ import React, { useEffect, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { RuntimeDrawer } from "../components/RuntimeDrawer";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
-import { buildVisibleNavGroups, navDestinationForKey } from "./routeRegistry";
+import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey } from "./routeRegistry";
 
 const SIDEBAR_TEMPLATE = {
   firstLabelY: 128,
   rowStep: 49,
+  nestedRowFirstOffset: 30,
+  nestedRowStep: 28,
+  afterNestedGap: 14,
   iconX: 21,
+  disclosureX: 224,
   labelX: 58,
+  nestedDotX: 62,
+  nestedLabelX: 82,
   highlightX: 12,
   highlightWidth: 236,
   highlightHeight: 42,
+  nestedHighlightX: 38,
+  nestedHighlightWidth: 210,
+  nestedHighlightHeight: 28,
 };
 
 const NAV_ICON_MARKUP = {
@@ -648,63 +657,104 @@ function navIconMarkup(navKey) {
     .replace(/height="[^"]+"/, 'height="18"');
 }
 
-function sidebarRowMetrics(index) {
-  const labelY = SIDEBAR_TEMPLATE.firstLabelY + index * SIDEBAR_TEMPLATE.rowStep;
+function sidebarRowMetrics(index, row = {}) {
+  // `npm run pen:lint` checks that sidebarRowMetrics(index) remains the shared source for compact sidebar row geometry.
+  const depth = row.depth ?? 0;
+  const labelY = row.labelY ?? SIDEBAR_TEMPLATE.firstLabelY + index * SIDEBAR_TEMPLATE.rowStep;
+  const highlightHeight = depth > 0 ? SIDEBAR_TEMPLATE.nestedHighlightHeight : SIDEBAR_TEMPLATE.highlightHeight;
+  const rowCenter = labelY + (depth > 0 ? 7 : 9);
   return {
     labelY,
-    iconTop: labelY - 2,
-    highlightTop: labelY - 10,
+    rowCenter,
+    iconTop: rowCenter - 9,
+    disclosureTop: rowCenter - 4,
+    dotTop: rowCenter - 3,
+    highlightTop: rowCenter - highlightHeight / 2,
+    highlightX: depth > 0 ? SIDEBAR_TEMPLATE.nestedHighlightX : SIDEBAR_TEMPLATE.highlightX,
+    highlightWidth: depth > 0 ? SIDEBAR_TEMPLATE.nestedHighlightWidth : SIDEBAR_TEMPLATE.highlightWidth,
+    highlightHeight,
+    labelX: depth > 0 ? SIDEBAR_TEMPLATE.nestedLabelX : SIDEBAR_TEMPLATE.labelX,
+    dotX: SIDEBAR_TEMPLATE.nestedDotX,
   };
 }
 
 function SharedShellSidebarRow({
   index,
+  rowKey,
+  depth = 0,
   navKey,
   destination,
   label,
   isActive,
+  hasChildren = false,
+  labelY,
   onNavigate,
 }) {
-  const metrics = sidebarRowMetrics(index);
+  const metrics = sidebarRowMetrics(index, { depth, labelY });
   return (
-    <React.Fragment key={navKey}>
+    <React.Fragment key={rowKey}>
       {isActive ? (
         <div
           aria-hidden="true"
           className="shared-shell-nav__highlight"
           style={{
             position: "absolute",
-            left: SIDEBAR_TEMPLATE.highlightX,
+            left: metrics.highlightX,
             top: metrics.highlightTop,
-            width: SIDEBAR_TEMPLATE.highlightWidth,
-            height: SIDEBAR_TEMPLATE.highlightHeight,
+            width: metrics.highlightWidth,
+            height: metrics.highlightHeight,
             zIndex: 0,
           }}
         />
       ) : null}
+      {depth > 0 ? (
+        <span
+          aria-hidden="true"
+          className={`shared-shell-nav__dot${isActive ? " shared-shell-nav__dot--active" : ""}`}
+          style={{
+            position: "absolute",
+            left: metrics.dotX,
+            top: metrics.dotTop,
+            zIndex: 2,
+          }}
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="shared-shell-nav__icon"
+          style={{
+            position: "absolute",
+            left: SIDEBAR_TEMPLATE.iconX,
+            top: metrics.iconTop,
+            zIndex: 2,
+          }}
+          dangerouslySetInnerHTML={{ __html: navIconMarkup(navKey) }}
+        />
+      )}
       <div
         aria-hidden="true"
-        className="shared-shell-nav__icon"
+        className={`shared-shell-nav__label${depth > 0 ? " shared-shell-nav__label--nested" : ""}`}
         style={{
           position: "absolute",
-          left: SIDEBAR_TEMPLATE.iconX,
-          top: metrics.iconTop,
-          zIndex: 2,
-        }}
-        dangerouslySetInnerHTML={{ __html: navIconMarkup(navKey) }}
-      />
-      <div
-        aria-hidden="true"
-        className="shared-shell-nav__label"
-        style={{
-          position: "absolute",
-          left: SIDEBAR_TEMPLATE.labelX,
+          left: metrics.labelX,
           top: metrics.labelY,
           zIndex: 2,
         }}
       >
         {label}
       </div>
+      {hasChildren ? (
+        <span
+          aria-hidden="true"
+          className="shared-shell-nav__disclosure"
+          style={{
+            position: "absolute",
+            left: SIDEBAR_TEMPLATE.disclosureX,
+            top: metrics.disclosureTop,
+            zIndex: 2,
+          }}
+        />
+      ) : null}
       <button
         type="button"
         className="pen-hotspot pen-hotspot--nav"
@@ -713,10 +763,10 @@ function SharedShellSidebarRow({
         onClick={() => onNavigate(destination)}
         style={{
           position: "absolute",
-          left: SIDEBAR_TEMPLATE.highlightX,
+          left: metrics.highlightX,
           top: metrics.highlightTop,
-          width: SIDEBAR_TEMPLATE.highlightWidth,
-          height: SIDEBAR_TEMPLATE.highlightHeight,
+          width: metrics.highlightWidth,
+          height: metrics.highlightHeight,
           border: 0,
           background: "transparent",
           padding: 0,
@@ -727,6 +777,55 @@ function SharedShellSidebarRow({
       {/* WCAG 2.4.4/4.1.2: visual sidebar labels are aria-hidden; this native button carries the name and role. */}
     </React.Fragment>
   );
+}
+
+/**
+ * buildVisibleSidebarRows flattens role-authorized sidebar parents and
+ * documented nested route buttons into one visual list. The y positions are
+ * calculated after route filtering, which keeps persona-specific nav compact
+ * and makes child route highlights share the same row-center math as top-level
+ * icon, label, disclosure, and focus targets.
+ */
+function buildVisibleSidebarRows(session) {
+  const rows = [];
+  let labelY = SIDEBAR_TEMPLATE.firstLabelY;
+  buildVisibleNavGroups(session).forEach((navKey) => {
+    const children = visibleNavChildrenForKey(navKey, session);
+    rows.push({
+      key: navKey,
+      navKey,
+      depth: 0,
+      labelY,
+      destination: navDestinationForKey(navKey, session),
+      hasChildren: children.length > 0,
+    });
+    if (children.length === 0) {
+      labelY += SIDEBAR_TEMPLATE.rowStep;
+      return;
+    }
+    children.forEach((child, childIndex) => {
+      rows.push({
+        key: `${navKey}:${child.path}`,
+        navKey,
+        depth: 1,
+        labelY: labelY + SIDEBAR_TEMPLATE.nestedRowFirstOffset + childIndex * SIDEBAR_TEMPLATE.nestedRowStep,
+        destination: child.path,
+        label: child.label,
+      });
+    });
+    labelY +=
+      SIDEBAR_TEMPLATE.nestedRowFirstOffset +
+      children.length * SIDEBAR_TEMPLATE.nestedRowStep +
+      SIDEBAR_TEMPLATE.afterNestedGap;
+  });
+  return rows.filter((row) => row.destination);
+}
+
+function sidebarRowActive(row, activeNavKey, activeRoutePath) {
+  if (activeRoutePath) {
+    return row.destination === activeRoutePath;
+  }
+  return row.depth === 0 && row.navKey === activeNavKey;
 }
 
 function SharedShellSearchOverlay({ bounds, iconBounds, initialQuery, placeholder, onSearch }) {
@@ -902,6 +1001,7 @@ export function createSharedShellRenderOverlay({
   session,
   onNavigate,
   activeNavKey = null,
+  activeRoutePath = null,
   onSearch = null,
   searchQuery = "",
   refreshMetadata = null,
@@ -917,7 +1017,7 @@ export function createSharedShellRenderOverlay({
     return null;
   }
 
-  const visibleNavGroups = buildVisibleNavGroups(session);
+  const visibleSidebarRows = buildVisibleSidebarRows(session);
 
   return ({ nodeIndex, textOverrides = {} }) => {
     const searchBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.searchField), textOverrides);
@@ -968,19 +1068,19 @@ export function createSharedShellRenderOverlay({
         bounds={helpIconBounds}
         helpContent={resolvedHelpContent}
       />,
-      ...visibleNavGroups.map((navKey, index) => {
-        const destination = navDestinationForKey(navKey, session);
-        if (!destination) {
-          return null;
-        }
+      ...visibleSidebarRows.map((row, index) => {
         return (
           <SharedShellSidebarRow
-            key={navKey}
+            key={row.key}
+            rowKey={row.key}
             index={index}
-            navKey={navKey}
-            destination={destination}
-            label={navLabelContent(navKey, nodeIndex, textOverrides)}
-            isActive={activeNavKey === navKey}
+            depth={row.depth}
+            labelY={row.labelY}
+            navKey={row.navKey}
+            destination={row.destination}
+            label={row.label ?? navLabelContent(row.navKey, nodeIndex, textOverrides)}
+            isActive={sidebarRowActive(row, activeNavKey, activeRoutePath)}
+            hasChildren={row.hasChildren}
             onNavigate={onNavigate}
           />
         );

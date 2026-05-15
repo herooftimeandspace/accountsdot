@@ -153,7 +153,9 @@ export const sharedShellSpec = {
       "p88",
       "p89",
       "t90",
-      "p91"
+      "p91",
+      "e92a",
+      "t92a"
     ]
   },
   "navLabelIds": {
@@ -496,7 +498,9 @@ export const implementedPageDesignManifest = {
         "p88",
         "p89",
         "t90",
-        "p91"
+        "p91",
+        "e92a",
+        "t92a"
       ]
     },
     "navLabelIds": {

@@ -60,3 +60,35 @@ test("artboardKeysForAllowedRoutes deduplicates shared artboards across allowed 
     ["offboarding", "reports"]
   );
 });
+
+test("visibleNavChildrenForKey returns only documented nested routes allowed for the session", () => {
+  const { visibleNavChildrenForKey } = routeRegistryModule;
+
+  assert.deepEqual(
+    visibleNavChildrenForKey("admin", {
+      allowed_routes: ["/admin/feature-flags"],
+    }),
+    [{ path: "/admin/feature-flags", label: "Feature Flags" }]
+  );
+  assert.deepEqual(
+    visibleNavChildrenForKey("reports", {
+      allowed_routes: ["/reports", "/reports/security-issues"],
+    }),
+    [{ path: "/reports/security-issues", label: "Security Issues" }]
+  );
+  assert.deepEqual(
+    visibleNavChildrenForKey("phoneDirectory", {
+      allowed_routes: ["/phone-directory/by-person", "/phone-directory/by-room"],
+    }),
+    [
+      { path: "/phone-directory/by-person", label: "By Person" },
+      { path: "/phone-directory/by-room", label: "By Room" },
+    ]
+  );
+  assert.deepEqual(
+    visibleNavChildrenForKey("admin", {
+      allowed_routes: ["/admin"],
+    }),
+    []
+  );
+});

@@ -162,6 +162,7 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "admin",
+    activeRoutePath: "/admin/feature-flags",
     refreshMetadata: null,
   });
   const semanticSummary = artboard

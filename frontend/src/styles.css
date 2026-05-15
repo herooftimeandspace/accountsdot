@@ -349,7 +349,9 @@ input {
 }
 
 .shared-shell-nav__icon,
-.shared-shell-nav__label {
+.shared-shell-nav__label,
+.shared-shell-nav__dot,
+.shared-shell-nav__disclosure {
   pointer-events: none;
 }
 
@@ -374,6 +376,32 @@ input {
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+.shared-shell-nav__label--nested {
+  max-width: 144px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shared-shell-nav__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-muted);
+}
+
+.shared-shell-nav__dot--active {
+  background: var(--color-accent-deep-navy);
+}
+
+.shared-shell-nav__disclosure {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-muted);
+  border-bottom: 2px solid var(--color-muted);
+  transform: rotate(45deg);
 }
 
 .shared-shell-page-sync__meta {

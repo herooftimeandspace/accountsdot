@@ -102,6 +102,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - all logged-in implemented pages should reuse the shared shell from `docs/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header base
   - all existing implemented `.pen` pages should have stable frontend routes even when richer page behavior is not yet complete
   - the reusable logged-in shell should filter sidebar visibility by the user's allowed routes
+  - documented nested route buttons should appear only when their exact child route is in the user's allowed route set, and they should compact with the same no-gap behavior as top-level sidebar rows
   - if a user cannot access a page, that page must not appear in the sidebar
   - if a user directly navigates to a page outside their allowed route set, the application should return `403 Forbidden`
   - if a user is not logged in and tries to access any route other than `/login`, the application should return `401 Not Authorized`
@@ -116,7 +117,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/search`
   - `/onboarding`
   - `/offboarding`
+  - `/departing-seniors`
   - `/room-moves`
+  - `/room-moves/bulk-draft`
   - `/phone-directory/by-person`
   - `/phone-directory/by-room`
   - `/phone-directory/by-department`
@@ -128,6 +131,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/reports/sync-transparency`
   - `/reports/ticketing-human-work`
   - `/admin`
+  - `/admin/feature-flags`
   - `/my-profile`
 - Role-based landing routes for the current foundation slice:
   - `IT Admin` → `/dashboard/it-admin`

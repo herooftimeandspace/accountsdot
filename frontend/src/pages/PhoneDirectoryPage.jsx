@@ -917,6 +917,7 @@ export function PhoneDirectoryPage({
         onSearch,
         searchQuery,
         activeNavKey: "phoneDirectory",
+        activeRoutePath: `/phone-directory/by-${mode}`,
         refreshMetadata: payload?.page?.last_refreshed ?? null,
         // WCAG 1.3.1/3.3.2/4.1.2: the DEV directory scope selector reuses the shared native dropdown primitive with an accessible label.
         scopeDropdown: {

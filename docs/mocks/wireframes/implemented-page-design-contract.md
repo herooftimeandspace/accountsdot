@@ -15,6 +15,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 - Sidebar/header shell defects must be fixed at the shared-shell pattern level, not by patching individual pages.
 - Role-based navigation filtering remains runtime behavior. Hidden nav groups must reflow upward in canonical order with no blank gaps.
 - The active nav highlight must sit behind the active icon and label so the destination remains readable.
+- Documented nested route buttons, such as IT Admin's `/admin/feature-flags` child under Admin, must render visually subordinate to their parent row, use the same role-filtered no-gap compaction as top-level rows, and align their active dot, label, focus target, and highlight to one row center.
 - The scope selector, search field, notification/help controls, account box, profile image/initials, support affordance, and platform-status row must be sized for the longest supported persona labels and approved branding assets.
 - Live shell surfaces must not show shortcut hints, governance labels, mock-policy text, validation-process labels, or runbook/evidence copy unless the PRD defines that copy as operator-facing product behavior.
 

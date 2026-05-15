@@ -313,6 +313,7 @@ export function SecurityIssuesReportPage({ session, onNavigate, onSearch, search
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "reports",
+    activeRoutePath: "/reports/security-issues",
     refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
   const semanticSummary = artboard
