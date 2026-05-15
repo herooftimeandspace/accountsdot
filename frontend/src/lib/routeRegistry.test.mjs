@@ -65,6 +65,12 @@ test("visibleNavChildrenForKey returns only documented nested routes allowed for
   const { visibleNavChildrenForKey } = routeRegistryModule;
 
   assert.deepEqual(
+    visibleNavChildrenForKey("phoneDirectory", {
+      allowed_routes: ["/phone-directory/by-person", "/phone-directory/by-room", "/phone-directory/by-department"],
+    }),
+    []
+  );
+  assert.deepEqual(
     visibleNavChildrenForKey("admin", {
       allowed_routes: ["/admin/feature-flags"],
     }),
@@ -75,15 +81,6 @@ test("visibleNavChildrenForKey returns only documented nested routes allowed for
       allowed_routes: ["/reports", "/reports/security-issues"],
     }),
     [{ path: "/reports/security-issues", label: "Security Issues" }]
-  );
-  assert.deepEqual(
-    visibleNavChildrenForKey("phoneDirectory", {
-      allowed_routes: ["/phone-directory/by-person", "/phone-directory/by-room"],
-    }),
-    [
-      { path: "/phone-directory/by-person", label: "By Person" },
-      { path: "/phone-directory/by-room", label: "By Room" },
-    ]
   );
   assert.deepEqual(
     visibleNavChildrenForKey("admin", {
