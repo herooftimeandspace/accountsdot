@@ -51,7 +51,6 @@ var (
 		"/data-quality",
 		"/reports", "/reports/security-issues",
 		"/reports/sync-transparency",
-		"/reports/ticketing-human-work",
 		"/admin",
 		"/admin/feature-flags",
 	}

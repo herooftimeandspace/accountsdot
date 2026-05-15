@@ -422,6 +422,16 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           { label: "Manual reason", value: row?.manual_action_reason },
           { label: "Resolution steps", value: detailLines(row?.resolution_steps) },
           { label: "External systems", value: showsManualAction ? detailLines(row?.external_systems) : "" },
+          {
+            label: "Fallback ticket",
+            value: row?.fallback_ticket ? (
+              <a href={row.fallback_ticket_href || "#"} target="_blank" rel="noreferrer">
+                {row.fallback_ticket}
+              </a>
+            ) : "",
+          },
+          { label: "Ticket status", value: row?.fallback_status },
+          { label: "Technical outcome", value: row?.technical_outcome },
         ]}
       />
       <div className="runtime-drawer__section">

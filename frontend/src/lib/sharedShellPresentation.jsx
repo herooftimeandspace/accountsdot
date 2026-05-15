@@ -65,7 +65,6 @@ const STATIC_PAGE_REFRESH_METADATA = {
   "student-data-cleanup": DEFAULT_STATIC_REFRESH_METADATA,
   reports: DEFAULT_STATIC_REFRESH_METADATA,
   "reports-sync-transparency": DEFAULT_STATIC_REFRESH_METADATA,
-  "reports-ticketing-human-work": DEFAULT_STATIC_REFRESH_METADATA,
   "my-profile": DEFAULT_STATIC_REFRESH_METADATA,
 };
 

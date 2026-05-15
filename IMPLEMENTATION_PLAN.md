@@ -401,8 +401,9 @@
   - DEV-only mock auth, session, and page routes must require `APP_ENV=development` explicitly so missing `APP_ENV` fails closed outside development
   - the DEV login flow is mock-only in this slice: clicking `Log in with Google` establishes a signed-in DEV session and redirects to `/dashboard`, while a user who is already authenticated and authorized skips `/login` and goes directly to `/dashboard`
   - logout must return the browser to `/login`
-  - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/reports/ticketing-human-work`, `/admin`, `/admin/feature-flags`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
+  - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
   - the three Phone Directory mode routes stay directly addressable and role-authorized, but they are not shared-sidebar child buttons; the shared sidebar renders one top-level `Phone Directory` row for all three mode routes, and the Phone Directory page's in-page mode control owns switching among `By Person`, `By Room`, and `By Department`
+  - the former `/reports/ticketing-human-work` route is retired rather than hidden or repurposed; direct navigation follows normal `404` handling, while Onboarding and Room Moves own their contextual ticket/human-work status
   - the user-facing `Invalid Student Names` page is renamed to `Student Data Cleanup` in title, route, sidebar label, and operator-facing queue/report references; technical invalid-name detection terminology may remain in source-data logic where needed
   - role-based landing defaults for this slice are: `IT Admin` → `/dashboard/it-admin`, `Human Resources` → `/dashboard/hr-lifecycle`, `Site Admin` → `/dashboard/site-admin`, `Site Secretary` → `/phone-directory/by-room`, `Device Wrangler` → `/frequent-fliers`, and `Faculty and Staff` → `/phone-directory/by-person`
   - the DEV persona switcher is a live mock-session switch for demos rather than a static label preview; it renders inside the shared sidebar bounds below the Platform Status area so right-edge drawers and overlays can anchor to the app frame without accounting for an out-of-bounds top-right toolbar; on switch, `/dashboard` re-resolves through the new persona's landing route, allowed routes stay in place and rerender, and disallowed current routes route to the new persona's landing route so demos do not strand users on `403`
@@ -422,7 +423,7 @@
     - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
   - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
   - unauthenticated access to any route other than `/login` must return `401`
-  - the routes currently reserved to `IT Admin` only are `/dashboard/it-admin`, `/data-quality`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/reports/ticketing-human-work`, `/admin`, and `/admin/feature-flags`
+  - the routes currently reserved to `IT Admin` only are `/dashboard/it-admin`, `/data-quality`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, and `/admin/feature-flags`
   - the shared header search is implemented as a real global-search entrypoint; submitting from any logged-in page routes into `/search?q=...`
   - shared header search accepts name, email, phone, extension, employee ID, student ID, asset ID, serial number, and workflow/action text input across the DEV projections the current persona can access
   - shared header search groups results by source/type, including people, rooms/extensions, departments/lines, onboarding, offboarding, departing seniors, devices/assets, and workflow/action records where mock data exists
@@ -432,6 +433,7 @@
   - selecting any report or refresh row on `/reports` opens the shared right-hand drawer with row-specific scope, source, data-included, open-item, last-run or refresh, cadence, status, and explanation details
   - report rows may expose an `Open Report` drawer action that routes to the owning implemented page or report route; refresh rows remain informational and do not navigate
   - `/reports/security-issues` is a runtime-owned IT Admin report nested under Reports; it uses the Reports shell/artboard pattern plus runtime table search/sort and shared drawer details for account-security rows moved out of Offboarding
+  - `/reports/ticketing-human-work` is not a plan-backed runtime route in this slice; do not list it in the Reports nested navigation or report inventory because ticket linkage belongs on the owning workflow detail surfaces
   - Offboarding excludes `Security risk` orphan-account rows from its summary cards, table payload, and HR/IT end-date mutation route; those rows remain visible in the Security Issues report with their existing details, owner/action context, and deterministic DEV external links
   - each `devFeatureFlagRegistry` route must be covered by a Go regression test that proves the matching DEV page/API handler is registered, unless the route is explicitly documented as frontend/static-only for the current foundation slice
   - Flagged route backend coverage exception: /dashboard/site-admin is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
@@ -682,6 +684,7 @@
   - `IncidentIQ` workflow-status polling for externally created follow-up tickets:
     - poll for the user in `IncidentIQ` by email address at most once per hour
     - once the user is found, look for and link only the earliest created matching `Aeries` ticket and the earliest created matching `Verkada` ticket in the dashboard
+    - surface those linked Aeries and Verkada ticket results inside the selected Onboarding person drawer rather than in a standalone ticketing report
     - treat a ticket as matching only when both the requestor email and the ticket category match the expected follow-up type
     - the matching `Aeries` category is `Aeries (Asset Tag: AERIES) → User Rights → Add User`
     - the matching `Verkada` category is `Security Systems → Alarm Codes → Add Alarm Code`
@@ -1895,6 +1898,11 @@
   - the safe ticket-creation point is after account propagation reaches Incident IQ from the AD → Entra → Google → Incident IQ chain
   - for externally configured `Aeries` and `Verkada` follow-up work, the dashboard should poll for the user's `IncidentIQ` presence by email at most once per hour and link only the earliest created matching ticket for each follow-up type into workflow status once found
   - match those tickets by requestor email plus ticket category using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code`, continue to prefer the earliest match even if a later matching ticket remains open, show no linked ticket if that earliest match later disappears or becomes inaccessible, and present linked results as full raw ticket number link plus current status
+- Owner-surface placement rules:
+  - do not create or preserve a standalone `/reports/ticketing-human-work` route for generic human-work queues in the current foundation slice
+  - Onboarding owns Aeries and Verkada/alarm-code linked-ticket status in its selected person drawer
+  - Room Moves owns manual fallback ticket status in its review drawer with manual owner, reason, resolution steps, linked external systems, full raw ticket number link, current ticket status, and technical-verification outcome
+  - Room Moves manual fallback rows auto-resolve only when the linked IncidentIQ ticket is closed and the room/phone technical outcome is verified; ticket closure alone must not clear the row
 - Verkada integration rules:
   - user accounts in Verkada are expected to arrive through SCIM rather than bespoke provisioning in this application
   - Facilities may still need a ticket to create campus alarm codes for a new employee

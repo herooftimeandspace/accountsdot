@@ -677,6 +677,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !slices.Contains(sessionPayload.AllowedRoutes, "/reports/security-issues") {
 			t.Fatalf("expected /reports/security-issues in allowed routes: %#v", sessionPayload.AllowedRoutes)
 		}
+		if slices.Contains(sessionPayload.AllowedRoutes, "/reports/ticketing-human-work") {
+			t.Fatalf("retired ticketing-human-work report should not be in allowed routes: %#v", sessionPayload.AllowedRoutes)
+		}
 
 		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
 		pageReq.AddCookie(cookie)
