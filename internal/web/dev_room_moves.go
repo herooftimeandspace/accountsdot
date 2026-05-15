@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -1021,7 +1022,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		resolutionSteps := row.ResolutionSteps
 		externalSystems := row.ExternalSystems
 		fallbackTicket := row.FallbackTicket
-		fallbackTicketHref := row.FallbackTicketHref
+		fallbackTicketHref := sanitizeRoomMoveFallbackTicketHref(row.FallbackTicketHref)
 		fallbackStatus := row.FallbackStatus
 		technicalOutcome := row.TechnicalOutcome
 		phoneOutcome := person.Phone
@@ -1100,6 +1101,19 @@ func normalizeRoomMoveDestinationRole(role string) string {
 		return "tertiary"
 	case "slg_only", "slg-only", "member":
 		return "member"
+	default:
+		return ""
+	}
+}
+
+func sanitizeRoomMoveFallbackTicketHref(href string) string {
+	parsed, err := url.Parse(strings.TrimSpace(href))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	switch parsed.Scheme {
+	case "http", "https":
+		return parsed.String()
 	default:
 		return ""
 	}

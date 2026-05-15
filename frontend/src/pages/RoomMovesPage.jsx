@@ -101,6 +101,18 @@ function statusClass(status) {
   return "room-moves-runtime__status room-moves-runtime__status--neutral";
 }
 
+function safeExternalHref(href) {
+  if (typeof href !== "string" || href.trim() === "") {
+    return "";
+  }
+  try {
+    const parsed = new URL(href, window.location.origin);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
 function roomOptionsForSite(rooms, siteId) {
   const options = [];
   const seen = new Set();
@@ -398,6 +410,8 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
     onClose();
   }
 
+  const fallbackTicketHref = safeExternalHref(row?.fallback_ticket_href);
+
   return (
     <RuntimeDrawer title={row ? row.person : "Move Person"} onClose={onClose}>
       {row?.warning ? (
@@ -424,11 +438,11 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           { label: "External systems", value: showsManualAction ? detailLines(row?.external_systems) : "" },
           {
             label: "Fallback ticket",
-            value: row?.fallback_ticket ? (
-              <a href={row.fallback_ticket_href || "#"} target="_blank" rel="noreferrer">
+            value: row?.fallback_ticket && fallbackTicketHref ? (
+              <a href={fallbackTicketHref} target="_blank" rel="noreferrer">
                 {row.fallback_ticket}
               </a>
-            ) : "",
+            ) : row?.fallback_ticket || "",
           },
           { label: "Ticket status", value: row?.fallback_status },
           { label: "Technical outcome", value: row?.technical_outcome },

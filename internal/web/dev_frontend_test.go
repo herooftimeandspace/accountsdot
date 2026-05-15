@@ -398,21 +398,23 @@ type roomMoveDraftTestPayload struct {
 	CanManageDistrict bool     `json:"can_manage_district"`
 	Warnings          []string `json:"warnings"`
 	Rows              []struct {
-		PersonID          string   `json:"person_id"`
-		CurrentSiteID     string   `json:"current_site_id"`
-		CurrentRoomID     string   `json:"current_room_id"`
-		CurrentRoom       string   `json:"current_room"`
-		DestinationSiteID string   `json:"destination_site_id"`
-		DestinationRoomID string   `json:"destination_room_id"`
-		DestinationRoom   string   `json:"destination_room"`
-		DestinationRole   string   `json:"destination_role"`
-		Action            string   `json:"action"`
-		Warning           string   `json:"warning"`
-		Phone             string   `json:"phone"`
-		AttentionReason   string   `json:"attention_reason"`
-		AutomationOutcome string   `json:"automation_outcome"`
-		ResolutionSteps   []string `json:"resolution_steps"`
-		ExternalSystems   []string `json:"external_systems"`
+		PersonID           string   `json:"person_id"`
+		CurrentSiteID      string   `json:"current_site_id"`
+		CurrentRoomID      string   `json:"current_room_id"`
+		CurrentRoom        string   `json:"current_room"`
+		DestinationSiteID  string   `json:"destination_site_id"`
+		DestinationRoomID  string   `json:"destination_room_id"`
+		DestinationRoom    string   `json:"destination_room"`
+		DestinationRole    string   `json:"destination_role"`
+		Action             string   `json:"action"`
+		Warning            string   `json:"warning"`
+		Phone              string   `json:"phone"`
+		AttentionReason    string   `json:"attention_reason"`
+		AutomationOutcome  string   `json:"automation_outcome"`
+		ResolutionSteps    []string `json:"resolution_steps"`
+		ExternalSystems    []string `json:"external_systems"`
+		FallbackTicket     string   `json:"fallback_ticket"`
+		FallbackTicketHref string   `json:"fallback_ticket_href"`
 	} `json:"rows"`
 }
 
@@ -2831,7 +2833,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"scope_site_id":  build.Draft.ScopeSiteID,
 			"effective_date": "2026-07-27",
 			"rows": []map[string]string{
-				{"person_id": "alex-ramirez", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+				{"person_id": "alex-ramirez", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "fallback_ticket": "IT-00001", "fallback_ticket_href": "javascript:alert(1)"},
 				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "action": "removal"},
 				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "action": "add"},
 			},
@@ -2850,6 +2852,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		updated := decodeJSON[roomMoveDraftTestResponse](t, rec)
 		if len(updated.Draft.Rows) != 3 || updated.Draft.Rows[0].DestinationRoomID != "cla-a108" {
 			t.Fatalf("updated build-list rows = %#v, want selected destination room", updated.Draft.Rows)
+		}
+		if updated.Draft.Rows[0].FallbackTicket != "IT-00001" || updated.Draft.Rows[0].FallbackTicketHref != "" {
+			t.Fatalf("updated fallback ticket = %#v, want label retained with unsafe href removed", updated.Draft.Rows[0])
 		}
 		if updated.Draft.Rows[1].Action != "removal" || updated.Draft.Rows[1].DestinationRoomID != "none" {
 			t.Fatalf("updated removal row = %#v, want destination room cleared to none", updated.Draft.Rows[1])
