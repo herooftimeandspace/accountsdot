@@ -19,7 +19,8 @@ function optionId(listboxId, value) {
 /**
  * RuntimeSelectDropdown renders the shared implemented-page select primitive.
  * It owns the visible control and listbox overlay so `.pen` text, drawer
- * content, and browser-native menus cannot drift behind the active dropdown.
+ * content, and browser-native menus cannot drift behind the active dropdown,
+ * then closes the overlay when keyboard or pointer focus leaves the control.
  */
 export function RuntimeSelectDropdown({
   label,
@@ -61,6 +62,12 @@ export function RuntimeSelectDropdown({
     setIsOpen(false);
   }
 
+  function handleFocusLeave(event) {
+    if (!rootRef.current?.contains(event.relatedTarget)) {
+      setIsOpen(false);
+    }
+  }
+
   function handleKeyDown(event) {
     if (event.key === "Escape") {
       setIsOpen(false);
@@ -85,7 +92,12 @@ export function RuntimeSelectDropdown({
   }
 
   return (
-    <div ref={rootRef} className={`runtime-dropdown ${className}`.trim()} onKeyDown={handleKeyDown}>
+    <div
+      ref={rootRef}
+      className={`runtime-dropdown ${className}`.trim()}
+      onBlur={handleFocusLeave}
+      onKeyDown={handleKeyDown}
+    >
       <button
         type="button"
         className={`runtime-dropdown__button ${buttonClassName}`.trim()}
@@ -107,6 +119,7 @@ export function RuntimeSelectDropdown({
               id={optionId(listboxId, option.value)}
               type="button"
               role="option"
+              tabIndex={-1}
               aria-selected={option.value === selectedOption.value}
               className={`runtime-dropdown__option ${index === activeIndex ? "runtime-dropdown__option--active" : ""}`.trim()}
               onMouseEnter={() => setActiveIndex(index)}
@@ -124,7 +137,8 @@ export function RuntimeSelectDropdown({
 /**
  * RuntimeCombobox renders an input-anchored listbox for DEV autocomplete
  * flows. Callers keep owning filtering and commit semantics while this shared
- * primitive handles overlay placement, stacking, Escape, and pointer selection.
+ * primitive handles overlay placement, stacking, Escape, blur commits, and
+ * pointer selection.
  */
 export function RuntimeCombobox({
   label,
@@ -166,6 +180,11 @@ export function RuntimeCombobox({
     setIsOpen(false);
   }
 
+  function handleInputBlur(event) {
+    onCommit?.(event.target.value);
+    setIsOpen(false);
+  }
+
   function handleKeyDown(event) {
     if (event.key === "Escape") {
       setIsOpen(false);
@@ -204,7 +223,7 @@ export function RuntimeCombobox({
           onInput?.(event.target.value);
           setIsOpen(true);
         }}
-        onBlur={(event) => onCommit?.(event.target.value)}
+        onBlur={handleInputBlur}
         onKeyDown={handleKeyDown}
       />
       {isOpen && normalizedOptions.length ? (
@@ -215,6 +234,7 @@ export function RuntimeCombobox({
               id={optionId(listboxId, option.value)}
               type="button"
               role="option"
+              tabIndex={-1}
               aria-selected={index === activeIndex}
               className={`runtime-combobox__option ${index === activeIndex ? "runtime-combobox__option--active" : ""}`.trim()}
               onMouseDown={(event) => event.preventDefault()}
