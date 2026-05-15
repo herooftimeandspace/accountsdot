@@ -2795,6 +2795,10 @@ input {
   background: rgba(215, 53, 51, 0.08);
 }
 
+.security-issues-runtime__drawer .security-issues-runtime__warning + .runtime-drawer__details {
+  margin-top: 18px;
+}
+
 .security-issues-runtime__warning p,
 .security-issues-runtime__action p {
   margin: 0;
