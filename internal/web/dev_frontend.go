@@ -1031,8 +1031,11 @@ func decodeDevFeatureFlagUpdateRequest(w http.ResponseWriter, r *http.Request) (
 }
 
 // handleDevDataQualityPage serves the DEV Data Quality page payload. The route
-// requires development mode, a signed-in persona, and feature-flag route access;
-// successful responses contain mock queue data consumed by the React page.
+// requires development mode, a signed-in IT Admin persona, and feature-flag
+// route access; successful responses contain the awareness queue consumed by
+// the React page. The row actions intentionally point toward owner surfaces
+// rather than local correction buttons because this page escalates district-wide
+// issues but does not edit HR, site, student, or provider source records.
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -1073,11 +1076,11 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 			},
 			Queue: dataQualityQueuePayload{
 				Rows: []dataQualityQueueRow{
-					{Issue: "Unmapped job title", Source: "Escape / SFTP", Owner: "HR + IT", Impact: "Blocks access bundle", NextAction: "Map title"},
-					{Issue: "Room mismatch", Source: "Aeries", Owner: "Site Secretary", Impact: "Blocks sync", NextAction: "Confirm room"},
-					{Issue: "Google-active / Aeries-inactive", Source: "Google + Aeries", Owner: "IT", Impact: "Security review", NextAction: "Schedule deprovision"},
-					{Issue: "Missing mandatory field", Source: "HR intake", Owner: "HR", Impact: "Blocks onboarding", NextAction: "Update record"},
-					{Issue: "Site mismatch", Source: "Escape / Aeries", Owner: "HR", Impact: "Blocks baseline site selection", NextAction: "Apply temporary override"},
+					{Issue: "Unmapped job title", Source: "Escape / SFTP", Owner: "HR + IT", Impact: "Blocks access bundle", NextAction: "Review in HR lifecycle"},
+					{Issue: "Room mismatch", Source: "Aeries", Owner: "Site Secretary", Impact: "Blocks sync", NextAction: "Route to site owner"},
+					{Issue: "Google-active / Aeries-inactive", Source: "Google + Aeries", Owner: "IT", Impact: "Security review", NextAction: "Review in Admin"},
+					{Issue: "Missing mandatory field", Source: "HR intake", Owner: "HR", Impact: "Blocks onboarding", NextAction: "Complete in Onboarding"},
+					{Issue: "Site mismatch", Source: "Escape / Aeries", Owner: "HR", Impact: "Blocks baseline site selection", NextAction: "Review in HR lifecycle"},
 				},
 			},
 		},
