@@ -1421,6 +1421,7 @@ function buildQualityGate(result, { duplicateTransitionIndexes = [] } = {}) {
   const refreshCoverage = buildRefreshCoverage(result.routes, result.refreshSamples, result.refreshes);
   const staleCurrentRoutePlan = result.currentRoutePlan?.differsFromMergedArtifacts === true;
   const invalidDirectedEdgeCoverage = result.transitionCoverage?.valid === false || result.coverage?.valid === false;
+  const devServerHealthFailed = result.devServerHealthy === false;
 
   const blockers = {
     transitionFailures: transitionFailures.length,
@@ -1437,6 +1438,7 @@ function buildQualityGate(result, { duplicateTransitionIndexes = [] } = {}) {
     invalidDirectedEdgeCoverage,
     routeCountMismatch,
     directedEdgeCountMismatch,
+    devServerHealthFailed,
   };
 
   const passed = Object.values(blockers).every((value) => value === 0 || value === false);
@@ -1455,6 +1457,7 @@ function buildQualityGate(result, { duplicateTransitionIndexes = [] } = {}) {
     blockers.invalidDirectedEdgeCoverage ? "directed-edge coverage is invalid" : null,
     blockers.routeCountMismatch ? "route-count mismatch with current route plan" : null,
     blockers.directedEdgeCountMismatch ? "directed-transition count mismatch with current route plan" : null,
+    blockers.devServerHealthFailed ? "DEV route preflight reported unhealthy server startup" : null,
   ].filter(Boolean);
 
   return {
