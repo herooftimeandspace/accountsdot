@@ -174,6 +174,8 @@ Mutation routes include:
 
 `internal/web/dev_room_moves.go` creates, updates, transitions, cancels, deletes, applies, and schedules reverts for mock room-move drafts. These mutations model future room, extension, and Zoom workflow effects in memory only.
 
+Repeated-user bulk drafts remain DEV-only mock planning today. The mock normalizer groups rows for the same person, preserves all rows, allows one primary desk-phone destination, treats secondary/tertiary/later destinations as shared-line-group-only memberships, keeps common-area/CAP coverage active for non-primary destinations, and returns review warnings when the primary destination is ambiguous. This models planned future Zoom room SLG, primary phone assignment, CAP/common-area, and IncidentIQ room association writes; it does not call Zoom, IncidentIQ, or the database.
+
 Mutation routes include:
 
 - `POST /api/v1/dev/room-moves/drafts`

@@ -117,6 +117,8 @@ Successful mutations return `roomMoveDraftResponse`:
 
 Bulk draft row actions have persisted room-clearing semantics. `change` is the default and preserves the person's current-room context while planning a destination. `add` represents a person who should be added to the selected destination room without a prior room association in this draft, so the saved payload returns `current_room_id: "none"` and a blank `current_room`. `removal` represents removing the person from room phones, shared line groups, and call queues at the site, so the saved payload always returns `destination_room_id: "none"` and `destination_room: "None"` even if the browser submitted an older destination room value.
 
+Repeated-person draft rows are normalized as one planning group after the row-level action rules run. `normalizeRoomMoveRows` keeps every row for the same person, then `applyRepeatedUserRoomMovePlanning` enforces the Phase 3 rule that only one destination may own the primary desk-phone assignment. Rows with `destination_role: "secondary"`, `destination_role: "tertiary"`, or `destination_role: "member"` become shared-line-group-only outcomes and do not overwrite existing primary phone owners. Rows with common-area/CAP destination fixtures keep that common-area coverage active unless the row is the single resolved primary destination. If the browser or future live planner sends multiple primary rows, or sends multiple repeated rows without any primary role, the mock API returns actionable warnings and holds primary phone assignment so the operator can choose a deterministic primary room before execution.
+
 ## Authorization And Persona Behavior
 
 All routes require DEV mode and an authenticated DEV persona.
@@ -147,6 +149,8 @@ Relevant tests live in `internal/web/dev_frontend_test.go`:
 - `room moves page scopes site data and admin controls by persona`
 - `room moves bulk drafts support roster and manual list lifecycle`
 - `room moves cancel pending drafts and schedule IT-only completed-job reversals`
+
+The bulk-draft lifecycle test also covers the repeated-user planning contract: a same-person three-room group with primary, secondary, and tertiary rows; CAP-preserving secondary behavior; SLG-only source fixture availability; and ambiguous multi-primary warnings.
 
 Run targeted tests with:
 

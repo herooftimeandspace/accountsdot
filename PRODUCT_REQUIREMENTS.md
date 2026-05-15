@@ -355,6 +355,12 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Success gates:
   - same-site and inter-site transfers follow the documented room/phone/SLG rules
   - bulk summer moves can be drafted, reviewed, scheduled, and committed safely
+  - batch drafts may contain the same person in two or more destination-room rows without dropping rows or treating the rows as duplicates
+  - repeated-person batches resolve exactly one primary desk-phone destination when the source data or operator selection is deterministic, and treat all other destinations as shared-line-group-only secondary, tertiary, or later-order memberships
+  - repeated-person batches preserve common-area phone or CAP coverage in secondary, tertiary, and later-order rooms; a common-area phone is retired only when the row is the resolved primary destination and human coverage has been verified
+  - people who were only shared-line-group members in the source room must not trigger source desk-phone removal or source CAP conversion; only their source classroom SLG membership is removed when the move requires it
+  - when the repeated person is the last primary source for a previous room and no replacement primary is moving into that room in the same batch, the previous room must retain safe routing through the documented common-area/CAP behavior
+  - if a repeated-person batch marks more than one destination as primary, or if it lacks enough source data to choose a primary destination, the batch must produce actionable review output instead of silently overwriting phone or SLG state
   - immediate vs batch execution follows the documented threshold rule consistently
   - multi-site batches are restricted to `IT`, while non-IT batches remain site-scoped
   - non-IT authored batches of more than `5` moves execute only through explicit off-hours cutovers
@@ -667,6 +673,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Support add, change, and removal actions per person.
 - Support warnings, primary-teacher selection, null-room outcomes, and manual ticket fallback when automation cannot complete a phone assignment safely.
 - Primary-room conflicts are not a default manual-ticket path. When a destination room already has an active primary room owner, the Room Moves review drawer must explain the conflicting primary owner, keep the existing primary phone assignment unchanged, and identify the automated outcome as adding the moving user to that room shared line group. A manual action should appear only when automation cannot plan or verify the shared-line-group outcome safely, and then the drawer must name the owner, reason, resolution steps, and linked external systems.
+- Batch Room Moves must support the same person appearing in multiple room rows, including two-room and generalized N-room cases. The planned output must keep the rows distinct, resolve one primary desk-phone owner when possible, and treat secondary, tertiary, or later-order rows as shared-line-group membership only.
+- Repeated-person planning must distinguish the person’s source relationship from the destination intent:
+  - if the person was only a shared-line-group member in the source room, the source desk phone and common-area/CAP state stay untouched
+  - if the person was the last primary source for the previous room, the previous room keeps safe routing by converting to or retaining common-area/CAP coverage unless another primary replacement is moving into that room in the same batch
+  - if the person remains primary in one room and is added to one or more additional rooms, only the primary room owns the desk-phone assignment; additional rooms receive shared-line-group membership
+  - if production data shows the person as primary for more than one room, the review surface must warn that the primary source is ambiguous and require a deterministic choice before any desk-phone reassignment
+- Repeated-person rows targeting unoccupied rooms with common-area phones must keep the common-area phone active for secondary, tertiary, and later-order shared-line-group destinations. The common-area phone may be retired only for the resolved primary destination, after the human room membership and phone assignment are verified.
 - Null-room outcomes are an automation path, not a manual review path:
   - remove the user from all assigned phones
   - remove the user from all shared line groups

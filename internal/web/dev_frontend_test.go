@@ -352,6 +352,7 @@ type roomMovesResponse struct {
 			ID            string `json:"id"`
 			SiteID        string `json:"site_id"`
 			CurrentRoomID string `json:"current_room_id"`
+			SourceRole    string `json:"source_role"`
 		} `json:"people"`
 		Rows []struct {
 			ID                string   `json:"id"`
@@ -403,6 +404,7 @@ type roomMoveDraftTestPayload struct {
 		DestinationSiteID string   `json:"destination_site_id"`
 		DestinationRoomID string   `json:"destination_room_id"`
 		DestinationRoom   string   `json:"destination_room"`
+		DestinationRole   string   `json:"destination_role"`
 		Action            string   `json:"action"`
 		Warning           string   `json:"warning"`
 		Phone             string   `json:"phone"`
@@ -2523,6 +2525,15 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 				t.Fatalf("site secretary received out-of-site room move person %#v", person)
 			}
 		}
+		foundSLGOnlyFixture := false
+		for _, person := range sitePayload.Page.People {
+			if person.ID == "casey-nguyen" && person.SourceRole == "slg_only" {
+				foundSLGOnlyFixture = true
+			}
+		}
+		if !foundSLGOnlyFixture {
+			t.Fatalf("site secretary room move people = %#v, want SLG-only repeated-user fixture", sitePayload.Page.People)
+		}
 		if len(sitePayload.Page.Rooms) == 0 || sitePayload.Page.Rooms[0].ID != "none" {
 			t.Fatalf("rooms = %#v, want None option first", sitePayload.Page.Rooms)
 		}
@@ -2834,6 +2845,126 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if updated.Draft.Rows[2].Action != "add" || updated.Draft.Rows[2].CurrentRoomID != "none" || updated.Draft.Rows[2].CurrentRoom != "" {
 			t.Fatalf("updated add row = %#v, want current room cleared", updated.Draft.Rows[2])
+		}
+
+		repeatedBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b210", "destination_role": "primary"},
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "destination_role": "secondary", "action": "add"},
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "destination_role": "tertiary", "action": "add"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal repeated-user draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(repeatedBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("repeated-user draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		repeated := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(repeated.Draft.Rows) != 3 {
+			t.Fatalf("repeated-user rows = %#v, want all three rows preserved", repeated.Draft.Rows)
+		}
+		if repeated.Draft.Rows[0].DestinationRole != "primary" || repeated.Draft.Rows[0].Phone == "Review required before primary phone assignment" {
+			t.Fatalf("repeated primary row = %#v, want resolved primary desk-phone owner", repeated.Draft.Rows[0])
+		}
+		if repeated.Draft.Rows[1].DestinationRole != "secondary" || repeated.Draft.Rows[1].Phone != "Add to room shared line group; keep common-area phone active" {
+			t.Fatalf("repeated secondary CAP row = %#v, want SLG-only CAP-preserving outcome", repeated.Draft.Rows[1])
+		}
+		if repeated.Draft.Rows[2].DestinationRole != "tertiary" || repeated.Draft.Rows[2].Warning != "" || repeated.Draft.Rows[2].Phone != "Add to room shared line group; no desk phone assignment" {
+			t.Fatalf("repeated tertiary occupied-room row = %#v, want SLG-only outcome without primary-conflict warning", repeated.Draft.Rows[2])
+		}
+		if len(repeated.Draft.Warnings) != 0 {
+			t.Fatalf("repeated-user draft warnings = %#v, want finalized row warnings only after SLG-only rewrite clears stale conflicts", repeated.Draft.Warnings)
+		}
+
+		inferredPrimaryBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b210"},
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "action": "add"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal inferred-primary repeated-user draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(inferredPrimaryBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("inferred-primary repeated-user draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		inferredPrimary := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(inferredPrimary.Draft.Warnings) != 0 {
+			t.Fatalf("inferred-primary repeated-user warnings = %#v, want source-room primary inference without manual-review warning", inferredPrimary.Draft.Warnings)
+		}
+		if inferredPrimary.Draft.Rows[0].DestinationRole != "primary" || inferredPrimary.Draft.Rows[0].Phone == "Review required before primary phone assignment" {
+			t.Fatalf("inferred-primary source-room row = %#v, want retained current room inferred as primary", inferredPrimary.Draft.Rows[0])
+		}
+		if inferredPrimary.Draft.Rows[1].DestinationRole != "secondary" || inferredPrimary.Draft.Rows[1].Phone != "Add to room shared line group; keep common-area phone active" {
+			t.Fatalf("inferred-primary added row = %#v, want secondary shared-line-group CAP coverage", inferredPrimary.Draft.Rows[1])
+		}
+
+		ambiguousBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104", "destination_role": "primary"},
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "destination_role": "primary"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal ambiguous repeated-user draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(ambiguousBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("ambiguous repeated-user draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		ambiguous := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(ambiguous.Draft.Warnings) != 1 || !strings.Contains(ambiguous.Draft.Warnings[0], "Ambiguous repeated-user primary room") {
+			t.Fatalf("ambiguous repeated-user warnings = %#v, want multi-primary warning", ambiguous.Draft.Warnings)
+		}
+		for _, row := range ambiguous.Draft.Rows {
+			if row.Phone != "Review required before primary phone assignment" || !strings.Contains(row.AutomationOutcome, "Hold primary phone assignment") {
+				t.Fatalf("ambiguous repeated-user row = %#v, want held phone assignment and actionable outcome", row)
+			}
+		}
+
+		noPrimaryBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104"},
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal no-primary repeated-user draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(noPrimaryBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("no-primary repeated-user draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		noPrimary := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(noPrimary.Draft.Warnings) != 1 || !strings.Contains(noPrimary.Draft.Warnings[0], "needs primary selection") {
+			t.Fatalf("no-primary repeated-user warnings = %#v, want primary-selection warning", noPrimary.Draft.Warnings)
 		}
 
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+build.Draft.ID+"/schedule", nil)
