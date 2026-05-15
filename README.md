@@ -184,7 +184,7 @@ Use the non-strict merge command for historical handoff context and interrupted-
 npm run perf:routes:merge:strict -- artifacts/performance
 ```
 
-Strict merge still writes the merged Markdown and JSON artifacts, but exits nonzero when the merged evidence is not release-quality. Blocking conditions include transition failures, refresh failures, Browser transport failures, app timeout rows, stale route-plan coverage, missing or duplicate transition indexes, missing refresh samples, invalid directed-edge coverage, and current route-count or directed-transition-count mismatches. The failure message names the blocking counts and points to the merged artifact paths so the Markdown summary can be attached or copied into external evidence.
+Strict merge still writes the merged Markdown and JSON artifacts, but exits nonzero when the merged evidence is not release-quality. Blocking conditions include transition failures, refresh failures, Browser transport failures, app timeout rows, stale route-plan coverage, missing or duplicate transition indexes, missing refresh samples, invalid directed-edge coverage, current route-count or directed-transition-count mismatches, and any artifact set that explicitly records `devServerHealthy: false` from the DEV session preflight. The failure message names the blocking counts and points to the merged artifact paths so the Markdown summary can be attached or copied into external evidence.
 
 The merged Markdown file is the human-readable summary to copy into external evidence. The merged JSON file is for debugging and reproducibility; keep it local unless a PR explicitly asks for a curated repository artifact.
 
