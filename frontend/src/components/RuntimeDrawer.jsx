@@ -1,8 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-/**
- * shouldCloseDrawerForPointerTarget documents runtime data flow for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
+export const DEFAULT_RUNTIME_DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
+
 function shouldCloseDrawerForPointerTarget(target) {
   if (!(target instanceof Element)) {
     return false;
@@ -17,7 +16,7 @@ function shouldCloseDrawerForPointerTarget(target) {
 }
 
 /**
- * RuntimeDetailList renders the UI surface for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * RuntimeDetailList renders label/value metadata inside shared drawers. Page drawers pass already-authorized display values here, and the helper drops empty values so rows do not create blank assistive-technology stops or visual gaps.
  */
 export function RuntimeDetailList({ items }) {
   const visibleItems = items.filter((item) => item && item.value !== undefined && item.value !== null && item.value !== "");
@@ -39,9 +38,11 @@ export function RuntimeDetailList({ items }) {
 }
 
 /**
- * RuntimeDrawer renders the UI surface for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * RuntimeDrawer is the shared right-hand drawer used by implemented pages for row details, manual workflow forms, and page help. It owns the visual shell, outside-click close behavior, and initial/restore focus handling so every caller gets the same accessible overlay behavior whether the drawer is bounded to an artboard region or pinned to the shell's right edge.
  */
 export function RuntimeDrawer({ title, onClose, children, bounds = null, className = "", ariaLive = "polite" }) {
+  const closeButtonRef = useRef(null);
+  const restoreFocusRef = useRef(null);
   const titleText = String(title);
   const titleId = `runtime-drawer-title-${titleText.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   const devToolbarClass = import.meta.env.DEV ? "runtime-drawer--dev-toolbar-offset" : "";
@@ -57,9 +58,17 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
     : undefined;
 
   useEffect(() => {
-    /**
-     * handleDocumentPointerDown handles the user or network event for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
-     */
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus({ preventScroll: true });
+
+    return () => {
+      if (restoreFocusRef.current?.isConnected) {
+        restoreFocusRef.current.focus({ preventScroll: true });
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     function handleDocumentPointerDown(event) {
       if (shouldCloseDrawerForPointerTarget(event.target)) {
         onClose();
@@ -70,17 +79,11 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
     return () => document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
   }, [onClose]);
 
-  /**
-   * handleCloseButtonPointerDown handles the user or network event for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
-   */
   function handleCloseButtonPointerDown(event) {
     event.stopPropagation();
     onClose();
   }
 
-  /**
-   * handleCloseButtonClick handles the user or network event for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
-   */
   function handleCloseButtonClick(event) {
     event.stopPropagation();
     onClose();
@@ -98,6 +101,7 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
           <h2 id={titleId}>{titleText}</h2>
           <button
             type="button"
+            ref={closeButtonRef}
             className="runtime-drawer__close"
             aria-label={`Close ${titleText.toLowerCase()} drawer`}
             onPointerDown={handleCloseButtonPointerDown}
@@ -113,7 +117,7 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
 }
 
 /**
- * RowHotspotOverlay renders the UI surface for frontend/src/components/RuntimeDrawer.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * RowHotspotOverlay places transparent buttons over generated artboard table rows. StaticPenPage and runtime-migrating pages use it to keep the `.pen` table geometry intact while React owns row selection state and drawer opening behavior.
  */
 export function RowHotspotOverlay({ rows, selectedId, onSelect, ariaLabel }) {
   return (

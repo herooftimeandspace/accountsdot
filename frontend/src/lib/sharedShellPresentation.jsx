@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import * as lucideIcons from "lucide-static";
-import { RuntimeDrawer } from "../components/RuntimeDrawer";
+import { DEFAULT_RUNTIME_DRAWER_BOUNDS, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey } from "./routeRegistry";
 
@@ -926,6 +926,9 @@ export function SharedShellScopeDropdown({
   );
 }
 
+/**
+ * SharedShellHelpOverlay places the transparent shell help hotspot over the generated help icon and opens the same bounded right drawer used by runtime row-detail surfaces. It is called from createSharedShellRenderOverlay for every implemented page with a shared shell, so the page-specific operator help copy stays attached to the canonical shell primitive instead of each page inventing drawer placement.
+ */
 function SharedShellHelpOverlay({ bounds, helpContent }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -957,7 +960,12 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
         }}
       />
       {isOpen ? (
-        <RuntimeDrawer title={helpContent.title} onClose={() => setIsOpen(false)}>
+        <RuntimeDrawer
+          title={helpContent.title}
+          bounds={DEFAULT_RUNTIME_DRAWER_BOUNDS}
+          onClose={() => setIsOpen(false)}
+          className="shared-shell-help-runtime-drawer"
+        >
           <div className="shared-shell-help-drawer">
             {sections.map((section) => (
               <section key={section.heading}>
