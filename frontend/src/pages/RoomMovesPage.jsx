@@ -23,7 +23,12 @@ const ROOM_MOVES_TABLE_COLUMNS = [
   { key: "phone", label: "Action(s)", value: (row) => row.phone || "No phone" },
   { key: "author", label: "Author", value: (row) => row.author || "DEV mock" },
   { key: "state", label: "State", value: (row) => row.state },
-  { key: "scheduled_for", label: "Scheduled", value: (row) => scheduledDisplay(row.scheduled_for) },
+  {
+    key: "scheduled_for",
+    label: "Scheduled",
+    value: (row) => scheduledDisplay(row.scheduled_for),
+    sortValue: (row) => row.scheduled_for || "",
+  },
 ];
 const BULK_COLUMNS = [
   { key: "person", label: "Person", value: (row) => [row.person, row.email, row.phone].join(" ") },
