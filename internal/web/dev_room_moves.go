@@ -135,10 +135,12 @@ type roomMoveDraftRow struct {
 	CurrentSite        string   `json:"current_site"`
 	CurrentRoomID      string   `json:"current_room_id"`
 	CurrentRoom        string   `json:"current_room"`
+	SourceRole         string   `json:"-"`
 	DestinationSiteID  string   `json:"destination_site_id"`
 	DestinationSite    string   `json:"destination_site"`
 	DestinationRoomID  string   `json:"destination_room_id"`
 	DestinationRoom    string   `json:"destination_room"`
+	DestinationRole    string   `json:"destination_role,omitempty"`
 	Phone              string   `json:"phone"`
 	Action             string   `json:"action"`
 	Warning            string   `json:"warning,omitempty"`
@@ -160,6 +162,7 @@ type roomMovePersonOption struct {
 	Site          string `json:"site"`
 	CurrentRoomID string `json:"current_room_id"`
 	CurrentRoom   string `json:"current_room"`
+	SourceRole    string `json:"source_role,omitempty"`
 	Phone         string `json:"phone"`
 }
 
@@ -918,7 +921,9 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 
 // normalizeRoomMoveRows converts client-supplied draft rows into the canonical DEV mock payload saved by createDraft
 // and updateDraft. The action-specific branches are user-visible: add rows clear prior room state, and removal rows
-// always save destination room None so reloads continue to represent removal from room phones, SLGs, and queues.
+// always save destination room None so reloads continue to represent removal from room phones, SLGs, and queues. The
+// repeated-user pass preserves every same-person row and models the Phase 3 planner contract for one primary desk-phone
+// owner plus secondary, tertiary, or later-order shared-line-group memberships.
 func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, rows []roomMoveDraftRow) ([]roomMoveDraftRow, []string, int, map[string]string) {
 	normalized := make([]roomMoveDraftRow, 0, len(rows))
 	warnings := []string{}
@@ -949,6 +954,10 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			destinationRoomID = "none"
 		} else if destinationRoomID == "" {
 			destinationRoomID = person.CurrentRoomID
+		}
+		destinationRole := normalizeRoomMoveDestinationRole(row.DestinationRole)
+		if action == "removal" {
+			destinationRole = "removal"
 		}
 		room := roomMoveRoomByID(destinationRoomID, destinationSiteID)
 		warning := row.Warning
@@ -995,10 +1004,12 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			CurrentSite:        person.Site,
 			CurrentRoomID:      currentRoomID,
 			CurrentRoom:        currentRoom,
+			SourceRole:         person.SourceRole,
 			DestinationSiteID:  destinationSiteID,
 			DestinationSite:    destinationSite.Name,
 			DestinationRoomID:  destinationRoomID,
 			DestinationRoom:    room.Label,
+			DestinationRole:    destinationRole,
 			Phone:              phoneOutcome,
 			Action:             action,
 			Warning:            warning,
@@ -1010,7 +1021,209 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			ExternalSystems:    externalSystems,
 		})
 	}
+	normalized, repeatedWarnings := applyRepeatedUserRoomMovePlanning(normalized)
+	warnings = roomMoveWarningsFromRows(normalized)
+	for _, warning := range repeatedWarnings {
+		warnings = appendUniqueString(warnings, warning)
+	}
 	return normalized, warnings, http.StatusOK, nil
+}
+
+func normalizeRoomMoveDestinationRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "primary":
+		return "primary"
+	case "secondary":
+		return "secondary"
+	case "tertiary":
+		return "tertiary"
+	case "slg_only", "slg-only", "member":
+		return "member"
+	default:
+		return ""
+	}
+}
+
+// roomMoveWarningsFromRows rebuilds draft-level warning copy after planner passes finish mutating rows. The DEV draft
+// create/update handlers use the returned list for drawer and summary gating, so it must mirror the warnings still
+// attached to saved rows instead of retaining conflicts that a later planner pass downgraded to shared-line-group work.
+func roomMoveWarningsFromRows(rows []roomMoveDraftRow) []string {
+	warnings := []string{}
+	for _, row := range rows {
+		warnings = appendUniqueString(warnings, row.Warning)
+	}
+	return warnings
+}
+
+// applyRepeatedUserRoomMovePlanning is the DEV mock stand-in for the future live Room Moves planner. It handles
+// same-person bulk rows as one planning group so rows are not dropped and secondary destinations never steal the desk
+// phone from the one resolved primary room. When no row is explicitly primary, it first uses source-role and current-room
+// data to infer the retained source room as primary when that choice is unique. Ambiguous repeated-primary input is
+// returned as actionable review output instead of silently selecting one room.
+func applyRepeatedUserRoomMovePlanning(rows []roomMoveDraftRow) ([]roomMoveDraftRow, []string) {
+	indexesByPerson := map[string][]int{}
+	for index, row := range rows {
+		indexesByPerson[row.PersonID] = append(indexesByPerson[row.PersonID], index)
+	}
+	warnings := []string{}
+	for _, indexes := range indexesByPerson {
+		if len(indexes) < 2 {
+			continue
+		}
+		activeIndexes := []int{}
+		primaryIndexes := []int{}
+		for _, index := range indexes {
+			row := rows[index]
+			if row.Action == "removal" || row.DestinationRoomID == "none" {
+				continue
+			}
+			activeIndexes = append(activeIndexes, index)
+			if row.DestinationRole == "primary" {
+				primaryIndexes = append(primaryIndexes, index)
+			}
+		}
+		if len(activeIndexes) < 2 {
+			continue
+		}
+		personName := rows[indexes[0]].Person
+		if len(primaryIndexes) == 0 {
+			if inferredPrimaryIndex, ok := inferRepeatedUserPrimaryIndex(rows, activeIndexes); ok {
+				rows[inferredPrimaryIndex].DestinationRole = "primary"
+				primaryIndexes = append(primaryIndexes, inferredPrimaryIndex)
+			}
+		}
+		switch {
+		case len(primaryIndexes) > 1:
+			roomLabels := repeatedRoomLabels(rows, primaryIndexes)
+			warning := fmt.Sprintf("Ambiguous repeated-user primary room: %s is marked primary for %s; choose one primary before execution.", personName, strings.Join(roomLabels, ", "))
+			for _, index := range activeIndexes {
+				rows[index].Warning = warning
+				rows[index].AttentionReason = fmt.Sprintf("%s appears in multiple primary destination rows, so automation cannot safely decide which room owns the desk phone.", personName)
+				rows[index].AutomationOutcome = "Hold primary phone assignment until one primary room is selected; preserve shared-line-group membership planning for the remaining destination rooms."
+				rows[index].Phone = "Review required before primary phone assignment"
+				rows[index].ResolutionSteps = []string{
+					"Select exactly one destination row as primary.",
+					"Keep additional destination rows as secondary, tertiary, or later-order shared-line-group memberships.",
+					"Re-run the Room Moves review before scheduling or applying the batch.",
+				}
+				rows[index].ExternalSystems = []string{"Zoom primary phone assignment", "Zoom room shared line group", "IncidentIQ room association"}
+			}
+			warnings = appendUniqueString(warnings, warning)
+		case len(primaryIndexes) == 1:
+			primaryIndex := primaryIndexes[0]
+			memberOrdinal := 0
+			for _, index := range activeIndexes {
+				if index == primaryIndex {
+					rows[index].Phone = repeatedPrimaryPhoneOutcome(rows[index])
+					rows[index].AutomationOutcome = repeatedPrimaryAutomationOutcome(rows[index])
+					continue
+				}
+				memberOrdinal++
+				rows[index].DestinationRole = repeatedMemberRole(memberOrdinal)
+				rows[index].Warning = ""
+				rows[index].AttentionReason = ""
+				rows[index].AutomationOutcome = repeatedMemberAutomationOutcome(rows[index])
+				rows[index].Phone = repeatedMemberPhoneOutcome(rows[index])
+				rows[index].ManualActionOwner = ""
+				rows[index].ManualActionReason = ""
+				rows[index].ResolutionSteps = []string{
+					fmt.Sprintf("Keep %s as the primary room owner for the selected primary destination row.", personName),
+					fmt.Sprintf("Add %s to the %s room shared line group only.", personName, rows[index].DestinationRoom),
+					"Verify Zoom shared-line-group membership during execution.",
+				}
+				rows[index].ExternalSystems = []string{"Zoom room shared line group", "IncidentIQ room association"}
+			}
+		default:
+			roomLabels := repeatedRoomLabels(rows, activeIndexes)
+			warning := fmt.Sprintf("Repeated-user room planning needs primary selection: %s appears in %s with no primary destination role.", personName, strings.Join(roomLabels, ", "))
+			for _, index := range activeIndexes {
+				rows[index].Warning = warning
+				rows[index].AttentionReason = fmt.Sprintf("%s appears in multiple destination rooms, but none is marked as the primary desk-phone owner.", personName)
+				rows[index].AutomationOutcome = "Hold primary phone assignment until one destination is marked primary; keep rows available for secondary or tertiary shared-line-group planning."
+				rows[index].Phone = "Review required before primary phone assignment"
+				rows[index].ResolutionSteps = []string{
+					"Mark one row as primary if the person should own a desk phone in that room.",
+					"Mark the remaining rows as secondary, tertiary, or member destinations.",
+					"Use shared-line-group-only roles when the source data shows the person is not a primary room owner.",
+				}
+				rows[index].ExternalSystems = []string{"Zoom primary phone assignment", "Zoom room shared line group", "IncidentIQ room association"}
+			}
+			warnings = appendUniqueString(warnings, warning)
+		}
+	}
+	return rows, warnings
+}
+
+// inferRepeatedUserPrimaryIndex applies the source-data branch of the repeated-user planner contract. A retained
+// current-room row can become the primary destination only when the source record says that room was a primary owner
+// role and no other retained source-room candidate exists; SLG-only source records still require explicit operator
+// selection because they do not prove desk-phone ownership.
+func inferRepeatedUserPrimaryIndex(rows []roomMoveDraftRow, activeIndexes []int) (int, bool) {
+	candidates := []int{}
+	for _, index := range activeIndexes {
+		row := rows[index]
+		if row.CurrentRoomID == "" || row.CurrentRoomID == "none" {
+			continue
+		}
+		if row.DestinationRoomID != row.CurrentRoomID {
+			continue
+		}
+		switch row.SourceRole {
+		case "primary", "last_primary":
+			candidates = append(candidates, index)
+		}
+	}
+	if len(candidates) != 1 {
+		return 0, false
+	}
+	return candidates[0], true
+}
+
+func repeatedRoomLabels(rows []roomMoveDraftRow, indexes []int) []string {
+	labels := []string{}
+	for _, index := range indexes {
+		labels = append(labels, rows[index].DestinationRoom)
+	}
+	return labels
+}
+
+func repeatedMemberRole(ordinal int) string {
+	switch ordinal {
+	case 1:
+		return "secondary"
+	case 2:
+		return "tertiary"
+	default:
+		return "member"
+	}
+}
+
+func repeatedPrimaryPhoneOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return "Assign room phone; replace common-area phone after membership is verified"
+	}
+	return row.Phone
+}
+
+func repeatedPrimaryAutomationOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return fmt.Sprintf("Make %s the primary phone owner for %s, add them to the room shared line group, then retire the common-area phone only after Zoom verifies human coverage.", row.Person, row.DestinationRoom)
+	}
+	return row.AutomationOutcome
+}
+
+func repeatedMemberPhoneOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return "Add to room shared line group; keep common-area phone active"
+	}
+	return "Add to room shared line group; no desk phone assignment"
+}
+
+func repeatedMemberAutomationOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return fmt.Sprintf("Add %s to the %s room shared line group as %s coverage and keep the common-area phone active.", row.Person, row.DestinationRoom, row.DestinationRole)
+	}
+	return fmt.Sprintf("Add %s to the %s room shared line group as %s coverage without changing the primary desk-phone owner.", row.Person, row.DestinationRoom, row.DestinationRole)
 }
 
 // seededBulkDraftFeedbackRows keeps issue #55's browser-verification fixture stable for /room-moves/bulk-draft?draft_id=rm-draft-103.
@@ -1160,11 +1373,12 @@ func roomMoveRoomsForSite(siteID string) []roomMoveRoomOption {
 
 func roomMovePeopleSeed() []roomMovePersonOption {
 	return []roomMovePersonOption{
-		{ID: "alex-ramirez", Name: "Alex Ramirez", Email: "alex.ramirez@wusd.org", EmployeeID: "103118", Role: "IT Admin", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-a104", CurrentRoom: "A-104", Phone: "51042"},
-		{ID: "morgan-lee", Name: "Morgan Lee", Email: "morgan.lee@wusd.org", EmployeeID: "103442", Role: "Teacher", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-b210", CurrentRoom: "B-210", Phone: "51017"},
+		{ID: "alex-ramirez", Name: "Alex Ramirez", Email: "alex.ramirez@wusd.org", EmployeeID: "103118", Role: "IT Admin", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-a104", CurrentRoom: "A-104", SourceRole: "primary", Phone: "51042"},
+		{ID: "morgan-lee", Name: "Morgan Lee", Email: "morgan.lee@wusd.org", EmployeeID: "103442", Role: "Teacher", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-b210", CurrentRoom: "B-210", SourceRole: "last_primary", Phone: "51017"},
+		{ID: "casey-nguyen", Name: "Casey Nguyen", Email: "casey.nguyen@wusd.org", EmployeeID: "105887", Role: "Instructional Specialist", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-a104", CurrentRoom: "A-104", SourceRole: "slg_only", Phone: ""},
 		{ID: "taylor-quinn", Name: "Taylor Quinn", Email: "taylor.quinn@wusd.org", EmployeeID: "106103", Role: "Contractor", SiteID: "desert-view", Site: "Desert View Elementary", CurrentRoomID: "none", CurrentRoom: "None", Phone: ""},
-		{ID: "jamie-reed", Name: "Jamie Reed", Email: "jamie.reed@wusd.org", EmployeeID: "103772", Role: "Teacher", SiteID: "desert-view", Site: "Desert View Elementary", CurrentRoomID: "dve-c118", CurrentRoom: "C-118", Phone: "52013"},
-		{ID: "nia-brooks", Name: "Nia Brooks", Email: "nia.brooks@wusd.org", EmployeeID: "104012", Role: "Site Secretary", SiteID: "franklin-ms", Site: "Franklin Middle School", CurrentRoomID: "fms-d102", CurrentRoom: "D-102", Phone: "53022"},
+		{ID: "jamie-reed", Name: "Jamie Reed", Email: "jamie.reed@wusd.org", EmployeeID: "103772", Role: "Teacher", SiteID: "desert-view", Site: "Desert View Elementary", CurrentRoomID: "dve-c118", CurrentRoom: "C-118", SourceRole: "last_primary", Phone: "52013"},
+		{ID: "nia-brooks", Name: "Nia Brooks", Email: "nia.brooks@wusd.org", EmployeeID: "104012", Role: "Site Secretary", SiteID: "franklin-ms", Site: "Franklin Middle School", CurrentRoomID: "fms-d102", CurrentRoom: "D-102", SourceRole: "primary", Phone: "53022"},
 	}
 }
 
@@ -1209,6 +1423,19 @@ func roomMoveActivePrimaryOwner(destinationRoomID string, movingPersonID string)
 		return "Jordan Patel", true
 	}
 	return "", false
+}
+
+// roomMoveRoomHasCommonAreaPhone marks deterministic DEV fixtures where Zoom
+// has CAP/common-area coverage for an otherwise unoccupied room. The repeated-user
+// planning pass uses this to show safe CAP-to-human or CAP-preserving outcomes
+// without touching the Room Moves UI artboards owned by the active UI branch.
+func roomMoveRoomHasCommonAreaPhone(roomID string) bool {
+	switch roomID {
+	case "cla-a108", "dve-c122", "fms-d112":
+		return true
+	default:
+		return false
+	}
 }
 
 // primaryConflictWarning is the short warning line surfaced in summary and

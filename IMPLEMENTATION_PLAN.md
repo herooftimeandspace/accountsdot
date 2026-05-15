@@ -1806,6 +1806,17 @@
   - when a bulk-draft row action is changed to `add`, the row must clear current-room state because the planned action has no prior room association
   - when a bulk-draft row action is changed to `removal`, the row must clear destination room to `None` because the planned action removes room phone, shared-line-group, and call-queue membership at the site
   - row-level `Remove` controls in bulk drafts must use the supported brand-red destructive styling
+  - repeated-person batch planning rules:
+    - the planner must group all rows for the same person before building phone, SLG, IIQ, CAP, and warning operations; it must not treat same-person rows as duplicates or let a later row overwrite an earlier row
+    - each repeated-person group may resolve at most one primary desk-phone destination; all other destination rows are secondary, tertiary, or later-order room memberships that receive Zoom room shared-line-group membership and IncidentIQ room association only
+    - primary resolution order is documented source data first, explicit operator primary selection second, and safe review warning third; row order alone is not enough to choose a primary room for live writes
+    - if exactly one row is resolved as primary, assign or update that room’s desk phone for the person, add the person to that room SLG, and plan secondary/tertiary/later rows as SLG-only without changing those rooms’ primary phone owners
+    - if no row can be resolved as primary, hold primary phone assignment and warn that the operator must select the primary row before execution; retain the candidate rows so the user does not need to recreate the batch
+    - if more than one row is resolved as primary, hold primary phone assignment and warn with the conflicting rooms so the operator can reduce the group to exactly one primary destination
+    - when a secondary, tertiary, or later-order destination room currently has a common-area phone or CAP, keep that common-area/CAP coverage active and add the person to the room SLG; do not retire CAP coverage unless that row is the resolved primary room and human coverage is verified
+    - when the person’s source relationship is SLG-only, remove only the source classroom SLG membership required by the move and leave the source desk phone and source CAP/common-area state unchanged
+    - when the person is the last primary source in the previous room, convert to or retain common-area/CAP coverage unless a different row in the same approved batch places a replacement primary into that source room
+    - ambiguous live data where the same person appears as primary for multiple current rooms must surface `primary_conflict` review output with the person, candidate rooms, source systems, and resolution steps instead of selecting one silently
   - the phone-directory person-detail and room-detail surfaces must expose an authorized one-person corrective room-move entry point for site-scoped users when the current assignment is wrong
   - that corrective entry point must prefill the selected person, current room, current phone context, and site so the user can create a targeted correction without starting from the bulk editor
   - in Phase 1 this entry point creates or opens a targeted room-move draft only
