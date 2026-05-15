@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { DEFAULT_RUNTIME_DRAWER_BOUNDS, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeSelectDropdown } from "../components/RuntimeDropdown";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey } from "./routeRegistry";
 import { helpContentForRoute } from "./routeHelpContent";
@@ -692,8 +693,8 @@ export function SharedShellScopeDropdown({
     normalizedOptions.some((option) => option.id === value) ? value : normalizedOptions[0]?.id ?? "";
 
   return (
-    // WCAG 1.3.1/3.3.2/4.1.2: the shared scope selector is a native named form control.
-    <label
+    // WCAG 1.3.1/3.3.2/4.1.2: the shared scope selector exposes a named button/listbox control.
+    <div
       className="shared-shell-scope-dropdown"
       style={{
         position: "absolute",
@@ -704,22 +705,15 @@ export function SharedShellScopeDropdown({
         zIndex: 3,
       }}
     >
-      <span className="sr-only">{label}</span>
-      <select
-        className="shared-shell-scope-dropdown__select"
-        aria-label={label}
+      <RuntimeSelectDropdown
+        label={label}
         value={selectedValue}
-        onChange={(event) => {
-          onChange?.(event.target.value);
-        }}
-      >
-        {normalizedOptions.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        options={normalizedOptions.map((option) => ({ value: option.id, label: option.label }))}
+        onChange={(nextValue) => onChange?.(nextValue)}
+        className="shared-shell-scope-dropdown__runtime"
+        buttonClassName="shared-shell-scope-dropdown__select"
+      />
+    </div>
   );
 }
 
