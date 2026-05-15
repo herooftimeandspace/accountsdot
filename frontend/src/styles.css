@@ -1768,7 +1768,7 @@ input {
 .departing-seniors-runtime__table-header,
 .departing-seniors-runtime__row {
   display: grid;
-  grid-template-columns: 150px minmax(180px, 1fr) 118px 112px minmax(170px, 0.95fr) 132px 184px 156px;
+  grid-template-columns: 142px minmax(170px, 1fr) 112px 106px minmax(150px, 0.9fr) 128px 174px 146px;
   column-gap: 10px;
   align-items: center;
 }
@@ -1840,6 +1840,7 @@ input {
   align-items: center;
   justify-content: center;
   width: fit-content;
+  max-width: 100%;
   min-height: 24px;
   padding: 5px 10px;
   border-radius: 6px;
@@ -1847,7 +1848,7 @@ input {
   font-weight: 800;
   line-height: 1.2;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .departing-seniors-runtime__status--ready {
