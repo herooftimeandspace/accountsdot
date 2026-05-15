@@ -79,6 +79,7 @@ type roomMoveReviewRow struct {
 	Phone              string   `json:"phone"`
 	Author             string   `json:"author"`
 	State              string   `json:"state"`
+	ScheduledFor       string   `json:"scheduled_for,omitempty"`
 	Warning            string   `json:"warning,omitempty"`
 	WarningLevel       string   `json:"warning_level,omitempty"`
 	AttentionReason    string   `json:"attention_reason,omitempty"`
@@ -434,7 +435,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 	base := []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
 		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
-		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
+		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling").withScheduledFor("2026-07-27T20:00:00-07:00"),
 		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
 	}
@@ -474,6 +475,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 				Phone:              row.Phone,
 				Author:             draft.Author,
 				State:              draftStatusLabel(draft.Status),
+				ScheduledFor:       draft.ScheduledFor,
 				Warning:            row.Warning,
 				WarningLevel:       warningLevel(row.Warning),
 				AttentionReason:    row.AttentionReason,
@@ -502,6 +504,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 			Phone:             fmt.Sprintf("%d rows", len(draft.Rows)),
 			Author:            draft.Author,
 			State:             draftStatusLabel(draft.Status),
+			ScheduledFor:      draft.ScheduledFor,
 			Warning:           strings.Join(draft.Warnings, " "),
 			WarningLevel:      warningLevel(strings.Join(draft.Warnings, " ")),
 		})
@@ -514,6 +517,11 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 		}
 	}
 	return filtered
+}
+
+func (row roomMoveReviewRow) withScheduledFor(scheduledFor string) roomMoveReviewRow {
+	row.ScheduledFor = scheduledFor
+	return row
 }
 
 func seedRoomMoveReviewRow(id string, draftID string, moveType string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, phone string, author string, state string, warning string) roomMoveReviewRow {
@@ -566,7 +574,6 @@ func primaryConflictReviewRow(id string, draftID string, person string, email st
 	row.AttentionReason = primaryConflictAttentionReason(person, destinationRoom, "Jordan Patel")
 	row.AutomationOutcome = primaryConflictAutomationOutcome(person, destinationRoom)
 	row.ResolutionSteps = primaryConflictResolutionSteps(person, destinationRoom)
-	row.ExternalSystems = primaryConflictExternalSystems()
 	return row
 }
 
@@ -574,7 +581,7 @@ func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	for _, row := range []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
 		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
-		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
+		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling").withScheduledFor("2026-07-27T20:00:00-07:00"),
 		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
 	} {
@@ -953,7 +960,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		externalSystems := row.ExternalSystems
 		phoneOutcome := person.Phone
 		if destinationRoomID == "none" && person.CurrentRoomID != "none" {
-			warning = "Destination room is none; phone and room assignments will be removed."
+			warning = fmt.Sprintf("Destination room for %s is None; phone and room assignments will be removed.", person.Name)
 			warnings = appendUniqueString(warnings, warning)
 			phoneOutcome = "Remove phone and SLGs; convert room to common area"
 		}
@@ -966,7 +973,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			attentionReason = primaryConflictAttentionReason(person.Name, room.Label, primaryOwner)
 			automationOutcome = primaryConflictAutomationOutcome(person.Name, room.Label)
 			resolutionSteps = primaryConflictResolutionSteps(person.Name, room.Label)
-			externalSystems = primaryConflictExternalSystems()
+			externalSystems = nil
 			phoneOutcome = "Add to room shared line group; keep primary phone owner"
 			manualActionOwner = ""
 			manualActionReason = ""
@@ -1236,14 +1243,6 @@ func primaryConflictResolutionSteps(personName string, destinationRoom string) [
 		fmt.Sprintf("Schedule or apply the draft; automation will add %s to the %s room shared line group.", personName, destinationRoom),
 		"Escalate to IT only if Zoom cannot verify the shared line group membership during execution.",
 	}
-}
-
-// primaryConflictExternalSystems lists the external systems named in the drawer
-// explanation for this mock automation path. Keeping the list structured lets
-// tests lock down that the row points operators at Zoom rather than a generic
-// manual-ticket bucket.
-func primaryConflictExternalSystems() []string {
-	return []string{"Zoom room shared line group", "IncidentIQ room association"}
 }
 
 func draftRowFromPerson(person roomMovePersonOption, destinationSiteID string, destinationRoomID string) roomMoveDraftRow {

@@ -20,9 +20,10 @@ const ROOM_MOVES_TABLE_COLUMNS = [
   { key: "person", label: "Name", value: (row) => row.person },
   { key: "current_room", label: "Current", value: (row) => row.current_room },
   { key: "destination_room", label: "Target", value: (row) => row.destination_room },
-  { key: "phone", label: "Phone", value: (row) => row.phone || "No phone" },
+  { key: "phone", label: "Action(s)", value: (row) => row.phone || "No phone" },
   { key: "author", label: "Author", value: (row) => row.author || "DEV mock" },
   { key: "state", label: "State", value: (row) => row.state },
+  { key: "scheduled_for", label: "Scheduled", value: (row) => scheduledDisplay(row.scheduled_for) },
 ];
 const BULK_COLUMNS = [
   { key: "person", label: "Person", value: (row) => [row.person, row.email, row.phone].join(" ") },
@@ -177,6 +178,26 @@ function detailLines(values) {
   return values.join("\n");
 }
 
+function scheduledDisplay(value) {
+  if (!value) {
+    return "None";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Los_Angeles",
+    timeZoneName: "short",
+  }).format(date);
+  return formatted.replace(",", "");
+}
+
 function RoomMovesStatusBadge({ status }) {
   return <span className={statusClass(status)}>{status}</span>;
 }
@@ -196,7 +217,6 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
       style={{ left: bounds.left, top: bounds.top, width: bounds.width, minHeight: bounds.height }}
       aria-labelledby={ROOM_MOVES_HEADING_ID}
     >
-      <div className="room-moves-runtime__table-title">Move Set Review</div>
       <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
       <div className="room-moves-runtime__table-header">
         {ROOM_MOVES_TABLE_COLUMNS.map((column) => (
@@ -226,6 +246,7 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
               <div>{row.phone}</div>
               <div>{row.author || "DEV mock"}</div>
               <div><RoomMovesStatusBadge status={row.state} /></div>
+              <div>{scheduledDisplay(row.scheduled_for)}</div>
             </button>
             <button
               type="button"
@@ -290,6 +311,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
 
   const autocompleteOptions = people.filter((person) => personMatchesQuery(person, query));
   const availableRooms = roomOptionsForSite(rooms, destinationSiteId);
+  const showsManualAction = Boolean(row?.manual_action_owner || row?.manual_action_reason);
 
   function applyPersonValue(value) {
     setQuery(value);
@@ -387,7 +409,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           { label: "Manual owner", value: row?.manual_action_owner },
           { label: "Manual reason", value: row?.manual_action_reason },
           { label: "Resolution steps", value: detailLines(row?.resolution_steps) },
-          { label: "External systems", value: detailLines(row?.external_systems) },
+          { label: "External systems", value: showsManualAction ? detailLines(row?.external_systems) : "" },
         ]}
       />
       <div className="runtime-drawer__section">

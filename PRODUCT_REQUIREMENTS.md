@@ -339,8 +339,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Runtime detail placement:
   - execution rules and cutover-control guidance live in the Room Moves help drawer, not as fixed page-side panels
   - one-person move warnings appear in the right drawer
-  - bulk-draft warnings appear in a top warning bar on the bulk draft page
-  - the main Room Moves review table includes both single moves and scheduled bulk moves visible to the persona; bulk rows render as `Bulk Move`, and every row shows its move author immediately before the state badge
+  - bulk-draft warnings appear in a top warning bar on the bulk draft page, with person-specific bullets for row-level warnings so operators can identify the affected employee without scanning every row
+  - the main Room Moves review table includes both single moves and scheduled bulk moves visible to the persona; bulk rows render as `Bulk Move`, every row shows its move author immediately before the state badge, and a read-only `Scheduled` column immediately after state shows the scheduled cutover timestamp or `None`
   - IT Admin can view and open all site-scoped and district-wide Room Moves drafts visible in DEV, regardless of which operator authored the draft
 - Batch author scope:
   - `IT` may author multi-site batches

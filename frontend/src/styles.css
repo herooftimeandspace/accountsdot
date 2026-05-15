@@ -1149,7 +1149,7 @@ input {
   position: absolute;
   z-index: 3;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto 1fr;
   padding: 14px 18px 18px;
   border: 1px solid var(--color-canvas);
   border-radius: 8px;
@@ -1159,22 +1159,16 @@ input {
   overflow: visible;
 }
 
-.room-moves-runtime__table-title {
-  margin-bottom: 14px;
-  font-size: 13px;
-  font-weight: 800;
-}
-
 .room-moves-runtime__table-header,
 .room-moves-runtime__row-open {
   display: grid;
-  grid-template-columns: minmax(150px, 1.35fr) 108px 108px minmax(130px, 1fr) minmax(130px, 1fr) 104px 112px;
-  column-gap: 18px;
+  grid-template-columns: minmax(132px, 1.25fr) 90px 90px minmax(148px, 1.2fr) minmax(100px, 0.8fr) 88px minmax(116px, 0.95fr) 112px;
+  column-gap: 12px;
   align-items: start;
 }
 
 .room-moves-runtime__row-open {
-  grid-template-columns: minmax(150px, 1.35fr) 108px 108px minmax(130px, 1fr) minmax(130px, 1fr) 104px;
+  grid-template-columns: minmax(132px, 1.25fr) 90px 90px minmax(148px, 1.2fr) minmax(100px, 0.8fr) 88px minmax(116px, 0.95fr);
 }
 
 .room-moves-runtime__table-header {
