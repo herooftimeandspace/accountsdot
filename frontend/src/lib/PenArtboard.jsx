@@ -1,24 +1,81 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { devMark } from "./devPerformance";
+import { sharedShellSpec } from "../generated/artboards.generated.js";
 
 const ACCESSIBLE_UI_FONT_STACK = '"Atkinson Hyperlegible", Arial, Helvetica, sans-serif';
+const SHARED_SHELL_HEADER_NODE_IDS = new Set([
+  "f3",
+  sharedShellSpec.sharedShellIds.scopeField,
+  sharedShellSpec.sharedShellIds.scopeTitle,
+  sharedShellSpec.sharedShellIds.scopeSubtitle,
+  sharedShellSpec.sharedShellIds.searchField,
+  sharedShellSpec.sharedShellIds.searchIcon,
+  sharedShellSpec.sharedShellIds.searchPlaceholder,
+  sharedShellSpec.sharedShellIds.notificationBubble,
+  sharedShellSpec.sharedShellIds.notificationCount,
+  sharedShellSpec.sharedShellIds.helpIcon,
+  sharedShellSpec.sharedShellIds.accountBox,
+  sharedShellSpec.sharedShellIds.avatar,
+  sharedShellSpec.sharedShellIds.initials,
+  sharedShellSpec.sharedShellIds.userName,
+  sharedShellSpec.sharedShellIds.userRole,
+  "p14",
+  "p15",
+  "p16",
+  "p17",
+  "p18",
+  "p19",
+  "p20",
+  "p21",
+  "p24",
+  "p28",
+  "p29",
+  "p32",
+  "p33",
+  "p40",
+]);
+const SHARED_SHELL_SIDEBAR_NODE_IDS = new Set([
+  "f4",
+  "img5",
+  "t6",
+  "t7",
+  "t9",
+  "l10",
+  sharedShellSpec.sharedShellIds.navHighlight,
+  sharedShellSpec.sharedShellIds.supportIcon,
+  sharedShellSpec.sharedShellIds.supportLabel,
+  sharedShellSpec.sharedShellIds.platformStatusLabel,
+  sharedShellSpec.sharedShellIds.platformStatusDot,
+  sharedShellSpec.sharedShellIds.platformStatusValue,
+  "p93",
+  "p94",
+  ...Object.values(sharedShellSpec.navGroups).flat(),
+]);
+const SHARED_SHELL_STICKY_NODE_IDS = new Set([
+  ...SHARED_SHELL_HEADER_NODE_IDS,
+  ...SHARED_SHELL_SIDEBAR_NODE_IDS,
+]);
+
+function sharedShellStickyLayer(node) {
+  if (!SHARED_SHELL_STICKY_NODE_IDS.has(node.id)) {
+    return null;
+  }
+  return SHARED_SHELL_HEADER_NODE_IDS.has(node.id) ? "header" : "sidebar";
+}
 
 /**
- * clone documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * clone copies generated artboard JSON before the renderer adds duplicate-id suffixes. Page components receive immutable module-level artboard objects from generatedArtboards, so cloning keeps one route render from changing the shared definition used by later route transitions or prefetches.
  */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 /**
- * uniquifyNodeIds documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * uniquifyNodeIds preserves generated artboard rendering when Pencil exports repeated child ids. React keys and DOM data-node-id attributes must be stable inside one rendered artboard, so later duplicates receive deterministic suffixes while the first occurrence keeps the canonical id used by shell overlays and runtime hotspots.
  */
 function uniquifyNodeIds(artboard) {
   const seen = new Map();
 
-  /**
-   * visit documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
-   */
   function visit(node) {
     const count = (seen.get(node.id) ?? 0) + 1;
     seen.set(node.id, count);
@@ -35,7 +92,7 @@ function uniquifyNodeIds(artboard) {
 }
 
 /**
- * resolveFontFamily builds derived data for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * resolveFontFamily keeps generated text readable when a `.pen` file names a display or system font. Arial-like source fonts collapse to the accessible UI stack, while display fonts keep their requested family with the UI stack as fallback.
  */
 function resolveFontFamily(fontFamily) {
   if (!fontFamily || /arial|helvetica/i.test(fontFamily)) {
@@ -45,7 +102,7 @@ function resolveFontFamily(fontFamily) {
 }
 
 /**
- * buildNodeIndex builds derived data for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * buildNodeIndex gives runtime overlays O(1) access to generated nodes by id. Page overlays use the map to align native controls and row hotspots to the authoritative `.pen` geometry without hard-coding duplicated layout measurements in each page.
  */
 function buildNodeIndex(node, map = new Map()) {
   map.set(node.id, node);
@@ -56,7 +113,7 @@ function buildNodeIndex(node, map = new Map()) {
 }
 
 /**
- * resolveTextContent builds derived data for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * resolveTextContent applies runtime-safe text overrides to generated visual nodes. Shared shell and page components use this to replace persona, scope, refresh, and mock payload labels while leaving all other `.pen` text faithful to the generated source.
  */
 function resolveTextContent(node, textOverrides) {
   return Object.prototype.hasOwnProperty.call(textOverrides, node.id)
@@ -65,7 +122,7 @@ function resolveTextContent(node, textOverrides) {
 }
 
 /**
- * estimateTextNodeBox documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * estimateTextNodeBox approximates the clickable box for text-backed hotspots. It mirrors the renderer's wrapping assumptions closely enough for native buttons and links to cover generated labels when the `.pen` node has no fixed exported height.
  */
 function estimateTextNodeBox(node, textOverrides) {
   const content = String(resolveTextContent(node, textOverrides) ?? "");
@@ -86,7 +143,7 @@ function estimateTextNodeBox(node, textOverrides) {
 }
 
 /**
- * drawPath documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * drawPath renders Pencil path geometry as visual-only SVG. Icons, line art, and small controls remain non-semantic here because page containers and runtime overlays provide the accessible names and interaction roles.
  */
 function drawPath(node) {
   const stroke = node.stroke?.fill;
@@ -122,12 +179,14 @@ function drawPath(node) {
 }
 
 /**
- * renderNode documents runtime data flow for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * renderNode converts generated `.pen` nodes into absolutely positioned visual DOM. It also tags shared-shell header/sidebar nodes so the shared CSS can anchor chrome while the generated page pane scrolls; runtime overlays remain responsible for actual form controls, links, row selection, and drawer state.
  */
 function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
   if (hiddenNodeIds.has(node.id)) {
     return null;
   }
+  const stickyLayer = sharedShellStickyLayer(node);
+  const stickyClassName = stickyLayer ? `pen-node--shared-shell-sticky pen-node--shared-shell-${stickyLayer}` : undefined;
 
   if (node.type === "frame") {
     const imageFill =
@@ -138,7 +197,9 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
       <div
         key={node.id}
         data-node-id={node.id}
+        data-shared-shell-sticky={stickyLayer ?? undefined}
         aria-hidden="true"
+        className={stickyClassName}
         style={{
           position: "absolute",
           left: node.x ?? 0,
@@ -177,7 +238,9 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
       <div
         key={node.id}
         data-node-id={node.id}
+        data-shared-shell-sticky={stickyLayer ?? undefined}
         aria-hidden="true"
+        className={stickyClassName}
         style={{
           position: "absolute",
           left: node.x ?? 0,
@@ -208,7 +271,9 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
       <div
         key={node.id}
         data-node-id={node.id}
+        data-shared-shell-sticky={stickyLayer ?? undefined}
         aria-hidden="true"
+        className={stickyClassName}
         style={{
           position: "absolute",
           left: node.x ?? 0,
@@ -226,14 +291,35 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
   }
 
   if (node.type === "path") {
-    return drawPath(node);
+    const path = drawPath(node);
+    if (!stickyLayer) {
+      return path;
+    }
+    return (
+      <span
+        key={node.id}
+        data-node-id={node.id}
+        data-shared-shell-sticky={stickyLayer}
+        className={stickyClassName}
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: node.x ?? 0,
+          top: node.y ?? 0,
+          width: node.width ?? 0,
+          height: node.height ?? 0,
+        }}
+      >
+        {drawPath({ ...node, x: 0, y: 0 })}
+      </span>
+    );
   }
 
   return null;
 }
 
 /**
- * PenArtboard renders the UI surface for frontend/src/lib/PenArtboard.jsx. Implemented pages call this renderer helper to draw .pen-derived nodes; debug it with artboard node data, text overrides, hidden node ids, and image overrides. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * PenArtboard is the shared renderer for implemented `.pen` pages. Static and runtime-backed pages pass generated artboard JSON, hidden-node rules, text/image overrides, and an optional overlay callback; this component measures the available width, scales the visual artboard with CSS zoom so anchored shell layers keep their viewport behavior, and exposes the node index to overlays for precise native controls.
  */
 export function PenArtboard({
   artboard,
@@ -281,8 +367,7 @@ export function PenArtboard({
         style={{
           width: normalizedArtboard.width,
           height: normalizedArtboard.height,
-          transform: `scale(${scale})`,
-          transformOrigin: "top left",
+          zoom: scale,
           background:
             typeof normalizedArtboard.fill === "string"
               ? normalizedArtboard.fill

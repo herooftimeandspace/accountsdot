@@ -100,6 +100,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - if a user is already authenticated with an authorized Google session, `/login` should redirect directly to `/dashboard`
   - after logout, the browser should return to `/login`
   - all logged-in implemented pages should reuse the shared shell from `docs/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header base
+  - all logged-in implemented pages should use the shared inner-page scroll container so page content scrolls while the shared header and left sidebar remain anchored
+  - shared row-detail drawers and page-help drawers should anchor to the right edge directly below the shared header, avoid normal internal drawer scrolling, and rely on the shared page scroll range for long content rather than page-local drawer scrollbars
   - all existing implemented `.pen` pages should have stable frontend routes even when richer page behavior is not yet complete
   - the reusable logged-in shell should filter sidebar visibility by the user's allowed routes
   - documented nested route buttons should appear only when their exact child route is in the user's allowed route set, and they should compact with the same no-gap behavior as top-level sidebar rows
@@ -741,7 +743,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Unimplemented pages may continue to use the legacy mock/wireframe generation path until they are individually migrated.
 - When design revisions, annotation resolutions, or manual `.pen` adjustments materially affect current or future implementation behavior, visibility rules, interaction rules, shared-shell expectations, or phase-delivery assumptions, update this PRD and `IMPLEMENTATION_PLAN.md` in the same pass.
 - For implemented pages, globally shared shell controls such as the branding block, top search field, notification/help icons, user dropdown, and platform-status row must be sized and aligned for the longest supported persona labels and current approved branding assets without clipping, overlap, or text/image collisions.
-- Implemented row-level detail and context surfaces should use the shared right-hand runtime drawer primitive rather than fixed right-side static panels. The drawer is closed by default, opens from an explicit row selection, refreshes in place when another row is selected, and closes through its upper-right `X`.
+- Implemented row-level detail and context surfaces should use the shared right-hand runtime drawer primitive rather than fixed right-side static panels. The drawer is closed by default, opens from an explicit row selection, refreshes in place when another row is selected, closes through its upper-right `X`, anchors directly below the shared header, and does not introduce a normal internal drawer scrollbar for routine content.
 - The implemented user dropdown should render the current user's Google profile photo when one is available in the user object; if no profile photo is available, the shell should fall back to an automatically generated initials avatar.
 - The implemented user dropdown should expose a menu containing `My Profile` and `Sign Out`.
 - `My Profile` should route the current user to their profile page where preferred name and pronouns can be updated.

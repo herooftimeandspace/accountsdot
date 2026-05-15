@@ -39,11 +39,13 @@ html,
 body,
 #root {
   margin: 0;
+  height: 100%;
   min-height: 100%;
 }
 
 body {
   background: var(--color-canvas);
+  overflow: hidden;
 }
 
 .sr-only {
@@ -150,13 +152,24 @@ input {
 }
 
 .page-canvas {
-  padding: 24px 24px 48px;
+  height: 100vh;
+  overflow: auto;
+  padding: 0 24px 48px;
+  overscroll-behavior: contain;
+  scroll-padding-top: 76px;
 }
 
 .page-canvas__frame {
   position: relative;
   max-width: 1672px;
   margin: 0 auto;
+}
+
+.page-canvas--login {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+  padding: 24px 24px 48px;
 }
 
 .page-status {
@@ -191,11 +204,33 @@ input {
   width: 100%;
 }
 
+.pen-stage:has(.runtime-drawer) {
+  min-height: calc(100vh + 480px);
+}
+
 .pen-stage__artboard {
   position: relative;
   overflow: hidden;
   border-radius: 18px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+}
+
+.page-canvas:not(.page-canvas--login) .pen-stage__artboard {
+  overflow: visible;
+}
+
+.pen-node--shared-shell-sticky {
+  position: sticky !important;
+}
+
+.pen-node--shared-shell-sidebar {
+  position: fixed !important;
+  z-index: 62;
+}
+
+.pen-node--shared-shell-header {
+  position: fixed !important;
+  z-index: 66;
 }
 
 .overlay-card {
@@ -309,9 +344,16 @@ input {
   background: rgba(255, 255, 255, 0.18) !important;
 }
 
+.pen-hotspot--nav {
+  position: fixed !important;
+  z-index: 74 !important;
+}
+
 .shared-shell-search {
   display: flex;
   align-items: center;
+  position: fixed !important;
+  z-index: 72 !important;
 }
 
 .shared-shell-search__input {
@@ -346,6 +388,7 @@ input {
 .shared-shell-nav__highlight {
   border-radius: 12px;
   background: rgba(206, 183, 112, 0.9);
+  position: fixed !important;
 }
 
 .shared-shell-nav__icon,
@@ -353,6 +396,8 @@ input {
 .shared-shell-nav__dot,
 .shared-shell-nav__disclosure {
   pointer-events: none;
+  position: fixed !important;
+  z-index: 67 !important;
 }
 
 .shared-shell-nav__icon {
@@ -413,6 +458,8 @@ input {
   overflow: hidden;
   pointer-events: none;
   text-align: right;
+  position: fixed !important;
+  z-index: 72 !important;
 }
 
 .shared-shell-page-sync__label {
@@ -450,6 +497,8 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
+  position: fixed !important;
+  z-index: 73 !important;
 }
 
 .shared-shell-page-sync__button--primary {
@@ -491,10 +540,9 @@ input {
 }
 
 .runtime-drawer {
-  position: absolute;
-  top: 90px;
+  position: fixed;
+  top: 76px;
   right: 0;
-  bottom: 0;
   z-index: 80;
   width: 440px;
   color: var(--color-text);
@@ -509,12 +557,11 @@ input {
 
 .runtime-drawer__panel {
   width: 100%;
-  height: 100%;
   padding: 28px 28px 32px;
   border-left: 1px solid var(--color-canvas);
   background: #ffffff;
   box-shadow: -18px 0 42px rgba(15, 23, 42, 0.14);
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: visible;
 }
 
@@ -602,6 +649,8 @@ input {
   border-radius: 999px;
   background: transparent;
   cursor: pointer;
+  position: fixed !important;
+  z-index: 73 !important;
 }
 
 .shared-shell-help-button:focus-visible {
@@ -3063,6 +3112,8 @@ input {
 .shared-shell-scope-dropdown {
   display: flex;
   align-items: center;
+  position: fixed !important;
+  z-index: 72 !important;
 }
 
 .shared-shell-scope-dropdown__select {

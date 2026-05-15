@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
-export const DEFAULT_RUNTIME_DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
+const SHARED_HEADER_HEIGHT = 76;
+export const DEFAULT_RUNTIME_DRAWER_BOUNDS = { left: 1278, top: SHARED_HEADER_HEIGHT, width: 390, height: 818 };
 
 function shouldCloseDrawerForPointerTarget(target) {
   if (!(target instanceof Element)) {
@@ -38,7 +39,7 @@ export function RuntimeDetailList({ items }) {
 }
 
 /**
- * RuntimeDrawer is the shared right-hand drawer used by implemented pages for row details, manual workflow forms, and page help. It owns the visual shell, outside-click close behavior, and initial/restore focus handling so every caller gets the same accessible overlay behavior whether the drawer is bounded to an artboard region or pinned to the shell's right edge.
+ * RuntimeDrawer is the shared right-hand drawer used by implemented pages for row details, manual workflow forms, and page help. It owns the shell-level top offset, outside-click close behavior, and initial/restore focus handling so every caller gets the same accessible overlay behavior anchored below the shared header. The drawer panel intentionally avoids normal internal scrolling; long content expands the page scroll range instead of trapping keyboard, wheel, or trackpad users inside a nested scroll box.
  */
 export function RuntimeDrawer({ title, onClose, children, bounds = null, className = "", ariaLive = "polite" }) {
   const closeButtonRef = useRef(null);
@@ -48,11 +49,10 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
   const devToolbarClass = import.meta.env.DEV ? "runtime-drawer--dev-toolbar-offset" : "";
   const boundedStyle = bounds
     ? {
-        position: "absolute",
+        position: "fixed",
         left: bounds.left,
-        top: bounds.top,
+        top: SHARED_HEADER_HEIGHT,
         width: bounds.width,
-        height: bounds.height,
         zIndex: 80,
     }
     : undefined;
