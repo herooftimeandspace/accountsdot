@@ -189,6 +189,62 @@ function sleep(ms) {
   });
 }
 
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// The Browser batch helper calls this before touching the active tab so a
+// missing APP_ENV=development API or broken Vite proxy is recorded as a DEV
+// startup failure rather than misclassified as route readiness evidence.
+export async function checkDevRoutePerformancePreflight({ baseUrl = DEFAULT_BASE_URL, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  const sessionUrl = normalizeUrl(baseUrl, "/api/v1/dev/session");
+  const startedAt = Date.now();
+  try {
+    const response = await fetchWithTimeout(sessionUrl, timeoutMs);
+    const body = await response.text();
+    let payload = null;
+    try {
+      payload = body ? JSON.parse(body) : null;
+    } catch {
+      payload = null;
+    }
+    const healthy =
+      response.ok &&
+      payload?.environment === "development" &&
+      Array.isArray(payload?.personas) &&
+      payload.personas.length > 0;
+    return {
+      healthy,
+      checkedAt: nowISO(),
+      elapsedMs: elapsedMsSince(startedAt),
+      url: sessionUrl,
+      status: response.status,
+      statusText: response.statusText,
+      environment: payload?.environment ?? null,
+      personaCount: Array.isArray(payload?.personas) ? payload.personas.length : null,
+      reason: healthy ? "" : "DEV session endpoint did not return development persona metadata.",
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      checkedAt: nowISO(),
+      elapsedMs: elapsedMsSince(startedAt),
+      url: sessionUrl,
+      status: null,
+      statusText: "",
+      environment: null,
+      personaCount: null,
+      reason: error.name === "AbortError" ? `DEV session preflight timed out after ${timeoutMs}ms.` : error.message,
+    };
+  }
+}
+
 function normalizeUrl(baseUrl, route) {
   return new URL(route, baseUrl).toString();
 }
@@ -1102,6 +1158,7 @@ async function runRefreshJobBatch({
   persona,
   stopOnBrowserPipeError,
   devServerHealthy,
+  devServerPreflight = null,
 }) {
   const generatedAt = nowISO();
   const stamp = generatedAt.replace(/[:.]/g, "-");
@@ -1127,6 +1184,7 @@ async function runRefreshJobBatch({
       stoppedAtTransitionIndex: null,
       stopReason,
       devServerHealthy,
+      devServerPreflight,
     });
     result.refreshJobRange = refreshJobs.length
       ? {
@@ -1236,6 +1294,7 @@ function buildResult({
   stoppedAtTransitionIndex,
   stopReason,
   devServerHealthy,
+  devServerPreflight = null,
 }) {
   const performanceBudgets = normalizePerformanceBudgets(budgets);
   const normalizedTransitions = transitions.map((row) => ({
@@ -1274,6 +1333,7 @@ function buildResult({
     stoppedAtTransitionIndex,
     stopReason,
     devServerHealthy,
+    devServerPreflight,
     browserSessionRestartNeeded: stopReason === "browser_pipe_failure",
     transitions: budgetedTransitions,
     refreshes: budgetedRefreshes,
@@ -1675,6 +1735,8 @@ export async function mergePerformanceArtifacts({
   const mergedDevServerHealthy = devServerHealthValues.length === 0
     ? null
     : devServerHealthValues.every(Boolean);
+  const mergedDevServerPreflight =
+    artifacts.find((artifact) => artifact.payload.devServerPreflight)?.payload.devServerPreflight ?? null;
   const result = buildResult({
     generatedAt: nowISO(),
     baseUrl: artifacts[0].payload.baseUrl ?? DEFAULT_BASE_URL,
@@ -1694,6 +1756,7 @@ export async function mergePerformanceArtifacts({
     stoppedAtTransitionIndex: firstPipeFailure?.index ?? null,
     stopReason: firstPipeFailure ? "browser_pipe_failure" : "",
     devServerHealthy: mergedDevServerHealthy,
+    devServerPreflight: mergedDevServerPreflight,
   });
   result.sourceFiles = sourceFiles;
   result.cleanedAfterPipeFailures = true;
@@ -1792,6 +1855,9 @@ function renderMarkdownSummary(result) {
     }`,
     `Next resume index: ${result.resumeFromTransitionIndex ?? result.nextTransitionIndex ?? "n/a"}`,
     `Dev server healthy: ${result.devServerHealthy === null ? "unknown" : result.devServerHealthy ? "yes" : "no"}`,
+    result.devServerPreflight
+      ? `DEV preflight: ${result.devServerPreflight.status ?? "no status"} ${result.devServerPreflight.reason || "ok"}`
+      : null,
     `Browser session restart needed: ${result.browserSessionRestartNeeded ? "yes" : "no"}`,
     "",
     "## Failure Classes",
@@ -1905,6 +1971,7 @@ export async function runDevRoutePerformanceMatrix({
   refreshLimit = DEFAULT_REFRESH_BATCH_SIZE,
   stopOnBrowserPipeError = true,
   devServerHealthy = null,
+  devServerPreflight = null,
 } = {}) {
   if (!tab) {
     throw new Error("runDevRoutePerformanceMatrix requires the Browser skill tab object.");
@@ -1941,6 +2008,7 @@ export async function runDevRoutePerformanceMatrix({
       stoppedAtTransitionIndex,
       stopReason,
       devServerHealthy,
+      devServerPreflight,
     });
     return writeMatrixArtifacts(result, outputDir, stamp);
   };
@@ -1992,6 +2060,7 @@ export async function runDevRoutePerformanceMatrix({
     stoppedAtTransitionIndex,
     stopReason,
     devServerHealthy,
+    devServerPreflight,
     transitions,
     refreshes,
   });
@@ -2020,6 +2089,7 @@ export async function runDevRoutePerformanceBatches({
   maxBatches = DEFAULT_MAX_BROWSER_BATCHES_PER_CALL,
   stopOnBrowserPipeError = true,
   devServerHealthy = null,
+  devServerPreflight = true,
 } = {}) {
   if (!tab) {
     throw new Error("runDevRoutePerformanceBatches requires the Browser skill tab object.");
@@ -2029,6 +2099,64 @@ export async function runDevRoutePerformanceBatches({
   const edgePath = buildEdgeCoveragePath(routes);
   const coverage = validateCoverage(routes, edgePath);
   const refreshJobs = buildRefreshJobs(routes, refreshSamples);
+  const preflight =
+    devServerPreflight === false
+      ? null
+      : await checkDevRoutePerformancePreflight({
+          baseUrl,
+          timeoutMs,
+        });
+
+  if (preflight && !preflight.healthy) {
+    const generatedAt = nowISO();
+    const stamp = generatedAt.replace(/[:.]/g, "-");
+    const result = buildResult({
+      generatedAt,
+      baseUrl,
+      timeoutMs,
+      refreshSamples,
+      persona: { ensured: false, reason: "DEV route preflight failed before Browser persona selection" },
+      routes,
+      coverage,
+      startTransitionIndex: 1,
+      maxTransitions: 0,
+      refreshStartIndex: 0,
+      refreshLimit: 0,
+      includeRefreshes,
+      transitions: [],
+      refreshes: [],
+      stoppedAtTransitionIndex: null,
+      stopReason: "dev_server_unhealthy",
+      devServerHealthy: false,
+      devServerPreflight: preflight,
+    });
+    const files = await writeMatrixArtifacts(result, outputDir, stamp);
+    const plan = await planDevRoutePerformanceBatches({
+      outputDir,
+      refreshSamples,
+      transitionBatchSize,
+      refreshBatchSize,
+      includeTransitions,
+      includeRefreshes,
+    });
+    return {
+      ...plan,
+      maxBatches,
+      batches: [
+        {
+          phase: "preflight",
+          measured: 0,
+          stopReason: "dev_server_unhealthy",
+          devServerPreflight: preflight,
+          files,
+        },
+      ],
+      stopped: true,
+      devServerHealthy: false,
+      devServerPreflight: preflight,
+    };
+  }
+
   const persona = await ensureItAdminPersona(tab, timeoutMs);
   const batches = [];
   let stopped = false;
@@ -2052,7 +2180,8 @@ export async function runDevRoutePerformanceBatches({
         startTransitionIndex: transitionBatch.startTransitionIndex,
         includeRefreshes: false,
         stopOnBrowserPipeError,
-        devServerHealthy,
+        devServerHealthy: preflight ? true : devServerHealthy,
+        devServerPreflight: preflight,
       });
       batches.push({
         phase: "transition",
@@ -2079,7 +2208,8 @@ export async function runDevRoutePerformanceBatches({
         coverage,
         persona,
         stopOnBrowserPipeError,
-        devServerHealthy,
+        devServerHealthy: preflight ? true : devServerHealthy,
+        devServerPreflight: preflight,
       });
       batches.push({
         phase: "refresh",
@@ -2111,6 +2241,8 @@ export async function runDevRoutePerformanceBatches({
     maxBatches,
     batches,
     stopped,
+    devServerHealthy: preflight ? true : devServerHealthy,
+    devServerPreflight: preflight,
   };
 }
 
