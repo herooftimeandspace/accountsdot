@@ -7,6 +7,11 @@ const routeRegistrySource = fs.readFileSync(routeRegistryUrl, "utf8");
 const routeRegistryModule = await import(
   `data:text/javascript;base64,${Buffer.from(routeRegistrySource).toString("base64")}`
 );
+const routeHelpContentUrl = new URL("./routeHelpContent.js", import.meta.url);
+const routeHelpContentSource = fs.readFileSync(routeHelpContentUrl, "utf8");
+const routeHelpContentModule = await import(
+  `data:text/javascript;base64,${Buffer.from(routeHelpContentSource).toString("base64")}`
+);
 
 test("artboardKeysForAllowedRoutes only returns artboards for the active session routes", () => {
   const { artboardKeysForAllowedRoutes } = routeRegistryModule;
@@ -91,4 +96,70 @@ test("visibleNavChildrenForKey returns only documented nested routes allowed for
     }),
     []
   );
+});
+
+test("route help content covers every implemented logged-in route with training-oriented copy", () => {
+  const { APP_ROUTES } = routeRegistryModule;
+  const { helpContentForRoute, helpSourceNoteForRoute } = routeHelpContentModule;
+  const implementedLoggedInRoutes = APP_ROUTES.filter(
+    (route) => !route.public && route.kind !== "dashboard-redirect"
+  );
+
+  assert.ok(implementedLoggedInRoutes.length > 0);
+  for (const route of implementedLoggedInRoutes) {
+    const helpContent = helpContentForRoute(route.path, null);
+    const allText = [
+      helpContent.title,
+      ...helpContent.sections.flatMap((section) => [
+        section.heading,
+        ...(section.paragraphs || []),
+      ]),
+    ].join(" ");
+
+    assert.notEqual(helpContent.title, "Page help", `${route.path} must not use generic page help`);
+    assert.ok(helpContent.sections.length >= 3, `${route.path} needs enough sections to train operators`);
+    assert.match(allText, /(control|filter|search|sort|drawer|table|status|correction|source)/i);
+    assert.ok(helpSourceNoteForRoute(route.path), `${route.path} should record source documents`);
+  }
+});
+
+test("route help content keeps child routes distinct from their parent sections", () => {
+  const { helpContentForRoute } = routeHelpContentModule;
+
+  assert.notDeepEqual(
+    helpContentForRoute("/reports/sync-transparency", "reports"),
+    helpContentForRoute("/reports", "reports")
+  );
+  assert.match(
+    helpContentForRoute("/reports/sync-transparency", "reports").title,
+    /Sync Transparency/
+  );
+  assert.match(
+    helpContentForRoute("/reports/security-issues", "reports").title,
+    /Security Issues/
+  );
+  assert.match(
+    helpContentForRoute("/admin/feature-flags", "admin").title,
+    /Feature Flags/
+  );
+});
+
+test("route help content preserves documented correction-path warnings", () => {
+  const { helpContentForRoute } = routeHelpContentModule;
+  const roomMovesText = helpContentForRoute("/room-moves", "roomMoves")
+    .sections.flatMap((section) => section.paragraphs)
+    .join(" ");
+  const studentDataText = helpContentForRoute("/student-data-cleanup", "studentDataCleanup")
+    .sections.flatMap((section) => section.paragraphs)
+    .join(" ");
+  const dataQualityText = helpContentForRoute("/data-quality", "dataQuality")
+    .sections.flatMap((section) => section.paragraphs)
+    .join(" ");
+
+  assert.match(
+    roomMovesText,
+    /IT can only fully revert a room move\. To partially revert a room move, create a new Room Move draft/
+  );
+  assert.match(studentDataText, /search by the displayed Student ID/);
+  assert.doesNotMatch(dataQualityText, /Open Mapping Dashboard/);
 });

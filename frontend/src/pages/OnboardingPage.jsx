@@ -19,32 +19,6 @@ const MANUAL_DRAFTS_ENDPOINT = "/api/v1/dev/onboarding/manual-drafts";
 const ONBOARDING_HEADING_ID = "onboarding-heading";
 const LEAD_TIME_WARNING =
   "The start date is ≤ 3 days from the current date. Access to some systems may be delayed beyond the start date.";
-const ONBOARDING_HELP_CONTENT = {
-  title: "Onboarding help",
-  sections: [
-    {
-      heading: "What this page shows",
-      paragraphs: [
-        "This page shows upcoming staff onboarding work. Each row is a person who needs accounts, access, rooms, or follow-up before they are fully ready.",
-        "The status badge tells you whether the work is ready, running, waiting, missing information, or blocked.",
-      ],
-    },
-    {
-      heading: "How to use it",
-      paragraphs: [
-        "Select a row to open details in the right drawer. The drawer explains what is happening and lists any action needed from HR, IT, or another system.",
-        "Use Add Non-Escape Record when a contractor or other manual record needs onboarding before the person appears from Escape.",
-      ],
-    },
-    {
-      heading: "Warnings",
-      paragraphs: [
-        "A warning icon beside the start date means the start date is very close to the date the record was added. Some systems may not be ready by that date.",
-        "Incomplete or blocked records need attention before normal onboarding can continue.",
-      ],
-    },
-  ],
-};
 const EMPTY_DRAFT_FORM = {
   start_date: "",
   ssn_last4: "",
@@ -1066,8 +1040,8 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
+    activeRoutePath: "/onboarding",
     refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard("onboarding"),
-    helpContent: ONBOARDING_HELP_CONTENT,
   });
   const semanticSummary = artboard
     ? buildArtboardSemanticSummary(artboard, {

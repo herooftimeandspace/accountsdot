@@ -844,6 +844,7 @@ export function RoomMovesPage({
         onSearch,
         searchQuery,
         activeNavKey: "roomMoves",
+        activeRoutePath: isBulk ? "/room-moves/bulk-draft" : "/room-moves",
         refreshMetadata: isBulk
           ? null
           : payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(meta),

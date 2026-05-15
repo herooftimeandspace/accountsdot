@@ -32,27 +32,6 @@ const PANE_WIDTH = 1260;
 const PANE_HEIGHT = 730;
 const DRAWER_BOUNDS = { left: 1280, top: 92, width: 388, height: 802 };
 
-const FREQUENT_FLIERS_HELP_CONTENT = {
-  title: "Frequent Fliers help",
-  sections: [
-    {
-      heading: "What this page shows",
-      body:
-        "This page helps staff find students with repeated device assignments or IncidentIQ tickets during the selected date range. Use it to plan support, repairs, and follow-up before the pattern becomes harder to resolve.",
-    },
-    {
-      heading: "How to use it",
-      body:
-        "Choose Devices or Tickets, pick the threshold, and select Apply. The table shows matching students. Select a row to open the details drawer with device history, recent tickets, and context for the follow-up.",
-    },
-    {
-      heading: "Links",
-      body:
-        "Device serial numbers and IncidentIQ ticket numbers open deterministic DEV links so the demo behaves like the production workflow without connecting to live provider records.",
-    },
-  ],
-};
-
 /**
  * buildFrequentFliersColumns creates the sortable/searchable table contract
  * after the user applies a lookback range, ensuring visible counts and sort
@@ -338,8 +317,8 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "frequentFliers",
+    activeRoutePath: "/frequent-fliers",
     refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
-    helpContent: FREQUENT_FLIERS_HELP_CONTENT,
   });
   const semanticSummary = artboard
     ? buildArtboardSemanticSummary(artboard, {
