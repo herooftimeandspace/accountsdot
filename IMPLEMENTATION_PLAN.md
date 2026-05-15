@@ -1969,7 +1969,7 @@
 - Static explanatory helper blocks from the artboard are hidden in the live page; the same end-user guidance belongs in the shared help drawer so the help icon remains the single documentation entry point.
 - The table height should be driven by the visible row count, including empty filtered states, rather than fixed artboard whitespace.
 - The page-level sync action is a runtime-owned Vegas Gold button. It is a DEV mock action in this slice and does not write student records.
-- Row selection opens the shared right-hand drawer with the raw Aeries values, normalized values, and a deterministic DEV Aeries link. The drawer remains informational; corrections must happen upstream in Aeries.
+- Row selection opens the shared right-hand drawer with current Aeries values, visible markers for leading or trailing whitespace, suggested values only when the displayed suggestion differs from the displayed current value, and the base `Open Aeries` link. The drawer remains informational; corrections must happen upstream in Aeries.
 
 ## Reports Runtime Notes
 - The live `/reports` page uses runtime table primitives over the shared `.pen` shell for page-local report search, three-way sortable column headers, and selected-row drawer details.
