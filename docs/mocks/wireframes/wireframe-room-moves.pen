@@ -313,7 +313,7 @@
         {
           "type": "text",
           "id": "t101",
-          "content": "Move Set Review",
+          "content": "",
           "x": 306,
           "y": 361,
           "fontFamily": "Arial",
@@ -326,7 +326,7 @@
         {
           "type": "text",
           "id": "t102",
-          "content": "Person",
+          "content": "Name",
           "x": 302,
           "y": 394,
           "fontFamily": "Arial",
@@ -365,7 +365,7 @@
         {
           "type": "text",
           "id": "t105",
-          "content": "Phone",
+          "content": "Action(s)",
           "x": 702,
           "y": 394,
           "fontFamily": "Arial",
@@ -378,7 +378,7 @@
         {
           "type": "text",
           "id": "t106",
-          "content": "Warning",
+          "content": "Author",
           "x": 878,
           "y": 394,
           "fontFamily": "Arial",

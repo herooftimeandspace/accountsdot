@@ -362,6 +362,7 @@ type roomMovesResponse struct {
 			Phone             string   `json:"phone"`
 			Author            string   `json:"author"`
 			State             string   `json:"state"`
+			ScheduledFor      string   `json:"scheduled_for"`
 			Warning           string   `json:"warning"`
 			AttentionReason   string   `json:"attention_reason"`
 			AutomationOutcome string   `json:"automation_outcome"`
@@ -2585,8 +2586,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !strings.Contains(conflictRow.AttentionReason, "Jordan Patel") || !strings.Contains(conflictRow.AutomationOutcome, "shared line group") {
 			t.Fatalf("primary-conflict details = %#v, want owner and automation outcome", conflictRow)
 		}
-		if len(conflictRow.ResolutionSteps) == 0 || len(conflictRow.ExternalSystems) == 0 {
-			t.Fatalf("primary-conflict operator guidance = %#v, want resolution steps and external systems", conflictRow)
+		if len(conflictRow.ResolutionSteps) == 0 || len(conflictRow.ExternalSystems) != 0 {
+			t.Fatalf("primary-conflict operator guidance = %#v, want resolution steps without automated-path external systems", conflictRow)
 		}
 
 		crossSiteBody, err := json.Marshal(map[string]any{
@@ -2636,8 +2637,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 				if !strings.Contains(row.AttentionReason, "Jordan Patel") || !strings.Contains(row.AutomationOutcome, "shared line group") {
 					t.Fatalf("Morgan Lee room move details = %#v, want primary owner and automation explanation", row)
 				}
-				if len(row.ResolutionSteps) == 0 || len(row.ExternalSystems) == 0 {
-					t.Fatalf("Morgan Lee guidance = %#v, want resolution steps and external systems", row)
+				if len(row.ResolutionSteps) == 0 || len(row.ExternalSystems) != 0 {
+					t.Fatalf("Morgan Lee guidance = %#v, want resolution steps without automated-path external systems", row)
 				}
 			}
 		}
@@ -2648,8 +2649,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		for _, row := range itRoomMoves.Page.Rows {
 			if row.DraftID == "rm-draft-103" {
 				foundSeedBulkMove = true
-				if row.Person != "Bulk Move" || row.Author == "" || row.State != "Scheduled" {
-					t.Fatalf("seed bulk row = %#v, want Bulk Move with author and Scheduled state", row)
+				if row.Person != "Bulk Move" || row.Author == "" || row.State != "Scheduled" || row.ScheduledFor == "" {
+					t.Fatalf("seed bulk row = %#v, want Bulk Move with author, Scheduled state, and scheduled timestamp", row)
 				}
 				if row.Warning == "" {
 					t.Fatalf("seed bulk row = %#v, want warning available for drawer/bulk warning surfaces", row)
@@ -2692,6 +2693,13 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		removalRow := seedBulkDraft.Page.Draft.Rows[1]
 		if removalRow.Action != "removal" || removalRow.DestinationRoomID != "none" || removalRow.DestinationRoom != "None" {
 			t.Fatalf("seeded removal row = %#v, want removal action with destination room None", removalRow)
+		}
+		expectedRemovalWarning := "Destination room for Morgan Lee is None; phone and room assignments will be removed."
+		if removalRow.Warning != expectedRemovalWarning {
+			t.Fatalf("seeded removal warning = %q, want person-specific warning", removalRow.Warning)
+		}
+		if len(seedBulkDraft.Page.Draft.Warnings) == 0 || seedBulkDraft.Page.Draft.Warnings[0] != expectedRemovalWarning {
+			t.Fatalf("seeded bulk warnings = %#v, want person-specific warning bullet", seedBulkDraft.Page.Draft.Warnings)
 		}
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/cancel", nil)
 		req.AddCookie(itCookie)

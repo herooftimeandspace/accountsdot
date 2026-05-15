@@ -819,8 +819,8 @@
     - single-move warnings belong in right-drawer details
     - primary-room conflicts in the right drawer must identify the destination room, the active primary room owner, the reason the primary phone assignment is left unchanged, and the expected automation outcome of adding the moving user to the destination room shared line group
     - if a primary-room conflict cannot be planned or verified as shared-line-group automation, the drawer must show the manual owner, failure reason, resolution steps, and linked external systems instead of a terse `Primary conflict` or `Manual ticket` label
-    - bulk-draft warnings belong in a top warning bar above the bulk table
-    - the main Move Set Review table shows both persona-visible single moves and persona-visible scheduled bulk moves; bulk rows use `Bulk Move` as the name value and include an Author column immediately before State
+    - bulk-draft warnings belong in a top warning bar above the bulk table, and row-level warnings should render as person-specific bullets so the affected employee is visible before the operator scans the table
+    - the main Move Set Review table shows both persona-visible single moves and persona-visible scheduled bulk moves; bulk rows use `Bulk Move` as the name value, include an Author column immediately before State, and include a read-only Scheduled column immediately after State showing the scheduled cutover timestamp or `None`
     - IT Admin can open any Room Moves draft that is visible in the review table, even when another operator authored the draft
     - Room Moves help text must include: `IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.`
   - cancellation and reversal rules:

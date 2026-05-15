@@ -46,7 +46,7 @@ The handler/store/helper chain lives in `internal/web/dev_room_moves.go`:
 - Revert handlers authenticate with `authenticatedRoomMoveRevertPersona`, then call `scheduleRevert`.
 - Scope and option helpers include `canManageDistrictRoomMoves`, `roomMovesScopeSite`, `roomMoveVisibleSites`, `roomMoveRoomsForConfig`, `roomMovePeopleForConfig`, and `canAccessRoomMoveSite`.
 - Draft validation and construction flows through `buildRoomMoveDraft`, mode-specific row builders, and warning helpers.
-- `normalizeRoomMoveRows` is the backend guard for bulk-draft action semantics. It canonicalizes `add` and `removal` rows so reloads, saved drafts, and scheduled/applied drafts agree with the browser feedback shown while editing.
+- `normalizeRoomMoveRows` is the backend guard for bulk-draft action semantics. It canonicalizes `add` and `removal` rows so reloads, saved drafts, and scheduled/applied drafts agree with the browser feedback shown while editing. Row-level warnings are copied into the draft warning list as person-specific strings so the bulk warning banner can identify the affected employee before the operator scans the table.
 
 ## Payload Shape
 
@@ -65,7 +65,13 @@ The page payload has this shape:
     "rooms": [],
     "people": [],
     "summary_cards": [],
-    "rows": [],
+    "rows": [
+      {
+        "person": "Bulk Move",
+        "state": "Scheduled",
+        "scheduled_for": "2026-07-27T20:00:00-07:00"
+      }
+    ],
     "default_bulk_roster_href": "/room-moves/bulk-draft?mode=bulk_site_roster",
     "default_build_list_href": "/room-moves/bulk-draft?mode=build_move_list"
   }
@@ -115,7 +121,7 @@ Successful mutations return `roomMoveDraftResponse`:
 }
 ```
 
-Bulk draft row actions have persisted room-clearing semantics. `change` is the default and preserves the person's current-room context while planning a destination. `add` represents a person who should be added to the selected destination room without a prior room association in this draft, so the saved payload returns `current_room_id: "none"` and a blank `current_room`. `removal` represents removing the person from room phones, shared line groups, and call queues at the site, so the saved payload always returns `destination_room_id: "none"` and `destination_room: "None"` even if the browser submitted an older destination room value.
+Bulk draft row actions have persisted room-clearing semantics. `change` is the default and preserves the person's current-room context while planning a destination. `add` represents a person who should be added to the selected destination room without a prior room association in this draft, so the saved payload returns `current_room_id: "none"` and a blank `current_room`. `removal` represents removing the person from room phones, shared line groups, and call queues at the site, so the saved payload always returns `destination_room_id: "none"` and `destination_room: "None"` even if the browser submitted an older destination room value. Removal rows with an existing current room also return a person-specific warning such as `Destination room for Morgan Lee is None; phone and room assignments will be removed.` and add that exact warning to the draft-level `warnings` array.
 
 ## Authorization And Persona Behavior
 
