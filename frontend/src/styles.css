@@ -165,6 +165,15 @@ input {
   margin: 0 auto;
 }
 
+.page-canvas:not(.page-canvas--login):not(.page-canvas--error) {
+  padding: 0 0 48px;
+  background: var(--color-bg);
+}
+
+.page-canvas:not(.page-canvas--login):not(.page-canvas--error) .page-canvas__frame {
+  margin: 0;
+}
+
 .page-canvas--login {
   height: auto;
   min-height: 100vh;
@@ -260,11 +269,13 @@ input {
 
 .dev-toolbar {
   position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 90;
-  display: grid;
-  justify-items: end;
+  left: 16px;
+  bottom: 16px;
+  z-index: 76;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  width: 232px;
   gap: 8px;
   pointer-events: none;
 }
@@ -274,7 +285,8 @@ input {
   grid-template-columns: auto auto;
   gap: 8px;
   align-items: center;
-  max-width: min(260px, calc(100vw - 32px));
+  justify-content: center;
+  max-width: 100%;
   min-height: 36px;
   padding: 7px 12px;
   border: 1px solid rgba(1, 22, 30, 0.14);
@@ -300,8 +312,9 @@ input {
 }
 
 .dev-toolbar__panel {
-  width: 280px;
-  padding: 14px 16px 16px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 12px 14px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid var(--color-canvas);
@@ -3278,8 +3291,8 @@ input {
 
 .persona-switch-overlay {
   position: fixed;
-  top: 64px;
-  right: 16px;
+  top: 86px;
+  left: 288px;
   z-index: 49;
   max-width: min(360px, calc(100vw - 32px));
   padding: 12px 16px;
@@ -3378,10 +3391,15 @@ input {
     width: auto;
     margin: 12px;
     border-radius: 8px;
+    flex-direction: column;
   }
 
   .page-canvas {
     padding: 12px;
+  }
+
+  .page-canvas:not(.page-canvas--login):not(.page-canvas--error) {
+    padding: 12px 12px 48px;
   }
 
   .page-canvas__frame {

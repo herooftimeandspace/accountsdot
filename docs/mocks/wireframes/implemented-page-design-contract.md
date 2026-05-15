@@ -19,6 +19,7 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 - The active nav highlight must sit behind the active icon and label so the destination remains readable.
 - Documented nested route buttons, such as IT Admin's `/admin/feature-flags` child under Admin, must render visually subordinate to their parent row, use the same role-filtered no-gap compaction as top-level rows, and align their active dot, label, focus target, and highlight to one row center.
 - The scope selector, search field, notification/help controls, account box, profile image/initials, support affordance, and platform-status row must be sized for the longest supported persona labels and approved branding assets.
+- The DEV-only persona switcher must render inside the shared sidebar bounds below Platform Status instead of as a top-right viewport toolbar; it may expand as an overlay for switching, but its collapsed control must not change the app frame width or right-drawer anchor.
 - Live shell surfaces must not show shortcut hints, governance labels, mock-policy text, validation-process labels, or runbook/evidence copy unless the PRD defines that copy as operator-facing product behavior.
 
 ## Shared Primitives
@@ -72,6 +73,7 @@ Known cleanup target: migrate status rendering to a shared badge primitive so ru
 - Preserve at least `5px` between row text and horizontal dividers.
 - Preserve at least `5px` between neighboring bordered wrappers by default.
 - Exception: when two bordered elements intentionally share one edge, such as a table header-to-body transition or row-to-row divider, collapse the join to one border with no gap and no double-width.
+- Logged-in page frames stay left-aligned to the viewport-fixed shared shell. Do not center a generated logged-in artboard separately from fixed sidebar/header nodes.
 - Text must wrap or truncate inside its container rather than overflowing into adjacent content or off canvas.
 - One logical paragraph should not be split into multiple stacked text boxes. Split text only when the pieces have distinct semantics, independent runtime slots, or intentionally different styling.
 - Fields such as `Last refreshed` may wrap across multiple lines when needed to avoid collisions with adjacent controls.

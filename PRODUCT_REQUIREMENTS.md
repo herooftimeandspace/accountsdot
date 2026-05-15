@@ -145,6 +145,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Faculty and Staff` → `/phone-directory/by-person`
 - DEV persona-switch behavior for the current foundation slice:
   - the DEV persona switcher should replace the active mock session immediately so demo users can move between persona views without restarting the app shell
+  - the DEV-only persona switcher should stay inside the shared sidebar bounds below the Platform Status area so it does not expand the app frame or distort right-edge drawer and overlay anchoring
   - if the active route is `/dashboard`, switching personas should resolve `/dashboard` through the new persona's landing route
   - if the active route remains allowed for the new persona, the application should stay on that route and rerender it with the new persona's shell, route visibility, and data scope
   - if the active route is no longer allowed for the new persona during a DEV persona-switch action, the application should route to the new persona's landing route so demos do not strand users on an unauthorized page
@@ -759,6 +760,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - The header scope selector should be a real dropdown that can list all visible sites, and the field should be wide enough to keep the selected site label on one line.
 - The live header scope selector must use one shared runtime dropdown primitive across implemented pages so static `.pen` scope text never shows through or sits behind the functional control. Page-specific scope behavior, such as Phone Directory's DEV-only district/site focus ordering, may pass page-specific options and change handlers into the primitive without changing the shared shell site scope for other pages.
 - Implemented pages using the current shared shell should render a white page background inside the app frame rather than the neutral canvas gray.
+- Logged-in implemented pages should keep the shared page pane flush with the shared sidebar edge; the live renderer must not center the page artboard independently from the fixed shared shell.
 - When persona-based route filtering removes sidebar rows, the remaining allowed rows must reflow upward in canonical order with no blank gaps left behind by hidden items.
 - In the shared sidebar, the active-row label and icon must render above the selected highlight so the current destination remains readable while selected.
 - When a card or rail is conveying one logical paragraph of helper text, it should render as one wrapping text block rather than several stacked fragment boxes.
