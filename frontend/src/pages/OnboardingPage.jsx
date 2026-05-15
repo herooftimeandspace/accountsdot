@@ -419,6 +419,48 @@ function workflowMissingFields(row, step) {
 }
 
 /**
+ * linkedTicketStatus splits the DEV mock ticket summary into the raw ticket
+ * number and provider status so the Onboarding drawer can link the ticket
+ * without treating IncidentIQ ticket text as the primary workflow state.
+ */
+function linkedTicketStatus(ticketText) {
+  const trimmed = String(ticketText || "").trim();
+  if (!trimmed) {
+    return { number: "", status: "" };
+  }
+  const [number, ...statusParts] = trimmed.split(/\s+/);
+  return {
+    number,
+    status: statusParts.join(" "),
+  };
+}
+
+/**
+ * TicketStatusLine renders contextual Aeries and Verkada follow-up ticket
+ * status inside the selected Onboarding person drawer. The link target is a
+ * deterministic DEV URL; production wiring should replace it with provider
+ * ticket URLs from the workflow-status read model.
+ */
+function TicketStatusLine({ label, ticketText }) {
+  const ticket = linkedTicketStatus(ticketText);
+  return (
+    <p>
+      <strong>{label}</strong>
+      {ticket.number ? (
+        <span>
+          <a href={`https://mock.wusd.local/incidentiq/tickets/${ticket.number}`} target="_blank" rel="noreferrer">
+            {ticket.number}
+          </a>
+          {ticket.status ? ` ${ticket.status}` : ""}
+        </span>
+      ) : (
+        <span>Not linked</span>
+      )}
+    </p>
+  );
+}
+
+/**
  * RoomOverrideForm renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
  */
 function RoomOverrideForm({ formOptions }) {
@@ -522,14 +564,8 @@ function WorkflowDrawer({ row, formOptions, onClose }) {
         </div>
       ) : null}
       <div className="runtime-drawer__section">
-        <p>
-          <strong>Earliest matching Aeries ticket:</strong>
-          <span>{row.aeries_ticket || "Not linked"}</span>
-        </p>
-        <p>
-          <strong>Earliest matching Verkada ticket:</strong>
-          <span>{row.verkada_ticket || "Not linked"}</span>
-        </p>
+        <TicketStatusLine label="Earliest matching Aeries ticket:" ticketText={row.aeries_ticket} />
+        <TicketStatusLine label="Earliest matching Verkada ticket:" ticketText={row.verkada_ticket} />
       </div>
       {row.workflow_steps?.length ? (
         <div className="onboarding-runtime__workflow-steps">

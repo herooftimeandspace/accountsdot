@@ -47,7 +47,6 @@ const STATIC_ROUTE_TITLES = {
   "student-data-cleanup": "Student Data Cleanup",
   reports: "Reports",
   "reports-sync-transparency": "Sync Transparency",
-  "reports-ticketing-human-work": "Ticketing Human Work",
   admin: "Admin",
   "admin-feature-flags": "Feature Flags",
   "my-profile": "My Profile",

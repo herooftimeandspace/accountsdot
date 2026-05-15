@@ -160,3 +160,18 @@ test("route help content preserves documented correction-path warnings", () => {
   assert.match(studentDataText, /search by the displayed Student ID/);
   assert.doesNotMatch(dataQualityText, /Open Mapping Dashboard/);
 });
+
+test("ticketing human work report route is retired from runtime routing", () => {
+  const { resolveRoute, visibleNavChildrenForKey } = routeRegistryModule;
+
+  assert.equal(resolveRoute("/reports/ticketing-human-work"), null);
+  assert.deepEqual(
+    visibleNavChildrenForKey("reports", {
+      allowed_routes: ["/reports/security-issues", "/reports/sync-transparency", "/reports/ticketing-human-work"],
+    }),
+    [
+      { path: "/reports/security-issues", label: "Security Issues" },
+      { path: "/reports/sync-transparency", label: "Sync Transparency" },
+    ]
+  );
+});

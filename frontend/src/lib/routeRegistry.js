@@ -38,11 +38,6 @@ export const APP_ROUTES = [
     kind: "static",
     artboardKey: "reports-sync-transparency",
   },
-  {
-    path: "/reports/ticketing-human-work",
-    kind: "static",
-    artboardKey: "reports-ticketing-human-work",
-  },
   { path: "/admin", kind: "static", artboardKey: "admin" },
   { path: "/admin/feature-flags", kind: "feature-flags", artboardKey: "admin-feature-flags" },
   { path: "/my-profile", kind: "static", artboardKey: "my-profile" },
@@ -68,7 +63,6 @@ const NAV_CHILD_ROUTE_GROUPS = {
   reports: [
     { path: "/reports/security-issues", label: "Security Issues" },
     { path: "/reports/sync-transparency", label: "Sync Transparency" },
-    { path: "/reports/ticketing-human-work", label: "Human Work" },
   ],
   admin: [
     { path: "/admin/feature-flags", label: "Feature Flags" },

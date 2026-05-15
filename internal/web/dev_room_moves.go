@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -88,6 +89,10 @@ type roomMoveReviewRow struct {
 	ManualActionReason string   `json:"manual_action_reason,omitempty"`
 	ResolutionSteps    []string `json:"resolution_steps,omitempty"`
 	ExternalSystems    []string `json:"external_systems,omitempty"`
+	FallbackTicket     string   `json:"fallback_ticket,omitempty"`
+	FallbackTicketHref string   `json:"fallback_ticket_href,omitempty"`
+	FallbackStatus     string   `json:"fallback_status,omitempty"`
+	TechnicalOutcome   string   `json:"technical_outcome,omitempty"`
 }
 
 type roomMoveDraftPayload struct {
@@ -150,6 +155,10 @@ type roomMoveDraftRow struct {
 	ManualActionReason string   `json:"manual_action_reason,omitempty"`
 	ResolutionSteps    []string `json:"resolution_steps,omitempty"`
 	ExternalSystems    []string `json:"external_systems,omitempty"`
+	FallbackTicket     string   `json:"fallback_ticket,omitempty"`
+	FallbackTicketHref string   `json:"fallback_ticket_href,omitempty"`
+	FallbackStatus     string   `json:"fallback_status,omitempty"`
+	TechnicalOutcome   string   `json:"technical_outcome,omitempty"`
 }
 
 type roomMovePersonOption struct {
@@ -197,7 +206,7 @@ type devRoomMoveStoreState struct {
 
 func newDevRoomMoveStore() *devRoomMoveStoreState {
 	store := &devRoomMoveStoreState{
-		nextID:    100,
+		nextID:    1000,
 		drafts:    map[string]roomMoveDraftPayload{},
 		completed: map[string]bool{},
 		canceled:  map[string]bool{},
@@ -438,6 +447,7 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 	base := []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
 		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
+		manualFallbackReviewRow("single-taylor-chen", "single-taylor-chen", "Taylor Chen", "taylor.chen@wusd.org", "103884", "clover-hs", "C-202", "clover-hs", "C-214", "Avery Shah"),
 		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling").withScheduledFor("2026-07-27T20:00:00-07:00"),
 		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
@@ -487,6 +497,10 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 				ManualActionReason: row.ManualActionReason,
 				ResolutionSteps:    row.ResolutionSteps,
 				ExternalSystems:    row.ExternalSystems,
+				FallbackTicket:     row.FallbackTicket,
+				FallbackTicketHref: row.FallbackTicketHref,
+				FallbackStatus:     row.FallbackStatus,
+				TechnicalOutcome:   row.TechnicalOutcome,
 			})
 			continue
 		}
@@ -580,10 +594,50 @@ func primaryConflictReviewRow(id string, draftID string, person string, email st
 	return row
 }
 
+// manualFallbackReviewRow seeds the Room Moves owner surface with a fallback
+// ticket that is already closed and technically verified. The DEV payload keeps
+// the owner, reason, resolution steps, linked systems, ticket status, and
+// verification result together so the React drawer demonstrates auto-resolution
+// without reviving the retired standalone human-work report route.
+func manualFallbackReviewRow(id string, draftID string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, author string) roomMoveReviewRow {
+	row := seedRoomMoveReviewRow(
+		id,
+		draftID,
+		roomMoveTypeSingle,
+		person,
+		email,
+		employeeID,
+		currentSiteID,
+		currentRoom,
+		destinationSiteID,
+		destinationRoom,
+		"Verified by fallback ticket",
+		author,
+		"Resolved",
+		"Manual fallback ticket closed after Zoom and IncidentIQ room state verification.",
+	)
+	row.AttentionReason = "Automation could not verify the Zoom shared line group during execution, so IT completed and verified the room move through IncidentIQ."
+	row.AutomationOutcome = "Resolved automatically after the linked ticket closed and the room/phone technical outcome was verified."
+	row.ManualActionOwner = "IT Service Desk"
+	row.ManualActionReason = "Zoom shared line group membership verification failed during room-move cutover."
+	row.ResolutionSteps = []string{
+		"Confirm the destination room shared line group includes the moving user.",
+		"Confirm the IncidentIQ room association reflects the destination room.",
+		"Close the fallback ticket only after both technical checks pass.",
+	}
+	row.ExternalSystems = []string{"Zoom room shared line group", "IncidentIQ room association"}
+	row.FallbackTicket = "IT-12977"
+	row.FallbackTicketHref = "https://mock.wusd.local/incidentiq/tickets/IT-12977"
+	row.FallbackStatus = "Closed"
+	row.TechnicalOutcome = "Verified Zoom shared line group and IncidentIQ room association; row auto-resolved."
+	return row
+}
+
 func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	for _, row := range []roomMoveReviewRow{
 		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
 		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
+		manualFallbackReviewRow("single-taylor-chen", "single-taylor-chen", "Taylor Chen", "taylor.chen@wusd.org", "103884", "clover-hs", "C-202", "clover-hs", "C-214", "Avery Shah"),
 		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling").withScheduledFor("2026-07-27T20:00:00-07:00"),
 		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
 		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
@@ -967,6 +1021,10 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		manualActionReason := row.ManualActionReason
 		resolutionSteps := row.ResolutionSteps
 		externalSystems := row.ExternalSystems
+		fallbackTicket := row.FallbackTicket
+		fallbackTicketHref := sanitizeRoomMoveFallbackTicketHref(row.FallbackTicketHref)
+		fallbackStatus := row.FallbackStatus
+		technicalOutcome := row.TechnicalOutcome
 		phoneOutcome := person.Phone
 		if destinationRoomID == "none" && person.CurrentRoomID != "none" {
 			warning = fmt.Sprintf("Destination room for %s is None; phone and room assignments will be removed.", person.Name)
@@ -1019,6 +1077,10 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			ManualActionReason: manualActionReason,
 			ResolutionSteps:    resolutionSteps,
 			ExternalSystems:    externalSystems,
+			FallbackTicket:     fallbackTicket,
+			FallbackTicketHref: fallbackTicketHref,
+			FallbackStatus:     fallbackStatus,
+			TechnicalOutcome:   technicalOutcome,
 		})
 	}
 	normalized, repeatedWarnings := applyRepeatedUserRoomMovePlanning(normalized)
@@ -1039,6 +1101,19 @@ func normalizeRoomMoveDestinationRole(role string) string {
 		return "tertiary"
 	case "slg_only", "slg-only", "member":
 		return "member"
+	default:
+		return ""
+	}
+}
+
+func sanitizeRoomMoveFallbackTicketHref(href string) string {
+	parsed, err := url.Parse(strings.TrimSpace(href))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	switch parsed.Scheme {
+	case "http", "https":
+		return parsed.String()
 	default:
 		return ""
 	}

@@ -71,7 +71,6 @@ const EXPECTED_TEXT_BY_PATH = new Map([
   ["/student-data-cleanup", "Student Data Cleanup"],
   ["/reports", "Reports"],
   ["/reports/sync-transparency", "Sync Transparency"],
-  ["/reports/ticketing-human-work", "Ticketing and Human Work"],
   ["/admin", "Admin"],
   ["/admin/feature-flags", "Feature Flags"],
   ["/my-profile", "My Profile"],
@@ -81,7 +80,6 @@ const EXPECTED_TITLE_BY_PATH = new Map([
   ["/dashboard/it-admin", "IT Admin Dashboard"],
   ["/dashboard/hr-lifecycle", "Human Resources Dashboard"],
   ["/dashboard/site-admin", "Site Admin Dashboard"],
-  ["/reports/ticketing-human-work", "Ticketing Human Work"],
   ["/admin/feature-flags", "Feature Flags"],
 ]);
 

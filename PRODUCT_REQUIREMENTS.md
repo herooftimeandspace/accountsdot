@@ -132,7 +132,6 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/reports`
   - `/reports/security-issues`
   - `/reports/sync-transparency`
-  - `/reports/ticketing-human-work`
   - `/admin`
   - `/admin/feature-flags`
   - `/my-profile`
@@ -209,7 +208,6 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/reports`
   - `/reports/security-issues`
   - `/reports/sync-transparency`
-  - `/reports/ticketing-human-work`
   - `/admin`
   - `/admin/feature-flags`
 - Feature flags for the current foundation slice:
@@ -227,6 +225,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Reports page behavior for the current foundation slice:
   - `/reports` is an IT Admin operational reporting hub for report inventory, queue summaries, and provider refresh state
   - `/reports/security-issues` is an IT Admin-only report nested under Reports for account-security issues such as orphaned accounts with recent Google activity after source-system inactivity
+  - `/reports/ticketing-human-work` is retired for the current foundation slice and must not appear in the route inventory, sidebar, or Reports inventory because human-owned ticket state belongs in the workflow owner surface where the operator resolves the work
+  - direct navigation to `/reports/ticketing-human-work` should return the normal not-found route behavior rather than a hidden report page
   - report inventory rows and recent refresh rows should open the shared right-hand drawer when selected
   - the drawer should show the row's scope, source systems, included data, open-item count, last run or refresh time, refresh cadence, status, and a short plain-language explanation of what the row means
   - report rows may include an `Open Report` action that routes to the owning implemented page or report route
@@ -869,8 +869,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Create tickets on behalf of the affected user only after that user exists in Incident IQ.
 - Tie related work back to the parent lifecycle flow wherever possible.
 - Use Incident IQ subtickets or subtasks when SDK support is available.
+- Do not maintain a standalone `Ticketing and Human Work` report route in the current foundation slice. Contextual ticket state should live in the owning workflow page, such as Onboarding user drawers for Aeries and alarm-code follow-up or Room Moves review drawers for manual fallback tickets.
 - Treat `Aeries` access and `Verkada` follow-up ticket automation as external `IncidentIQ` configuration TODOs rather than app-owned workflow behavior in the current pass.
 - The dashboard should still poll IncidentIQ by email at most once per hour and link only the earliest created matching externally created `Aeries` and `Verkada` tickets into workflow status once the affected user exists there. Matching means requestor email plus ticket category, using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code` respectively. The earliest match remains authoritative even if a later matching ticket is still open, and if that earliest match later disappears or becomes inaccessible the dashboard should show no linked ticket rather than falling forward, silently without warning text. When linked, the dashboard should show the full raw ticket number link plus current status value.
+- Manual Room Moves fallback ticket state should appear in the Room Moves review drawer with the manual owner, reason, resolution steps, linked external systems, full raw ticket number link, current ticket status, and technical-verification outcome. A manual fallback row should resolve only when the linked ticket is closed and the room/phone technical outcome is verified; a closed ticket by itself is not enough.
 
 ## Business Rules
 
