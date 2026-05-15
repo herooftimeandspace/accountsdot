@@ -6,6 +6,10 @@ import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
+  markEdgeWhitespaceForStudentData,
+  shouldShowSuggestedStudentNameValue,
+} from "./studentDataCleanupDisplay";
+import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
@@ -19,7 +23,7 @@ const PANE_LEFT = 306;
 const PANE_TOP = 118;
 const PANE_WIDTH = 1348;
 const DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
-const AERIES_LINK_BASE = "https://mock.wusd.local/aeries";
+const AERIES_LINK_BASE = "https://windsorusd.aeries.net/admin/Default.aspx";
 
 const STUDENT_DATA_HELP_CONTENT = {
   title: "Student Data Cleanup help",
@@ -198,22 +202,22 @@ const STUDENT_COLUMNS = [
   {
     key: "firstNameRaw",
     label: "Current first name",
-    value: (row) => row.firstNameRaw,
+    value: (row) => markEdgeWhitespaceForStudentData(row.firstNameRaw),
   },
   {
     key: "firstNameClean",
     label: "Suggested first name",
-    value: (row) => row.firstNameClean,
+    value: (row) => markEdgeWhitespaceForStudentData(row.firstNameClean),
   },
   {
     key: "lastNameRaw",
     label: "Current last name",
-    value: (row) => row.lastNameRaw,
+    value: (row) => markEdgeWhitespaceForStudentData(row.lastNameRaw),
   },
   {
     key: "lastNameClean",
     label: "Suggested last name",
-    value: (row) => row.lastNameClean,
+    value: (row) => markEdgeWhitespaceForStudentData(row.lastNameClean),
   },
   { key: "issueType", label: "Issue Type", value: (row) => row.issueType },
   { key: "grade", label: "Grade", value: (row) => row.grade, sortValue: (row) => Number(row.grade) },
@@ -268,6 +272,16 @@ function StudentDataDrawer({ row, onClose }) {
   if (!row) {
     return null;
   }
+  const nameItems = [
+    { label: "Current first name", value: markEdgeWhitespaceForStudentData(row.firstNameRaw) },
+    shouldShowSuggestedStudentNameValue(row.firstNameRaw, row.firstNameClean)
+      ? { label: "Suggested first name", value: markEdgeWhitespaceForStudentData(row.firstNameClean) }
+      : null,
+    { label: "Current last name", value: markEdgeWhitespaceForStudentData(row.lastNameRaw) },
+    shouldShowSuggestedStudentNameValue(row.lastNameRaw, row.lastNameClean)
+      ? { label: "Suggested last name", value: markEdgeWhitespaceForStudentData(row.lastNameClean) }
+      : null,
+  ];
   return (
     <RuntimeDrawer title={row.studentName} bounds={DRAWER_BOUNDS} onClose={onClose}>
       <RuntimeDetailList
@@ -276,10 +290,7 @@ function StudentDataDrawer({ row, onClose }) {
           { label: "Grade", value: row.grade },
           { label: "Issue Type", value: row.issueType },
           { label: "Submitted", value: row.submitted },
-          { label: "Current first name", value: row.firstNameRaw },
-          { label: "Suggested first name", value: row.firstNameClean },
-          { label: "Current last name", value: row.lastNameRaw },
-          { label: "Suggested last name", value: row.lastNameClean },
+          ...nameItems,
         ]}
       />
       <div className="runtime-drawer__section">
@@ -408,10 +419,10 @@ function StudentDataOverlay({
             >
               <div>{row.studentId}</div>
               <div>{row.studentName}</div>
-              <div>{row.firstNameRaw}</div>
-              <div>{row.firstNameClean}</div>
-              <div>{row.lastNameRaw}</div>
-              <div>{row.lastNameClean}</div>
+              <div>{markEdgeWhitespaceForStudentData(row.firstNameRaw)}</div>
+              <div>{markEdgeWhitespaceForStudentData(row.firstNameClean)}</div>
+              <div>{markEdgeWhitespaceForStudentData(row.lastNameRaw)}</div>
+              <div>{markEdgeWhitespaceForStudentData(row.lastNameClean)}</div>
               <div>{row.issueType}</div>
               <div>{row.grade}</div>
               <div>{row.submitted}</div>
