@@ -224,7 +224,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "alex-ramirez",
         ariaLabel: "View sync item for Alex Ramirez",
         left: 306,
-        top: 321,
+        top: 420,
         width: 1232,
         height: 42,
         details: [
@@ -242,7 +242,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "marisol-vega",
         ariaLabel: "View sync item for Marisol Vega",
         left: 306,
-        top: 363,
+        top: 462,
         width: 1232,
         height: 42,
         details: [
@@ -259,7 +259,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "mika-ito-sync",
         ariaLabel: "View sync item for Mika Ito",
         left: 306,
-        top: 405,
+        top: 504,
         width: 1232,
         height: 42,
         details: [
@@ -277,7 +277,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "nia-brooks-sync",
         ariaLabel: "View sync item for Nia Brooks",
         left: 306,
-        top: 447,
+        top: 546,
         width: 1232,
         height: 42,
         details: [
