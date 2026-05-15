@@ -100,6 +100,29 @@ const sourceChecks = [
     required: ["WCAG 2.4.4/4.1.2", "role=\"search\"", "aria-label={`Open ${label}`}"],
   },
   {
+    name: "DEV persona switcher",
+    sourcePath: "frontend/src/components/DevPersonaSwitcher.jsx",
+    required: [
+      "Development persona controls",
+      "aria-expanded={expanded}",
+      "aria-controls={panelId}",
+      "aria-live=\"polite\"",
+    ],
+  },
+  {
+    name: "Shared shell frame CSS",
+    sourcePath: "frontend/src/styles.css",
+    required: [
+      ".page-canvas:not(.page-canvas--login):not(.page-canvas--error)",
+      "background: var(--color-bg)",
+      "margin: 0",
+      "left: 16px",
+      "bottom: 16px",
+      "width: 232px",
+      "flex-direction: column-reverse",
+    ],
+  },
+  {
     name: "PEN artboard bridge",
     sourcePath: "frontend/src/lib/PenArtboard.jsx",
     required: ["WCAG 1.3.1/4.1.2", "WCAG 2.1.1/2.4.7/4.1.2"],

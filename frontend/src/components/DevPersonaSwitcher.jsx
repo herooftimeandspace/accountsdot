@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 
 /**
- * DevPersonaSwitcher renders the UI surface for frontend/src/components/DevPersonaSwitcher.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * DevPersonaSwitcher renders the DEV-only mock-session control inside the shared sidebar bounds. App owns the persona-switch side effect and routing fallback, while this component owns the collapsed/expanded control state, current-persona labeling, and polite status announcements used during demos.
  */
 export function DevPersonaSwitcher({
   session,
