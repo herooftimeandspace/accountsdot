@@ -102,6 +102,13 @@ type dataQualityResponse struct {
 	PageID string `json:"page_id"`
 	Page   struct {
 		Title string `json:"title"`
+		Queue struct {
+			Rows []struct {
+				Issue      string `json:"issue"`
+				Owner      string `json:"owner"`
+				NextAction string `json:"next_action"`
+			} `json:"rows"`
+		} `json:"queue"`
 	} `json:"page"`
 	Hotspots map[string]struct {
 		NodeID string `json:"node_id"`
@@ -683,6 +690,24 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if pagePayload.Page.Title != "Data Quality" {
 			t.Fatalf("page title = %q, want Data Quality", pagePayload.Page.Title)
 		}
+		wantActions := map[string]string{
+			"Unmapped job title":              "Review in HR lifecycle",
+			"Room mismatch":                   "Route to site owner",
+			"Google-active / Aeries-inactive": "Review in Admin",
+			"Missing mandatory field":         "Complete in Onboarding",
+			"Site mismatch":                   "Review in HR lifecycle",
+		}
+		if len(pagePayload.Page.Queue.Rows) != len(wantActions) {
+			t.Fatalf("data quality queue row count = %d, want %d", len(pagePayload.Page.Queue.Rows), len(wantActions))
+		}
+		for _, row := range pagePayload.Page.Queue.Rows {
+			if wantActions[row.Issue] != row.NextAction {
+				t.Fatalf("next action for %q = %q, want %q", row.Issue, row.NextAction, wantActions[row.Issue])
+			}
+			if strings.Contains(row.NextAction, "Mapping Dashboard") || strings.Contains(row.NextAction, "Map title") {
+				t.Fatalf("data quality row %q exposes unsupported local action %q", row.Issue, row.NextAction)
+			}
+		}
 		if pagePayload.Hotspots["refresh"].NodeID != "f104" {
 			t.Fatalf("refresh hotspot node = %q, want f104", pagePayload.Hotspots["refresh"].NodeID)
 		}
@@ -1123,20 +1148,24 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
-	t.Run("human resources data quality is 403", func(t *testing.T) {
-		cookie := loginAsPersona(t, handler, "human_resources")
+	t.Run("non it admin personas cannot directly load data quality", func(t *testing.T) {
+		for _, personaID := range []string{"human_resources", "site_admin", "site_secretary"} {
+			t.Run(personaID, func(t *testing.T) {
+				cookie := loginAsPersona(t, handler, personaID)
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
-		req.AddCookie(cookie)
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusForbidden {
-			t.Fatalf("data quality returned %d, want 403", rec.Code)
-		}
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
+				req.AddCookie(cookie)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				if rec.Code != http.StatusForbidden {
+					t.Fatalf("data quality returned %d, want 403", rec.Code)
+				}
 
-		payload := decodeJSON[errorResponse](t, rec)
-		if payload.Code != "forbidden" {
-			t.Fatalf("error code = %q, want forbidden", payload.Code)
+				payload := decodeJSON[errorResponse](t, rec)
+				if payload.Code != "forbidden" {
+					t.Fatalf("error code = %q, want forbidden", payload.Code)
+				}
+			})
 		}
 	})
 
