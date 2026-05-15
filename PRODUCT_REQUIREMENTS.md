@@ -105,6 +105,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - all existing implemented `.pen` pages should have stable frontend routes even when richer page behavior is not yet complete
   - the reusable logged-in shell should filter sidebar visibility by the user's allowed routes
   - documented nested route buttons should appear only when their exact child route is in the user's allowed route set, and they should compact with the same no-gap behavior as top-level sidebar rows
+  - Phone Directory is the documented exception to route-backed nested sidebar buttons: `/phone-directory/by-person`, `/phone-directory/by-room`, and `/phone-directory/by-department` remain direct routes, but the shared sidebar shows only the top-level `Phone Directory` row while the in-page mode control owns switching between those routes
   - if a user cannot access a page, that page must not appear in the sidebar
   - if a user directly navigates to a page outside their allowed route set, the application should return `403 Forbidden`
   - if a user is not logged in and tries to access any route other than `/login`, the application should return `401 Not Authorized`
@@ -684,6 +685,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - by department
 - `By Person`, `By Room`, and `By Department` must all be live runtime-backed phone-directory views rather than static placeholders once the implemented phone-directory slice is active.
 - The `By Person` / `By Room` / `By Department` control must swap the single primary directory view between those modes.
+- The shared sidebar must not render `By Person`, `By Room`, or `By Department` as nested Phone Directory child buttons; all three mode routes should keep the top-level `Phone Directory` row active and use the in-page mode control for mode changes.
 - The in-page `By Person` / `By Room` / `By Department` control must be a real clickable mode toggle between:
   - `/phone-directory/by-person`
   - `/phone-directory/by-room`

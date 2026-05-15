@@ -783,10 +783,10 @@ function SharedShellSidebarRow({
 
 /**
  * buildVisibleSidebarRows flattens role-authorized sidebar parents and
- * documented nested route buttons into one visual list. The y positions are
- * calculated after route filtering, which keeps persona-specific nav compact
- * and makes child route highlights share the same row-center math as top-level
- * icon, label, disclosure, and focus targets.
+ * documented nested route buttons into one visual list. Route-backed page modes
+ * can remain top-level-only when their page owns in-page mode controls, so the y
+ * positions are calculated after route filtering instead of assuming every child
+ * route renders in the sidebar.
  */
 function buildVisibleSidebarRows(session) {
   const rows = [];
@@ -831,7 +831,10 @@ function sidebarRowActive(row, activeNavKey, activeRoutePath) {
     if (row.depth === 0 && row.hasChildWithSameDestination) {
       return false;
     }
-    return row.destination === activeRoutePath;
+    if (row.destination === activeRoutePath) {
+      return true;
+    }
+    return row.depth === 0 && !row.hasChildren && row.navKey === activeNavKey;
   }
   return row.depth === 0 && row.navKey === activeNavKey;
 }

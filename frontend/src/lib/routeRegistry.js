@@ -65,11 +65,6 @@ export const NAV_GROUP_ORDER = [
 ];
 
 const NAV_CHILD_ROUTE_GROUPS = {
-  phoneDirectory: [
-    { path: "/phone-directory/by-person", label: "By Person" },
-    { path: "/phone-directory/by-room", label: "By Room" },
-    { path: "/phone-directory/by-department", label: "By Department" },
-  ],
   reports: [
     { path: "/reports/security-issues", label: "Security Issues" },
     { path: "/reports/sync-transparency", label: "Sync Transparency" },
@@ -198,9 +193,12 @@ export function buildVisibleNavGroups(session) {
 
 /**
  * visibleNavChildrenForKey returns documented child route buttons for a visible
- * sidebar parent. The shared shell calls this with the same session.allowed_routes
- * list used for direct-route authorization, so role-filtered nested buttons
- * cannot advertise routes that would resolve to the app-level 403 page.
+ * sidebar parent. Some route-backed modes, such as Phone Directory's person,
+ * room, and department routes, intentionally stay in-page controls rather than
+ * sidebar children. The shared shell calls this with the same
+ * session.allowed_routes list used for direct-route authorization, so
+ * role-filtered nested buttons cannot advertise routes that would resolve to
+ * the app-level 403 page.
  */
 export function visibleNavChildrenForKey(navKey, session) {
   const allowedRoutes = new Set(session?.allowed_routes ?? []);
