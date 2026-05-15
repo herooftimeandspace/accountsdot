@@ -1,9 +1,10 @@
-import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
 import { devMark, devMeasureAsync } from "./lib/devPerformance";
 import { errorStatusCodeFor } from "./lib/errorStatus.mjs";
 import { prefetchArtboards } from "./lib/generatedArtboards";
 import { artboardKeysForAllowedRoutes, isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
+import { LoginPage } from "./pages/LoginPage";
 
 function lazyNamed(importer, exportName) {
   return lazy(() => importer().then((module) => ({ default: module[exportName] })));
@@ -11,7 +12,6 @@ function lazyNamed(importer, exportName) {
 
 const ErrorPage = lazyNamed(() => import("./pages/ErrorPage"), "ErrorPage");
 const FeatureFlagsPage = lazyNamed(() => import("./pages/FeatureFlagsPage"), "FeatureFlagsPage");
-const LoginPage = lazyNamed(() => import("./pages/LoginPage"), "LoginPage");
 const DataQualityPage = lazyNamed(() => import("./pages/DataQualityPage"), "DataQualityPage");
 const DepartingSeniorsPage = lazyNamed(() => import("./pages/DepartingSeniorsPage"), "DepartingSeniorsPage");
 const FrequentFliersPage = lazyNamed(() => import("./pages/FrequentFliersPage"), "FrequentFliersPage");
@@ -189,6 +189,7 @@ export function App() {
   const [sessionError, setSessionError] = useState(null);
   const [preferredPersonaId, setPreferredPersonaId] = useState(readStoredPersona);
   const [personaSwitchState, setPersonaSwitchState] = useState(null);
+  const sessionRequestIdRef = useRef(0);
 
   const currentPath = currentLocation.pathname;
   const currentSearch = currentLocation.search;
@@ -212,6 +213,8 @@ export function App() {
   }, []);
 
   const loadSession = useCallback(async () => {
+    const requestId = sessionRequestIdRef.current + 1;
+    sessionRequestIdRef.current = requestId;
     setSessionState("loading");
     setSessionError(null);
     try {
@@ -223,6 +226,9 @@ export function App() {
           })
         )
       );
+      if (requestId !== sessionRequestIdRef.current) {
+        return;
+      }
       setSession(payload);
       if (payload?.current_persona?.id) {
         setPreferredPersonaId(payload.current_persona.id);
@@ -230,6 +236,9 @@ export function App() {
       }
       setSessionState("ready");
     } catch (error) {
+      if (requestId !== sessionRequestIdRef.current) {
+        return;
+      }
       setSession(null);
       setSessionError(error);
       setSessionState("error");
@@ -261,6 +270,7 @@ export function App() {
       } else {
         setSessionState("updating");
       }
+      sessionRequestIdRef.current += 1;
       setSessionError(null);
       try {
         const payload = await readJSON(
@@ -320,6 +330,7 @@ export function App() {
   );
 
   const logout = useCallback(async () => {
+    sessionRequestIdRef.current += 1;
     setSessionState("updating");
     setSessionError(null);
     try {
@@ -469,7 +480,7 @@ export function App() {
   const visiblePersonaId = personaSwitchState?.targetPersonaId || activePersonaId;
 
   let page = null;
-  if (sessionState === "loading") {
+  if (sessionState === "loading" && currentRoute?.kind !== "login") {
     page = <PageStatus title="Loading" message="Preparing the DEV session." />;
   } else if (sessionState === "error") {
     page = (
