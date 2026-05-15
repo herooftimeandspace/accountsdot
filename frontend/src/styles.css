@@ -1797,10 +1797,11 @@ input {
   top: 92px;
   z-index: 2;
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 18px;
+  grid-template-rows: auto auto;
+  align-content: start;
+  gap: 16px;
   width: 1348px;
-  height: 930px;
+  min-height: 930px;
   padding: 28px;
   background: var(--color-bg);
   color: var(--color-text);
@@ -1809,7 +1810,7 @@ input {
 
 .departing-seniors-runtime__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
 }
@@ -1821,10 +1822,11 @@ input {
 }
 
 .departing-seniors-runtime__year {
-  display: grid;
-  gap: 6px;
-  min-width: 220px;
-  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 292px;
+  padding: 8px 10px;
   border: 1px solid var(--color-canvas);
   border-radius: 8px;
   background: rgba(221, 226, 227, 0.18);
@@ -1833,10 +1835,13 @@ input {
 .departing-seniors-runtime__year label {
   font-size: 11px;
   font-weight: 800;
+  line-height: 1.2;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .departing-seniors-runtime__year select {
+  flex: 1;
   min-height: 34px;
   border: 1px solid var(--color-canvas);
   border-radius: 8px;
@@ -1848,7 +1853,7 @@ input {
 
 .departing-seniors-runtime__table {
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto;
   min-height: 0;
   border: 1px solid var(--color-canvas);
   border-radius: 8px;
@@ -1872,10 +1877,10 @@ input {
   display: grid;
   grid-template-columns: 142px minmax(170px, 1fr) 112px 106px minmax(150px, 0.9fr) 128px 174px 146px;
   column-gap: 10px;
-  align-items: center;
 }
 
 .departing-seniors-runtime__table-header {
+  align-items: center;
   padding: 0 0 10px;
   border-bottom: 1px solid var(--color-canvas);
   font-size: 11px;
@@ -1884,16 +1889,27 @@ input {
 
 .departing-seniors-runtime__table-body {
   min-height: 0;
+  max-height: 588px;
   overflow: auto;
 }
 
 .departing-seniors-runtime__row {
+  align-items: start;
   min-height: 74px;
   padding: 12px 0;
   border-bottom: 1px solid var(--color-canvas);
   font-size: 12px;
   line-height: 1.35;
   cursor: pointer;
+}
+
+.departing-seniors-runtime__empty {
+  margin: 0;
+  padding: 18px 0 4px;
+  color: var(--color-accent-gray);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .departing-seniors-runtime__row strong,

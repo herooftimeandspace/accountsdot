@@ -1,0 +1,42 @@
+{
+  "route": "/departing-seniors",
+  "verified_at": "2026-05-15T23:04:00Z",
+  "local_url": "http://localhost:5173/departing-seniors",
+  "personas": [
+    {
+      "id": "it_admin",
+      "label": "IT Admin",
+      "row_count": 4,
+      "school_year": "2025-2026",
+      "school_year_label": "2025-2026 (current)",
+      "table_height_px": 317,
+      "gap_below_visible_rows_px": 12,
+      "drawer_check": {
+        "opened": true,
+        "row": "Luis Alvarez"
+      },
+      "empty_filtered_state": {
+        "search": "zz-no-match",
+        "row_count": 0,
+        "message": "No departing seniors match the current search.",
+        "table_height_px": 131,
+        "gap_below_empty_message_px": 11
+      },
+      "screenshot": "artifacts/issues/issue-126/departing-seniors-it-admin-table.png"
+    },
+    {
+      "id": "device_wrangler",
+      "label": "Device Wrangler",
+      "row_count": 4,
+      "school_year": "2025-2026",
+      "school_year_label": "2025-2026 (current)",
+      "table_height_px": 317,
+      "gap_below_visible_rows_px": 12,
+      "drawer_check": {
+        "opened": true,
+        "row": "Maya Chen"
+      },
+      "screenshot": "artifacts/issues/issue-126/departing-seniors-device-wrangler-drawer.png"
+    }
+  ]
+}
