@@ -172,7 +172,7 @@ function SecurityIssueDrawer({ row, onClose }) {
     return null;
   }
   return (
-    <RuntimeDrawer title={row.person} bounds={DRAWER_BOUNDS} onClose={onClose}>
+    <RuntimeDrawer title={row.person} bounds={DRAWER_BOUNDS} onClose={onClose} className="security-issues-runtime__drawer">
       {row.warning ? (
         <div className="security-issues-runtime__warning">
           <strong>Security issue</strong>
