@@ -793,13 +793,15 @@ function buildVisibleSidebarRows(session) {
   let labelY = SIDEBAR_TEMPLATE.firstLabelY;
   buildVisibleNavGroups(session).forEach((navKey) => {
     const children = visibleNavChildrenForKey(navKey, session);
+    const destination = navDestinationForKey(navKey, session);
     rows.push({
       key: navKey,
       navKey,
       depth: 0,
       labelY,
-      destination: navDestinationForKey(navKey, session),
+      destination,
       hasChildren: children.length > 0,
+      hasChildWithSameDestination: children.some((child) => child.path === destination),
     });
     if (children.length === 0) {
       labelY += SIDEBAR_TEMPLATE.rowStep;
@@ -825,6 +827,10 @@ function buildVisibleSidebarRows(session) {
 
 function sidebarRowActive(row, activeNavKey, activeRoutePath) {
   if (activeRoutePath) {
+    // When a parent defaults to a documented child route, the child owns the selected visual state.
+    if (row.depth === 0 && row.hasChildWithSameDestination) {
+      return false;
+    }
     return row.destination === activeRoutePath;
   }
   return row.depth === 0 && row.navKey === activeNavKey;
