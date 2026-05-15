@@ -12,18 +12,6 @@
   "children": [
     {
       "type": "frame",
-      "id": "f2",
-      "name": "Background",
-      "x": 0,
-      "y": 0,
-      "width": 1672,
-      "height": 1080,
-      "fill": "#FFFFFF",
-      "cornerRadius": 0,
-      "layout": "none"
-    },
-    {
-      "type": "frame",
       "id": "img3",
       "name": "Firefly",
       "x": 386,
