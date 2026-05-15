@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeSelectDropdown } from "../components/RuntimeDropdown";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -210,43 +211,31 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
         <span className="frequent-fliers-runtime__operator" aria-label="Comparison: greater than or equal to">
           &gt;=
         </span>
-        <label>
-          <span className="sr-only">Threshold</span>
-          <select
-            value={pendingFilters.threshold}
-            onChange={(event) => onPendingChange({ threshold: Number(event.target.value) })}
-          >
-            {Array.from({ length: 10 }, (_, index) => index + 1).map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="sr-only">Metric</span>
-          <select
-            value={pendingFilters.metric}
-            onChange={(event) => onPendingChange({ metric: event.target.value })}
-          >
-            <option value="devices">Devices</option>
-            <option value="tickets">Tickets</option>
-          </select>
-        </label>
+        <RuntimeSelectDropdown
+          label="Threshold"
+          value={pendingFilters.threshold}
+          options={Array.from({ length: 10 }, (_, index) => {
+            const optionValue = index + 1;
+            return { value: optionValue, label: String(optionValue) };
+          })}
+          onChange={(threshold) => onPendingChange({ threshold: Number(threshold) })}
+        />
+        <RuntimeSelectDropdown
+          label="Metric"
+          value={pendingFilters.metric}
+          options={[
+            { value: "devices", label: "Devices" },
+            { value: "tickets", label: "Tickets" },
+          ]}
+          onChange={(metric) => onPendingChange({ metric })}
+        />
         <span>during</span>
-        <label>
-          <span className="sr-only">Date range</span>
-          <select
-            value={pendingFilters.range}
-            onChange={(event) => onPendingChange({ range: event.target.value })}
-          >
-            {FREQUENT_FLIERS_RANGE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <RuntimeSelectDropdown
+          label="Date range"
+          value={pendingFilters.range}
+          options={FREQUENT_FLIERS_RANGE_OPTIONS}
+          onChange={(range) => onPendingChange({ range })}
+        />
         <button type="submit">Apply</button>
       </form>
       <div className="frequent-fliers-runtime__table-card">

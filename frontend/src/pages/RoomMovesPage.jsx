@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeCombobox } from "../components/RuntimeDropdown";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -318,6 +319,12 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   const availableRooms = roomOptionsForSite(rooms, destinationSiteId);
   const showsManualAction = Boolean(row?.manual_action_owner || row?.manual_action_reason);
 
+  function updatePersonQuery(value) {
+    setQuery(value);
+    const person = findPersonFromAutocompleteValue(people, value);
+    setSelectedPersonId(person?.id || "");
+  }
+
   function applyPersonValue(value) {
     setQuery(value);
     const person = findPersonFromAutocompleteValue(people, value);
@@ -420,20 +427,18 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
       <div className="runtime-drawer__section">
         <label className="room-moves-runtime__field" htmlFor="room-move-person-search">
           <span>Employee ID, email, or name</span>
-          <input
-            id="room-move-person-search"
-            list="room-move-person-options"
-            type="search"
+          <RuntimeCombobox
+            inputId="room-move-person-search"
+            label="Employee ID, email, or name"
             value={query}
-            onChange={(event) => applyPersonValue(event.target.value)}
-            onBlur={(event) => applyPersonValue(event.target.value)}
-            placeholder="Search scoped people..."
+            options={autocompleteOptions.map((person) => ({
+              value: personAutocompleteLabel(person),
+              label: personAutocompleteLabel(person),
+            }))}
+            onInput={updatePersonQuery}
+            onCommit={applyPersonValue}
+            placeholder="Search"
           />
-          <datalist id="room-move-person-options">
-            {autocompleteOptions.map((person) => (
-              <option key={person.id} value={personAutocompleteLabel(person)} />
-            ))}
-          </datalist>
         </label>
         {canManageDistrict ? (
           <label className="room-moves-runtime__field" htmlFor="room-move-destination-site">
