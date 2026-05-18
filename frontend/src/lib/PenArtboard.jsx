@@ -320,7 +320,7 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides, enab
 }
 
 /**
- * PenArtboard is the shared renderer for implemented `.pen` pages. Static and runtime-backed pages pass generated artboard JSON, hidden-node rules, text/image overrides, and an optional overlay callback; this component measures the available width, scales the visual artboard with CSS zoom so anchored shell layers keep their viewport behavior, and exposes the node index to overlays for precise native controls.
+ * PenArtboard is the shared renderer for implemented `.pen` pages. Static and runtime-backed pages pass generated artboard JSON, hidden-node rules, text/image overrides, an optional overlay callback, and an optional minimum artboard height for runtime overlays that grow past the generated canvas. This component measures the available width, scales the visual artboard with CSS zoom so anchored shell layers keep their viewport behavior, and exposes the node index to overlays for precise native controls.
  */
 export function PenArtboard({
   artboard,
@@ -329,6 +329,7 @@ export function PenArtboard({
   hiddenNodeIds = [],
   imageNodeOverrides = {},
   renderOverlay = null,
+  minArtboardHeight = 0,
 }) {
   const containerRef = useRef(null);
   const normalizedArtboard = useMemo(() => uniquifyNodeIds(clone(artboard)), [artboard]);
@@ -360,7 +361,8 @@ export function PenArtboard({
   }, [normalizedArtboard.width]);
 
   const scale = Math.min(1, containerWidth / normalizedArtboard.width || 1);
-  const scaledHeight = normalizedArtboard.height * scale;
+  const effectiveArtboardHeight = Math.max(normalizedArtboard.height, minArtboardHeight);
+  const scaledHeight = effectiveArtboardHeight * scale;
 
   return (
     <div ref={containerRef} className="pen-stage" style={{ height: scaledHeight }}>
@@ -368,7 +370,7 @@ export function PenArtboard({
         className="pen-stage__artboard"
         style={{
           width: normalizedArtboard.width,
-          height: normalizedArtboard.height,
+          height: effectiveArtboardHeight,
           zoom: scale,
           background:
             typeof normalizedArtboard.fill === "string"
