@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { devMark } from "./devPerformance";
+import { artboardHasSharedShell } from "./sharedShellArtboard.mjs";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 
 const ACCESSIBLE_UI_FONT_STACK = '"Atkinson Hyperlegible", Arial, Helvetica, sans-serif';
@@ -181,11 +182,11 @@ function drawPath(node) {
 /**
  * renderNode converts generated `.pen` nodes into absolutely positioned visual DOM. It also tags shared-shell header/sidebar nodes so the shared CSS can anchor chrome while the generated page pane scrolls; runtime overlays remain responsible for actual form controls, links, row selection, and drawer state.
  */
-function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
+function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides, enableSharedShellSticky) {
   if (hiddenNodeIds.has(node.id)) {
     return null;
   }
-  const stickyLayer = sharedShellStickyLayer(node);
+  const stickyLayer = enableSharedShellSticky ? sharedShellStickyLayer(node) : null;
   const stickyClassName = stickyLayer ? `pen-node--shared-shell-sticky pen-node--shared-shell-${stickyLayer}` : undefined;
 
   if (node.type === "frame") {
@@ -223,7 +224,7 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides) {
           />
         ) : null}
         {(node.children || []).map((child) =>
-          renderNode(child, textOverrides, hiddenNodeIds, imageNodeOverrides)
+          renderNode(child, textOverrides, hiddenNodeIds, imageNodeOverrides, enableSharedShellSticky)
         )}
       </div>
     );
@@ -334,6 +335,7 @@ export function PenArtboard({
   const [containerWidth, setContainerWidth] = useState(normalizedArtboard.width);
   const hiddenNodeIdSet = useMemo(() => new Set(hiddenNodeIds), [hiddenNodeIds]);
   const nodeIndex = useMemo(() => buildNodeIndex(normalizedArtboard), [normalizedArtboard]);
+  const enableSharedShellSticky = useMemo(() => artboardHasSharedShell(normalizedArtboard), [normalizedArtboard]);
 
   useEffect(() => {
     devMark("artboard-render-commit", {
@@ -376,7 +378,7 @@ export function PenArtboard({
       >
         {/* WCAG 1.3.1/4.1.2: PEN nodes are visual-only; page containers provide semantic structure. */}
         {(normalizedArtboard.children || []).map((child) =>
-          renderNode(child, textOverrides, hiddenNodeIdSet, imageNodeOverrides)
+          renderNode(child, textOverrides, hiddenNodeIdSet, imageNodeOverrides, enableSharedShellSticky)
         )}
         {Object.entries(hotspots).map(([nodeId, hotspot]) => {
           const node = nodeIndex.get(nodeId);

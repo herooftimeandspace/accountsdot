@@ -3,7 +3,8 @@ import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
 import { devMark, devMeasureAsync } from "./lib/devPerformance";
 import { errorStatusCodeFor } from "./lib/errorStatus.mjs";
 import { prefetchArtboards } from "./lib/generatedArtboards";
-import { artboardKeysForAllowedRoutes, isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
+import { redirectTargetForRoute } from "./lib/routeAccess.mjs";
+import { artboardKeysForAllowedRoutes, normalizePath, resolveRoute } from "./lib/routeRegistry";
 import { LoginPage } from "./pages/LoginPage";
 
 function lazyNamed(importer, exportName) {
@@ -424,39 +425,7 @@ export function App() {
   );
 
   const redirectTarget = useMemo(() => {
-    if (sessionState !== "ready") {
-      return null;
-    }
-
-    if (currentPath === "/") {
-      return authenticated ? "/dashboard" : "/login";
-    }
-
-    if (currentRoute?.kind === "login") {
-      return authenticated ? "/dashboard" : null;
-    }
-
-    if (!authenticated) {
-      return currentPath === "/error/401" ? null : "/error/401";
-    }
-
-    if (!currentRoute) {
-      return "/error/404";
-    }
-
-    if (currentRoute.kind === "dashboard-redirect") {
-      return session?.landing_path || "/error/403";
-    }
-
-    if (currentRoute.kind === "error") {
-      return null;
-    }
-
-    if (!isRouteAllowed(session, currentRoute.path)) {
-      return "/error/403";
-    }
-
-    return null;
+    return redirectTargetForRoute({ sessionState, authenticated, currentPath, currentRoute, session });
   }, [authenticated, currentPath, currentRoute, session, sessionState]);
 
   useEffect(() => {
