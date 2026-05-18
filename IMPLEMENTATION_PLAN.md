@@ -663,6 +663,20 @@
   - `Aeries` access and `Verkada` ticket automation are external `IncidentIQ` configuration TODOs rather than app-owned `Phase 2` workflow buckets
 - Phase-specific data-access note:
   - lifecycle planning may consume local normalized projections, but all provider mutations in this phase require live read-before-write and live post-write verification
+- Phase 2+ live-write pilot gate:
+  - Phase 2 is the first phase where real upstream provider writeback may be implemented, but every live mutation must remain behind a tightly scoped pilot gate until the project owner approves broader writeback through a specific merged PR
+  - every write-capable workflow must expose a what-if validation mode that resolves the exact provider target, operation name, before/after intent, idempotency key, safety checks, rollback reference, and expected post-write verification without changing upstream state
+  - what-if validation is a dry-run contract: it may read providers and local projections, but it must not enqueue, persist, or send an upstream mutation
+  - live upstream writeback is allowlisted to exactly these pilot accounts:
+    - `bsisko@wusd.org`
+    - `test-lcampbell-stu@stu.wusd.org`
+  - the allowlist applies to every provider-owned identity or side effect reached by the workflow, including primary accounts, aliases, group memberships, licenses, phone assignments, room memberships, generated tickets, ticket requestors, deprovisioning actions, rename targets, and any other upstream mutation
+  - account resolution must fail closed if the target identity cannot be resolved unambiguously to one of the allowlisted addresses before mutation
+  - no feature flag, environment variable, local branch, unmerged PR, draft workflow, manual database edit, or operator action may expand live-write eligibility beyond the current merged-code allowlist
+  - expansion beyond the two pilot accounts requires an explicit project-owner approval tied to a specific PR code change, and the expansion is inactive until that PR is merged into the active environment branch
+  - what-if output for non-allowlisted accounts may be used for validation and review, but the live mutation step must block and record only sanitized diagnostics
+  - tests for write-capable code must include allowlisted-account success coverage, non-allowlisted-account denial coverage, ambiguous-resolution denial coverage, missing-target denial coverage, unmerged-or-unapproved-expansion denial coverage, and post-write verification behavior for the allowlisted pilot path
+  - promotion evidence for write-capable buckets must include the what-if evidence, the explicit approval reference, the merged PR reference, the target account evidence, and the post-write provider-state readback for each pilot write
 - Recommended delivery buckets:
   - `2A` provisioning-profile and baseline bundle foundation
   - `2B` common-path onboarding and baseline update/deprovision lifecycle
@@ -732,19 +746,27 @@
     - mock or staging output summary for downstream baseline actions taken
     - `IncidentIQ` workflow-status evidence showing hourly-bounded user/ticket polling and dashboard linking behavior
     - evidence that live provider disagreement on a write path refreshes projections and prevents unsafe mutation
+    - what-if validation evidence before every live pilot writeback attempt
+    - allowlisted target evidence proving any live writeback touched only `bsisko@wusd.org` or `test-lcampbell-stu@stu.wusd.org`
+    - denial evidence proving non-allowlisted resolved targets and ambiguous targets block before mutation
   - `2C` reactivation and AD → Entra propagation warning handling
     - warning visibility evidence for workflow viewers and IT Admin
     - resume/cancel/replan execution trace
     - database state check confirming baseline-first restoration behavior
+    - what-if validation and allowlist-denial evidence before any live provider mutation
   - `2D` preferred-name self-service and downstream sync
     - request audit record
     - downstream sync log or state-change evidence
     - evidence that both Zoom user naming surfaces were updated
     - authorization evidence that students cannot submit preferred-name edits through the dashboard
+    - what-if validation evidence and post-write provider readback for any allowlisted pilot preferred-name write
+    - denial evidence proving preferred-name writes for non-allowlisted users block before downstream mutation
   - `2E` actionable Google-active / Aeries-inactive queue controls
     - queue action audit evidence for individual and bulk actions
     - resulting queue-state database check
     - downstream workflow summary for the selected action path
+    - what-if validation evidence for individual and bulk actions before live mutation
+    - denial evidence proving bulk actions skip or block non-allowlisted users before any upstream mutation
 - Named workflow scenarios to sync with `TEST_MATRIX.md`:
   - `2A` provisioning-profile and baseline bundle foundation
     - `P2-2A-001` Profile Save Applies To Not-Yet-Started Work
@@ -771,10 +793,10 @@
 
 - Rollback triggers for this phase:
   - `2A`: trigger rollback if started workflows reread live profile edits, profile snapshots are not stable, or unmapped-title blocking affects the wrong people.
-  - `2B`: trigger rollback if baseline onboarding or deprovisioning is non-idempotent, duplicate account effects occur, or the common-path end-state is materially wrong.
-  - `2C`: trigger rollback if reactivation restores extras, resume/cancel/replan corrupts workflow state, or Entra warning handling violates the documented baseline-first rule.
-  - `2D`: trigger rollback if preferred-name edits write the wrong downstream values, fail to update one of the required Zoom naming surfaces, or allow student-originated preferred-name edits through the dashboard.
-  - `2E`: trigger rollback if individual or bulk queue actions move the wrong records, corrupt queue state, or mishandle graduated-senior suppression and override behavior.
+  - `2B`: trigger rollback if baseline onboarding or deprovisioning is non-idempotent, duplicate account effects occur, the common-path end-state is materially wrong, what-if output does not match live intent, or any live write attempts to touch a non-allowlisted account.
+  - `2C`: trigger rollback if reactivation restores extras, resume/cancel/replan corrupts workflow state, Entra warning handling violates the documented baseline-first rule, or live reactivation writes are attempted outside the pilot allowlist.
+  - `2D`: trigger rollback if preferred-name edits write the wrong downstream values, fail to update one of the required Zoom naming surfaces, allow student-originated preferred-name edits through the dashboard, or live preferred-name writes are attempted outside the pilot allowlist.
+  - `2E`: trigger rollback if individual or bulk queue actions move the wrong records, corrupt queue state, mishandle graduated-senior suppression and override behavior, or attempt upstream mutation for any non-allowlisted account.
 - Rollback references for this phase:
   - `2A`: restore the last approved provisioning-profile and title-bundle configuration, cancel or replan not-yet-started workflows that referenced the superseded config, and preserve already-started workflows on their captured snapshot.
   - `2B`: place lifecycle writes under global pause, revert the lifecycle revision, reconcile created or changed baseline state against provider truth, and rerun only the documented recovery or deprovision steps needed to reach the intended baseline.
@@ -1548,6 +1570,18 @@
   - keep deprovisioned rows visible when devices remain assigned, because the remaining work is device recovery rather than account removal
   - use the shared runtime table search/sort primitive, with the search covering first name, last name, email address, selected school year, assigned asset serial, assigned asset ID, and student ID
   - selecting a row opens the shared right-hand drawer with the student's school-year context, account-retirement state, device-return details, and available IncidentIQ asset links
+- Departing Seniors retained-year test cases:
+  - retained-year tests must use a deterministic test clock and configured senior cutoff day so fixture behavior does not drift with the calendar
+  - past retained school year with clean completion: a previous-year senior whose account has already been deprovisioned and whose IncidentIQ devices have all been returned must not appear in the retained-year table. Noah Kim's 2023-2024 fixture should represent this case rather than remaining visible as `Ready`.
+  - past retained school year with device return still open: a previous-year senior whose account has already been deprovisioned but who still has one or more assigned IncidentIQ devices must remain visible. The row status should communicate device-return work rather than ordinary `Ready`.
+  - past retained school year with a future end-date override still valid today: a previous-year senior whose local override keeps the account intentionally active through a future date must remain visible, must show the override source, and must not be auto-deprovisioned while the override is still valid.
+  - past retained school year with an expired end-date override: a previous-year senior whose local override date is now in the past must no longer appear unless there are still outstanding assigned devices.
+  - current senior year before the configured cutoff day: current-year graduated seniors should show the senior grace-period or suppressed-by-senior-exception state rather than a generic `Ready` status while access is intentionally retained.
+  - current senior year after the configured cutoff day: seniors should be automatically deprovisioned; rows with no outstanding devices should leave the table, while rows with devices remain visible as device-return work.
+  - IncidentIQ device link behavior: retained-year rows with real IncidentIQ asset IDs and domains link to the corresponding asset record, while rows without real asset IDs render plain text and never invent fake links.
+  - retained-window bounds: the API and UI expose only the current senior year plus four previous senior years; requests for older years must fall back to the current year or otherwise fail closed without leaking stale cohorts.
+  - retained-year search behavior: search filters only within the selected school year and matches retained rows by name, email, student ID, selected school year, asset serial, and asset ID.
+  - Departing Seniors access control: IT Admin and Device Wrangler personas can load and manage the page; HR, Site Admin, other logged-in personas, and logged-out users must be denied for both page-load and mutation API calls.
 
 ## Lifecycle Decisions
 - Most workflows should run automatically.
@@ -2229,6 +2263,7 @@
   - query the provider first
   - if the intended effect already exists and matches the job intent, mark the step succeeded
   - only perform a write if reconciliation proves it is still needed
+- Starting with Phase 2, live writeback also requires a what-if validation pass before provider mutation and a pilot allowlist check immediately before the write call. The only approved live-write targets are `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org` until a later project-owner-approved PR explicitly changes the merged allowlist. Provider workers must treat any non-allowlisted, ambiguous, missing, or unmerged-approval target as a hard pre-write denial, not as a warning or manual override.
 
 ## Zoom Rules
 - V1 covers create user, set site/extension, assign calling plan, manage room SLG membership, and maintain one room-scoped CAP while a room is vacant.
