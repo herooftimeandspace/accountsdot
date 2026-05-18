@@ -23,7 +23,11 @@ type devSessionResponse struct {
 	DefaultSiteName string `json:"default_site_name"`
 	CurrentSiteID   string `json:"current_site_id"`
 	CurrentSiteName string `json:"current_site_name"`
-	CurrentPersona  *struct {
+	VisibleSites    []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"visible_sites"`
+	CurrentPersona *struct {
 		ID string `json:"id"`
 	} `json:"current_persona,omitempty"`
 	LandingPath   string   `json:"landing_path"`
@@ -675,6 +679,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if sessionPayload.DefaultSiteID != "clover-hs" || sessionPayload.CurrentSiteID != "clover-hs" {
 			t.Fatalf("expected clover-hs site context, got default=%q current=%q", sessionPayload.DefaultSiteID, sessionPayload.CurrentSiteID)
+		}
+		if len(sessionPayload.VisibleSites) < 6 {
+			t.Fatalf("expected district-wide visible sites in session payload, got %#v", sessionPayload.VisibleSites)
 		}
 		if !slices.Contains(sessionPayload.AllowedRoutes, "/data-quality") {
 			t.Fatalf("expected /data-quality in allowed routes: %#v", sessionPayload.AllowedRoutes)
