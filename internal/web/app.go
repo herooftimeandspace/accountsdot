@@ -336,13 +336,13 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-// registerDevOffboardingRoutes keeps the Offboarding route registration count
-// stable while issue #42 splits security-risk account review into Reports. The
-// registered handlers are both read-only GET page APIs; the existing
-// /api/v1/dev/offboarding/records/{id}/end-date mutation remains registered in
-// NewAppHandler so reviewers can see the only Offboarding write boundary next
-// to the route inventory in docs/external-write-inventory.md.
+// registerDevOffboardingRoutes keeps Offboarding page, search, and scheduling
+// routes grouped so permission reviews can compare read APIs with the DEV-only
+// mock write boundaries documented in docs/external-write-inventory.md.
 func registerDevOffboardingRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/v1/dev/pages/offboarding", http.HandlerFunc(handleDevOffboardingPage))
 	mux.Handle("/api/v1/dev/pages/reports/security-issues", http.HandlerFunc(handleDevSecurityIssuesReportPage))
+	mux.Handle("/api/v1/dev/offboarding/candidates", http.HandlerFunc(handleDevOffboardingCandidates))
+	mux.Handle("/api/v1/dev/offboarding/emergency-deprovision", http.HandlerFunc(handleDevOffboardingEmergencyDeprovision))
+	mux.Handle("/api/v1/dev/offboarding/contractor-offboarding", http.HandlerFunc(handleDevOffboardingContractorSchedule))
 }

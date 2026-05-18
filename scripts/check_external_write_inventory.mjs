@@ -33,6 +33,8 @@ const routeMetadata = new Map([
   ["POST /api/v1/dev/onboarding/manual-drafts/{id}/finalize", { owner: "DEV drafts" }],
   ["DELETE /api/v1/dev/onboarding/manual-drafts/{id}", { owner: "DEV drafts" }],
   ["PUT /api/v1/dev/offboarding/records/{id}/end-date", { owner: "offboarding" }],
+  ["POST /api/v1/dev/offboarding/emergency-deprovision", { owner: "offboarding" }],
+  ["POST /api/v1/dev/offboarding/contractor-offboarding", { owner: "offboarding" }],
   ["PUT /api/v1/dev/departing-seniors/records/{id}/end-date", { owner: "departing seniors" }],
   ["POST /api/v1/dev/departing-seniors/records/{id}/deprovision", { owner: "departing seniors" }],
   ["POST /api/v1/dev/room-moves/drafts", { owner: "room moves" }],

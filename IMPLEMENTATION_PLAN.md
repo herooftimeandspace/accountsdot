@@ -1550,6 +1550,11 @@
   - if a selected workflow requires user action, the drawer lists each action step with status, resolution instructions, and the relevant external-system link when available
   - Offboarding rows show status first, then person/account, email, site, end date, next action, and asset work; employee ID is visible only to HR and IT Admin
   - Escape-backed offboarding end dates are source-owned and read-only in the dashboard; non-Escape, orphan, or local override rows may expose an HR/IT-only date picker in the drawer
+  - the implemented pre-phase 0 Offboarding page exposes HR/IT-only `Emergency Offboarding` and `Offboard Contractor` actions as runtime-owned buttons that open the shared right-hand drawer; Site Admin, Site Secretary, Device Wrangler, Faculty and Staff, No Access, and logged-out sessions must not see or use these controls
+  - the DEV Emergency Offboarding drawer searches active employees and contractors by name, email, and employee ID, shows selected employment data, requires an explicit selected person in the submitted payload, and records an immediate in-memory `emergency_deprovision` mock action with actor, target, timestamp, and `dev_mock_only` mode
+  - the DEV Offboard Contractor drawer searches active contractors only by name, email, and employee ID, shows selected contractor data, lets HR/IT edit the termination date locally, and records a dated in-memory `contractor_scheduled_deprovision` mock action only when `Schedule Offboarding` is submitted
+  - candidate search and scheduling endpoints must enforce the HR/IT manual-offboarding permission server-side before exposing employee IDs, contractor data, or mutation results; direct payload construction by other personas returns the same denied behavior as other protected APIs
+  - these offboarding actions are mock workflow scheduling boundaries in this slice and must not call Escape, Google, Zoom, IncidentIQ, Aeries, Active Directory, Entra, or a production database; future provider-backed execution must add what-if validation, idempotency, audit persistence, rollback references, post-write verification, and the Phase 2 live-write pilot allowlist check before any upstream mutation
 - Visibility rules for onboarding and offboarding status:
   - HR can see all sensitive lifecycle data
   - site admin staff can only see, for their own site:
