@@ -10,6 +10,7 @@ const modelModule = await import(
 
 const {
   defaultDestinationRoom,
+  roomMoveSingleDraftRequest,
   roomMoveDrawerActionLabels,
   roomMoveDrawerClosedState,
   roomMoveMatchesCurrentRoom,
@@ -41,4 +42,24 @@ test("room move drawer exposes Save and Apply without Schedule and closes on suc
   assert.equal(defaultDestinationRoom(jamieReed, "desert-view"), "dve-c118");
   assert.equal(defaultDestinationRoom(jamieReed, "clover-hs"), "none");
   assert.deepEqual(roomMoveDrawerClosedState(), { selectedRow: null, showCreateDrawer: false });
+});
+
+test("room move drawer preserves existing seeded-row scope on draft update", () => {
+  const updatePayload = roomMoveSingleDraftRequest(
+    { draft_id: "single-jamie-reed", current_site_id: "desert-view" },
+    jamieReed,
+    "desert-view",
+    "dve-c122"
+  );
+  assert.equal(updatePayload.scope_site_id, "desert-view");
+  assert.deepEqual(updatePayload.rows, [
+    {
+      person_id: "jamie-reed",
+      destination_site_id: "desert-view",
+      destination_room_id: "dve-c122",
+    },
+  ]);
+
+  const createPayload = roomMoveSingleDraftRequest(null, jamieReed, "desert-view", "dve-c122");
+  assert.equal(Object.hasOwn(createPayload, "scope_site_id"), false);
 });

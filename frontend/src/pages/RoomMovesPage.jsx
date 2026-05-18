@@ -7,6 +7,7 @@ import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import {
   defaultDestinationRoom,
+  roomMoveSingleDraftRequest,
   roomMoveDrawerClosedState,
   roomMoveMatchesCurrentRoom,
   roomMoveSameRoomMessage,
@@ -368,17 +369,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           method: row?.draft_id ? "PUT" : "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({
-            mode: "mid_year_targeted_move",
-            person_id: selectedPerson.id,
-            rows: [
-              {
-                person_id: selectedPerson.id,
-                destination_site_id: destinationSiteId,
-                destination_room_id: destinationRoomId,
-              },
-            ],
-          }),
+          body: JSON.stringify(roomMoveSingleDraftRequest(row, selectedPerson, destinationSiteId, destinationRoomId)),
         })
       );
       setCreatedDraftId(response.draft.id);

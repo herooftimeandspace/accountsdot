@@ -503,6 +503,18 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 			})
 			continue
 		}
+		state := draftStatusLabel(draft.Status)
+		scheduledFor := draft.ScheduledFor
+		warning := strings.Join(draft.Warnings, " ")
+		phone := fmt.Sprintf("%d rows", len(draft.Rows))
+		author := draft.Author
+		if seed, ok := seedRoomMoveReviewRowByDraftID(draft.ID); ok && seed.ID != seed.DraftID && draft.Status == roomMoveDraftStatusOpen {
+			state = seed.State
+			scheduledFor = seed.ScheduledFor
+			warning = seed.Warning
+			phone = seed.Phone
+			author = seed.Author
+		}
 		base = append(base, roomMoveReviewRow{
 			ID:                "bulk-" + draft.ID,
 			DraftID:           draft.ID,
@@ -517,19 +529,19 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 			DestinationSite:   draft.ScopeSite,
 			DestinationRoomID: "",
 			DestinationRoom:   "Multiple",
-			Phone:             fmt.Sprintf("%d rows", len(draft.Rows)),
-			Author:            draft.Author,
-			State:             draftStatusLabel(draft.Status),
-			ScheduledFor:      draft.ScheduledFor,
-			Warning:           strings.Join(draft.Warnings, " "),
-			WarningLevel:      warningLevel(strings.Join(draft.Warnings, " ")),
+			Phone:             phone,
+			Author:            author,
+			State:             state,
+			ScheduledFor:      scheduledFor,
+			Warning:           warning,
+			WarningLevel:      warningLevel(warning),
 		})
 	}
 
 	filtered := base[:0]
 	rowIndexByDraftID := map[string]int{}
 	for _, row := range base {
-		if baseDraftIDs[row.DraftID] && suppressedDraftIDs[row.DraftID] && row.ID == row.DraftID {
+		if baseDraftIDs[row.DraftID] && suppressedDraftIDs[row.DraftID] && isSeededRoomMoveReviewRow(row) {
 			continue
 		}
 		if canAccessRoomMoveSite(config, row.CurrentSiteID) && !s.canceled[row.DraftID] {
@@ -657,6 +669,11 @@ func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	return roomMoveReviewRow{}, false
 }
 
+func isSeededRoomMoveReviewRow(row roomMoveReviewRow) bool {
+	seed, ok := seedRoomMoveReviewRowByDraftID(row.DraftID)
+	return ok && row.ID == seed.ID
+}
+
 func seedCompletedRoomMoveJobs() []roomMoveCompletedJobPayload {
 	alex, _ := roomMovePersonByID("alex-ramirez")
 	morgan, _ := roomMovePersonByID("morgan-lee")
@@ -695,9 +712,9 @@ func (s *devRoomMoveStoreState) createDraft(config devPersonaConfig, request roo
 }
 
 // updateDraft replaces an existing DEV draft after confirming the current
-// persona can access the draft's scoped site. Missing mode or effective-date
-// fields keep their prior values so partial frontend saves do not reset workflow
-// context.
+// persona can access the draft's scoped site. Missing mode, scope-site, or
+// effective-date fields keep their prior values so partial frontend saves do
+// not reset workflow context.
 func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID string, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -723,6 +740,9 @@ func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID str
 	}
 	if !canAccessRoomMoveSite(config, existing.ScopeSiteID) {
 		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot update another site's room move draft."}
+	}
+	if request.ScopeSiteID == "" {
+		request.ScopeSiteID = existing.ScopeSiteID
 	}
 	draft, status, errors := buildRoomMoveDraft(config, draftID, request)
 	if status != http.StatusOK {
@@ -1056,7 +1076,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		fallbackStatus := row.FallbackStatus
 		technicalOutcome := row.TechnicalOutcome
 		phoneOutcome := person.Phone
-		if destinationRoomID == "none" && person.CurrentRoomID != "none" {
+		if destinationRoomID == "none" && person.CurrentRoomID != "none" && !roomMoveIsNeutralRolloverPlaceholder(person, destinationSiteID, destinationRoomID, action) {
 			warning = fmt.Sprintf("Destination room for %s is None; phone and room assignments will be removed.", person.Name)
 			warnings = appendUniqueString(warnings, warning)
 			phoneOutcome = "Remove phone and SLGs; convert room to common area"
@@ -1521,14 +1541,23 @@ func roomMoveIsSameStableRoom(person roomMovePersonOption, destinationSiteID str
 	return person.SiteID == destinationSiteID && person.CurrentRoomID == destinationRoomID
 }
 
+func roomMoveIsNeutralRolloverPlaceholder(person roomMovePersonOption, destinationSiteID string, destinationRoomID string, action string) bool {
+	return action == "change" && person.SiteID == destinationSiteID && destinationRoomID == "none" && person.CurrentRoomID != "none"
+}
+
 // validateRoomMoveRowsForTransition reruns the same-room guard immediately
 // before schedule/apply so stale DEV drafts or manually constructed payloads
-// cannot bypass create/update validation and become planned provider work.
+// cannot bypass create/update validation and become planned provider work. It
+// also keeps untouched site-rollover placeholder rows from turning into
+// implicit room-removal work during schedule or apply.
 func validateRoomMoveRowsForTransition(rows []roomMoveDraftRow) (int, map[string]string) {
 	for index, row := range rows {
 		person, ok := roomMovePersonByID(row.PersonID)
 		if !ok {
 			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.person_id", index): "Unknown person."}
+		}
+		if roomMoveIsNeutralRolloverPlaceholder(person, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("Choose a destination room for %s before scheduling or applying the room move.", person.Name)}
 		}
 		if roomMoveIsSameStableRoom(person, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
 			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, person.CurrentRoom)}

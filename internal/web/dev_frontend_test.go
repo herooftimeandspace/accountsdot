@@ -2733,6 +2733,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if len(updatedJamie.Draft.Rows) != 1 || updatedJamie.Draft.Rows[0].DestinationRoomID != "dve-c122" {
 			t.Fatalf("updated Jamie Reed draft = %#v, want C-122 destination on existing draft id", updatedJamie.Draft)
 		}
+		if updatedJamie.Draft.ScopeSiteID != "desert-view" {
+			t.Fatalf("updated Jamie Reed scope = %q, want original desert-view scope", updatedJamie.Draft.ScopeSiteID)
+		}
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
@@ -2788,6 +2791,26 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if len(seedBulkDraft.Page.Draft.Warnings) == 0 || seedBulkDraft.Page.Draft.Warnings[0] != expectedRemovalWarning {
 			t.Fatalf("seeded bulk warnings = %#v, want person-specific warning bullet", seedBulkDraft.Page.Draft.Warnings)
+		}
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it room moves after seeded bulk open returned %d, want 200", rec.Code)
+		}
+		afterSeedBulkOpen := decodeJSON[roomMovesResponse](t, rec)
+		seedBulkRows := 0
+		for _, row := range afterSeedBulkOpen.Page.Rows {
+			if row.DraftID == "rm-draft-103" {
+				seedBulkRows++
+				if row.Person != "Bulk Move" || row.State != "Scheduled" || row.ScheduledFor == "" || row.Warning == "" {
+					t.Fatalf("seeded bulk row after draft cache = %#v, want scheduled seed status preserved", row)
+				}
+			}
+		}
+		if seedBulkRows != 1 {
+			t.Fatalf("found %d seeded bulk rows after draft cache, want one preserved review row", seedBulkRows)
 		}
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/cancel", nil)
 		req.AddCookie(itCookie)
@@ -2857,6 +2880,23 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		roster := decodeJSON[roomMoveDraftTestResponse](t, rec)
 		if roster.Draft.Mode != "end_of_year_site_move" || len(roster.Draft.Rows) < 2 {
 			t.Fatalf("roster draft = %#v, want clover roster rows", roster.Draft)
+		}
+		placeholderRow := roster.Draft.Rows[0]
+		if placeholderRow.Action != "change" || placeholderRow.DestinationRoomID != "none" {
+			t.Fatalf("roster placeholder row = %#v, want unchanged destination placeholder", placeholderRow)
+		}
+		if placeholderRow.Phone == "Remove phone and SLGs; convert room to common area" || strings.Contains(placeholderRow.Warning, "will be removed") {
+			t.Fatalf("roster placeholder row = %#v, want neutral placeholder without removal outcome", placeholderRow)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+roster.Draft.ID+"/schedule", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("untouched roster schedule returned %d, want 400: %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "Choose a destination room") {
+			t.Fatalf("untouched roster schedule error = %s, want placeholder validation", rec.Body.String())
 		}
 
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id="+url.QueryEscape(roster.Draft.ID), nil)

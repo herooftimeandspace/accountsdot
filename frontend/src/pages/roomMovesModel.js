@@ -15,6 +15,28 @@ export function roomMoveSameRoomMessage(person) {
   return `${person?.name || "This person"} is already in ${room}. Choose a different destination room.`;
 }
 
+// roomMoveSingleDraftRequest builds the create/update payload for
+// RoomMovesPage's single-move drawer. Existing seeded rows carry the original
+// review-row site as scope_site_id so IT Admin edits do not rebuild a
+// non-default-site draft under the persona's default scope.
+export function roomMoveSingleDraftRequest(row, selectedPerson, destinationSiteId, destinationRoomId) {
+  const request = {
+    mode: "mid_year_targeted_move",
+    person_id: selectedPerson.id,
+    rows: [
+      {
+        person_id: selectedPerson.id,
+        destination_site_id: destinationSiteId,
+        destination_room_id: destinationRoomId,
+      },
+    ],
+  };
+  if (row?.draft_id) {
+    request.scope_site_id = row.current_site_id || selectedPerson?.site_id || destinationSiteId;
+  }
+  return request;
+}
+
 // defaultDestinationRoom mirrors the Room Moves PRD: same-site drawers show the
 // current room as context, while inter-site moves start with None.
 export function defaultDestinationRoom(person, destinationSiteId) {
