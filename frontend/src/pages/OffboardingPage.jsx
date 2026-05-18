@@ -15,6 +15,9 @@ import {
 
 const OFFBOARDING_ENDPOINT = "/api/v1/dev/pages/offboarding";
 const OFFBOARDING_RECORDS_ENDPOINT = "/api/v1/dev/offboarding/records";
+const OFFBOARDING_CANDIDATES_ENDPOINT = "/api/v1/dev/offboarding/candidates";
+const OFFBOARDING_EMERGENCY_ENDPOINT = "/api/v1/dev/offboarding/emergency-deprovision";
+const OFFBOARDING_CONTRACTOR_ENDPOINT = "/api/v1/dev/offboarding/contractor-offboarding";
 const OFFBOARDING_HEADING_ID = "offboarding-heading";
 const OFFBOARDING_TABLE_FRAME_NODE_ID = "offboarding__f115";
 const OFFBOARDING_TABLE_COLUMNS = [
@@ -39,7 +42,9 @@ const STATIC_OFFBOARDING_NODE_IDS = [
 ].map((id) => `offboarding__${id}`);
 
 /**
- * readJSON loads or decodes data for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * readJSON turns DEV Offboarding API responses into page state. It preserves
+ * HTTP status and backend error payloads so page loaders, end-date saves, and
+ * manual offboarding drawers can route 401/403 through the app-level guards.
  */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
@@ -53,7 +58,9 @@ async function readJSON(response) {
 }
 
 /**
- * nodeBox documents runtime data flow for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * nodeBox converts a generated artboard node into absolute overlay bounds for
+ * the runtime Offboarding table. Missing nodes return null so the page can
+ * render safely if the generated frame contract drifts.
  */
 function nodeBox(node) {
   if (!node) {
@@ -68,7 +75,9 @@ function nodeBox(node) {
 }
 
 /**
- * formatDate formats display data for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * formatDate presents DEV ISO dates for Offboarding tables and drawers. Empty
+ * dates remain explicit as Not set, and invalid seed values are returned
+ * unchanged to avoid hiding mock-data mistakes during review.
  */
 function formatDate(value) {
   if (!value) {
@@ -87,7 +96,9 @@ function formatDate(value) {
 }
 
 /**
- * statusClass formats display data for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * statusClass maps Offboarding workflow states onto the shared runtime severity
+ * palette. It keeps row badges, drawer action badges, and mock schedule status
+ * styling consistent without changing the source status text.
  */
 function statusClass(status) {
   if (["Ready", "Ready to Provision", "Healthy", "Complete", "Allowed"].includes(status)) {
@@ -109,7 +120,9 @@ function statusClass(status) {
 }
 
 /**
- * OffboardingWarning renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * OffboardingWarning renders the focusable warning marker used by table rows
+ * that need HR/IT review. The tooltip carries only backend-authorized row text,
+ * so personas without employee-id access do not receive hidden detail here.
  */
 function OffboardingWarning({ id, text }) {
   if (!text) {
@@ -126,7 +139,9 @@ function OffboardingWarning({ id, text }) {
 }
 
 /**
- * OffboardingTableOverlay renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * OffboardingTableOverlay places the live sortable/searchable table over the
+ * hidden static .pen table frame. It uses the backend's showEmployeeIDs flag to
+ * remove the employee-id column entirely for site-scoped viewers.
  */
 function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs, onSelectRow }) {
   const columns = showEmployeeIDs
@@ -195,7 +210,270 @@ function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs,
 }
 
 /**
- * OffboardingDrawer renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ * candidateMatches filters the HR/IT-only drawer search results already loaded
+ * from /api/v1/dev/offboarding/candidates. It searches only fields that the
+ * backend has authorized for this drawer: display name, district email, and
+ * employee ID.
+ */
+function candidateMatches(candidate, query) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return true;
+  }
+  return [candidate.person, candidate.email, candidate.employee_id]
+    .filter(Boolean)
+    .some((value) => value.toLowerCase().includes(normalizedQuery));
+}
+
+/**
+ * OffboardingActionBar renders the runtime-owned page actions for issue #161.
+ * The backend-provided canManageManual flag hides the controls for non-HR and
+ * non-IT personas; the schedule APIs repeat that authorization server-side.
+ */
+function OffboardingActionBar({ canManageManual, onEmergency, onContractor }) {
+  if (!canManageManual) {
+    return null;
+  }
+  return (
+    <div className="offboarding-runtime__action-bar">
+      <button
+        type="button"
+        className="offboarding-runtime__page-action offboarding-runtime__page-action--danger"
+        onClick={onEmergency}
+      >
+        Emergency Offboarding
+      </button>
+      <button
+        type="button"
+        className="offboarding-runtime__page-action offboarding-runtime__page-action--gold"
+        onClick={onContractor}
+      >
+        Offboard Contractor
+      </button>
+    </div>
+  );
+}
+
+/**
+ * OffboardingManualActionDrawer owns the HR/IT emergency and contractor
+ * offboarding workflows. It loads candidates only after the drawer opens and
+ * submits explicit schedule payloads to DEV mock APIs so date edits alone never
+ * mutate state or imply live provider write approval.
+ */
+function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbidden }) {
+  const [candidates, setCandidates] = useState([]);
+  const [query, setQuery] = useState("");
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [terminationDate, setTerminationDate] = useState("");
+  const [state, setState] = useState("loading");
+  const [error, setError] = useState("");
+  const [scheduledAction, setScheduledAction] = useState(null);
+
+  useEffect(() => {
+    if (!mode) {
+      return;
+    }
+    const controller = new AbortController();
+    const loadCandidates = async () => {
+      setState("loading");
+      setError("");
+      setScheduledAction(null);
+      setSelectedCandidate(null);
+      setTerminationDate("");
+      try {
+        const payload = await readJSON(
+          await fetch(`${OFFBOARDING_CANDIDATES_ENDPOINT}?mode=${encodeURIComponent(mode)}`, {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          })
+        );
+        setCandidates(payload?.candidates ?? []);
+        setState("ready");
+      } catch (loadError) {
+        if (loadError.name === "AbortError") {
+          return;
+        }
+        if (loadError.status === 401 && onUnauthorized) {
+          onUnauthorized();
+          return;
+        }
+        if (loadError.status === 403 && onForbidden) {
+          onForbidden();
+          return;
+        }
+        setState("error");
+        setError(loadError.message);
+      }
+    };
+    void loadCandidates();
+    return () => controller.abort();
+  }, [mode, onForbidden, onUnauthorized]);
+
+  if (!mode) {
+    return null;
+  }
+
+  const isEmergency = mode === "emergency";
+  const title = isEmergency ? "Emergency Offboarding" : "Offboard Contractor";
+  const visibleCandidates = candidates.filter((candidate) => candidateMatches(candidate, query));
+
+  const handleSelectCandidate = (candidate) => {
+    setSelectedCandidate(candidate);
+    setScheduledAction(null);
+    setError("");
+    setTerminationDate(candidate.termination_date || "");
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedCandidate) {
+      setError(isEmergency ? "Select an employee or contractor first." : "Select a contractor first.");
+      return;
+    }
+    setState("saving");
+    setError("");
+    try {
+      const endpoint = isEmergency ? OFFBOARDING_EMERGENCY_ENDPOINT : OFFBOARDING_CONTRACTOR_ENDPOINT;
+      const body = isEmergency
+        ? { person_id: selectedCandidate.id }
+        : { person_id: selectedCandidate.id, end_date: terminationDate };
+      const payload = await readJSON(
+        await fetch(endpoint, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(body),
+        })
+      );
+      setScheduledAction(payload.action);
+      setState("ready");
+    } catch (submitError) {
+      if (submitError.status === 401 && onUnauthorized) {
+        onUnauthorized();
+        return;
+      }
+      if (submitError.status === 403 && onForbidden) {
+        onForbidden();
+        return;
+      }
+      setError(submitError.payload?.errors?.end_date || submitError.payload?.errors?.person_id || submitError.message);
+      setState("ready");
+    }
+  };
+
+  return (
+    <RuntimeDrawer title={title} onClose={onClose}>
+      <div className={isEmergency ? "offboarding-runtime__manual-callout offboarding-runtime__manual-callout--danger" : "offboarding-runtime__manual-callout offboarding-runtime__manual-callout--gold"}>
+        {isEmergency
+          ? "This form is only for emergency, non-scheduled offboarding. To schedule offboarding, update the escape record or click the Manual Offboarding button"
+          : "This form is to offboard a manually created contractor. To offboard an employee, update the Escape record(s)."}
+      </div>
+      <div className="runtime-drawer__section">
+        <label className="offboarding-runtime__candidate-search" htmlFor={`offboarding-${mode}-search`}>
+          <span>{isEmergency ? "Search active employees and contractors" : "Search active contractors"}</span>
+          <input
+            id={`offboarding-${mode}-search`}
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search by name, email, or employee ID"
+          />
+        </label>
+        {state === "loading" ? <p>Loading candidates...</p> : null}
+        {state === "error" ? <p role="alert">{error || "Candidate search could not be loaded."}</p> : null}
+        {state !== "loading" && state !== "error" ? (
+          <div className="offboarding-runtime__candidate-list" role="listbox" aria-label={isEmergency ? "Active offboarding candidates" : "Active contractor candidates"}>
+            {visibleCandidates.map((candidate) => (
+              <button
+                key={candidate.id}
+                type="button"
+                role="option"
+                aria-selected={selectedCandidate?.id === candidate.id}
+                className={selectedCandidate?.id === candidate.id ? "offboarding-runtime__candidate offboarding-runtime__candidate--selected" : "offboarding-runtime__candidate"}
+                onClick={() => handleSelectCandidate(candidate)}
+              >
+                <span>{candidate.person}</span>
+                <span>{candidate.email}</span>
+                <span>{candidate.employee_id}</span>
+              </button>
+            ))}
+            {visibleCandidates.length === 0 ? <p>No matching candidates.</p> : null}
+          </div>
+        ) : null}
+      </div>
+      {selectedCandidate ? (
+        <div className="runtime-drawer__section">
+          <RuntimeDetailList
+            items={[
+              { label: "Name", value: selectedCandidate.person },
+              { label: "Email", value: selectedCandidate.email },
+              { label: "Employee ID", value: selectedCandidate.employee_id },
+              { label: "Current termination date", value: formatDate(selectedCandidate.termination_date) },
+            ]}
+          />
+        </div>
+      ) : null}
+      {isEmergency ? (
+        <div className="runtime-drawer__section">
+          <div className="offboarding-runtime__manual-callout offboarding-runtime__manual-callout--danger">
+            Clicking this button will remove all access for this person. This action cannot be undone.
+          </div>
+          <button
+            type="button"
+            className="offboarding-runtime__drawer-action offboarding-runtime__drawer-action--danger"
+            disabled={!selectedCandidate || state === "saving"}
+            onClick={handleSubmit}
+          >
+            {state === "saving" ? "Scheduling..." : "Deprovision Employee"}
+          </button>
+        </div>
+      ) : (
+        <div className="runtime-drawer__section">
+          <label className="offboarding-runtime__candidate-search" htmlFor="offboarding-contractor-date">
+            <span>Termination date</span>
+            <input
+              id="offboarding-contractor-date"
+              type="date"
+              value={terminationDate}
+              onChange={(event) => setTerminationDate(event.target.value)}
+            />
+          </label>
+          <div className="offboarding-runtime__drawer-actions">
+            <button
+              type="button"
+              className="offboarding-runtime__drawer-action offboarding-runtime__drawer-action--gold"
+              disabled={!selectedCandidate || state === "saving"}
+              onClick={handleSubmit}
+            >
+              {state === "saving" ? "Scheduling..." : "Schedule Offboarding"}
+            </button>
+            <button
+              type="button"
+              className="offboarding-runtime__drawer-action offboarding-runtime__drawer-action--gold"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {error && state !== "error" ? <p className="offboarding-runtime__form-error" role="alert">{error}</p> : null}
+      {scheduledAction ? (
+        <p className="offboarding-runtime__form-success" role="status">
+          {scheduledAction.person} scheduled for {scheduledAction.scheduled_for === "immediate" ? "immediate DEV mock deprovisioning" : formatDate(scheduledAction.scheduled_for)}.
+        </p>
+      ) : null}
+    </RuntimeDrawer>
+  );
+}
+
+/**
+ * OffboardingDrawer shows the selected row's source ownership, workflow steps,
+ * and optional local end-date editor. Saving calls the DEV end-date API only
+ * for rows the backend marked editable, keeping Escape-owned dates read-only.
  */
 function OffboardingDrawer({ row, canManageEndDates, onClose, onSaveEndDate }) {
   const [endDate, setEndDate] = useState(row?.end_date || "");
@@ -214,7 +492,9 @@ function OffboardingDrawer({ row, canManageEndDates, onClose, onSaveEndDate }) {
 
   const editable = row.end_date_editable && canManageEndDates;
   /**
-   * handleSave handles the user or network event for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   * handleSave submits an explicit end-date update for the selected row. It
+   * leaves the edited date in local form state until the backend accepts it and
+   * then reloads the page payload so role-scoped table data stays authoritative.
    */
   const handleSave = async () => {
     setSaving(true);
@@ -313,12 +593,16 @@ function OffboardingDrawer({ row, canManageEndDates, onClose, onSaveEndDate }) {
 }
 
 /**
- * OffboardingPage renders the UI surface for frontend/src/pages/OffboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * OffboardingPage coordinates the generated Offboarding artboard, backend page
+ * payload, row drawer, and HR/IT manual-action drawers. Its fetch handlers send
+ * 401/403 responses back to the app router so direct unauthorized navigation
+ * renders the documented login or access-denied state.
  */
 export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "", onUnauthorized, onForbidden }) {
   const [payload, setPayload] = useState(null);
   const [pageState, setPageState] = useState("loading");
   const [selectedRow, setSelectedRow] = useState(null);
+  const [manualDrawerMode, setManualDrawerMode] = useState(null);
 
   const { artboard, status: artboardStatus } = useGeneratedArtboard("offboarding");
   const meta = generatedArtboardMeta.offboarding;
@@ -350,6 +634,7 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
 
   useEffect(() => {
     setSelectedRow(null);
+    setManualDrawerMode(null);
     void loadPage();
   }, [loadPage]);
 
@@ -407,15 +692,32 @@ export function OffboardingPage({ session, onNavigate, onSearch, searchQuery = "
           showEmployeeIDs={Boolean(payload?.page?.show_employee_ids)}
           onSelectRow={setSelectedRow}
         />
+        <OffboardingActionBar
+          canManageManual={Boolean(payload?.page?.can_manage_manual)}
+          onEmergency={() => {
+            setSelectedRow(null);
+            setManualDrawerMode("emergency");
+          }}
+          onContractor={() => {
+            setSelectedRow(null);
+            setManualDrawerMode("contractor");
+          }}
+        />
         <OffboardingDrawer
           row={selectedPayloadRow}
           canManageEndDates={Boolean(payload?.page?.can_manage_end_dates)}
           onClose={() => setSelectedRow(null)}
           onSaveEndDate={handleSaveEndDate}
         />
+        <OffboardingManualActionDrawer
+          mode={manualDrawerMode}
+          onClose={() => setManualDrawerMode(null)}
+          onUnauthorized={onUnauthorized}
+          onForbidden={onForbidden}
+        />
       </>
     );
-  }, [handleSaveEndDate, payload, rows, selectedPayloadRow, sharedShellRenderOverlay]);
+  }, [handleSaveEndDate, manualDrawerMode, onForbidden, onUnauthorized, payload, rows, selectedPayloadRow, sharedShellRenderOverlay]);
 
   if (artboardStatus === "loading" || pageState === "loading") {
     return (

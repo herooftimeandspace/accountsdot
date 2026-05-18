@@ -172,11 +172,15 @@ Manual Non-Escape draft updates capture a required personal phone number for the
 
 ### Offboarding And Departing Seniors
 
-`internal/web/dev_offboarding.go` and `internal/web/dev_departing_seniors.go` update mock end dates and deprovisioning status. These model operator decisions and device/asset follow-up without writing to Escape, Google, Zoom, or IncidentIQ.
+`internal/web/dev_offboarding.go` and `internal/web/dev_departing_seniors.go` update mock end dates, mock immediate offboarding decisions, mock contractor offboarding schedules, and deprovisioning status. These model operator decisions and device/asset follow-up without writing to Escape, Google, Zoom, IncidentIQ, Aeries, Active Directory, Entra, or a production database.
+
+The Offboarding candidate-search route is read-only but still HR/IT-only because it exposes employee IDs and active contractor records for the drawer search experience. Emergency and contractor offboarding schedule routes mutate only the in-memory DEV action list with actor, target, timestamp, schedule, status, and `dev_mock_only` mode. They are future live-write boundaries; any provider-backed implementation must add what-if validation, deterministic idempotency, audit persistence, rollback references, post-write verification, and the Phase 2 pilot allowlist check before a provider mutation can run.
 
 Mutation routes include:
 
 - `PUT /api/v1/dev/offboarding/records/{id}/end-date`
+- `POST /api/v1/dev/offboarding/emergency-deprovision`
+- `POST /api/v1/dev/offboarding/contractor-offboarding`
 - `PUT /api/v1/dev/departing-seniors/records/{id}/end-date`
 - `POST /api/v1/dev/departing-seniors/records/{id}/deprovision`
 
