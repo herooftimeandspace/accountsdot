@@ -176,7 +176,7 @@ func newDevOffboardingStore() *devOffboardingStoreState {
 // flags, and deliberately excludes account-security rows because issue #42
 // moved recent-activity security risk review to /reports/security-issues.
 func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -227,7 +227,7 @@ func handleDevOffboardingPage(w http.ResponseWriter, r *http.Request) {
 // and deterministic mock external links without exposing the Offboarding
 // end-date mutation path to HR workflows.
 func handleDevSecurityIssuesReportPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -274,7 +274,7 @@ func handleDevSecurityIssuesReportPage(w http.ResponseWriter, r *http.Request) {
 // end-date permission before parsing the row id, then mutates only the in-memory
 // override map documented in docs/external-write-inventory.md.
 func handleDevOffboardingRecord(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}

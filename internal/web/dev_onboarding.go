@@ -353,7 +353,7 @@ func formatOnboardingDateTime(value time.Time) string {
 
 // handleDevOnboardingPage handles the request path for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -399,7 +399,7 @@ func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
 
 // handleDevOnboardingManualDrafts handles the request path for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevOnboardingManualDrafts(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodPost {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPost {
 		http.NotFound(w, r)
 		return
 	}
@@ -414,7 +414,7 @@ func handleDevOnboardingManualDrafts(w http.ResponseWriter, r *http.Request) {
 
 // handleDevOnboardingManualDraft handles the request path for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}

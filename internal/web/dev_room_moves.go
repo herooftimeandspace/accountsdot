@@ -219,7 +219,7 @@ func newDevRoomMoveStore() *devRoomMoveStoreState {
 }
 
 func handleDevRoomMovesPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -238,7 +238,7 @@ func handleDevRoomMovesPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDevRoomMovesBulkDraftPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -279,7 +279,7 @@ func roomMoveBulkDraftTitle(mode string) string {
 // The frontend single-move drawer posts one JSON draft request here; validation
 // errors return field messages, while success returns the stored draft payload.
 func handleDevRoomMoveDrafts(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodPost {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPost {
 		http.NotFound(w, r)
 		return
 	}
@@ -305,7 +305,7 @@ func handleDevRoomMoveDrafts(w http.ResponseWriter, r *http.Request) {
 // before mutating the in-memory store so site-scoped users cannot alter another
 // site's draft.
 func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -365,7 +365,7 @@ func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDevRoomMoveCompletedJobs(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -377,7 +377,7 @@ func handleDevRoomMoveCompletedJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDevRoomMoveCompletedJob(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
