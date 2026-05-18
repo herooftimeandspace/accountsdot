@@ -85,9 +85,10 @@ type departingSeniorsDeprovisionResponse struct {
 }
 
 type devDepartingSeniorsStoreState struct {
-	mu            sync.Mutex
-	endDates      map[string]string
-	deprovisioned map[string]bool
+	mu                    sync.Mutex
+	endDates              map[string]string
+	clearedLocalOverrides map[string]bool
+	deprovisioned         map[string]bool
 }
 
 type departingSeniorSeedRecord struct {
@@ -106,13 +107,15 @@ type departingSeniorSeedRecord struct {
 }
 
 // newDevDepartingSeniorsStore creates the in-memory DEV state used by the
-// Departing Seniors mock routes. The store holds only local override dates and
-// deprovision flags; live Aeries, Google, Zoom, and IncidentIQ records are not
-// mutated by this slice.
+// Departing Seniors mock routes. The store holds only local override dates,
+// explicit clear markers for seeded local overrides, and deprovision flags;
+// live Aeries, Google, Zoom, and IncidentIQ records are not mutated by this
+// slice.
 func newDevDepartingSeniorsStore() *devDepartingSeniorsStoreState {
 	return &devDepartingSeniorsStoreState{
-		endDates:      map[string]string{},
-		deprovisioned: map[string]bool{},
+		endDates:              map[string]string{},
+		clearedLocalOverrides: map[string]bool{},
+		deprovisioned:         map[string]bool{},
 	}
 }
 
@@ -309,6 +312,7 @@ func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (
 	normalized := strings.TrimSpace(value)
 	if normalized == "" {
 		delete(s.endDates, id)
+		s.clearedLocalOverrides[id] = true
 		return s.rowPayloadLocked(record, devDepartingSeniorsNow()), http.StatusOK, nil
 	}
 	if _, err := time.ParseInLocation("2006-01-02", normalized, onboardingTimeLocation()); err != nil {
@@ -317,6 +321,7 @@ func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (
 		}
 	}
 	s.endDates[id] = normalized
+	delete(s.clearedLocalOverrides, id)
 	return s.rowPayloadLocked(record, devDepartingSeniorsNow()), http.StatusOK, nil
 }
 
@@ -351,6 +356,8 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 	if override, ok := s.endDates[record.ID]; ok {
 		endDate = override
 		endDateSource = "Local override"
+	} else if s.clearedLocalOverrides[record.ID] && record.EndDateSource == "Local override" {
+		endDateSource = "Aeries senior class default"
 	}
 	deprovisioned := s.isDeprovisionedLocked(record, now)
 	status := "Ready"
@@ -367,7 +374,7 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 	case s.hasLocalOverrideLocked(record) && s.hasValidLocalOverrideLocked(record, now):
 		status = "Access retained by local override"
 		notes = append(notes, "A local override keeps the account active until the listed end date.")
-	case isCurrentSeniorGraduationYear(record.GraduationYear, now) && !pastSeniorCutoffForGraduationYear(record.GraduationYear, now):
+	case !pastSeniorCutoffForGraduationYear(record.GraduationYear, now):
 		status = "Suppressed by senior exception"
 		notes = append(notes, "Student identity access is intentionally retained through the configured senior cutoff day.")
 	}
@@ -404,7 +411,8 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 
 // visibleLocked applies retained-year visibility rules after the requested
 // school-year window has already been validated. Clean deprovisioned rows and
-// expired local overrides disappear unless assigned devices still need return.
+// expired previous-year local overrides disappear unless assigned devices still
+// need return; current-year rows stay visible until cutoff or deprovisioning.
 func (s *devDepartingSeniorsStoreState) visibleLocked(record departingSeniorSeedRecord, now time.Time) bool {
 	if len(record.OutstandingDevices) > 0 {
 		return true
@@ -412,10 +420,10 @@ func (s *devDepartingSeniorsStoreState) visibleLocked(record departingSeniorSeed
 	if s.isDeprovisionedLocked(record, now) {
 		return false
 	}
-	if s.hasLocalOverrideLocked(record) {
-		return s.hasValidLocalOverrideLocked(record, now)
+	if s.hasLocalOverrideLocked(record) && s.hasValidLocalOverrideLocked(record, now) {
+		return true
 	}
-	return isCurrentSeniorGraduationYear(record.GraduationYear, now) && !pastSeniorCutoffForGraduationYear(record.GraduationYear, now)
+	return !pastSeniorCutoffForGraduationYear(record.GraduationYear, now)
 }
 
 // isDeprovisionedLocked treats explicit DEV clicks, fixture state, and the
@@ -435,6 +443,9 @@ func (s *devDepartingSeniorsStoreState) isDeprovisionedLocked(record departingSe
 func (s *devDepartingSeniorsStoreState) hasLocalOverrideLocked(record departingSeniorSeedRecord) bool {
 	if _, ok := s.endDates[record.ID]; ok {
 		return true
+	}
+	if s.clearedLocalOverrides[record.ID] {
+		return false
 	}
 	return record.EndDateSource == "Local override"
 }
@@ -483,8 +494,9 @@ func pastSeniorCutoffForGraduationYear(graduationYear string, now time.Time) boo
 // the active Aeries-style school-year boundary. August starts the next school
 // year, so seniors after that boundary graduate in the following calendar year.
 func currentSeniorGraduationYear(now time.Time) string {
-	year := now.Year()
-	if now.Month() >= time.August {
+	current := now.In(onboardingTimeLocation())
+	year := current.Year()
+	if current.Month() >= time.August {
 		year++
 	}
 	return strconv.Itoa(year)
@@ -493,8 +505,9 @@ func currentSeniorGraduationYear(now time.Time) string {
 // currentSchoolYearLabel returns the Aeries-style school-year label that should
 // be selected by default on the Departing Seniors page.
 func currentSchoolYearLabel(now time.Time) string {
-	year := now.Year()
-	if now.Month() >= time.August {
+	current := now.In(onboardingTimeLocation())
+	year := current.Year()
+	if current.Month() >= time.August {
 		return strconv.Itoa(year) + "-" + strconv.Itoa(year+1)
 	}
 	return strconv.Itoa(year-1) + "-" + strconv.Itoa(year)

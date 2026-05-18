@@ -1830,6 +1830,121 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
+	t.Run("departing seniors retains current rows with expired overrides until cutoff", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.May, 18, 12, 0, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		updateBody, err := json.Marshal(map[string]string{"end_date": "2026-01-15"})
+		if err != nil {
+			t.Fatalf("marshal expired current-year override: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/departing-seniors/records/senior-maya-chen/end-date", bytes.NewReader(updateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expired current-year override returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year=2025-2026", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("current-year departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		found := false
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-maya-chen" {
+				found = true
+				if row.Deprovisioned || row.Status != "Suppressed by senior exception" {
+					t.Fatalf("expired current-year override row = %#v, want active senior exception row", row)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("expired current-year override hid Maya Chen before cutoff")
+		}
+	})
+
+	t.Run("departing seniors clears fixture backed local overrides", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.May, 18, 12, 0, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		clearBody, err := json.Marshal(map[string]string{"end_date": ""})
+		if err != nil {
+			t.Fatalf("marshal clear fixture override: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/departing-seniors/records/senior-emma-nguyen-2025-override/end-date", bytes.NewReader(clearBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("clear fixture override returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		updated := decodeJSON[struct {
+			Row struct {
+				EndDateSource string `json:"end_date_source"`
+				Deprovisioned bool   `json:"deprovisioned"`
+			} `json:"row"`
+		}](t, rec)
+		if updated.Row.EndDateSource == "Local override" || !updated.Row.Deprovisioned {
+			t.Fatalf("cleared fixture override row = %#v, want default-source deprovisioned row", updated.Row)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year=2024-2025", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("previous-year departing seniors after clear returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-emma-nguyen-2025-override" {
+				t.Fatal("cleared fixture-backed local override remained visible as retained access")
+			}
+		}
+	})
+
+	t.Run("departing seniors evaluates cutoff in district timezone", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.September, 1, 6, 30, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year=2025-2026", nil)
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("district-time cutoff departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		found := false
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-maya-chen" {
+				found = true
+				if row.Deprovisioned || row.Status != "Suppressed by senior exception" {
+					t.Fatalf("district-time cutoff row = %#v, want active until local cutoff day ends", row)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("Maya Chen disappeared while district timezone was still on cutoff day")
+		}
+	})
+
 	t.Run("departing seniors auto-deprovisions after senior cutoff", func(t *testing.T) {
 		web.ResetDevDepartingSeniorsStateForTest()
 		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
