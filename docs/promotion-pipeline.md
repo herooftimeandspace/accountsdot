@@ -54,6 +54,8 @@ It checks only repository-owned workflow and documentation contracts. It does no
 - A successful push validation on `dev` creates or refreshes the open `dev` to `staging` promotion PR.
 - A successful push validation on `staging` force-refreshes `promote/staging-to-main` from the validated staging commit, then creates or refreshes the open PR from that disposable branch to `main`.
 
+Bootstrap note: if `main` is still missing `quality.yml`, `promotion.yml`, or `release-prep-check.yml`, treat that as an incomplete pipeline bootstrap rather than a reason to copy workflow files by hand. First land the workflow set on `dev`, allow the `dev` gate to open or refresh the `dev` to `staging` PR, merge only after the `staging` gate is clean, and then let the successful `staging` push open or refresh the `promote/staging-to-main` PR. The default branch workflow inventory is complete only after that documented promotion PR merges to `main` and `main` contains the same three workflow files.
+
 `.github/workflows/release-prep-check.yml` runs on PRs targeting `main`. It enforces the current release-prep policy:
 
 - the PR must come from `promote/staging-to-main`;
