@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { devMark } from "./devPerformance";
+import { scheduleLongPageHarness } from "./devLongPageHarness.mjs";
 import { artboardHasSharedShell } from "./sharedShellArtboard.mjs";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 
@@ -319,8 +320,26 @@ function renderNode(node, textOverrides, hiddenNodeIds, imageNodeOverrides, enab
   return null;
 }
 
+function artboardContentBottom(element) {
+  let bottom = 0;
+  element.querySelectorAll("*").forEach((child) => {
+    if (!(child instanceof HTMLElement)) {
+      return;
+    }
+    if (child.dataset.artboardMeasureIgnore === "true" || child.dataset.sharedShellSticky) {
+      return;
+    }
+    const style = window.getComputedStyle(child);
+    if (style.position === "fixed" || style.position === "sticky") {
+      return;
+    }
+    bottom = Math.max(bottom, child.offsetTop + child.offsetHeight);
+  });
+  return Math.ceil(bottom);
+}
+
 /**
- * PenArtboard is the shared renderer for implemented `.pen` pages. Static and runtime-backed pages pass generated artboard JSON, hidden-node rules, text/image overrides, an optional overlay callback, and an optional minimum artboard height for runtime overlays that grow past the generated canvas. This component measures the available width, scales the visual artboard with CSS zoom so anchored shell layers keep their viewport behavior, and exposes the node index to overlays for precise native controls.
+ * PenArtboard is the shared renderer for implemented `.pen` pages. Static and runtime-backed pages pass generated artboard JSON, hidden-node rules, text/image overrides, and an optional overlay callback. The renderer measures non-sticky runtime content inside the artboard and extends the white canvas when tables, cards, or injected DEV harness rows grow past the generated page bottom.
  */
 export function PenArtboard({
   artboard,
@@ -329,11 +348,12 @@ export function PenArtboard({
   hiddenNodeIds = [],
   imageNodeOverrides = {},
   renderOverlay = null,
-  minArtboardHeight = 0,
 }) {
   const containerRef = useRef(null);
+  const artboardRef = useRef(null);
   const normalizedArtboard = useMemo(() => uniquifyNodeIds(clone(artboard)), [artboard]);
   const [containerWidth, setContainerWidth] = useState(normalizedArtboard.width);
+  const [measuredArtboardHeight, setMeasuredArtboardHeight] = useState(normalizedArtboard.height);
   const hiddenNodeIdSet = useMemo(() => new Set(hiddenNodeIds), [hiddenNodeIds]);
   const nodeIndex = useMemo(() => buildNodeIndex(normalizedArtboard), [normalizedArtboard]);
   const enableSharedShellSticky = useMemo(() => artboardHasSharedShell(normalizedArtboard), [normalizedArtboard]);
@@ -360,13 +380,57 @@ export function PenArtboard({
     return () => observer.disconnect();
   }, [normalizedArtboard.width]);
 
+  useLayoutEffect(() => {
+    const element = artboardRef.current;
+    if (!element) {
+      return undefined;
+    }
+
+    let frame = 0;
+    const measure = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setMeasuredArtboardHeight(Math.max(normalizedArtboard.height, artboardContentBottom(element)));
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(measure);
+    const mutationObserver = new MutationObserver(measure);
+    resizeObserver.observe(element);
+    mutationObserver.observe(element, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    measure();
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [normalizedArtboard.height, normalizedArtboard.id, renderOverlay, textOverrides]);
+
+  useLayoutEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") {
+      return undefined;
+    }
+    return scheduleLongPageHarness({
+      root: artboardRef.current,
+      routePath: window.location.pathname,
+      search: window.location.search,
+    });
+  }, [normalizedArtboard.id]);
+
   const scale = Math.min(1, containerWidth / normalizedArtboard.width || 1);
-  const effectiveArtboardHeight = Math.max(normalizedArtboard.height, minArtboardHeight);
+  const effectiveArtboardHeight = Math.max(normalizedArtboard.height, measuredArtboardHeight);
   const scaledHeight = effectiveArtboardHeight * scale;
 
   return (
     <div ref={containerRef} className="pen-stage" style={{ height: scaledHeight }}>
       <div
+        ref={artboardRef}
         className="pen-stage__artboard"
         style={{
           width: normalizedArtboard.width,
@@ -437,7 +501,11 @@ export function PenArtboard({
             />
           );
         })}
-        {typeof renderOverlay === "function" ? renderOverlay({ nodeIndex, textOverrides }) : null}
+        {typeof renderOverlay === "function" ? (
+          <div className="pen-stage__overlay" data-artboard-measure-ignore="true">
+            {renderOverlay({ nodeIndex, textOverrides })}
+          </div>
+        ) : null}
       </div>
     </div>
   );

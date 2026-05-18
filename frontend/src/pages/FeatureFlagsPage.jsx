@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
@@ -18,7 +18,6 @@ const PANE_TOP = 118;
 const ARTBOARD_WIDTH = 1672;
 const PANE_RIGHT_GUTTER = 48;
 const PANE_WIDTH = ARTBOARD_WIDTH - PANE_LEFT - PANE_RIGHT_GUTTER;
-const PANE_BOTTOM_PADDING = 64;
 
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
@@ -113,31 +112,11 @@ function FeatureFlagCard({ flag, busyTargetKey, onToggle }) {
 }
 
 /**
- * FeatureFlagsOverlay renders the native controls layered over the Feature Flags `.pen` shell. The page calls it through `PenArtboard.renderOverlay` with DEV feature-flag payload data, and it reports its measured bottom edge back so the generated white artboard surface grows with long runtime flag lists instead of ending at the static 1080px canvas.
+ * FeatureFlagsOverlay renders the native controls layered over the Feature Flags `.pen` shell. `PenArtboard` owns long-content measurement for every route, so this page only supplies its page-local pane geometry and feature-flag interaction state.
  */
-function FeatureFlagsOverlay({ payload, state, message, busyTargetKey, onToggle, onLayoutHeight }) {
-  const overlayRef = useRef(null);
-
-  useLayoutEffect(() => {
-    const element = overlayRef.current;
-    if (!element) {
-      return undefined;
-    }
-
-    const reportHeight = () => {
-      onLayoutHeight?.(PANE_TOP + element.offsetHeight + PANE_BOTTOM_PADDING);
-    };
-    reportHeight();
-
-    const observer = new ResizeObserver(reportHeight);
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [onLayoutHeight]);
-
+function FeatureFlagsOverlay({ payload, state, message, busyTargetKey, onToggle }) {
   return (
     <section
-      ref={overlayRef}
       className="feature-flags-runtime"
       style={{
         position: "absolute",
@@ -175,7 +154,6 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
   const [state, setState] = useState("loading");
   const [message, setMessage] = useState("");
   const [busyTargetKey, setBusyTargetKey] = useState("");
-  const [runtimeArtboardHeight, setRuntimeArtboardHeight] = useState(0);
   const textOverrides = buildSharedShellTextOverrides(session);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
     hideNavHighlight: true,
@@ -282,7 +260,6 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
         message={message}
         busyTargetKey={busyTargetKey}
         onToggle={handleToggle}
-        onLayoutHeight={setRuntimeArtboardHeight}
       />
     </>
   ), [busyTargetKey, handleToggle, message, payload, sharedShellRenderOverlay, state]);
@@ -318,7 +295,6 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
           hiddenNodeIds={hiddenNodeIds}
           imageNodeOverrides={imageNodeOverrides}
           renderOverlay={renderOverlay}
-          minArtboardHeight={runtimeArtboardHeight}
         />
       </div>
     </main>
