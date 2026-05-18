@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AccessDenied } from "../components/AccessDenied";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
+import { fetchDevApiJSON, handleDevApiAuthError } from "../lib/devApi";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -194,63 +196,29 @@ export function SearchPage({
   onUnauthorized,
   onForbidden,
 }) {
-  const [pageState, setPageState] = useState("loading");
-  const [payload, setPayload] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
-
   const { artboard: baseArtboard, status: artboardStatus } = useGeneratedArtboard(SEARCH_ARTBOARD_KEY);
   const artboard = useMemo(() => baseArtboard ? uniquifyNodeIds(clone(baseArtboard)) : null, [baseArtboard]);
   const nodeIndex = useMemo(() => artboard ? buildNodeIndex(artboard) : new Map(), [artboard]);
+  const pageQuery = useQuery({
+    queryKey: ["dev-search", session?.current_persona?.id, searchQuery.trim()],
+    queryFn: ({ signal }) => {
+      const requestUrl = new URL("/api/v1/dev/search", window.location.origin);
+      if (searchQuery.trim()) {
+        requestUrl.searchParams.set("q", searchQuery.trim());
+      }
+      return fetchDevApiJSON(requestUrl, { signal });
+    },
+    enabled: Boolean(session?.authenticated && session?.authorized),
+  });
+  const payload = pageQuery.data ?? null;
+  const pageState = pageQuery.isFetching ? "loading" : pageQuery.isError ? "error" : "ready";
+  const errorMessage = pageQuery.error instanceof Error ? pageQuery.error.message : "";
 
   useEffect(() => {
-    if (!session?.authenticated || !session?.authorized) {
-      return undefined;
+    if (pageQuery.isError) {
+      handleDevApiAuthError(pageQuery.error, { onUnauthorized, onForbidden });
     }
-
-    const controller = new AbortController();
-
-    /**
-     * loadSearch fetches search results for the current header query and stores the decoded payload for the overlay renderer. Auth failures are delegated to app-level handlers, while aborted requests are ignored so fast query changes do not surface stale errors.
-     */
-    async function loadSearch() {
-      setPageState("loading");
-      setErrorMessage("");
-      try {
-        const requestUrl = new URL("/api/v1/dev/search", window.location.origin);
-        if (searchQuery.trim()) {
-          requestUrl.searchParams.set("q", searchQuery.trim());
-        }
-        const response = await fetch(requestUrl, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-        if (response.status === 401) {
-          onUnauthorized?.();
-          return;
-        }
-        if (response.status === 403) {
-          onForbidden?.();
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`Search request failed with ${response.status}`);
-        }
-        setPayload(await response.json());
-        setPageState("ready");
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        setPayload(null);
-        setErrorMessage(error instanceof Error ? error.message : "Unable to load global search results.");
-        setPageState("error");
-      }
-    }
-
-    void loadSearch();
-    return () => controller.abort();
-  }, [onForbidden, onUnauthorized, searchQuery, session?.authenticated, session?.authorized]);
+  }, [onForbidden, onUnauthorized, pageQuery.error, pageQuery.isError]);
 
   const textOverrides = useMemo(() => buildSharedShellTextOverrides(session), [session]);
   const hiddenNodeIds = useMemo(

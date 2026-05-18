@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import {
@@ -10,6 +11,7 @@ import {
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
+import { fetchDevApiJSON, handleDevApiAuthError } from "../lib/devApi";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -790,11 +792,7 @@ export function PhoneDirectoryPage({
   onForbidden,
 }) {
   const modeConfig = MODE_CONFIG[mode];
-  const [pageState, setPageState] = useState("loading");
-  const [payload, setPayload] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
   const [selectedResultId, setSelectedResultId] = useState("");
-  const activeRequestKeyRef = useRef("");
   const { artboard: baseArtboard, status: artboardStatus } = useGeneratedArtboard(artboardKey);
 
   useEffect(() => {
@@ -811,94 +809,53 @@ export function PhoneDirectoryPage({
     return nextArtboard;
   }, [baseArtboard, resultCount]);
   const nodeIndex = useMemo(() => artboard ? buildNodeIndex(artboard) : new Map(), [artboard]);
-  const requestKey = useMemo(() => {
+  const request = useMemo(() => {
     const params = new URLSearchParams(currentSearch);
-    return JSON.stringify({
+    return {
       endpoint: modeConfig?.endpoint ?? "",
       personaId: session?.current_persona?.id ?? "",
       q: searchQuery.trim(),
       siteId: params.get("site_id")?.trim() ?? "",
-    });
+    };
   }, [currentSearch, modeConfig?.endpoint, searchQuery, session?.current_persona?.id]);
+  const pageQuery = useQuery({
+    queryKey: ["dev-page", "phone-directory", request],
+    queryFn: ({ signal }) => {
+      const requestUrl = new URL(request.endpoint, window.location.origin);
+      if (request.q) {
+        requestUrl.searchParams.set("q", request.q);
+      }
+      if (request.siteId) {
+        requestUrl.searchParams.set("site_id", request.siteId);
+      }
+      return fetchDevApiJSON(requestUrl, { signal });
+    },
+    enabled: Boolean(session?.authenticated && session?.authorized && modeConfig),
+  });
+  const payload = pageQuery.data ?? null;
+  const pageState = pageQuery.isFetching ? "loading" : pageQuery.isError ? "error" : "ready";
+  const errorMessage = pageQuery.error instanceof Error ? pageQuery.error.message : "";
 
   useEffect(() => {
-    if (!session?.authenticated || !session?.authorized || !modeConfig) {
-      return undefined;
+    if (pageQuery.isError) {
+      handleDevApiAuthError(pageQuery.error, { onUnauthorized, onForbidden });
     }
+  }, [onForbidden, onUnauthorized, pageQuery.error, pageQuery.isError]);
 
-    const controller = new AbortController();
-    activeRequestKeyRef.current = requestKey;
-    const request = JSON.parse(requestKey);
-
-    /**
-     * loadPage fetches the active directory mode JSON payload and ignores responses that belong to stale mode/site/query requests. It translates authentication failures into shared app navigation callbacks and stores successful payloads for the runtime table overlay.
-     */
-    async function loadPage() {
-      setPageState("loading");
-      setErrorMessage("");
-      try {
-        const requestUrl = new URL(modeConfig.endpoint, window.location.origin);
-        if (request.q) {
-          requestUrl.searchParams.set("q", request.q);
-        }
-        if (request.siteId) {
-          requestUrl.searchParams.set("site_id", request.siteId);
-        }
-
-        const response = await fetch(requestUrl, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-        if (response.status === 401) {
-          onUnauthorized?.();
-          return;
-        }
-        if (response.status === 403) {
-          onForbidden?.();
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`Phone Directory request failed with ${response.status}`);
-        }
-        const nextPayload = await response.json();
-        if (controller.signal.aborted || activeRequestKeyRef.current !== requestKey) {
-          return;
-        }
-        setPayload(nextPayload);
-        setSelectedResultId((current) => {
-          const results = nextPayload?.page?.results ?? [];
-          if (!results.length) {
-            return "";
-          }
-
-          if (current && results.some((result) => result.id === current)) {
-            return current;
-          }
-
-          const preferredResultId = nextPayload?.page?.selected_result?.id ?? "";
-          if (preferredResultId && results.some((result) => result.id === preferredResultId)) {
-            return preferredResultId;
-          }
-
-          return "";
-        });
-        setPageState("ready");
-      } catch (error) {
-        if (controller.signal.aborted || activeRequestKeyRef.current !== requestKey) {
-          return;
-        }
-        setPayload(null);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Unable to load Phone Directory results."
-        );
-        setPageState("error");
+  useEffect(() => {
+    const results = payload?.page?.results ?? [];
+    if (!results.length) {
+      setSelectedResultId("");
+      return;
+    }
+    setSelectedResultId((current) => {
+      if (current && results.some((result) => result.id === current)) {
+        return current;
       }
-    }
-
-    void loadPage();
-    return () => controller.abort();
-  }, [modeConfig, onForbidden, onUnauthorized, requestKey, session?.authenticated, session?.authorized]);
+      const preferredResultId = payload?.page?.selected_result?.id ?? "";
+      return results.some((result) => result.id === preferredResultId) ? preferredResultId : "";
+    });
+  }, [payload]);
 
   const textOverrides = useMemo(
     () => buildTextOverrides(session, payload, modeConfig, searchQuery),
