@@ -1,0 +1,234 @@
+package core_test
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/core"
+)
+
+func TestResolveEffectivePermissionsCombinesTrustedSourcesAndManualGrants(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:                    "casey",
+		Email:                 "casey.nguyen@wusd.org",
+		SAMLRoles:             []core.PermissionRole{core.PermissionRoleFacultyStaff},
+		GoogleGroupRoles:      []core.PermissionRole{core.PermissionRoleSiteSecretary},
+		GoogleGroupSiteScopes: []string{"windsor-high"},
+		ManualAssignments: []core.PermissionAssignment{
+			{
+				Role:   core.PermissionRoleDeviceWrangler,
+				Scope:  core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "windsor-high"},
+				Effect: core.PermissionAssignmentGrant,
+				Reason: "IT Admin approved temporary device accountability access",
+			},
+		},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if !effective.Authorized || effective.Denied {
+		t.Fatalf("expected authorized subject, got authorized=%v denied=%v", effective.Authorized, effective.Denied)
+	}
+	assertPermission(t, effective, core.PermissionRoleFacultyStaff, "windsor-high")
+	assertPermission(t, effective, core.PermissionRoleSiteSecretary, "windsor-high")
+	assertPermission(t, effective, core.PermissionRoleDeviceWrangler, "windsor-high")
+}
+
+func TestResolveEffectivePermissionsBlocksCrossSiteLeakageWithoutScope(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:               "morgan",
+		Email:            "morgan.lee@wusd.org",
+		GoogleGroupRoles: []core.PermissionRole{core.PermissionRoleSiteAdmin},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if effective.Authorized || len(effective.Permissions) != 0 {
+		t.Fatalf("expected no effective site permission without a site scope, got %#v", effective.Permissions)
+	}
+}
+
+func TestResolveEffectivePermissionsIgnoresStaleManualGrant(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:    "riley",
+		Email: "riley.patel@wusd.org",
+		ManualAssignments: []core.PermissionAssignment{
+			{
+				Role:      core.PermissionRoleSiteAdmin,
+				Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "mattiemay"},
+				Effect:    core.PermissionAssignmentGrant,
+				ExpiresAt: now.Add(-time.Minute),
+			},
+		},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if effective.Authorized || len(effective.Permissions) != 0 {
+		t.Fatalf("expected expired grant to be ignored, got %#v", effective.Permissions)
+	}
+}
+
+func TestResolveEffectivePermissionsManualRevocationOverridesGroupGrant(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:                    "avery",
+		Email:                 "avery.chen@staff.wusd.org",
+		GoogleGroupRoles:      []core.PermissionRole{core.PermissionRoleSiteAdmin},
+		GoogleGroupSiteScopes: []string{"brooks"},
+		ManualAssignments: []core.PermissionAssignment{
+			{
+				Role:   core.PermissionRoleSiteAdmin,
+				Scope:  core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "brooks"},
+				Effect: core.PermissionAssignmentRevoke,
+				Reason: "temporary suspension pending Google group cleanup",
+			},
+		},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if effective.HasRole(core.PermissionRoleSiteAdmin) {
+		t.Fatalf("expected manual revocation to remove site admin permission, got %#v", effective.Permissions)
+	}
+	if len(effective.Denials) != 1 || !effective.Denials[0].Denied {
+		t.Fatalf("expected denial audit surface for manual revocation, got %#v", effective.Denials)
+	}
+}
+
+func TestResolveEffectivePermissionsDeniesRevokedOrStudentDomainUsers(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	cases := []core.PermissionSubject{
+		{
+			ID:        "disabled",
+			Email:     "disabled.admin@wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
+			Disabled:  true,
+		},
+		{
+			ID:        "student",
+			Email:     "student@stu.wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleFacultyStaff},
+		},
+	}
+
+	for _, subject := range cases {
+		effective := core.ResolveEffectivePermissions(subject, now)
+		if !effective.Denied || effective.Authorized {
+			t.Fatalf("%s: expected denied unauthorized subject, got authorized=%v denied=%v", subject.ID, effective.Authorized, effective.Denied)
+		}
+	}
+}
+
+func TestValidatePermissionChangeForLockoutPreventsRemovingLastEffectiveAdmin(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subjects := []core.PermissionSubject{
+		{
+			ID:                    "only-admin",
+			Email:                 "only.admin@it.wusd.org",
+			SAMLRoles:             []core.PermissionRole{core.PermissionRoleITAdmin},
+			GoogleGroupSiteScopes: []string{"district"},
+		},
+		{
+			ID:                     "recovery",
+			Email:                  "breakglass.local",
+			Breakglass:             true,
+			BreakglassNetworkValid: true,
+		},
+	}
+	change := core.PermissionChange{
+		TargetSubjectID: "only-admin",
+		Assignment: core.PermissionAssignment{
+			Role:   core.PermissionRoleITAdmin,
+			Scope:  core.PermissionScope{Kind: core.PermissionScopeDistrict},
+			Effect: core.PermissionAssignmentRevoke,
+			Reason: "attempted self-lockout",
+		},
+	}
+
+	err := core.ValidatePermissionChangeForLockout(subjects, change, now)
+
+	if !errors.Is(err, core.ErrPermissionLockout) {
+		t.Fatalf("expected lockout error, got %v", err)
+	}
+}
+
+func TestValidatePermissionChangeForLockoutRequiresBreakglassRecovery(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subjects := []core.PermissionSubject{
+		{
+			ID:        "admin-one",
+			Email:     "admin.one@it.wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
+		},
+		{
+			ID:        "admin-two",
+			Email:     "admin.two@it.wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
+		},
+	}
+	change := core.PermissionChange{
+		TargetSubjectID: "admin-one",
+		Assignment: core.PermissionAssignment{
+			Role:   core.PermissionRoleSiteAdmin,
+			Scope:  core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "windsor-high"},
+			Effect: core.PermissionAssignmentGrant,
+			Reason: "ordinary site coverage edit still requires recovery path validation",
+		},
+	}
+
+	err := core.ValidatePermissionChangeForLockout(subjects, change, now)
+
+	if !errors.Is(err, core.ErrPermissionLockout) {
+		t.Fatalf("expected missing recovery path to block permission writes, got %v", err)
+	}
+}
+
+func TestValidatePermissionChangeForLockoutAllowsAdminRevocationWithAnotherAdminAndRecovery(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subjects := []core.PermissionSubject{
+		{
+			ID:        "target-admin",
+			Email:     "target.admin@it.wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
+		},
+		{
+			ID:        "remaining-admin",
+			Email:     "remaining.admin@it.wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
+		},
+		{
+			ID:                     "recovery",
+			Email:                  "breakglass.local",
+			Breakglass:             true,
+			BreakglassNetworkValid: true,
+		},
+	}
+	change := core.PermissionChange{
+		TargetSubjectID: "target-admin",
+		Assignment: core.PermissionAssignment{
+			Role:   core.PermissionRoleITAdmin,
+			Scope:  core.PermissionScope{Kind: core.PermissionScopeDistrict},
+			Effect: core.PermissionAssignmentRevoke,
+			Reason: "approved admin rotation",
+		},
+	}
+
+	if err := core.ValidatePermissionChangeForLockout(subjects, change, now); err != nil {
+		t.Fatalf("expected safe admin rotation, got %v", err)
+	}
+}
+
+func assertPermission(t *testing.T, set core.EffectivePermissionSet, role core.PermissionRole, siteID string) {
+	t.Helper()
+	for _, permission := range set.Permissions {
+		if permission.Role == role && permission.Scope.Kind == core.PermissionScopeSite && permission.Scope.SiteID == siteID {
+			return
+		}
+	}
+	t.Fatalf("missing %s permission for %s in %#v", role, siteID, set.Permissions)
+}
