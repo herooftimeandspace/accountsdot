@@ -80,20 +80,22 @@ type devPersonaConfig struct {
 }
 
 type devSessionPayload struct {
-	Environment     string                   `json:"environment"`
-	Authenticated   bool                     `json:"authenticated"`
-	Authorized      bool                     `json:"authorized"`
-	CurrentPersona  *devPersona              `json:"current_persona,omitempty"`
-	Personas        []devPersona             `json:"personas"`
-	LandingPath     string                   `json:"landing_path,omitempty"`
-	AllowedRoutes   []string                 `json:"allowed_routes,omitempty"`
-	FeatureFlags    []devFeatureAvailability `json:"feature_flags,omitempty"`
-	Shell           devShellPayload          `json:"shell,omitempty"`
-	DefaultSiteID   string                   `json:"default_site_id,omitempty"`
-	DefaultSiteName string                   `json:"default_site_name,omitempty"`
-	CurrentSiteID   string                   `json:"current_site_id,omitempty"`
-	CurrentSiteName string                   `json:"current_site_name,omitempty"`
-	VisibleSites    []devSiteContext         `json:"visible_sites,omitempty"`
+	Environment         string                   `json:"environment"`
+	Authenticated       bool                     `json:"authenticated"`
+	Authorized          bool                     `json:"authorized"`
+	AuthenticationMode  string                   `json:"authentication_mode,omitempty"`
+	BreakglassAccountID string                   `json:"breakglass_account_id,omitempty"`
+	CurrentPersona      *devPersona              `json:"current_persona,omitempty"`
+	Personas            []devPersona             `json:"personas"`
+	LandingPath         string                   `json:"landing_path,omitempty"`
+	AllowedRoutes       []string                 `json:"allowed_routes,omitempty"`
+	FeatureFlags        []devFeatureAvailability `json:"feature_flags,omitempty"`
+	Shell               devShellPayload          `json:"shell,omitempty"`
+	DefaultSiteID       string                   `json:"default_site_id,omitempty"`
+	DefaultSiteName     string                   `json:"default_site_name,omitempty"`
+	CurrentSiteID       string                   `json:"current_site_id,omitempty"`
+	CurrentSiteName     string                   `json:"current_site_name,omitempty"`
+	VisibleSites        []devSiteContext         `json:"visible_sites,omitempty"`
 }
 
 type devLoginRequest struct {
@@ -876,7 +878,20 @@ func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	identity, ok := resolveAuthenticatedDevSession(r)
 	clearDevSessionCookie(w)
+	if ok && identity.Breakglass {
+		recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+			AccountID:     identity.BreakglassAccountID,
+			Action:        "sign_out",
+			Outcome:       "allowed",
+			SourceIP:      sourceIPForBreakglass(r).String(),
+			PersonaID:     identity.Config.Persona.ID,
+			RecordedAt:    time.Now().UTC(),
+			RequestID:     strings.TrimSpace(r.Header.Get("X-Request-ID")),
+			TargetSession: "cookie:" + devSessionCookieName,
+		})
+	}
 	writeJSON(w, http.StatusOK, devSessionPayload{
 		Environment:   "development",
 		Authenticated: false,
@@ -1732,17 +1747,44 @@ func buildDevSessionPayload(ctx context.Context, config devPersonaConfig) devSes
 	}
 }
 
-func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
+type devSessionIdentity struct {
+	Config              devPersonaConfig
+	Breakglass          bool
+	BreakglassAccountID string
+}
+
+func resolveAuthenticatedDevSession(r *http.Request) (devSessionIdentity, bool) {
 	cookie, err := r.Cookie(devSessionCookieName)
 	if err != nil {
-		return devPersonaConfig{}, false
+		return devSessionIdentity{}, false
+	}
+	value := strings.TrimSpace(cookie.Value)
+	if strings.HasPrefix(value, breakglassSessionCookiePrefix) {
+		accountID := strings.TrimPrefix(value, breakglassSessionCookiePrefix)
+		account, ok := configuredBreakglassAccounts()[accountID]
+		if !ok {
+			return devSessionIdentity{}, false
+		}
+		config, ok := devPersonaConfigs[account.PersonaID]
+		if !ok {
+			return devSessionIdentity{}, false
+		}
+		return devSessionIdentity{Config: config, Breakglass: true, BreakglassAccountID: account.AccountID}, true
 	}
 
-	config, ok := devPersonaConfigs[strings.TrimSpace(cookie.Value)]
+	config, ok := devPersonaConfigs[value]
+	if !ok {
+		return devSessionIdentity{}, false
+	}
+	return devSessionIdentity{Config: config}, true
+}
+
+func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
+	identity, ok := resolveAuthenticatedDevSession(r)
 	if !ok {
 		return devPersonaConfig{}, false
 	}
-	return config, true
+	return identity.Config, true
 }
 
 func routeAllowed(ctx context.Context, config devPersonaConfig, path string) bool {
@@ -1750,9 +1792,13 @@ func routeAllowed(ctx context.Context, config devPersonaConfig, path string) boo
 }
 
 func writeDevSessionCookie(w http.ResponseWriter, personaID string) {
+	writeDevSessionCookieValue(w, personaID)
+}
+
+func writeDevSessionCookieValue(w http.ResponseWriter, value string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     devSessionCookieName,
-		Value:    personaID,
+		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,

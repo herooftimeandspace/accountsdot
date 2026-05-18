@@ -135,17 +135,18 @@ DEV routes mutate in-memory stores to model operator workflows without touching 
 
 ### DEV Session And Feature Flags
 
-`internal/web/dev_frontend.go` handles DEV login/logout/session and feature flag state. Login/logout write or clear the local DEV session cookie. Feature flag routes mutate DEV feature flag configuration in memory when `DATABASE_URL` is unset. When `DATABASE_URL` is configured, feature flag refresh and update paths reconcile `feature_flags` and `feature_flag_targets`, update changed `feature_flag_targets.enabled` values through `db.WithRetry`, and write matching `audit_log` rows with `dev_feature_flag_update` diffs. Unchanged target updates are skipped so repeated requests do not create duplicate audit entries.
+`internal/web/dev_frontend.go` handles DEV login/logout/session and feature flag state. Login/logout write or clear the local DEV session cookie. `internal/web/breakglass.go` handles the separate local emergency breakglass login route for `development` and `staging`; it writes the same local session cookie with a breakglass-scoped value and records sanitized breakglass audit events. Feature flag routes mutate DEV feature flag configuration in memory when `DATABASE_URL` is unset. When `DATABASE_URL` is configured, feature flag refresh and update paths reconcile `feature_flags` and `feature_flag_targets`, update changed `feature_flag_targets.enabled` values through `db.WithRetry`, and write matching `audit_log` rows with `dev_feature_flag_update` diffs. Unchanged target updates are skipped so repeated requests do not create duplicate audit entries.
 
 Expected debugging path: frontend persona or feature controls call `/api/v1/dev/...`; handler checks `devModeEnabled`, validates method and persona context, mutates local state or cookies, then returns JSON.
 
 Mutation routes include:
 
+- `POST /api/v1/breakglass/login`
 - `POST /api/v1/dev/login`
 - `POST /api/v1/dev/logout`
 - `PUT /api/v1/dev/feature-flags/{key}`
 
-Login and logout only write or clear the local DEV session cookie. The feature flag route persists IT Admin-only DEV feature flag target state for persona and site visibility. These routes are documented so session-affecting and feature-flag mock behavior does not disappear from the route inventory when the route drift check runs.
+Login and logout only write or clear the local DEV session cookie for normal persona sessions. Breakglass login accepts a named account id plus token, verifies the configured SHA-256 token hash and source CIDR, writes a breakglass-scoped local session cookie, and records login/access/denial audit events in memory for database-free DEV or in `audit_log` when `DATABASE_URL` is configured. DEV logout also records a sanitized `sign_out` audit event when the current cookie is breakglass-scoped. The feature flag route persists IT Admin-only DEV feature flag target state for persona and site visibility. These routes are documented so session-affecting and feature-flag mock behavior does not disappear from the route inventory when the route drift check runs.
 
 ### My Profile
 
