@@ -202,26 +202,29 @@ The current row for Local breakglass records the implemented local route only. I
 
 - Breakglass is not the DEV persona switcher. DEV persona switching continues to use `/api/v1/dev/login` for mock demonstrations.
 - Local emergency access uses `POST /api/v1/breakglass/login` and is enabled only in `development` and `staging`.
+- In `staging`, normal DEV persona login remains disabled. Only requests that already carry a valid breakglass session cookie can consume the DEV session/page routes needed for emergency IT Admin access.
 - Named emergency accounts are configured with `BREAKGLASS_ACCOUNTS`, for example `emergency-alex,emergency-morgan`.
 - Each named account must have one matching SHA-256 token hash environment variable named `BREAKGLASS_TOKEN_SHA256_<SANITIZED_ACCOUNT_ID>`, where non-alphanumeric characters are converted to underscores and the result is uppercased.
 - Raw breakglass tokens must be stored only in the approved secret manager or local operator handoff process for the environment. Do not commit them, paste them into tickets, use them as fixtures, or log them.
 - The current implementation maps every named breakglass account to the local IT Admin persona. Editable role mapping is out of scope for this slice.
 - The default allowed source networks are `10.23.0.0/16` and `10.19.100.0/24`. Set `BREAKGLASS_ALLOWED_CIDRS` to a comma-separated CIDR list only when an approved environment requires a different private source range.
-- The route honors the first `X-Forwarded-For` address for staging behind a private reverse proxy. The reverse proxy must strip or overwrite untrusted inbound forwarding headers before requests reach the app.
+- Token environment variable names are derived from the sanitized account id. Breakglass startup/request parsing rejects account ids that would collide after sanitization, such as `emergency-alex` and `emergency.alex`, so separate named accounts cannot silently share one token hash.
+- Direct clients are evaluated by `RemoteAddr` for CIDR checks. `X-Forwarded-For` is honored only when the immediate peer address belongs to `BREAKGLASS_TRUSTED_PROXY_CIDRS`; staging reverse proxies must be listed there before forwarded client addresses are trusted.
+- Breakglass cookies are marked `Secure` for `APP_ENV=staging` and for HTTPS requests.
 
 ## Audit Expectations
 
 - Successful breakglass login records a `login_attempt` event and an `access_granted` event.
 - Denied login records the reason without storing token material. Current denial reasons are `unknown_account`, `source_address_denied`, `token_denied`, and `persona_not_configured`.
 - Explicit sign-out records a `sign_out` event when the current local session cookie is breakglass-scoped.
-- When `DATABASE_URL` is set, audit events are persisted to `audit_log` with actor type `breakglass_local_account`.
+- When `DATABASE_URL` is set, audit events are persisted to `audit_log` with actor type `breakglass_local_account`. Breakglass login and breakglass sign-out fail closed when audit storage cannot initialize or write the required event, so emergency access is never silently granted without audit evidence.
 - Without `DATABASE_URL`, DEV keeps audit events in process memory for local tests only.
 - Cookie expiration is not actively audited in this slice because there is no durable session table or session-expiration worker. Promotion must either accept explicit sign-out evidence for this slice or define durable session persistence before requiring expiration audit evidence.
 
 ## Operator Notes
 
 1. Activation: configure `APP_ENV=development` or `APP_ENV=staging`, set `BREAKGLASS_ACCOUNTS`, set every required per-account token hash, and keep `BREAKGLASS_ALLOWED_CIDRS` unset unless the environment has an approved non-default private source range.
-2. Verification: from an allowed source address, post a named account and token to `/api/v1/breakglass/login`, confirm the response has `authentication_mode: "breakglass"`, confirm the session can reach an IT Admin-only route, and confirm audit records exist.
+2. Verification: from an allowed source address, post a named account and token to `/api/v1/breakglass/login`, confirm the response has `authentication_mode: "breakglass"`, confirm the session can reach an IT Admin-only route, confirm the cookie is `Secure` in staging or HTTPS, and confirm audit records exist.
 3. Denial checks: test an unknown account and a request from outside the allowed CIDR list. Neither request should receive a session cookie.
 4. Cleanup: remove the account id from `BREAKGLASS_ACCOUNTS`, remove or rotate the corresponding token hash secret, and verify the old cookie no longer resolves after the configuration reload or process restart.
 5. Incident review: inspect `audit_log` for account id, source IP, action, outcome, failure code, request id when present, and timestamp. Never ask operators to provide the raw token as evidence.

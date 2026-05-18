@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -98,9 +99,14 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 	sourceIP := sourceIPForBreakglass(r)
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 
-	account, ok := configuredBreakglassAccounts()[accountID]
+	accounts, configErr := configuredBreakglassAccounts()
+	if configErr != nil {
+		writeBreakglassConfigurationInvalid(w)
+		return
+	}
+	account, ok := accounts[accountID]
 	if !ok {
-		recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+		if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
 			AccountID:   accountID,
 			Action:      "login_attempt",
 			Outcome:     "denied",
@@ -108,7 +114,10 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 			FailureCode: "unknown_account",
 			RecordedAt:  time.Now().UTC(),
 			RequestID:   requestID,
-		})
+		}); err != nil {
+			writeBreakglassAuditUnavailable(w, err)
+			return
+		}
 		writeJSON(w, http.StatusUnauthorized, map[string]any{
 			"code":    "breakglass_denied",
 			"message": "Breakglass account is not configured.",
@@ -117,7 +126,7 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if sourceIP == nil || !breakglassSourceAllowed(sourceIP) {
-		recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+		if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
 			AccountID:   account.AccountID,
 			Action:      "login_attempt",
 			Outcome:     "denied",
@@ -126,7 +135,10 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 			FailureCode: "source_address_denied",
 			RecordedAt:  time.Now().UTC(),
 			RequestID:   requestID,
-		})
+		}); err != nil {
+			writeBreakglassAuditUnavailable(w, err)
+			return
+		}
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"code":    "breakglass_source_denied",
 			"message": "Breakglass login is not allowed from this source address.",
@@ -135,7 +147,7 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !breakglassTokenMatches(account.TokenHash, request.Token) {
-		recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+		if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
 			AccountID:   account.AccountID,
 			Action:      "login_attempt",
 			Outcome:     "denied",
@@ -144,7 +156,10 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 			FailureCode: "token_denied",
 			RecordedAt:  time.Now().UTC(),
 			RequestID:   requestID,
-		})
+		}); err != nil {
+			writeBreakglassAuditUnavailable(w, err)
+			return
+		}
 		writeJSON(w, http.StatusUnauthorized, map[string]any{
 			"code":    "breakglass_denied",
 			"message": "Breakglass credentials were not accepted.",
@@ -154,7 +169,7 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 
 	config, ok := devPersonaConfigs[account.PersonaID]
 	if !ok {
-		recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+		if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
 			AccountID:   account.AccountID,
 			Action:      "login_attempt",
 			Outcome:     "denied",
@@ -163,7 +178,10 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 			FailureCode: "persona_not_configured",
 			RecordedAt:  time.Now().UTC(),
 			RequestID:   requestID,
-		})
+		}); err != nil {
+			writeBreakglassAuditUnavailable(w, err)
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
 			"code":    "breakglass_configuration_invalid",
 			"message": "Breakglass account maps to an unavailable local persona.",
@@ -171,9 +189,8 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeBreakglassSessionCookie(w, account.AccountID)
 	now := time.Now().UTC()
-	recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+	if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
 		AccountID:     account.AccountID,
 		Action:        "login_attempt",
 		Outcome:       "allowed",
@@ -182,8 +199,11 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 		RecordedAt:    now,
 		RequestID:     requestID,
 		TargetSession: "cookie:" + devSessionCookieName,
-	})
-	recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+	}); err != nil {
+		writeBreakglassAuditUnavailable(w, err)
+		return
+	}
+	if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
 		AccountID:     account.AccountID,
 		Action:        "access_granted",
 		Outcome:       "allowed",
@@ -192,7 +212,11 @@ func handleBreakglassLogin(w http.ResponseWriter, r *http.Request) {
 		RecordedAt:    now,
 		RequestID:     requestID,
 		TargetSession: "cookie:" + devSessionCookieName,
-	})
+	}); err != nil {
+		writeBreakglassAuditUnavailable(w, err)
+		return
+	}
+	writeBreakglassSessionCookie(w, r, account.AccountID)
 	writeJSON(w, http.StatusOK, buildBreakglassSessionPayload(r.Context(), config, account.AccountID))
 }
 
@@ -222,14 +246,20 @@ func decodeBreakglassLoginRequest(w http.ResponseWriter, r *http.Request) (break
 // BREAKGLASS_ACCOUNTS. Each account id must have a matching
 // BREAKGLASS_TOKEN_SHA256_<SANITIZED_ACCOUNT_ID> environment variable; token
 // material itself is never logged, documented, or stored in process globals.
-func configuredBreakglassAccounts() map[string]breakglassAccount {
+func configuredBreakglassAccounts() (map[string]breakglassAccount, error) {
 	accounts := map[string]breakglassAccount{}
+	envNames := map[string]string{}
 	for _, rawAccountID := range strings.Split(os.Getenv("BREAKGLASS_ACCOUNTS"), ",") {
 		accountID := normalizeBreakglassAccountID(rawAccountID)
 		if accountID == "" {
 			continue
 		}
-		tokenHash := strings.TrimSpace(os.Getenv(breakglassTokenHashEnvName(accountID)))
+		envName := breakglassTokenHashEnvName(accountID)
+		if existingAccountID, ok := envNames[envName]; ok && existingAccountID != accountID {
+			return nil, fmt.Errorf("breakglass account ids %q and %q both map to %s", existingAccountID, accountID, envName)
+		}
+		envNames[envName] = accountID
+		tokenHash := strings.TrimSpace(os.Getenv(envName))
 		if tokenHash == "" {
 			continue
 		}
@@ -239,7 +269,7 @@ func configuredBreakglassAccounts() map[string]breakglassAccount {
 			TokenHash: strings.ToLower(tokenHash),
 		}
 	}
-	return accounts
+	return accounts, nil
 }
 
 var breakglassEnvNameCleaner = regexp.MustCompile(`[^A-Za-z0-9]+`)
@@ -253,17 +283,22 @@ func normalizeBreakglassAccountID(accountID string) string {
 	return strings.ToLower(strings.TrimSpace(accountID))
 }
 
-// sourceIPForBreakglass returns the concrete peer IP used for application-level
-// source restrictions. The first X-Forwarded-For hop is honored so staging can
-// sit behind an intranet reverse proxy, but the deployment must keep that proxy
-// header trusted only at the private ingress boundary.
+// sourceIPForBreakglass returns the peer IP used for breakglass CIDR checks.
+// Direct clients are always evaluated by RemoteAddr. X-Forwarded-For is honored
+// only when RemoteAddr belongs to BREAKGLASS_TRUSTED_PROXY_CIDRS, so clients
+// cannot spoof allowed source addresses by sending their own forwarding header.
 func sourceIPForBreakglass(r *http.Request) net.IP {
+	remoteIP := remoteAddrIP(r)
 	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
 		parts := strings.Split(forwarded, ",")
-		if ip := net.ParseIP(strings.TrimSpace(parts[0])); ip != nil {
+		if ip := net.ParseIP(strings.TrimSpace(parts[0])); ip != nil && breakglassTrustedProxy(remoteIP) {
 			return ip
 		}
 	}
+	return remoteIP
+}
+
+func remoteAddrIP(r *http.Request) net.IP {
 	host := r.RemoteAddr
 	if splitHost, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		host = splitHost
@@ -284,8 +319,24 @@ func breakglassSourceAllowed(ip net.IP) bool {
 }
 
 func breakglassAllowedNetworks() []*net.IPNet {
-	rawCIDRs := breakglassDefaultAllowedCIDRs
-	if override := strings.TrimSpace(os.Getenv("BREAKGLASS_ALLOWED_CIDRS")); override != "" {
+	return parseCIDRList(os.Getenv("BREAKGLASS_ALLOWED_CIDRS"), breakglassDefaultAllowedCIDRs)
+}
+
+func breakglassTrustedProxy(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	for _, network := range parseCIDRList(os.Getenv("BREAKGLASS_TRUSTED_PROXY_CIDRS"), nil) {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseCIDRList(rawOverride string, defaults []string) []*net.IPNet {
+	rawCIDRs := defaults
+	if override := strings.TrimSpace(rawOverride); override != "" {
 		rawCIDRs = strings.Split(override, ",")
 	}
 	networks := make([]*net.IPNet, 0, len(rawCIDRs))
@@ -312,8 +363,8 @@ func breakglassModeEnabled() bool {
 	return mode == "development" || mode == "staging"
 }
 
-func writeBreakglassSessionCookie(w http.ResponseWriter, accountID string) {
-	writeDevSessionCookieValue(w, breakglassSessionCookiePrefix+accountID)
+func writeBreakglassSessionCookie(w http.ResponseWriter, r *http.Request, accountID string) {
+	writeDevSessionCookieValue(w, r, breakglassSessionCookiePrefix+accountID)
 }
 
 func buildBreakglassSessionPayload(ctx context.Context, config devPersonaConfig, accountID string) devSessionPayload {
@@ -324,15 +375,29 @@ func buildBreakglassSessionPayload(ctx context.Context, config devPersonaConfig,
 	return payload
 }
 
-func recordBreakglassAudit(ctx context.Context, event breakglassAuditEvent) {
+func recordBreakglassAudit(ctx context.Context, event breakglassAuditEvent) error {
 	if event.RecordedAt.IsZero() {
 		event.RecordedAt = time.Now().UTC()
 	}
 	store, err := currentBreakglassAuditStore(ctx)
 	if err != nil {
-		return
+		return err
 	}
-	_ = store.RecordBreakglassAudit(ctx, event)
+	return store.RecordBreakglassAudit(ctx, event)
+}
+
+func writeBreakglassAuditUnavailable(w http.ResponseWriter, err error) {
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+		"code":    "breakglass_audit_unavailable",
+		"message": "Breakglass access requires audit storage before credentials can be accepted.",
+	})
+}
+
+func writeBreakglassConfigurationInvalid(w http.ResponseWriter) {
+	writeJSON(w, http.StatusInternalServerError, map[string]any{
+		"code":    "breakglass_configuration_invalid",
+		"message": "Breakglass account configuration is invalid.",
+	})
 }
 
 func currentBreakglassAuditStore(ctx context.Context) (breakglassAuditStorage, error) {

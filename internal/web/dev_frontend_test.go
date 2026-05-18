@@ -3,6 +3,7 @@ package web_test
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 )
 
 type devSessionResponse struct {
+	Environment     string `json:"environment"`
 	Authenticated   bool   `json:"authenticated"`
 	Authorized      bool   `json:"authorized"`
 	DefaultSiteID   string `json:"default_site_id"`
@@ -32,9 +34,11 @@ type devSessionResponse struct {
 	CurrentPersona *struct {
 		ID string `json:"id"`
 	} `json:"current_persona,omitempty"`
-	LandingPath   string   `json:"landing_path"`
-	AllowedRoutes []string `json:"allowed_routes"`
-	FeatureFlags  []struct {
+	LandingPath         string   `json:"landing_path"`
+	AllowedRoutes       []string `json:"allowed_routes"`
+	AuthenticationMode  string   `json:"authentication_mode"`
+	BreakglassAccountID string   `json:"breakglass_account_id"`
+	FeatureFlags        []struct {
 		Key        string `json:"key"`
 		Label      string `json:"label"`
 		Enabled    bool   `json:"enabled"`
@@ -833,6 +837,75 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if audits[1].Action != "access_granted" || audits[1].Outcome != "allowed" {
 			t.Fatalf("access audit = %#v, want access_granted allowed", audits[1])
+		}
+	})
+
+	t.Run("staging consumes only authenticated breakglass sessions", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		t.Setenv("APP_ENV", "staging")
+
+		devLoginBody, err := json.Marshal(map[string]string{"persona_id": "it_admin"})
+		if err != nil {
+			t.Fatalf("marshal dev login request: %v", err)
+		}
+		devLoginReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/login", bytes.NewReader(devLoginBody))
+		devLoginRec := httptest.NewRecorder()
+		handler.ServeHTTP(devLoginRec, devLoginReq)
+		if devLoginRec.Code != http.StatusNotFound {
+			t.Fatalf("staging dev persona login returned %d, want 404", devLoginRec.Code)
+		}
+
+		rec, cookie := breakglassLogin(t, handler, "emergency-alex", "local-test-token", "10.23.4.5:62000")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("staging breakglass login returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		if cookie == nil || !cookie.Secure {
+			t.Fatalf("staging breakglass cookie = %#v, want Secure breakglass session cookie", cookie)
+		}
+		loginPayload := decodeJSON[devSessionResponse](t, rec)
+		if loginPayload.Environment != "staging" || loginPayload.AuthenticationMode != "breakglass" || loginPayload.BreakglassAccountID != "emergency-alex" {
+			t.Fatalf("staging breakglass payload = %#v, want staging breakglass emergency-alex", loginPayload)
+		}
+
+		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		sessionReq.AddCookie(cookie)
+		sessionRec := httptest.NewRecorder()
+		handler.ServeHTTP(sessionRec, sessionReq)
+		if sessionRec.Code != http.StatusOK {
+			t.Fatalf("staging breakglass session returned %d, want 200: %s", sessionRec.Code, sessionRec.Body.String())
+		}
+		sessionPayload := decodeJSON[devSessionResponse](t, sessionRec)
+		if !sessionPayload.Authenticated || sessionPayload.Environment != "staging" || sessionPayload.AuthenticationMode != "breakglass" {
+			t.Fatalf("staging session payload = %#v, want authenticated breakglass session", sessionPayload)
+		}
+
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
+		pageReq.AddCookie(cookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("staging breakglass data quality returned %d, want 200: %s", pageRec.Code, pageRec.Body.String())
+		}
+	})
+
+	t.Run("breakglass cookie is secure for HTTPS requests", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		body, err := json.Marshal(map[string]string{"account_id": "emergency-alex", "token": "local-test-token"})
+		if err != nil {
+			t.Fatalf("marshal breakglass login request: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "https://wizard.example.test/api/v1/breakglass/login", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "10.23.4.5:62000"
+		req.TLS = &tls.ConnectionState{}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("HTTPS breakglass login returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		cookie := findCookie(rec.Result().Cookies(), "wizard_dev_session")
+		if cookie == nil || !cookie.Secure {
+			t.Fatalf("HTTPS breakglass cookie = %#v, want Secure session cookie", cookie)
 		}
 	})
 

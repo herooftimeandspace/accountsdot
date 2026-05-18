@@ -53,7 +53,7 @@ type rankedGlobalSearchResult struct {
 
 // handleDevGlobalSearch handles the request path for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevGlobalSearch(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}

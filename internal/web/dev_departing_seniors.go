@@ -146,7 +146,7 @@ func SetDevDepartingSeniorsClockForTest(now time.Time) func() {
 // accepts an optional school_year query value, and returns only the current
 // senior year plus four retained previous senior years.
 func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -193,7 +193,7 @@ func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 // requests change only devDepartingSeniorsStore so the UI can model future
 // operator behavior without touching live providers.
 func handleDevDepartingSeniorRecord(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
