@@ -459,10 +459,9 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	suppressedDraftIDs := map[string]bool{}
 	for _, draft := range s.drafts {
-		if baseDraftIDs[draft.ID] {
-			continue
-		}
+		suppressedDraftIDs[draft.ID] = true
 		if s.completed[draft.ID] || s.canceled[draft.ID] {
 			continue
 		}
@@ -528,8 +527,17 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 	}
 
 	filtered := base[:0]
+	rowIndexByDraftID := map[string]int{}
 	for _, row := range base {
+		if baseDraftIDs[row.DraftID] && suppressedDraftIDs[row.DraftID] && row.ID == row.DraftID {
+			continue
+		}
 		if canAccessRoomMoveSite(config, row.CurrentSiteID) && !s.canceled[row.DraftID] {
+			if index, ok := rowIndexByDraftID[row.DraftID]; ok {
+				filtered[index] = row
+				continue
+			}
+			rowIndexByDraftID[row.DraftID] = len(filtered)
 			filtered = append(filtered, row)
 		}
 	}
@@ -695,7 +703,23 @@ func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID str
 	defer s.mu.Unlock()
 	existing, ok := s.drafts[draftID]
 	if !ok {
-		return roomMoveDraftPayload{}, http.StatusNotFound, map[string]string{"draft": "Draft not found."}
+		if seed, seedOK := seedRoomMoveReviewRowByDraftID(draftID); seedOK {
+			existing = roomMoveDraftPayload{
+				ID:                draftID,
+				Mode:              seed.MoveType,
+				Status:            roomMoveDraftStatusOpen,
+				ScopeSiteID:       seed.CurrentSiteID,
+				ScopeSite:         seed.CurrentSite,
+				EffectiveDate:     "2026-07-27",
+				Author:            seed.Author,
+				Rows:              []roomMoveDraftRow{{PersonID: roomMovePersonIDByEmail(seed.Email), DestinationSiteID: seed.DestinationSiteID, DestinationRoomID: seed.DestinationRoomID}},
+				CanEdit:           true,
+				CanDelete:         true,
+				CanManageDistrict: canManageDistrictRoomMoves(config),
+			}
+		} else {
+			return roomMoveDraftPayload{}, http.StatusNotFound, map[string]string{"draft": "Draft not found."}
+		}
 	}
 	if !canAccessRoomMoveSite(config, existing.ScopeSiteID) {
 		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot update another site's room move draft."}
@@ -730,6 +754,9 @@ func (s *devRoomMoveStoreState) transitionDraft(config devPersonaConfig, draftID
 	}
 	if s.canceled[draft.ID] {
 		return roomMoveDraftPayload{}, http.StatusConflict, map[string]string{"draft": "Canceled drafts cannot be scheduled or applied."}
+	}
+	if status, errors := validateRoomMoveRowsForTransition(draft.Rows); status != http.StatusOK {
+		return roomMoveDraftPayload{}, status, errors
 	}
 	if action == "schedule" {
 		draft.Status = "scheduled"
@@ -947,7 +974,7 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 	}
 	if mode == roomMoveTypeBulkRoster && len(rows) == 0 {
 		for _, person := range roomMovePeopleForSite(scopeSite.ID) {
-			rows = append(rows, draftRowFromPerson(person, person.SiteID, person.CurrentRoomID))
+			rows = append(rows, draftRowFromPerson(person, person.SiteID, "none"))
 		}
 	}
 	if mode == roomMoveTypeBuildList && rows == nil {
@@ -1012,6 +1039,9 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		destinationRole := normalizeRoomMoveDestinationRole(row.DestinationRole)
 		if action == "removal" {
 			destinationRole = "removal"
+		}
+		if roomMoveIsSameStableRoom(person, destinationSiteID, destinationRoomID, action) {
+			return nil, nil, http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, person.CurrentRoom)}
 		}
 		room := roomMoveRoomByID(destinationRoomID, destinationSiteID)
 		warning := row.Warning
@@ -1464,6 +1494,47 @@ func roomMovePersonByID(id string) (roomMovePersonOption, bool) {
 		}
 	}
 	return roomMovePersonOption{}, false
+}
+
+// roomMovePersonIDByEmail lets updateDraft turn a seeded review row into an
+// editable in-memory draft under the same draft id. The seed payload carries an
+// email address for the drawer, while buildRoomMoveDraft requires the stable
+// person id before it will normalize and persist the edited row.
+func roomMovePersonIDByEmail(email string) string {
+	for _, person := range roomMovePeopleSeed() {
+		if person.Email == email {
+			return person.ID
+		}
+	}
+	return ""
+}
+
+// roomMoveIsSameStableRoom is the DEV mock validation predicate shared by draft
+// normalization and transition checks. Add, removal, revert, and None
+// destinations are real operations, but ordinary change rows must not write a
+// future room move when the stable destination id equals the person's current
+// room id at the same site.
+func roomMoveIsSameStableRoom(person roomMovePersonOption, destinationSiteID string, destinationRoomID string, action string) bool {
+	if action == "add" || action == "removal" || action == "revert" || destinationRoomID == "" || destinationRoomID == "none" {
+		return false
+	}
+	return person.SiteID == destinationSiteID && person.CurrentRoomID == destinationRoomID
+}
+
+// validateRoomMoveRowsForTransition reruns the same-room guard immediately
+// before schedule/apply so stale DEV drafts or manually constructed payloads
+// cannot bypass create/update validation and become planned provider work.
+func validateRoomMoveRowsForTransition(rows []roomMoveDraftRow) (int, map[string]string) {
+	for index, row := range rows {
+		person, ok := roomMovePersonByID(row.PersonID)
+		if !ok {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.person_id", index): "Unknown person."}
+		}
+		if roomMoveIsSameStableRoom(person, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, person.CurrentRoom)}
+		}
+	}
+	return http.StatusOK, nil
 }
 
 func roomMoveRoomByID(roomID string, siteID string) roomMoveRoomOption {
