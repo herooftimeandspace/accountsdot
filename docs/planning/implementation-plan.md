@@ -583,7 +583,7 @@
   - Frequent Fliers is usable as a live dashboard surface in place of its legacy emailed/sheet-based visibility workflow
   - room-move drafts can be created and validated ahead of execution without requiring the transfer engine to be live yet, with IT able to create district-wide drafts at the same time site-scoped users create site drafts
   - the Room Moves DEV runtime must support one-person correction drafts, whole-site roster drafts, and manually built bulk move lists against deterministic mock people and IncidentIQ room inventory data
-  - non-IT Room Moves users can create and manage only drafts for their own site; IT Admin can create district-wide or inter-site drafts through an additional destination-site control
+  - non-IT Room Moves users can create drafts for their own site, view every Room Move affecting their assigned site including IT-authored rows, and manage only drafts they authored; IT Admin can create and manage district-wide or inter-site drafts through an additional destination-site control
   - pending Room Moves rows can be canceled until the job actually runs; once a draft is applied, cancellation is blocked and IT must use the completed-job reversal flow
   - the Admin dashboard exposes an IT Admin-only Room Move Reversal section that lists completed room-move jobs and schedules a new reversal draft after explicit confirmation
   - the reversal flow is full-job only; partial reversal is intentionally modeled as a new Room Move draft for the affected employees
@@ -878,6 +878,7 @@
     - bulk-draft warnings belong in a top warning bar above the bulk table, and row-level warnings should render as person-specific bullets so the affected employee is visible before the operator scans the table
     - the main Move Set Review table shows both persona-visible single moves and persona-visible scheduled bulk moves; bulk rows use `Bulk Move` as the name value, include an Author column immediately before State, and include a read-only Scheduled column immediately after State showing the scheduled cutover timestamp or `None`
     - IT Admin can open any Room Moves draft that is visible in the review table, even when another operator authored the draft
+    - Site Admin and Site Secretary can open assigned-site Room Moves authored by IT or another operator in read-only mode, but `PUT`, `schedule`, `apply`, `cancel`, and `DELETE` DEV mutation routes must reject those other-authored drafts with the established forbidden response
     - Room Moves help text must include: `IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.`
   - cancellation and reversal rules:
     - every pending Room Moves table row exposes `Cancel Move`

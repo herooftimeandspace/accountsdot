@@ -266,14 +266,18 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
               <div><RoomMovesStatusBadge status={row.state} /></div>
               <div>{scheduledDisplay(row.scheduled_for)}</div>
             </button>
-            <button
-              type="button"
-              className="room-moves-runtime__delete room-moves-runtime__cancel-row"
-              onClick={() => onCancelRow(row)}
-              disabled={cancelingDraftId === row.draft_id}
-            >
-              Cancel Move
-            </button>
+            {row.can_cancel ? (
+              <button
+                type="button"
+                className="room-moves-runtime__delete room-moves-runtime__cancel-row"
+                onClick={() => onCancelRow(row)}
+                disabled={cancelingDraftId === row.draft_id}
+              >
+                Cancel Move
+              </button>
+            ) : (
+              <span className="room-moves-runtime__readonly">Read-only</span>
+            )}
           </div>
         ))}
       </div>
@@ -300,6 +304,7 @@ function RoomMovesActions({ bounds, onMovePerson, onBatchMove, onSiteRollover, b
 }
 
 function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClose, onSaved }) {
+  const canEdit = !row || row.can_edit !== false;
   const initialPerson = people.find((person) => person.email === row?.email) || null;
   const [query, setQuery] = useState(initialPerson?.email || "");
   const [selectedPersonId, setSelectedPersonId] = useState(initialPerson?.id || "");
@@ -459,9 +464,10 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
             onInput={updatePersonQuery}
             onCommit={applyPersonValue}
             placeholder="Search"
+            disabled={!canEdit}
           />
         </label>
-        {canManageDistrict ? (
+        {canManageDistrict && canEdit ? (
           <label className="room-moves-runtime__field" htmlFor="room-move-destination-site">
             <span>Destination site</span>
             <select
@@ -481,6 +487,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
             id="room-move-destination-room"
             value={destinationRoomId}
             onChange={(event) => setDestinationRoomId(event.target.value)}
+            disabled={!canEdit}
           >
             {availableRooms.map((room) => (
               <option
@@ -495,9 +502,15 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
         </label>
         {error ? <p className="room-moves-runtime__error">{error}</p> : null}
         <div className="room-moves-runtime__drawer-actions">
-          <button type="button" onClick={() => saveDraft("save")} disabled={saving}>Save Draft</button>
-          <button type="button" onClick={() => saveDraft("apply")} disabled={saving}>Save and Apply</button>
-          <button type="button" className="room-moves-runtime__delete" onClick={cancelDraft} disabled={saving}>Cancel</button>
+          {canEdit ? (
+            <>
+              <button type="button" onClick={() => saveDraft("save")} disabled={saving}>Save Draft</button>
+              <button type="button" onClick={() => saveDraft("apply")} disabled={saving}>Save and Apply</button>
+            </>
+          ) : null}
+          <button type="button" className="room-moves-runtime__delete" onClick={cancelDraft} disabled={saving}>
+            {canEdit ? "Cancel" : "Close"}
+          </button>
         </div>
       </div>
     </RuntimeDrawer>
@@ -506,6 +519,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
 
 function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
   const draft = page.draft;
+  const canEdit = draft.can_edit !== false;
   const [rows, setRows] = useState(draft.rows || []);
   const [effectiveDate, setEffectiveDate] = useState(draft.effective_date || "2026-07-27");
   const [dirty, setDirty] = useState(false);
@@ -635,6 +649,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
               id="room-move-effective-date"
               type="date"
               value={effectiveDate}
+              disabled={!canEdit}
               onChange={(event) => {
                 setEffectiveDate(event.target.value);
                 setDirty(true);
@@ -642,10 +657,10 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
               onBlur={() => save(rows, effectiveDate)}
             />
           </label>
-          <button type="button" onClick={() => save()} disabled={saving}>Save Draft</button>
-          <button type="button" onClick={() => onTransition("schedule")}>Schedule</button>
-          <button type="button" onClick={() => onTransition("apply")}>Apply</button>
-          <button type="button" className="room-moves-runtime__delete" onClick={onDelete}>Discard</button>
+          <button type="button" onClick={() => save()} disabled={!canEdit || saving}>Save Draft</button>
+          <button type="button" onClick={() => onTransition("schedule")} disabled={!canEdit}>Schedule</button>
+          <button type="button" onClick={() => onTransition("apply")} disabled={!canEdit}>Apply</button>
+          <button type="button" className="room-moves-runtime__delete" onClick={onDelete} disabled={!canEdit}>Discard</button>
         </div>
       </div>
       {draft.warnings?.length ? (
@@ -658,7 +673,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
       ) : null}
       <div className="room-moves-runtime__table-tools">
         <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
-        <button type="button" onClick={addRow}>Add</button>
+        <button type="button" onClick={addRow} disabled={!canEdit}>Add</button>
       </div>
       <div className="room-moves-runtime__bulk-header">
         {BULK_COLUMNS.map((column) => (
@@ -677,7 +692,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
         ) : null}
         {table.visibleRows.map((row) => (
           <div key={row.id} className="room-moves-runtime__bulk-row">
-            <select value={row.person_id} onChange={(event) => updateRow(row.id, { person_id: event.target.value })}>
+            <select value={row.person_id} onChange={(event) => updateRow(row.id, { person_id: event.target.value })} disabled={!canEdit}>
               <option value="">Select person...</option>
               {page.people.map((person) => (
                 <option key={person.id} value={person.id}>{bulkPersonLabel(person)}</option>
@@ -687,6 +702,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
             {page.can_manage_district ? (
               <select
                 value={row.destination_site_id}
+                disabled={!canEdit}
                 onChange={(event) => updateRow(row.id, {
                   destination_site_id: event.target.value,
                   destination_room_id: event.target.value === row.current_site_id ? row.current_room_id : "none",
@@ -700,12 +716,13 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
             <select
               value={row.destination_room_id}
               onChange={(event) => updateRow(row.id, { destination_room_id: event.target.value })}
+              disabled={!canEdit}
             >
               {roomOptionsForSite(page.rooms, row.destination_site_id).map((room) => (
                 <option key={`${row.id}-${room.site_id}-${room.id}`} value={room.id}>{room.label}</option>
               ))}
             </select>
-            <select value={row.action} onChange={(event) => updateRow(row.id, { action: event.target.value })}>
+            <select value={row.action} onChange={(event) => updateRow(row.id, { action: event.target.value })} disabled={!canEdit}>
               <option value="add">add</option>
               <option value="change">change</option>
               <option value="removal">removal</option>
@@ -713,6 +730,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
             <button
               type="button"
               className="room-moves-runtime__delete"
+              disabled={!canEdit}
               onClick={() => {
                 void cancelRow(row.id);
               }}

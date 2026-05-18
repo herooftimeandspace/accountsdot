@@ -287,7 +287,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - phone directory visibility is API-driven rather than CSV-upload driven
   - Frequent Fliers is usable as a live dashboard replacement for its legacy emailed/sheet-based visibility workflow
   - room-move drafts are available as planning/validation artifacts before move execution automation is live, with IT able to create district-wide drafts in the same phase
-  - Room Moves provides a DEV mock runtime surface for one-person corrections, whole-site bulk roster drafts, and manually built bulk move lists. Site-level users may create and manage drafts only for their own site. IT Admin may create district-wide and inter-site drafts and receives an extra destination-site control.
+  - Room Moves provides a DEV mock runtime surface for one-person corrections, whole-site bulk roster drafts, and manually built bulk move lists. Site-level users may create drafts for their own site and may view every Room Move that affects their assigned site, including IT-authored rows, but may manage only drafts they authored. IT Admin may create and manage district-wide and inter-site drafts and receives an extra destination-site control.
   - pending Room Moves rows expose `Cancel Move` until the automation job actually runs; completed jobs are not canceled in place and must instead be handled through the IT Admin reversal flow
   - IT Admin receives an Admin-only Room Move Reversal section listing completed room-move jobs; choosing `Revert` confirms the risk and schedules a new reversal job that undoes every change in the completed job
   - Room Moves help text must tell operators: `IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.`
@@ -359,6 +359,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - bulk-draft warnings appear in a top warning bar on the bulk draft page, with person-specific bullets for row-level warnings so operators can identify the affected employee without scanning every row
   - the main Room Moves review table includes both single moves and scheduled bulk moves visible to the persona; bulk rows render as `Bulk Move`, every row shows its move author immediately before the state badge, and a read-only `Scheduled` column immediately after state shows the scheduled cutover timestamp or `None`
   - IT Admin can view and open all site-scoped and district-wide Room Moves drafts visible in DEV, regardless of which operator authored the draft
+  - Site Admin and Site Secretary can view assigned-site Room Moves regardless of author, including IT-authored rows, but visible rows and drafts authored by another operator must be read-only and direct DEV mutation attempts must return forbidden
 - Batch author scope:
   - `IT` may author multi-site batches
   - non-IT authors are limited to batches within their own site scope

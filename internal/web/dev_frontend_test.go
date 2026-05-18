@@ -437,8 +437,11 @@ type roomMovesResponse struct {
 			DestinationRoom   string   `json:"destination_room"`
 			Phone             string   `json:"phone"`
 			Author            string   `json:"author"`
+			AuthorID          string   `json:"author_id"`
 			State             string   `json:"state"`
 			ScheduledFor      string   `json:"scheduled_for"`
+			CanEdit           bool     `json:"can_edit"`
+			CanCancel         bool     `json:"can_cancel"`
 			Warning           string   `json:"warning"`
 			AttentionReason   string   `json:"attention_reason"`
 			AutomationOutcome string   `json:"automation_outcome"`
@@ -470,6 +473,10 @@ type roomMoveDraftTestPayload struct {
 	Mode              string   `json:"mode"`
 	Status            string   `json:"status"`
 	ScopeSiteID       string   `json:"scope_site_id"`
+	Author            string   `json:"author"`
+	AuthorID          string   `json:"author_id"`
+	CanEdit           bool     `json:"can_edit"`
+	CanDelete         bool     `json:"can_delete"`
 	CanManageDistrict bool     `json:"can_manage_district"`
 	Warnings          []string `json:"warnings"`
 	Rows              []struct {
@@ -3293,6 +3300,46 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 				t.Fatalf("site secretary received out-of-site room option %#v", room)
 			}
 		}
+		foundITAuthoredAssignedSiteRow := false
+		for _, row := range sitePayload.Page.Rows {
+			if row.CurrentSiteID != "clover-hs" {
+				t.Fatalf("site secretary received out-of-site room move row %#v", row)
+			}
+			if row.AuthorID == "it_admin" && row.CurrentSiteID == "clover-hs" {
+				foundITAuthoredAssignedSiteRow = true
+				if row.CanEdit || row.CanCancel {
+					t.Fatalf("site secretary IT-authored assigned-site row = %#v, want visible but read-only", row)
+				}
+			}
+		}
+		if !foundITAuthoredAssignedSiteRow {
+			t.Fatalf("site secretary room moves rows = %#v, want visible IT-authored assigned-site row", sitePayload.Page.Rows)
+		}
+
+		siteAdminCookie := loginAsPersona(t, handler, "site_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(siteAdminCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("site admin room moves returned %d, want 200", rec.Code)
+		}
+		siteAdminPayload := decodeJSON[roomMovesResponse](t, rec)
+		siteAdminFoundITAuthoredAssignedSiteRow := false
+		for _, row := range siteAdminPayload.Page.Rows {
+			if row.CurrentSiteID != "clover-hs" {
+				t.Fatalf("site admin received out-of-site room move row %#v", row)
+			}
+			if row.AuthorID == "it_admin" && row.CurrentSiteID == "clover-hs" {
+				siteAdminFoundITAuthoredAssignedSiteRow = true
+				if row.CanEdit || row.CanCancel {
+					t.Fatalf("site admin IT-authored assigned-site row = %#v, want visible but read-only", row)
+				}
+			}
+		}
+		if !siteAdminFoundITAuthoredAssignedSiteRow {
+			t.Fatalf("site admin room moves rows = %#v, want visible IT-authored assigned-site row", siteAdminPayload.Page.Rows)
+		}
 
 		createBody, err := json.Marshal(map[string]any{
 			"mode":      "mid_year_targeted_move",
@@ -3369,6 +3416,17 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if len(conflictRow.ResolutionSteps) == 0 || len(conflictRow.ExternalSystems) != 0 {
 			t.Fatalf("primary-conflict operator guidance = %#v, want resolution steps without automated-path external systems", conflictRow)
 		}
+		if !primaryConflictDraft.Draft.CanEdit || !primaryConflictDraft.Draft.CanDelete || primaryConflictDraft.Draft.AuthorID != "site_secretary" {
+			t.Fatalf("site secretary authored draft permissions = %#v, want editable self-authored draft", primaryConflictDraft.Draft)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+primaryConflictDraft.Draft.ID+"/schedule", nil)
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("site secretary self-authored draft schedule returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
 
 		crossSiteBody, err := json.Marshal(map[string]any{
 			"mode":      "mid_year_targeted_move",
@@ -3384,6 +3442,61 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("cross-site site-secretary draft returned %d, want 403", rec.Code)
+		}
+
+		readOnlyUpdateBody, err := json.Marshal(map[string]any{
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{{
+				"person_id":           "alex-ramirez",
+				"destination_site_id": "clover-hs",
+				"destination_room_id": "cla-b204",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal read-only update: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/room-moves/drafts/single-alex-ramirez", bytes.NewReader(readOnlyUpdateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site secretary update of IT-authored assigned-site row returned %d, want 403", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/single-alex-ramirez/cancel", nil)
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site secretary cancel of IT-authored assigned-site row returned %d, want 403", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id=rm-draft-103", nil)
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("site secretary visible IT-authored bulk draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		readOnlyBulk := decodeJSON[roomMovesBulkDraftResponse](t, rec)
+		if readOnlyBulk.Page.Draft.AuthorID != "it_admin" || readOnlyBulk.Page.Draft.CanEdit || readOnlyBulk.Page.Draft.CanDelete {
+			t.Fatalf("site secretary IT-authored bulk draft = %#v, want read-only", readOnlyBulk.Page.Draft)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/room-moves/drafts/rm-draft-103", bytes.NewReader(readOnlyUpdateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site secretary save of IT-authored bulk draft returned %d, want 403", rec.Code)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/apply", nil)
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site secretary apply of IT-authored bulk draft returned %d, want 403", rec.Code)
 		}
 
 		itCookie := loginAsPersona(t, handler, "it_admin")
