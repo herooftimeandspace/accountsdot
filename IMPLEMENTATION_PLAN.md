@@ -2513,6 +2513,14 @@
 - Projection-backed list and queue surfaces should show `Last synced` or equivalent freshness context.
 - Explicit UI refresh actions should prefer targeted live provider reads for the selected surface instead of indiscriminately rebuilding every projection.
 - Implemented React pages that expose manual freshness actions should pass page-level metadata and action handlers through the shared shell page sync/refresh primitive. `Refresh` means a targeted reread for the current page surface; `Sync now` means source reconciliation or a DEV mock simulation of that reconciliation. Pages with no intentional manual action may continue to show passive freshness metadata without adding a new callback.
+- The shared page sync/refresh primitive is a shared runtime component (not a page-local CSS fragment). It owns the visual grouping of freshness metadata plus the action button so pages cannot drift in label text, spacing, loading state, or accessible action naming (tracked by GitHub issue #59).
+- When a page exposes a header-level action button (`Refresh` or `Sync now`), the freshness metadata cluster renders immediately to the left of the button with a visible `5px` gap and must not exceed the button height; wrap to at most two lines when needed to avoid collisions.
+- The primitive must support:
+  - last-refreshed (or last-synced) timestamp display with stable label + date/time grouping
+  - optional next-sync text
+  - disabled/loading state for the action button without layout shift
+  - a stable accessible name that matches the visible action label (`Refresh` or `Sync now`)
+- Pages that currently expose page-level freshness or source reconciliation actions should migrate to the shared primitive intentionally as a shared-shell change, not as page-by-page button restyling.
 - AD is managed directly by this application where applicable; downstream AD → Entra propagation is externally managed and should be treated as complete within `1h` maximum for workflow timing.
 - Entra propagation is considered complete for app workflow gating when the user exists in Entra and `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled` match expected state.
 - If Entra convergence has not occurred after `1h`, continue the workflow with warning rather than blocking the entire run.
