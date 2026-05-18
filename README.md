@@ -120,6 +120,31 @@ curl -i http://localhost:8080/api/v1/dev/session
 
 The preflight should return `200 OK` with DEV session JSON from either URL. An unauthenticated but correctly started DEV API includes fields such as `"environment":"development"`, `"authenticated":false`, `"authorized":false`, and a non-empty `"personas"` array. A `404` from the direct API URL is a startup/configuration failure; restart the API with `APP_ENV=development` before collecting Browser evidence. A `200 OK` from the direct API URL but a failed Vite URL means the route matrix is still blocked by frontend proxy startup or port wiring, not by Browser or page readiness. A passing preflight followed by lost automation connection, missing `iab` tab access, or interrupted pipe output is a Browser transport failure. A passing preflight with an app-rendered error, timeout after navigation, or missing route content is a page readiness failure for the route being measured.
 
+### DEV Persona Switching From Terminal Tooling
+Codex and other terminal-only evidence workflows can switch the active mock persona without clicking the in-browser DEV persona switcher. Start the API with `APP_ENV=development`, keep Vite running when you want the same target the Browser uses, then run:
+
+```bash
+npm run dev:persona -- site_admin
+```
+
+The helper posts to `/api/v1/dev/login` with `activate_mock_session=true`. That flag is development-only and records a process-local active mock session before returning the same structured session payload the frontend reads from `/api/v1/dev/session`. The JSON output includes `authenticated`, `authorized`, `current_persona`, `landing_path`, `allowed_routes`, default/current site fields, visible sites, shell context, and feature flag availability. Refreshing or navigating the Browser tab after the command makes the frontend consume the selected persona even when an older Browser cookie still exists.
+
+Use the Vite URL for normal Browser evidence:
+
+```bash
+npm run dev:persona -- device_wrangler --base-url http://localhost:5173
+curl -s http://localhost:5173/api/v1/dev/session
+```
+
+Use the API URL when Vite is not running:
+
+```bash
+npm run dev:persona -- no_access --base-url http://localhost:8080
+curl -s http://localhost:8080/api/v1/dev/session
+```
+
+Supported persona ids are the ids returned by `/api/v1/dev/session`, including `it_admin`, `human_resources`, `site_admin`, `site_secretary`, `device_wrangler`, `faculty_staff`, and `no_access`. Site-scoped personas keep their documented default/current site and visible-site context. Invalid persona ids return `400` with `code:"invalid_persona"`, clear the local DEV cookie in the response, and force the shared mock session to anonymous so stale Browser cookies do not silently restore an authorized persona. Missing or non-development `APP_ENV` returns `404`; this tooling is not production authorization and must not be enabled outside local development.
+
 `npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
 
 `npm run perf:routes:batch-plan -- artifacts/performance` scans local artifacts that match the current route plan and reports the next transition or refresh batch without opening a browser.

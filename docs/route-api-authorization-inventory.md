@@ -74,6 +74,6 @@ These DEV API registrations support the route authorization model but do not cor
 
 | API path | Purpose | Expected auth behavior |
 | --- | --- | --- |
-| `/api/v1/dev/session` | Returns anonymous session state before login and the active persona, allowed routes, feature flags, shell context, and site context after login. | Returns `200` for anonymous and authenticated DEV sessions; protected route handlers use its cookie-backed persona separately. |
-| `/api/v1/dev/login` | Sets the mock DEV persona session cookie. | DEV-only mock login endpoint; invalid persona requests fail without granting protected route access. |
-| `/api/v1/dev/logout` | Clears the mock DEV persona session cookie. | DEV-only mock logout endpoint; returns anonymous session state after clearing the cookie. |
+| `/api/v1/dev/session` | Returns anonymous session state before login and the active persona, allowed routes, feature flags, shell context, and site context after login or terminal-tooling activation. | Returns `200` for anonymous and authenticated DEV sessions; in `APP_ENV=development`, a shared tooling override takes precedence over stale Browser cookies so refresh/navigation reads the persona selected from terminal tooling. |
+| `/api/v1/dev/login` | Sets the mock DEV persona session cookie; when request JSON includes `activate_mock_session=true`, also sets the process-local active DEV mock session used by Codex/browser evidence workflows. | DEV-only mock login endpoint; invalid persona requests fail without granting protected route access, and invalid tooling activation forces anonymous readback instead of leaving a stale authorized persona active. |
+| `/api/v1/dev/logout` | Clears the mock DEV persona session cookie and clears an active tooling-selected DEV mock session to anonymous. | DEV-only mock logout endpoint; returns anonymous session state after clearing the cookie or shared mock session. |

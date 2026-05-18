@@ -5,6 +5,7 @@
   "scripts": {
     "dev:api": "go run ./cmd/provisioner",
     "dev:web": "vite --config frontend/vite.config.mjs",
+    "dev:persona": "node scripts/dev_persona_switch.mjs",
     "build:web": "vite build --config frontend/vite.config.mjs",
     "a11y:check": "node scripts/check_frontend_accessibility.mjs",
     "long-pages:self-test": "node scripts/dev_long_page_harness.mjs --self-test",
