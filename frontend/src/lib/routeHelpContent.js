@@ -38,7 +38,7 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "Controls and navigation",
         paragraphs: [
           "Use the sidebar to open the workflow that owns the issue you want to work. The header scope selector shows the current district or site context, and the shared search field can be used to find staff, students, rooms, phones, or workflow records when the route supports search.",
-          "Use Refresh only when the page exposes it as a real page-level freshness control. It rechecks the current DEV page data; it does not approve provider writes or change queue ownership.",
+          "Use Refresh only when the page exposes it as a real page-level freshness control. It rechecks the current page data; it does not approve provider writes or change queue ownership.",
         ],
       },
       {
@@ -109,7 +109,7 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "What this page shows",
         paragraphs: [
           "Search collects matching staff, student, room, phone-directory, and workflow records that the current persona is allowed to access.",
-          "Results are visibility-filtered. A missing result may mean the record is outside your role, outside the current scope, or not present in the DEV data slice.",
+          "Results are visibility-filtered. A missing result may mean the record is outside your role, outside the current scope, or not available to this dashboard.",
         ],
       },
       {
@@ -142,13 +142,13 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "Controls, search, and table",
         paragraphs: [
           "Use table search and sortable column headers to find a person by date added, start date, name, site, current step, issue/action, or workflow status. Select any row to open the right drawer with the current workflow state.",
-          "Use Add Non-Escape Record only for HR or IT manual intake that is documented for this DEV slice. The drawer asks for the required intake fields, optional replacing employee, room/classroom, and notes. It does not ask operators to guess district email, Google groups, trainings, keys, alarm codes, or ID card fields.",
+          "Use Add Non-Escape Record only for HR or IT manual intake that this page explicitly supports. The drawer asks for the required intake fields, optional replacing employee, room/classroom, and notes. It does not ask operators to guess district email, Google groups, trainings, keys, alarm codes, or ID card fields.",
         ],
       },
       {
         heading: "Drawers and warnings",
         paragraphs: [
-          "The selected-row drawer lists workflow steps, status, owner, resolution instructions, and deterministic DEV links when an external destination is known. If a step requires user interaction, follow the owner and resolution text in the drawer.",
+          "The selected-row drawer lists workflow steps, status, owner, resolution instructions, and external-system links when a destination is known. If a step requires user interaction, follow the owner and resolution text in the drawer.",
           "Manual drafts autosave while edited and stay visible as Incomplete Data until required fields are complete. Missing-field red borders and the drawer status summary appear only after an operator explicitly selects Save.",
           "A Vegas Gold start-date warning means the start date is within three calendar days. Access to some systems may be delayed beyond that date.",
         ],
@@ -184,8 +184,8 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "Statuses and drawers",
         paragraphs: [
           "Ready or Scheduled rows can continue through the planned retirement path. Manual Action, Needs Review, Blocked, Security Risk, and Failed rows need the drawer's owner and resolution instructions before automation should proceed.",
-          "Device-return warnings and security details belong in the row drawer. Use the drawer links to inspect the relevant DEV mock external system when one is provided.",
-          "Emergency Offboarding searches active employees and contractors by name, email, or employee ID, then schedules an immediate DEV mock deprovision after a person is selected. Offboard Contractor searches active contractors only, saves the selected termination date only when Schedule Offboarding is selected, and Cancel closes without saving.",
+          "Device-return warnings and security details belong in the row drawer. Use the drawer links to inspect the relevant external system when one is provided.",
+          "Emergency Offboarding searches active employees and contractors by name, email, or employee ID, then schedules immediate deprovisioning after a person is selected. Offboard Contractor searches active contractors only, saves the selected termination date only when Schedule Offboarding is selected, and Cancel closes without saving.",
         ],
       },
       {
@@ -310,7 +310,7 @@ const HELP_CONTENT_BY_ROUTE = {
       {
         heading: "Drawers and corrections",
         paragraphs: [
-          "The detail drawer is read-oriented in this slice. It may show person context, room context, phone values, and source-system hints for follow-up.",
+          "The detail drawer is read-oriented. It may show person context, room context, phone values, and source-system hints for follow-up.",
           "Correct room ownership through Room Moves when the change is a room move. Correct source-system identity or department values in the owning source system unless the directory page exposes a documented correction control.",
         ],
       },
@@ -330,7 +330,7 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "Controls, filters, and table",
         paragraphs: [
           "Use mode buttons to move between person, room, and department views. Use search and sortable headers to find a room by room label, extension, site, owner, or department.",
-          "Select a row to open the right drawer. The drawer should show room context, associated people, phone assignment details, and any source-system notes available in the DEV slice.",
+          "Select a row to open the right drawer. The drawer should show room context, associated people, phone assignment details, and any available source-system notes.",
         ],
       },
       {
@@ -381,7 +381,7 @@ const HELP_CONTENT_BY_ROUTE = {
       {
         heading: "Controls, filters, and table",
         paragraphs: [
-          "Use table search, issue filters, severity cues, and sortable headers to identify the highest-impact issues. Use Refresh when you need the latest DEV mock queue.",
+          "Use table search, issue filters, severity cues, and sortable headers to identify the highest-impact issues. Use Refresh when you need the latest queue data.",
           "Start with high-severity or blocked rows. The Next Action text tells you whether the correction belongs with HR lifecycle, Onboarding, Student Data Cleanup, site-owned work, Reports, or Admin.",
         ],
       },
@@ -415,7 +415,7 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "Drawers and links",
         paragraphs: [
           "Select a row to open the right drawer with student context, recent device assignments, recent tickets, trend context, and notes for follow-up.",
-          "Device serial numbers and IncidentIQ ticket numbers open deterministic DEV links. They behave like production links for training, but they do not connect to live provider records in this slice.",
+          "Device serial numbers and IncidentIQ ticket numbers open the matching asset or ticket destination when that source link is available. Use those links for follow-up, repair planning, and support coordination.",
         ],
       },
     ],
@@ -493,7 +493,7 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "Drawers and actions",
         paragraphs: [
           "Select a row to open the right drawer. The drawer shows status, email, site, end-date context, next action, asset work, reference, warning text, and review actions.",
-          "Review actions name the owner, status, detail, resolution, and deterministic DEV links when an external system is known. This report is read-only in the current slice; it does not edit Offboarding dates or provider records.",
+          "Review actions name the owner, status, detail, resolution, and external-system links when a destination is known. This report is read-only; it does not edit Offboarding dates or provider records.",
         ],
       },
     ],
@@ -565,7 +565,7 @@ const HELP_CONTENT_BY_ROUTE = {
         paragraphs: [
           "Start with Sync Health and Admin Warnings. Slow provider convergence, repeated schedule overlap, stale sync times, or high-severity warnings should be investigated before changing write-capable workflow defaults.",
           "Use Deprovisioning Exceptions and Google-active / Aeries-inactive Defaults to confirm which accounts are intentionally held out of normal retirement. Review scope, expiration, and notification behavior before changing those settings.",
-          "Use Room Move Reversal only for a completed room-move job that should be fully undone. Open Feature Flags for DEV-only rollout controls.",
+          "Use Room Move Reversal only for a completed room-move job that should be fully undone. Open Feature Flags for staged rollout controls.",
         ],
       },
       {
@@ -583,15 +583,15 @@ const HELP_CONTENT_BY_ROUTE = {
       {
         heading: "What this page shows",
         paragraphs: [
-          "Feature Flags is the IT Admin rollout-control surface for DEV-only staged behavior. It shows which documented frontend or workflow affordances are enabled for the current environment.",
+          "Feature Flags is the IT Admin rollout-control surface for staged behavior. It shows which documented frontend or workflow affordances are enabled for the current environment.",
           "Flags are operational controls, not product documentation. A disabled flag may mean the related workflow is still under review, staged, or intentionally unavailable.",
         ],
       },
       {
         heading: "Controls and statuses",
         paragraphs: [
-          "Review the flag name, current state, rollout scope, and any warning text before toggling a control. Use the page only for documented feature flags that already exist in the current slice.",
-          "Enabled means the flagged behavior is available in the configured DEV context. Disabled means the behavior should stay hidden or inactive even if related code exists.",
+          "Review the flag name, current state, rollout scope, and any warning text before toggling a control. Use the page only for documented feature flags that already exist for this environment.",
+          "Enabled means the flagged behavior is available in the configured environment. Disabled means the behavior should stay hidden or inactive even if related code exists.",
         ],
       },
       {
@@ -609,14 +609,14 @@ const HELP_CONTENT_BY_ROUTE = {
       {
         heading: "What this page shows",
         paragraphs: [
-          "My Profile shows the current staff account context used by the dashboard, including identity, role, and shell visibility information available in the DEV slice.",
+          "My Profile shows the current staff account context used by the dashboard, including identity, role, and shell visibility information available to the current session.",
           "Use it to confirm which persona or account context is active before comparing route access, dashboard scope, or search results.",
         ],
       },
       {
         heading: "Controls and access",
         paragraphs: [
-          "The profile page is informational in this slice. It does not edit Google, Aeries, Escape, Zoom, IncidentIQ, or local database records.",
+          "The profile page is informational. It does not edit Google, Aeries, Escape, Zoom, IncidentIQ, or local database records.",
           "If account details are wrong, correct the source system that owns the field or use the documented admin workflow for that data class when one exists.",
         ],
       },
@@ -624,7 +624,7 @@ const HELP_CONTENT_BY_ROUTE = {
         heading: "Security",
         paragraphs: [
           "Do not copy secrets, tokens, service-account JSON, or private provider data into notes or tickets from this page. Diagnostics should use non-secret labels or one-way fingerprints when needed.",
-          "Student users are not allowed to use the staff dashboard. If the active account or persona does not match the expected staff role, sign out or switch to the correct DEV persona before continuing.",
+          "Student users are not allowed to use the staff dashboard. If the active account does not match the expected staff role, sign out and use the correct staff account before continuing.",
         ],
       },
     ],

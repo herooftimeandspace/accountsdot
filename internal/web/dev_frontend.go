@@ -80,20 +80,22 @@ type devPersonaConfig struct {
 }
 
 type devSessionPayload struct {
-	Environment     string                   `json:"environment"`
-	Authenticated   bool                     `json:"authenticated"`
-	Authorized      bool                     `json:"authorized"`
-	CurrentPersona  *devPersona              `json:"current_persona,omitempty"`
-	Personas        []devPersona             `json:"personas"`
-	LandingPath     string                   `json:"landing_path,omitempty"`
-	AllowedRoutes   []string                 `json:"allowed_routes,omitempty"`
-	FeatureFlags    []devFeatureAvailability `json:"feature_flags,omitempty"`
-	Shell           devShellPayload          `json:"shell,omitempty"`
-	DefaultSiteID   string                   `json:"default_site_id,omitempty"`
-	DefaultSiteName string                   `json:"default_site_name,omitempty"`
-	CurrentSiteID   string                   `json:"current_site_id,omitempty"`
-	CurrentSiteName string                   `json:"current_site_name,omitempty"`
-	VisibleSites    []devSiteContext         `json:"visible_sites,omitempty"`
+	Environment         string                   `json:"environment"`
+	Authenticated       bool                     `json:"authenticated"`
+	Authorized          bool                     `json:"authorized"`
+	AuthenticationMode  string                   `json:"authentication_mode,omitempty"`
+	BreakglassAccountID string                   `json:"breakglass_account_id,omitempty"`
+	CurrentPersona      *devPersona              `json:"current_persona,omitempty"`
+	Personas            []devPersona             `json:"personas"`
+	LandingPath         string                   `json:"landing_path,omitempty"`
+	AllowedRoutes       []string                 `json:"allowed_routes,omitempty"`
+	FeatureFlags        []devFeatureAvailability `json:"feature_flags,omitempty"`
+	Shell               devShellPayload          `json:"shell,omitempty"`
+	DefaultSiteID       string                   `json:"default_site_id,omitempty"`
+	DefaultSiteName     string                   `json:"default_site_name,omitempty"`
+	CurrentSiteID       string                   `json:"current_site_id,omitempty"`
+	CurrentSiteName     string                   `json:"current_site_name,omitempty"`
+	VisibleSites        []devSiteContext         `json:"visible_sites,omitempty"`
 }
 
 type devLoginRequest struct {
@@ -823,15 +825,15 @@ var devPersonaOrder = []string{
 }
 
 func handleDevSession(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
 
-	config, ok := resolveAuthenticatedDevPersona(r)
+	identity, ok := resolveAuthenticatedDevSession(r)
 	if !ok {
 		writeJSON(w, http.StatusOK, devSessionPayload{
-			Environment:   "development",
+			Environment:   currentAppEnvironment(),
 			Authenticated: false,
 			Authorized:    false,
 			Personas:      orderedDevPersonas(),
@@ -839,6 +841,11 @@ func handleDevSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	config := identity.Config
+	if identity.Breakglass {
+		writeJSON(w, http.StatusOK, buildBreakglassSessionPayload(r.Context(), config, identity.BreakglassAccountID))
+		return
+	}
 	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
@@ -866,19 +873,35 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeDevSessionCookie(w, config.Persona.ID)
+	writeDevSessionCookie(w, r, config.Persona.ID)
 	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
 func handleDevLogout(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodPost {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPost {
 		http.NotFound(w, r)
 		return
 	}
 
-	clearDevSessionCookie(w)
+	identity, ok := resolveAuthenticatedDevSession(r)
+	if ok && identity.Breakglass {
+		if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+			AccountID:     identity.BreakglassAccountID,
+			Action:        "sign_out",
+			Outcome:       "allowed",
+			SourceIP:      sourceIPForBreakglass(r).String(),
+			PersonaID:     identity.Config.Persona.ID,
+			RecordedAt:    time.Now().UTC(),
+			RequestID:     strings.TrimSpace(r.Header.Get("X-Request-ID")),
+			TargetSession: "cookie:" + devSessionCookieName,
+		}); err != nil {
+			writeBreakglassAuditUnavailable(w, err)
+			return
+		}
+	}
+	clearDevSessionCookie(w, r)
 	writeJSON(w, http.StatusOK, devSessionPayload{
-		Environment:   "development",
+		Environment:   currentAppEnvironment(),
 		Authenticated: false,
 		Authorized:    false,
 		Personas:      orderedDevPersonas(),
@@ -887,7 +910,7 @@ func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 
 // handleDevFeatureFlags returns the IT Admin-only feature flag management payload.
 func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -919,7 +942,7 @@ func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
 
 // handleDevFeatureFlag applies IT Admin feature flag target updates for one flag key.
 func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodPut {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPut {
 		http.NotFound(w, r)
 		return
 	}
@@ -1037,7 +1060,7 @@ func decodeDevFeatureFlagUpdateRequest(w http.ResponseWriter, r *http.Request) (
 // rather than local correction buttons because this page escalates district-wide
 // issues but does not edit HR, site, student, or provider source records.
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -1106,7 +1129,7 @@ func handleDevPhoneDirectoryByDepartmentPage(w http.ResponseWriter, r *http.Requ
 }
 
 func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode string) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -1732,40 +1755,77 @@ func buildDevSessionPayload(ctx context.Context, config devPersonaConfig) devSes
 	}
 }
 
-func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
+type devSessionIdentity struct {
+	Config              devPersonaConfig
+	Breakglass          bool
+	BreakglassAccountID string
+}
+
+func resolveAuthenticatedDevSession(r *http.Request) (devSessionIdentity, bool) {
 	cookie, err := r.Cookie(devSessionCookieName)
 	if err != nil {
-		return devPersonaConfig{}, false
+		return devSessionIdentity{}, false
+	}
+	value := strings.TrimSpace(cookie.Value)
+	if strings.HasPrefix(value, breakglassSessionCookiePrefix) {
+		accountID := strings.TrimPrefix(value, breakglassSessionCookiePrefix)
+		accounts, err := configuredBreakglassAccounts()
+		if err != nil {
+			return devSessionIdentity{}, false
+		}
+		account, ok := accounts[accountID]
+		if !ok {
+			return devSessionIdentity{}, false
+		}
+		config, ok := devPersonaConfigs[account.PersonaID]
+		if !ok {
+			return devSessionIdentity{}, false
+		}
+		return devSessionIdentity{Config: config, Breakglass: true, BreakglassAccountID: account.AccountID}, true
 	}
 
-	config, ok := devPersonaConfigs[strings.TrimSpace(cookie.Value)]
+	config, ok := devPersonaConfigs[value]
+	if !ok {
+		return devSessionIdentity{}, false
+	}
+	return devSessionIdentity{Config: config}, true
+}
+
+func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
+	identity, ok := resolveAuthenticatedDevSession(r)
 	if !ok {
 		return devPersonaConfig{}, false
 	}
-	return config, true
+	return identity.Config, true
 }
 
 func routeAllowed(ctx context.Context, config devPersonaConfig, path string) bool {
 	return slices.Contains(config.Allowed, path) && routeFeatureEnabled(ctx, config, path)
 }
 
-func writeDevSessionCookie(w http.ResponseWriter, personaID string) {
+func writeDevSessionCookie(w http.ResponseWriter, r *http.Request, personaID string) {
+	writeDevSessionCookieValue(w, r, personaID)
+}
+
+func writeDevSessionCookieValue(w http.ResponseWriter, r *http.Request, value string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     devSessionCookieName,
-		Value:    personaID,
+		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secureDevSessionCookie(r),
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(12 * time.Hour),
 	})
 }
 
-func clearDevSessionCookie(w http.ResponseWriter) {
+func clearDevSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     devSessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secureDevSessionCookie(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
@@ -1773,8 +1833,29 @@ func clearDevSessionCookie(w http.ResponseWriter) {
 }
 
 func devModeEnabled() bool {
-	mode := strings.TrimSpace(os.Getenv("APP_ENV"))
-	return strings.EqualFold(mode, "development")
+	return currentAppEnvironment() == "development"
+}
+
+func currentAppEnvironment() string {
+	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+}
+
+func devSessionConsumerEnabled(r *http.Request) bool {
+	if devModeEnabled() {
+		return true
+	}
+	if !breakglassModeEnabled() {
+		return false
+	}
+	identity, ok := resolveAuthenticatedDevSession(r)
+	return ok && identity.Breakglass
+}
+
+func secureDevSessionCookie(r *http.Request) bool {
+	if r != nil && r.TLS != nil {
+		return true
+	}
+	return currentAppEnvironment() == "staging"
 }
 
 func siteByID(id string) devSiteContext {

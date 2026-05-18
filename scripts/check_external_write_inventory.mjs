@@ -24,6 +24,7 @@ const routeMetadata = new Map([
   ["POST /api/v1/sync-status/{user_type}/{user_id}/override", { owner: "sync override" }],
   ["POST /api/v1/room-mappings", { owner: "room mappings" }],
   ["POST /api/v1/annual-reset", { owner: "annual reset" }],
+  ["POST /api/v1/breakglass/login", { owner: "breakglass local emergency auth" }],
   ["POST /api/v1/dev/login", { owner: "DEV session mock" }],
   ["POST /api/v1/dev/logout", { owner: "DEV session mock" }],
   ["PUT /api/v1/dev/my-profile", { owner: "DEV My Profile mock" }],

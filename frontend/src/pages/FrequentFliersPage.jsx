@@ -229,7 +229,7 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
           ]}
           onChange={(metric) => onPendingChange({ metric })}
         />
-        <span>during</span>
+        <span>in the last</span>
         <RuntimeSelectDropdown
           label="Date range"
           value={pendingFilters.range}

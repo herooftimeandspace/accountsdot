@@ -11,6 +11,7 @@
     "ci:local": "python3 scripts/run_local_ci.py",
     "docs:comments:check": "node scripts/check_doc_comment_quality.mjs",
     "docs:comments:test": "node scripts/check_doc_comment_quality.mjs --self-test",
+    "route-api-inventory:check": "node scripts/check_route_api_authorization_inventory.mjs",
     "write-inventory:check": "node scripts/check_external_write_inventory.mjs",
     "write-inventory:test": "node scripts/check_external_write_inventory.mjs --self-test",
     "perf:routes:plan": "node scripts/dev_route_performance_matrix.mjs",
