@@ -70,6 +70,7 @@ type PermissionSubject struct {
 	GoogleGroupSiteScopes  []string
 	ManualAssignments      []PermissionAssignment
 	Disabled               bool
+	Revoked                bool
 	Breakglass             bool
 	BreakglassNetworkValid bool
 }
@@ -121,7 +122,7 @@ func ResolveEffectivePermissions(subject PermissionSubject, now time.Time) Effec
 		Email:      subject.Email,
 		Breakglass: subject.Breakglass && subject.BreakglassNetworkValid,
 	}
-	if subject.Disabled && !result.Breakglass {
+	if (subject.Disabled || subject.Revoked) && !result.Breakglass {
 		result.Denied = true
 		return result
 	}
@@ -133,7 +134,8 @@ func ResolveEffectivePermissions(subject PermissionSubject, now time.Time) Effec
 	grants := map[string]EffectivePermission{}
 	denials := map[string]EffectivePermission{}
 	addGrant := func(role PermissionRole, scope PermissionScope, source PermissionGrantSource, reason string) {
-		if !role.Valid() || !scope.Valid() {
+		scope = canonicalPermissionScope(scope)
+		if !role.Valid() || !scope.Valid() || !role.ScopeCompatible(scope) {
 			return
 		}
 		key := permissionKey(role, scope)
@@ -149,7 +151,8 @@ func ResolveEffectivePermissions(subject PermissionSubject, now time.Time) Effec
 		grants[key] = permission
 	}
 	addDenial := func(role PermissionRole, scope PermissionScope, source PermissionGrantSource, reason string) {
-		if !role.Valid() || !scope.Valid() {
+		scope = canonicalPermissionScope(scope)
+		if !role.Valid() || !scope.Valid() || !role.ScopeCompatible(scope) {
 			return
 		}
 		key := permissionKey(role, scope)
@@ -188,17 +191,18 @@ func ResolveEffectivePermissions(subject PermissionSubject, now time.Time) Effec
 		addSourceRole(role, PermissionGrantSourceGoogleAttribute, "Google attribute role assignment")
 	}
 	for _, assignment := range subject.ManualAssignments {
-		if assignment.SubjectID != "" && assignment.SubjectID != subject.ID {
+		if assignment.SubjectID == "" || assignment.SubjectID != subject.ID {
 			continue
 		}
 		if !assignment.Active(now) {
 			continue
 		}
-		if assignment.Effect == PermissionAssignmentRevoke {
+		switch assignment.Effect {
+		case PermissionAssignmentRevoke:
 			addDenial(assignment.Role, assignment.Scope, PermissionGrantSourceManualRevocation, assignment.Reason)
-			continue
+		case PermissionAssignmentGrant:
+			addGrant(assignment.Role, assignment.Scope, PermissionGrantSourceManualGrant, assignment.Reason)
 		}
-		addGrant(assignment.Role, assignment.Scope, PermissionGrantSourceManualGrant, assignment.Reason)
 	}
 	for key, denial := range denials {
 		delete(grants, key)
@@ -252,10 +256,10 @@ func ValidatePermissionChangeForLockout(subjects []PermissionSubject, change Per
 	return nil
 }
 
-// HasRole lets tests and future route guards check the resolved model without duplicating source-precedence rules. It reads only the calculated permission slice and returns true when any district or site-scoped grant carries the requested role.
+// HasRole lets tests and future route guards check the resolved model without duplicating source-precedence rules. It reads only the calculated permission slice and returns true when a grant carries the requested role on a scope that is valid for that role.
 func (set EffectivePermissionSet) HasRole(role PermissionRole) bool {
 	for _, permission := range set.Permissions {
-		if permission.Role == role && !permission.Denied {
+		if permission.Role == role && !permission.Denied && role.ScopeCompatible(permission.Scope) {
 			return true
 		}
 	}
@@ -282,6 +286,17 @@ func (role PermissionRole) DistrictScoped() bool {
 	return role == PermissionRoleITAdmin || role == PermissionRoleHumanResources
 }
 
+// ScopeCompatible keeps district-wide and site-scoped roles from being mixed during validation and resolution. IT Admin and Human Resources are district-only, while the operational school roles must name a concrete site.
+func (role PermissionRole) ScopeCompatible(scope PermissionScope) bool {
+	if !role.Valid() || !scope.Valid() {
+		return false
+	}
+	if role.DistrictScoped() {
+		return scope.Kind == PermissionScopeDistrict
+	}
+	return scope.Kind == PermissionScopeSite
+}
+
 // Valid checks whether a permission scope is structurally usable before an assignment participates in effective access. District scopes must not carry a site id, and site scopes must name the site that future authorization code can compare against page or record scope.
 func (scope PermissionScope) Valid() bool {
 	switch scope.Kind {
@@ -305,9 +320,13 @@ func (assignment PermissionAssignment) Active(now time.Time) bool {
 	return true
 }
 
-// Valid checks the persisted assignment contract before a future write API accepts a proposed permission edit. It rejects unknown roles, invalid scopes, and effects other than grant or revoke.
+// Valid checks the persisted assignment contract before a future write API accepts a proposed permission edit. It rejects subject-less rows, unknown roles, invalid scopes, role/scope mismatches, and effects other than grant or revoke.
 func (assignment PermissionAssignment) Valid() bool {
-	if !assignment.Role.Valid() || !assignment.Scope.Valid() {
+	if strings.TrimSpace(assignment.SubjectID) == "" {
+		return false
+	}
+	scope := canonicalPermissionScope(assignment.Scope)
+	if !assignment.Role.Valid() || !scope.Valid() || !assignment.Role.ScopeCompatible(scope) {
 		return false
 	}
 	return assignment.Effect == PermissionAssignmentGrant || assignment.Effect == PermissionAssignmentRevoke
@@ -324,8 +343,18 @@ func staffEmailAllowed(email string) bool {
 		strings.HasSuffix(normalized, "@staff.wusd.org")
 }
 
-// permissionKey creates the deterministic identity used for grant/revocation merging and audit snapshots. It keeps role, scope kind, and site id together so revoking one site-scoped permission does not affect another site.
+// canonicalPermissionScope normalizes internal site identifiers before permissions are merged. The resolver keeps operator-facing source values elsewhere, but permission identity must not split grants and revocations because of casing or incidental whitespace.
+func canonicalPermissionScope(scope PermissionScope) PermissionScope {
+	if scope.Kind != PermissionScopeSite {
+		return scope
+	}
+	scope.SiteID = strings.ToLower(strings.TrimSpace(scope.SiteID))
+	return scope
+}
+
+// permissionKey creates the deterministic identity used for grant/revocation merging and audit snapshots. It keeps role, scope kind, and canonical site id together so revoking one site-scoped permission does not affect another site.
 func permissionKey(role PermissionRole, scope PermissionScope) string {
+	scope = canonicalPermissionScope(scope)
 	return string(role) + "|" + string(scope.Kind) + "|" + scope.SiteID
 }
 

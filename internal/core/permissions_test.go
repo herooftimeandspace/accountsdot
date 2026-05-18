@@ -18,10 +18,11 @@ func TestResolveEffectivePermissionsCombinesTrustedSourcesAndManualGrants(t *tes
 		GoogleGroupSiteScopes: []string{"windsor-high"},
 		ManualAssignments: []core.PermissionAssignment{
 			{
-				Role:   core.PermissionRoleDeviceWrangler,
-				Scope:  core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "windsor-high"},
-				Effect: core.PermissionAssignmentGrant,
-				Reason: "IT Admin approved temporary device accountability access",
+				SubjectID: "casey",
+				Role:      core.PermissionRoleDeviceWrangler,
+				Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "windsor-high"},
+				Effect:    core.PermissionAssignmentGrant,
+				Reason:    "IT Admin approved temporary device accountability access",
 			},
 		},
 	}
@@ -58,6 +59,7 @@ func TestResolveEffectivePermissionsIgnoresStaleManualGrant(t *testing.T) {
 		Email: "riley.patel@wusd.org",
 		ManualAssignments: []core.PermissionAssignment{
 			{
+				SubjectID: "riley",
 				Role:      core.PermissionRoleSiteAdmin,
 				Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "mattiemay"},
 				Effect:    core.PermissionAssignmentGrant,
@@ -82,10 +84,11 @@ func TestResolveEffectivePermissionsManualRevocationOverridesGroupGrant(t *testi
 		GoogleGroupSiteScopes: []string{"brooks"},
 		ManualAssignments: []core.PermissionAssignment{
 			{
-				Role:   core.PermissionRoleSiteAdmin,
-				Scope:  core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "brooks"},
-				Effect: core.PermissionAssignmentRevoke,
-				Reason: "temporary suspension pending Google group cleanup",
+				SubjectID: "avery",
+				Role:      core.PermissionRoleSiteAdmin,
+				Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "brooks"},
+				Effect:    core.PermissionAssignmentRevoke,
+				Reason:    "temporary suspension pending Google group cleanup",
 			},
 		},
 	}
@@ -100,6 +103,79 @@ func TestResolveEffectivePermissionsManualRevocationOverridesGroupGrant(t *testi
 	}
 }
 
+func TestResolveEffectivePermissionsIgnoresSubjectlessManualAssignment(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:    "jordan",
+		Email: "jordan.rivera@wusd.org",
+		ManualAssignments: []core.PermissionAssignment{
+			{
+				Role:   core.PermissionRoleSiteAdmin,
+				Scope:  core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "windsor-high"},
+				Effect: core.PermissionAssignmentGrant,
+				Reason: "malformed row missing subject id",
+			},
+		},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if effective.Authorized || effective.HasRole(core.PermissionRoleSiteAdmin) {
+		t.Fatalf("expected subject-less manual grant to fail closed, got %#v", effective.Permissions)
+	}
+}
+
+func TestResolveEffectivePermissionsIgnoresUnknownManualAssignmentEffect(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:    "taylor",
+		Email: "taylor.morgan@wusd.org",
+		ManualAssignments: []core.PermissionAssignment{
+			{
+				SubjectID: "taylor",
+				Role:      core.PermissionRoleSiteSecretary,
+				Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "brooks"},
+				Effect:    core.PermissionAssignmentEffect("approve"),
+				Reason:    "bad migration value must not grant access",
+			},
+		},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if effective.Authorized || effective.HasRole(core.PermissionRoleSiteSecretary) {
+		t.Fatalf("expected unknown manual effect to fail closed, got %#v", effective.Permissions)
+	}
+}
+
+func TestResolveEffectivePermissionsCanonicalizesSiteIDsForRevocations(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:                    "sam",
+		Email:                 "sam.owens@staff.wusd.org",
+		GoogleGroupRoles:      []core.PermissionRole{core.PermissionRoleSiteAdmin},
+		GoogleGroupSiteScopes: []string{" Windsor-High "},
+		ManualAssignments: []core.PermissionAssignment{
+			{
+				SubjectID: "sam",
+				Role:      core.PermissionRoleSiteAdmin,
+				Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "windsor-high"},
+				Effect:    core.PermissionAssignmentRevoke,
+				Reason:    "canonical revocation should match Google scope",
+			},
+		},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if effective.HasRole(core.PermissionRoleSiteAdmin) {
+		t.Fatalf("expected canonical revocation to remove matching grant, got %#v", effective.Permissions)
+	}
+	if len(effective.Denials) != 1 || effective.Denials[0].Scope.SiteID != "windsor-high" {
+		t.Fatalf("expected canonical denial scope, got %#v", effective.Denials)
+	}
+}
+
 func TestResolveEffectivePermissionsDeniesRevokedOrStudentDomainUsers(t *testing.T) {
 	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
 	cases := []core.PermissionSubject{
@@ -108,6 +184,12 @@ func TestResolveEffectivePermissionsDeniesRevokedOrStudentDomainUsers(t *testing
 			Email:     "disabled.admin@wusd.org",
 			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
 			Disabled:  true,
+		},
+		{
+			ID:        "revoked",
+			Email:     "revoked.admin@wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
+			Revoked:   true,
 		},
 		{
 			ID:        "student",
@@ -121,6 +203,37 @@ func TestResolveEffectivePermissionsDeniesRevokedOrStudentDomainUsers(t *testing
 		if !effective.Denied || effective.Authorized {
 			t.Fatalf("%s: expected denied unauthorized subject, got authorized=%v denied=%v", subject.ID, effective.Authorized, effective.Denied)
 		}
+	}
+}
+
+func TestPermissionAssignmentValidEnforcesRoleScopeCompatibility(t *testing.T) {
+	validSiteGrant := core.PermissionAssignment{
+		SubjectID: "valid-site",
+		Role:      core.PermissionRoleSiteSecretary,
+		Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "brooks"},
+		Effect:    core.PermissionAssignmentGrant,
+	}
+	invalidSiteScopedITAdmin := core.PermissionAssignment{
+		SubjectID: "invalid-admin",
+		Role:      core.PermissionRoleITAdmin,
+		Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "brooks"},
+		Effect:    core.PermissionAssignmentGrant,
+	}
+	invalidDistrictScopedSiteRole := core.PermissionAssignment{
+		SubjectID: "invalid-site",
+		Role:      core.PermissionRoleDeviceWrangler,
+		Scope:     core.PermissionScope{Kind: core.PermissionScopeDistrict},
+		Effect:    core.PermissionAssignmentGrant,
+	}
+
+	if !validSiteGrant.Valid() {
+		t.Fatalf("expected compatible site assignment to be valid")
+	}
+	if invalidSiteScopedITAdmin.Valid() {
+		t.Fatalf("expected site-scoped IT Admin assignment to be invalid")
+	}
+	if invalidDistrictScopedSiteRole.Valid() {
+		t.Fatalf("expected district-scoped site role assignment to be invalid")
 	}
 }
 
@@ -154,6 +267,38 @@ func TestValidatePermissionChangeForLockoutPreventsRemovingLastEffectiveAdmin(t 
 
 	if !errors.Is(err, core.ErrPermissionLockout) {
 		t.Fatalf("expected lockout error, got %v", err)
+	}
+}
+
+func TestValidatePermissionChangeForLockoutRejectsInvalidSiteScopedITAdmin(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subjects := []core.PermissionSubject{
+		{
+			ID:        "target-admin",
+			Email:     "target.admin@it.wusd.org",
+			SAMLRoles: []core.PermissionRole{core.PermissionRoleITAdmin},
+		},
+		{
+			ID:                     "recovery",
+			Email:                  "breakglass.local",
+			Breakglass:             true,
+			BreakglassNetworkValid: true,
+		},
+	}
+	change := core.PermissionChange{
+		TargetSubjectID: "target-admin",
+		Assignment: core.PermissionAssignment{
+			Role:   core.PermissionRoleITAdmin,
+			Scope:  core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "windsor-high"},
+			Effect: core.PermissionAssignmentGrant,
+			Reason: "invalid attempt to preserve admin through a site scope",
+		},
+	}
+
+	err := core.ValidatePermissionChangeForLockout(subjects, change, now)
+
+	if !errors.Is(err, core.ErrPermissionInvalidAssignment) {
+		t.Fatalf("expected invalid assignment error, got %v", err)
 	}
 }
 
