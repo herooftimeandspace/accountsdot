@@ -236,6 +236,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - report rows may include an `Open Report` action that routes to the owning implemented page or report route
   - fixed report-detail panels in the artboard are layout artifacts for review only and should not remain visible in the live runtime page
   - the Reports table should use the shared page-level table search and three-way sort primitives rather than static text-only rows
+  - implemented pages should avoid passive decorative stat tiles; summary boxes and metric cards should be a shared actionable primitive (centered text, very large numeric value, explicit good-to-bad number coloring, and a clear action such as navigation, filter, drawer, or operator decision)
   - the Security Issues report should reuse the Reports shell, runtime table search/sort, shared right-hand drawer, and migrated Offboarding security issue details/actions while remaining read-only in this slice
 - Shared-header search behavior for the current foundation slice:
   - the shared header search is a global search entrypoint rather than Phone Directory-only chrome
