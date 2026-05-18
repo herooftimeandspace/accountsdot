@@ -32,6 +32,10 @@ const StudentDataCleanupPage = lazyNamed(
   () => import("./pages/StudentDataCleanupPage"),
   "StudentDataCleanupPage"
 );
+const ZoomDeskPhoneRenamesReportPage = lazyNamed(
+  () => import("./pages/ZoomDeskPhoneRenamesReportPage"),
+  "ZoomDeskPhoneRenamesReportPage"
+);
 
 const DEV_API_BASE = "/api/v1/dev";
 const DEFAULT_PERSONA_ID = "it_admin";
@@ -87,6 +91,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Reports";
     case "security-issues-report":
       return "Security Issues";
+    case "zoom-desk-phone-renames-report":
+      return "Zoom Desk Phone Renames";
     case "feature-flags":
       return "Feature Flags";
     case "room-moves":
@@ -581,6 +587,17 @@ export function App() {
   } else if (currentRoute?.kind === "security-issues-report") {
     page = (
       <SecurityIssuesReportPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
+  } else if (currentRoute?.kind === "zoom-desk-phone-renames-report") {
+    page = (
+      <ZoomDeskPhoneRenamesReportPage
         session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}

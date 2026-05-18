@@ -65,6 +65,7 @@ const routeInventory = [
   { route: "/student-data-cleanup", apiPaths: [] },
   { route: "/reports", apiPaths: [] },
   { route: "/reports/security-issues", apiPaths: ["/api/v1/dev/pages/reports/security-issues"] },
+  { route: "/reports/zoom-desk-phone-renames", apiPaths: ["/api/v1/dev/pages/reports/zoom-desk-phone-renames"] },
   { route: "/reports/sync-transparency", apiPaths: [] },
   { route: "/admin", apiPaths: [] },
   { route: "/admin/feature-flags", apiPaths: ["/api/v1/dev/feature-flags", "/api/v1/dev/feature-flags/"] },

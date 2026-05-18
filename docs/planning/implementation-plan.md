@@ -441,7 +441,7 @@
     - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
   - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
   - unauthenticated access to any route other than `/login` must return `401`
-  - the routes currently reserved to `IT Admin` only are `/dashboard/it-admin`, `/data-quality`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, and `/admin/feature-flags`
+  - the routes currently reserved to `IT Admin` only are `/dashboard/it-admin`, `/data-quality`, `/reports`, `/reports/security-issues`, `/reports/zoom-desk-phone-renames`, `/reports/sync-transparency`, `/admin`, and `/admin/feature-flags`
   - the shared header search is implemented as a real global-search entrypoint; submitting from any logged-in page routes into `/search?q=...`
   - shared header search accepts name, email, phone, extension, employee ID, student ID, asset ID, serial number, and workflow/action text input across the DEV projections the current persona can access
   - shared header search groups results by source/type, including people, rooms/extensions, departments/lines, onboarding, offboarding, departing seniors, devices/assets, and workflow/action records where mock data exists
@@ -451,6 +451,9 @@
   - selecting any report or refresh row on `/reports` opens the shared right-hand drawer with row-specific scope, source, data-included, open-item, last-run or refresh, cadence, status, and explanation details
   - report rows may expose an `Open Report` drawer action that routes to the owning implemented page or report route; refresh rows remain informational and do not navigate
   - `/reports/security-issues` is a runtime-owned IT Admin report nested under Reports; it uses the Reports shell/artboard pattern plus runtime table search/sort and shared drawer details for account-security rows moved out of Offboarding
+  - `/reports/zoom-desk-phone-renames` is a runtime-owned IT Admin report nested under Reports; it uses the Reports shell/artboard pattern plus a DEV payload at `/api/v1/dev/pages/reports/zoom-desk-phone-renames`
+  - the Zoom Desk Phone Renames DEV payload includes only pending manual adjustment and error rows; rows with healthy, completed, or non-actionable waiting states are filtered out before the API response
+  - Zoom Desk Phone Renames table columns are serial number, MAC address, current Zoom name, expected new name, and IncidentIQ asset link; the help text instructs IT Admins to update the IncidentIQ asset location so the next Zoom sync can force the rename
   - `/reports/ticketing-human-work` is not a plan-backed runtime route in this slice; do not list it in the Reports nested navigation or report inventory because ticket linkage belongs on the owning workflow detail surfaces
   - Offboarding excludes `Security risk` orphan-account rows from its summary cards, table payload, and HR/IT end-date mutation route; those rows remain visible in the Security Issues report with their existing details, owner/action context, and deterministic DEV external links
   - each `devFeatureFlagRegistry` route must be covered by a Go regression test that proves the matching DEV page/API handler is registered, unless the route is explicitly documented as frontend/static-only for the current foundation slice

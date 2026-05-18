@@ -230,6 +230,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Reports page behavior for the current foundation slice:
   - `/reports` is an IT Admin operational reporting hub for report inventory, queue summaries, and provider refresh state
   - `/reports/security-issues` is an IT Admin-only report nested under Reports for account-security issues such as orphaned accounts with recent Google activity after source-system inactivity
+  - `/reports/zoom-desk-phone-renames` is an IT Admin-only report nested under Reports for Zoom desk phones that need manual IncidentIQ asset-location correction before the expected Zoom device name can be applied
+  - the Zoom Desk Phone Renames report must show serial number, MAC address, current Zoom device name, expected new name, and an IncidentIQ asset link for each row
+  - the Zoom Desk Phone Renames report is action-oriented: include only pending manual adjustment and error rows, and exclude healthy phones, completed renames, and non-actionable waiting states
+  - the Zoom Desk Phone Renames help text must tell IT Admins to update the phone asset location in IncidentIQ so the next Zoom sync has a source change that forces the rename
   - `/reports/ticketing-human-work` is retired for the current foundation slice and must not appear in the route inventory, sidebar, or Reports inventory because human-owned ticket state belongs in the workflow owner surface where the operator resolves the work
   - direct navigation to `/reports/ticketing-human-work` should return the normal not-found route behavior rather than a hidden report page
   - report inventory rows and recent refresh rows should open the shared right-hand drawer when selected

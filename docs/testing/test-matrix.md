@@ -306,6 +306,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P3-3C-001` | Eligible Staff Receives Zoom Phone Baseline | Verify eligible staff receive the documented Zoom phone baseline outcome during phone execution. | Confirm staging phone provisioning matches category and room/site inputs. |
   | `P3-3C-002` | Attendance Queue Drives Customer Engagement Pack | Verify attendance-linked users receive the Customer Engagement Pack outcome under the documented rule. | Confirm staging CAP assignment honors attendance and manual-exception rules. |
   | `P3-3C-003` | Phone Conflict Falls Into Recovery Instead Of Overwrite | Verify conflicting phone state is diverted into recovery/ticket handling instead of silent overwrite. | Confirm staging conflict handling protects active phone users. |
+  | `P3-3C-004` | Pending Zoom Desk Phone Rename Report | Verify the IT Admin-only `/reports/zoom-desk-phone-renames` report lists only pending manual adjustment and error rows, excludes healthy/completed/non-actionable phones, renders serial number, MAC address, current name, new name, and IncidentIQ asset links, and directs IT Admins to update the IncidentIQ asset location to force the Zoom rename. | Confirm staging report eligibility and IncidentIQ asset links match masked provider projections before relying on the report for manual rename cleanup. |
 - `3D` inter-site transfer and cutover handling
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |

@@ -60,7 +60,14 @@ test("artboardKeysForAllowedRoutes deduplicates shared artboards across allowed 
 
   assert.deepEqual(
     artboardKeysForAllowedRoutes({
-      allowed_routes: ["/offboarding", "/departing-seniors", "/reports", "/reports/security-issues", "/reports"],
+      allowed_routes: [
+        "/offboarding",
+        "/departing-seniors",
+        "/reports",
+        "/reports/security-issues",
+        "/reports/zoom-desk-phone-renames",
+        "/reports",
+      ],
     }).sort(),
     ["offboarding", "reports"]
   );
@@ -83,9 +90,12 @@ test("visibleNavChildrenForKey returns only documented nested routes allowed for
   );
   assert.deepEqual(
     visibleNavChildrenForKey("reports", {
-      allowed_routes: ["/reports", "/reports/security-issues"],
+      allowed_routes: ["/reports", "/reports/security-issues", "/reports/zoom-desk-phone-renames"],
     }),
-    [{ path: "/reports/security-issues", label: "Security Issues" }]
+    [
+      { path: "/reports/security-issues", label: "Security Issues" },
+      { path: "/reports/zoom-desk-phone-renames", label: "Zoom Desk Phone Renames" },
+    ]
   );
   assert.deepEqual(
     visibleNavChildrenForKey("admin", {
@@ -136,6 +146,10 @@ test("route help content keeps child routes distinct from their parent sections"
     /Security Issues/
   );
   assert.match(
+    helpContentForRoute("/reports/zoom-desk-phone-renames", "reports").title,
+    /Zoom Desk Phone Renames/
+  );
+  assert.match(
     helpContentForRoute("/admin/feature-flags", "admin").title,
     /Feature Flags/
   );
@@ -167,10 +181,16 @@ test("ticketing human work report route is retired from runtime routing", () => 
   assert.equal(resolveRoute("/reports/ticketing-human-work"), null);
   assert.deepEqual(
     visibleNavChildrenForKey("reports", {
-      allowed_routes: ["/reports/security-issues", "/reports/sync-transparency", "/reports/ticketing-human-work"],
+      allowed_routes: [
+        "/reports/security-issues",
+        "/reports/zoom-desk-phone-renames",
+        "/reports/sync-transparency",
+        "/reports/ticketing-human-work",
+      ],
     }),
     [
       { path: "/reports/security-issues", label: "Security Issues" },
+      { path: "/reports/zoom-desk-phone-renames", label: "Zoom Desk Phone Renames" },
       { path: "/reports/sync-transparency", label: "Sync Transparency" },
     ]
   );

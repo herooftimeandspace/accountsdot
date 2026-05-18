@@ -370,6 +370,25 @@ type offboardingScheduleResponse struct {
 	} `json:"action"`
 }
 
+type zoomDeskPhoneRenamesResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		Title    string `json:"title"`
+		HelpText string `json:"help_text"`
+		Rows     []struct {
+			ID                   string `json:"id"`
+			SerialNumber         string `json:"serial_number"`
+			MACAddress           string `json:"mac_address"`
+			CurrentName          string `json:"current_name"`
+			NewName              string `json:"new_name"`
+			Status               string `json:"status"`
+			NextAction           string `json:"next_action"`
+			IncidentIQAssetLabel string `json:"incidentiq_asset_label"`
+			IncidentIQAssetURL   string `json:"incidentiq_asset_url"`
+		} `json:"rows"`
+	} `json:"page"`
+}
+
 type departingSeniorsResponse struct {
 	PageID string `json:"page_id"`
 	Page   struct {
@@ -800,6 +819,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if !slices.Contains(sessionPayload.AllowedRoutes, "/reports/security-issues") {
 			t.Fatalf("expected /reports/security-issues in allowed routes: %#v", sessionPayload.AllowedRoutes)
+		}
+		if !slices.Contains(sessionPayload.AllowedRoutes, "/reports/zoom-desk-phone-renames") {
+			t.Fatalf("expected /reports/zoom-desk-phone-renames in allowed routes: %#v", sessionPayload.AllowedRoutes)
 		}
 		if slices.Contains(sessionPayload.AllowedRoutes, "/reports/ticketing-human-work") {
 			t.Fatalf("retired ticketing-human-work report should not be in allowed routes: %#v", sessionPayload.AllowedRoutes)
@@ -1902,6 +1924,55 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if !foundRiley {
 			t.Fatalf("expected Riley Park security issue row with warning/actions, got %#v", payload.Page.Rows)
+		}
+	})
+
+	t.Run("zoom desk phone renames report is it admin only and actionable", func(t *testing.T) {
+		const reportPath = "/api/v1/dev/pages/reports/zoom-desk-phone-renames"
+		req := httptest.NewRequest(http.MethodGet, reportPath, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated Zoom desk phone rename report returned %d, want 401", rec.Code)
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		req = httptest.NewRequest(http.MethodGet, reportPath, nil)
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("hr Zoom desk phone rename report returned %d, want 403", rec.Code)
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req = httptest.NewRequest(http.MethodGet, reportPath, nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it Zoom desk phone rename report returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[zoomDeskPhoneRenamesResponse](t, rec)
+		if payload.PageID != "reports-zoom-desk-phone-renames" {
+			t.Fatalf("page id = %q, want reports-zoom-desk-phone-renames", payload.PageID)
+		}
+		if !strings.Contains(payload.Page.HelpText, "IncidentIQ") || !strings.Contains(payload.Page.HelpText, "Zoom") {
+			t.Fatalf("help text = %q, want IncidentIQ and Zoom correction path", payload.Page.HelpText)
+		}
+		if len(payload.Page.Rows) != 2 {
+			t.Fatalf("row count = %d, want only two actionable rows: %#v", len(payload.Page.Rows), payload.Page.Rows)
+		}
+		for _, row := range payload.Page.Rows {
+			if row.SerialNumber == "" || row.MACAddress == "" || row.CurrentName == "" || row.NewName == "" {
+				t.Fatalf("row missing required table columns: %#v", row)
+			}
+			if row.Status != "Pending manual adjustment" && row.Status != "Error" {
+				t.Fatalf("non-actionable status returned in report: %#v", row)
+			}
+			if row.IncidentIQAssetLabel == "" || !strings.Contains(row.IncidentIQAssetURL, "/agent/assets/") {
+				t.Fatalf("row missing renderable IncidentIQ asset link: %#v", row)
+			}
 		}
 	})
 
