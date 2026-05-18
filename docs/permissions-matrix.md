@@ -2,7 +2,7 @@
 
 This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `PRODUCT_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`, and `TEST_MATRIX.md`.
 
-This matrix is current DEV implementation documentation. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher.
+This matrix is current DEV implementation documentation. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher. Issue #188 remains open for live production SAML assertion validation, production session issuance, approved Google Workspace metadata/group/attribute decisions, and persistent manual site-scope administration.
 
 ## Source Order
 
@@ -178,6 +178,8 @@ The completed inventory confirms every implemented frontend route has:
 
 The static/frontend-only row in the Page And API Matrix remains a documented implementation boundary. If one of those static pages later loads protected route-specific payload data, that future change must add a runtime DEV API row, matching authorization tests, and an updated inventory entry.
 
+The remaining #158 closure pass should prove enforcement, not just inventory completeness. Before #158 closes, each protected route and API row should have current regression evidence that direct browser navigation, sidebar visibility, feature-flag gating, site-scope filtering, and server-side API authorization agree with this matrix. Static frontend-only exceptions should be rechecked at the same time to confirm they still do not load protected route-specific payloads.
+
 ### Issue #160: Editable Permissions Management Deferred
 
 Issue #160 is intentionally deferred. The current DEV persona switcher, feature-flag target editor, and hardcoded mock persona definitions are not sufficient for in-app grant/revoke management.
@@ -233,6 +235,8 @@ The current row for Local breakglass records the implemented local route only. I
 ### Production Authorization Boundary
 
 Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method. Persistent manual site-scope administration is also follow-up work. Until it exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs.
+
+Issue #188 should remain open until the production path validates Google SAML assertions, creates production session cookies from verified identity data, handles configured SAML/SSO sign-in and sign-out flows, and proves that current Google group or attribute inputs recalculate roles and site scopes on every authorization evaluation. The DEV persona cookie, feature-flag target editor, and mock persona payloads are useful for local route/API testing only and are not acceptable production auth sources.
 
 The durable product target remains:
 

@@ -56,6 +56,8 @@ It checks only repository-owned workflow and documentation contracts. It does no
 
 Bootstrap note: if `main` is still missing `quality.yml`, `promotion.yml`, or `release-prep-check.yml`, treat that as an incomplete pipeline bootstrap rather than a reason to copy workflow files by hand. First land the workflow set on `dev`, allow the `dev` gate to open or refresh the `dev` to `staging` PR, merge only after the `staging` gate is clean, and then let the successful `staging` push open or refresh the `promote/staging-to-main` PR. The default branch workflow inventory is complete only after that documented promotion PR merges to `main` and `main` contains the same three workflow files.
 
+Issue #197 remains open for the post-bootstrap promotion verification after the workflow set lands. Closing it requires confirming the `dev -> staging -> main` promotion path is present on the default branch through the documented PR flow, that the expected gate checks are registered on the relevant branch heads, that `PROMOTION_PR_TOKEN` is configured with the minimum required permissions, and that any required staging or production GitHub environments and branch-protection rules are manually configured by maintainers.
+
 `.github/workflows/release-prep-check.yml` runs on PRs targeting `main`. It enforces the current release-prep policy:
 
 - the PR must come from `promote/staging-to-main`;
