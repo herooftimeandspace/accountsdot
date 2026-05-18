@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   DEFAULT_FREQUENT_FLIERS_FILTERS,
   FREQUENT_FLIER_ROWS,
+  FREQUENT_FLIERS_REPRESENTATIVE_COMBINATIONS,
   FREQUENT_FLIERS_RANGE_OPTIONS,
+  frequentFliersCombinationSignature,
   frequentFliersRowsForFilters,
   linkForDevice,
   linkForTicket,
@@ -38,10 +40,32 @@ test("Frequent Fliers filters use fixed greater-than-or-equal comparison for sel
     range: "30",
   }).map((row) => row.id);
 
-  assert.deepEqual(deviceMatches, ["jason-rodriguez", "maria-nguyen", "devon-price", "sophia-patel"]);
-  assert.deepEqual(ticketMatches, ["devon-price"]);
+  assert.deepEqual(deviceMatches, [
+    "jason-rodriguez",
+    "maria-nguyen",
+    "devon-price",
+    "sophia-patel",
+    "noah-kim",
+    "omar-castillo",
+  ]);
+  assert.deepEqual(ticketMatches, ["devon-price", "aaliyah-brooks"]);
   assert.equal(metricCountForRange(FREQUENT_FLIER_ROWS[0], "devices", "60"), 3);
   assert.equal(metricCountForRange(FREQUENT_FLIER_ROWS[0], "tickets", "60"), 2);
+});
+
+test("Frequent Fliers representative dropdown combinations produce different mock row sets", () => {
+  const signatures = FREQUENT_FLIERS_REPRESENTATIVE_COMBINATIONS.map((filters) => {
+    return frequentFliersCombinationSignature(FREQUENT_FLIER_ROWS, filters);
+  });
+
+  assert.deepEqual(signatures, [
+    "jason-rodriguez|maria-nguyen|devon-price|sophia-patel|noah-kim|omar-castillo",
+    "noah-kim",
+    "jason-rodriguez|maria-nguyen|noah-kim|omar-castillo",
+    "devon-price|aaliyah-brooks",
+    "jason-rodriguez|devon-price|aaliyah-brooks|omar-castillo",
+  ]);
+  assert.equal(new Set(signatures).size, signatures.length);
 });
 
 test("Frequent Fliers DEV links are deterministic IncidentIQ targets", () => {

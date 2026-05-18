@@ -2029,7 +2029,7 @@
   - the comparison operator is fixed at `>=`; the runtime control changes the threshold value, not the operator
   - the first DEV runtime pass exposes a threshold dropdown from `1` through `10`, defaulting to `2`, plus a selector for whether the threshold applies to device assignments or linked IncidentIQ tickets
   - the first DEV runtime pass exposes a rolling lookback selector with `30 days`, `60 days`, `90 days`, `6 months`, and `1 year`, defaulting to `90 days`
-  - the `Apply` action commits the selected threshold/type/lookback combination before the table filters, so users can adjust controls without silently changing the result set
+  - changing the threshold/type/lookback dropdowns immediately refreshes the table, so the filter bar must not render a separate `Apply` action
   - row-specific student, device, and ticket context belongs in the shared right-hand drawer; fixed page-local detail panels are layout artifacts and should be hidden in live runtime pages
   - device history links should present serial number first, then device type, and route to deterministic DEV IncidentIQ asset URLs
   - recent ticket rows should route to deterministic DEV IncidentIQ ticket URLs
