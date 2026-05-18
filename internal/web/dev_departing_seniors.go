@@ -9,7 +9,12 @@ import (
 	"time"
 )
 
-var devDepartingSeniorsStore = newDevDepartingSeniorsStore()
+var (
+	devDepartingSeniorsStore     = newDevDepartingSeniorsStore()
+	devDepartingSeniorsNow       = func() time.Time { return time.Now().UTC() }
+	devDepartingSeniorsCutoff    = time.Month(time.August)
+	devDepartingSeniorsCutoffDay = 31
+)
 
 type departingSeniorsPagePayload struct {
 	PageID      string                      `json:"page_id"`
@@ -95,6 +100,8 @@ type departingSeniorSeedRecord struct {
 	Site               string
 	GraduationYear     string
 	EndDate            string
+	EndDateSource      string
+	Deprovisioned      bool
 	OutstandingDevices []departingSeniorDevicePayload
 }
 
@@ -106,6 +113,28 @@ func newDevDepartingSeniorsStore() *devDepartingSeniorsStoreState {
 	return &devDepartingSeniorsStoreState{
 		endDates:      map[string]string{},
 		deprovisioned: map[string]bool{},
+	}
+}
+
+// ResetDevDepartingSeniorsStateForTest restores the package-level DEV store,
+// deterministic clock, and cutoff defaults used by web tests. Production code
+// does not call it; tests use it so retained-year fixture expectations do not
+// leak between subtests or drift with the wall clock.
+func ResetDevDepartingSeniorsStateForTest() {
+	devDepartingSeniorsStore = newDevDepartingSeniorsStore()
+	devDepartingSeniorsNow = func() time.Time { return time.Now().UTC() }
+	devDepartingSeniorsCutoff = time.August
+	devDepartingSeniorsCutoffDay = 31
+}
+
+// SetDevDepartingSeniorsClockForTest pins the DEV page clock for retained-year
+// tests. The returned cleanup function restores the default wall-clock source
+// and keeps handler tests from depending on the date when the suite runs.
+func SetDevDepartingSeniorsClockForTest(now time.Time) func() {
+	previous := devDepartingSeniorsNow
+	devDepartingSeniorsNow = func() time.Time { return now.UTC() }
+	return func() {
+		devDepartingSeniorsNow = previous
 	}
 }
 
@@ -135,7 +164,7 @@ func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().UTC()
+	now := devDepartingSeniorsNow()
 	schoolYearOptions := departingSeniorsSchoolYearOptions(now)
 	selectedSchoolYear := selectedDepartingSeniorsSchoolYear(r.URL.Query().Get("school_year"), schoolYearOptions)
 	writeJSON(w, http.StatusOK, departingSeniorsPagePayload{
@@ -151,7 +180,7 @@ func handleDevDepartingSeniorsPage(w http.ResponseWriter, r *http.Request) {
 			SchoolYearOptions: schoolYearOptions,
 			GraduationYear:    selectedSchoolYear.GraduationYear,
 			CanManage:         canUseDepartingSeniors(config),
-			Rows:              devDepartingSeniorsStore.rows(selectedSchoolYear.GraduationYear),
+			Rows:              devDepartingSeniorsStore.rows(selectedSchoolYear.GraduationYear, now),
 		},
 	})
 }
@@ -245,10 +274,11 @@ func canUseDepartingSeniors(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin" || config.Persona.ID == "device_wrangler"
 }
 
-// rows builds the visible DEV table for one graduation year. Deprovisioned
-// students remain visible while assigned devices are still present, matching
-// the documented distinction between account retirement and device recovery.
-func (s *devDepartingSeniorsStoreState) rows(graduationYear string) []departingSeniorRowPayload {
+// rows builds the visible DEV table for one graduation year at the current
+// retained-year clock. Deprovisioned or expired clean rows are suppressed, but
+// rows with outstanding devices remain visible because the remaining task is
+// IncidentIQ device recovery rather than account access.
+func (s *devDepartingSeniorsStoreState) rows(graduationYear string, now time.Time) []departingSeniorRowPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -257,10 +287,10 @@ func (s *devDepartingSeniorsStoreState) rows(graduationYear string) []departingS
 		if record.GraduationYear != graduationYear {
 			continue
 		}
-		if s.deprovisioned[record.ID] && len(record.OutstandingDevices) == 0 {
+		if !s.visibleLocked(record, now) {
 			continue
 		}
-		rows = append(rows, s.rowPayloadLocked(record))
+		rows = append(rows, s.rowPayloadLocked(record, now))
 	}
 	return rows
 }
@@ -279,7 +309,7 @@ func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (
 	normalized := strings.TrimSpace(value)
 	if normalized == "" {
 		delete(s.endDates, id)
-		return s.rowPayloadLocked(record), http.StatusOK, nil
+		return s.rowPayloadLocked(record, devDepartingSeniorsNow()), http.StatusOK, nil
 	}
 	if _, err := time.ParseInLocation("2006-01-02", normalized, onboardingTimeLocation()); err != nil {
 		return departingSeniorRowPayload{}, http.StatusBadRequest, map[string]string{
@@ -287,7 +317,7 @@ func (s *devDepartingSeniorsStoreState) updateEndDate(id string, value string) (
 		}
 	}
 	s.endDates[id] = normalized
-	return s.rowPayloadLocked(record), http.StatusOK, nil
+	return s.rowPayloadLocked(record, devDepartingSeniorsNow()), http.StatusOK, nil
 }
 
 // deprovision marks a DEV senior account as deprovisioned. Rows with no
@@ -306,29 +336,40 @@ func (s *devDepartingSeniorsStoreState) deprovision(id string) (departingSeniorR
 	if removed {
 		return departingSeniorRowPayload{}, true, http.StatusOK
 	}
-	return s.rowPayloadLocked(record), false, http.StatusOK
+	return s.rowPayloadLocked(record, devDepartingSeniorsNow()), false, http.StatusOK
 }
 
 // rowPayloadLocked converts one immutable seed record plus local DEV mutation
 // state into the JSON row consumed by the React table and drawer. Callers must
 // hold s.mu so date overrides and deprovision flags are read consistently.
-func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorSeedRecord) departingSeniorRowPayload {
+func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorSeedRecord, now time.Time) departingSeniorRowPayload {
 	endDate := record.EndDate
 	endDateSource := "Aeries senior class default"
+	if record.EndDateSource != "" {
+		endDateSource = record.EndDateSource
+	}
 	if override, ok := s.endDates[record.ID]; ok {
 		endDate = override
 		endDateSource = "Local override"
 	}
-	deprovisioned := s.deprovisioned[record.ID]
+	deprovisioned := s.isDeprovisionedLocked(record, now)
 	status := "Ready"
 	notes := []string{}
 	switch {
 	case deprovisioned && len(record.OutstandingDevices) > 0:
 		status = "Device return required"
 		notes = append(notes, "The account is deprovisioned, but the row remains until IncidentIQ shows no outstanding assigned devices.")
+	case deprovisioned:
+		status = "Account deprovisioned"
 	case len(record.OutstandingDevices) > 0:
 		status = "Device return required"
 		notes = append(notes, "Outstanding IncidentIQ devices must be returned before this student leaves the list after deprovisioning.")
+	case s.hasLocalOverrideLocked(record) && s.hasValidLocalOverrideLocked(record, now):
+		status = "Access retained by local override"
+		notes = append(notes, "A local override keeps the account active until the listed end date.")
+	case isCurrentSeniorGraduationYear(record.GraduationYear, now) && !pastSeniorCutoffForGraduationYear(record.GraduationYear, now):
+		status = "Suppressed by senior exception"
+		notes = append(notes, "Student identity access is intentionally retained through the configured senior cutoff day.")
 	}
 	devices := make([]departingSeniorDevicePayload, 0, len(record.OutstandingDevices))
 	for _, device := range record.OutstandingDevices {
@@ -359,6 +400,83 @@ func (s *devDepartingSeniorsStoreState) rowPayloadLocked(record departingSeniorS
 		Deprovisioned:      deprovisioned,
 		Notes:              notes,
 	}
+}
+
+// visibleLocked applies retained-year visibility rules after the requested
+// school-year window has already been validated. Clean deprovisioned rows and
+// expired local overrides disappear unless assigned devices still need return.
+func (s *devDepartingSeniorsStoreState) visibleLocked(record departingSeniorSeedRecord, now time.Time) bool {
+	if len(record.OutstandingDevices) > 0 {
+		return true
+	}
+	if s.isDeprovisionedLocked(record, now) {
+		return false
+	}
+	if s.hasLocalOverrideLocked(record) {
+		return s.hasValidLocalOverrideLocked(record, now)
+	}
+	return isCurrentSeniorGraduationYear(record.GraduationYear, now) && !pastSeniorCutoffForGraduationYear(record.GraduationYear, now)
+}
+
+// isDeprovisionedLocked treats explicit DEV clicks, fixture state, and the
+// post-cutoff current senior rule as the same account-retirement outcome for
+// payload generation. Device rows remain visible separately through
+// visibleLocked so operators can finish IncidentIQ recovery.
+func (s *devDepartingSeniorsStoreState) isDeprovisionedLocked(record departingSeniorSeedRecord, now time.Time) bool {
+	if s.deprovisioned[record.ID] || record.Deprovisioned {
+		return true
+	}
+	return pastSeniorCutoffForGraduationYear(record.GraduationYear, now) && !(s.hasLocalOverrideLocked(record) && s.hasValidLocalOverrideLocked(record, now))
+}
+
+// hasLocalOverrideLocked distinguishes explicit local override dates from
+// Aeries default end dates. Only local overrides can intentionally retain
+// previous-year access after the normal senior cutoff.
+func (s *devDepartingSeniorsStoreState) hasLocalOverrideLocked(record departingSeniorSeedRecord) bool {
+	if _, ok := s.endDates[record.ID]; ok {
+		return true
+	}
+	return record.EndDateSource == "Local override"
+}
+
+// hasValidLocalOverrideLocked reports whether a local end-date override still
+// protects a retained senior account today. Invalid fixture dates are treated
+// as expired so tests fail closed rather than preserving stale access.
+func (s *devDepartingSeniorsStoreState) hasValidLocalOverrideLocked(record departingSeniorSeedRecord, now time.Time) bool {
+	value := record.EndDate
+	if override, ok := s.endDates[record.ID]; ok {
+		value = override
+	}
+	if value == "" {
+		return false
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", value, onboardingTimeLocation())
+	if err != nil {
+		return false
+	}
+	current := now.In(onboardingTimeLocation())
+	today := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, onboardingTimeLocation())
+	return !parsed.Before(today)
+}
+
+// isCurrentSeniorGraduationYear compares fixture rows to the Aeries-derived
+// senior cohort for the provided clock.
+func isCurrentSeniorGraduationYear(graduationYear string, now time.Time) bool {
+	return graduationYear == currentSeniorGraduationYear(now)
+}
+
+// pastSeniorCutoffForGraduationYear returns true on the calendar day after the
+// configured cutoff for the row's graduation year. Access is retained through
+// the end of the cutoff day itself, and previous cohorts are therefore treated
+// as deprovisioned unless an override or device-return row keeps them visible.
+func pastSeniorCutoffForGraduationYear(graduationYear string, now time.Time) bool {
+	year, err := strconv.Atoi(graduationYear)
+	if err != nil {
+		return true
+	}
+	current := now.In(onboardingTimeLocation())
+	cutoff := time.Date(year, devDepartingSeniorsCutoff, devDepartingSeniorsCutoffDay, 23, 59, 59, int(time.Second-time.Nanosecond), onboardingTimeLocation())
+	return current.After(cutoff)
 }
 
 // currentSeniorGraduationYear derives the current senior graduation year from
@@ -499,6 +617,20 @@ var devDepartingSeniorSeedRecords = []departingSeniorSeedRecord{
 		},
 	},
 	{
+		ID:             "senior-sam-rivera",
+		FirstName:      "Sam",
+		LastName:       "Rivera",
+		Email:          "sam.rivera@stu.wusd.org",
+		StudentID:      "S-2026-10133",
+		SiteID:         "clover-hs",
+		Site:           "Clover HS",
+		GraduationYear: "2026",
+		EndDate:        "2026-06-05",
+		OutstandingDevices: []departingSeniorDevicePayload{
+			{Serial: "CB-CLA-24-plain", Type: "Chromebook"},
+		},
+	},
+	{
 		ID:             "senior-jordan-miles",
 		FirstName:      "Jordan",
 		LastName:       "Miles",
@@ -519,9 +651,34 @@ var devDepartingSeniorSeedRecords = []departingSeniorSeedRecord{
 		Site:           "Clover HS",
 		GraduationYear: "2025",
 		EndDate:        "2025-06-06",
+		Deprovisioned:  true,
 		OutstandingDevices: []departingSeniorDevicePayload{
 			{AssetID: "IIQ-100512", Serial: "CB-CLA-22-10255", Type: "Chromebook"},
 		},
+	},
+	{
+		ID:             "senior-emma-nguyen-2025-override",
+		FirstName:      "Emma",
+		LastName:       "Nguyen",
+		Email:          "emma.nguyen@stu.wusd.org",
+		StudentID:      "S-2025-09031",
+		SiteID:         "clover-hs",
+		Site:           "Clover HS",
+		GraduationYear: "2025",
+		EndDate:        "2026-12-31",
+		EndDateSource:  "Local override",
+	},
+	{
+		ID:             "senior-ben-owens-2025-expired-override",
+		FirstName:      "Ben",
+		LastName:       "Owens",
+		Email:          "ben.owens@stu.wusd.org",
+		StudentID:      "S-2025-09044",
+		SiteID:         "clover-hs",
+		Site:           "Clover HS",
+		GraduationYear: "2025",
+		EndDate:        "2026-01-15",
+		EndDateSource:  "Local override",
 	},
 	{
 		ID:             "senior-noah-kim-2024",
@@ -533,6 +690,7 @@ var devDepartingSeniorSeedRecords = []departingSeniorSeedRecord{
 		Site:           "Desert View",
 		GraduationYear: "2024",
 		EndDate:        "2024-06-07",
+		Deprovisioned:  true,
 	},
 	{
 		ID:             "senior-zoe-patel-2021",
