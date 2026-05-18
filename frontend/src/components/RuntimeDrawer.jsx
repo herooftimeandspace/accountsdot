@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  SHARED_HEADER_HEIGHT,
+  resolveArtboardDrawerStyle,
+  resolveFallbackFixedDrawerStyle,
+} from "./runtimeDrawerGeometry.mjs";
 
-const SHARED_HEADER_HEIGHT = 76;
 export const DEFAULT_RUNTIME_DRAWER_BOUNDS = { left: 1278, top: SHARED_HEADER_HEIGHT, width: 390, height: 818 };
-const DEFAULT_RUNTIME_DRAWER_WIDTH = 440;
-const DEFAULT_RUNTIME_DRAWER_RIGHT_INSET = 4;
-const MIN_RUNTIME_DRAWER_WIDTH = 320;
 
 function shouldCloseDrawerForPointerTarget(target) {
   if (!(target instanceof Element)) {
@@ -20,42 +21,19 @@ function shouldCloseDrawerForPointerTarget(target) {
 }
 
 /**
- * resolveArtboardRelativeDrawerStyle maps drawer geometry from generated artboard coordinates to viewport-fixed CSS so row/help drawers share the same right edge even when mounted outside the PenArtboard overlay.
+ * resolveArtboardRelativeDrawerStyle maps drawer geometry from generated artboard coordinates to artboard-local CSS so row/help drawers share the same right edge and still expand PenArtboard's measured page height when their content is taller than the main page.
  */
 function resolveArtboardRelativeDrawerStyle(drawerElement, bounds) {
-  const artboard = drawerElement.closest(".pen-stage__artboard") ?? document.querySelector(".pen-stage__artboard");
+  const artboard = drawerElement.closest(".pen-stage__artboard");
   if (!artboard) {
-    return bounds
-      ? {
-          position: "fixed",
-          left: bounds.left,
-          top: SHARED_HEADER_HEIGHT,
-          width: bounds.width,
-          zIndex: 80,
-        }
-      : undefined;
+    return resolveFallbackFixedDrawerStyle(bounds);
   }
 
   const artboardRect = artboard.getBoundingClientRect();
   const artboardWidth = artboard.offsetWidth || artboardRect.width || 1;
   const scale = artboardRect.width / artboardWidth || 1;
-  const requestedWidth = bounds ? bounds.width * scale : DEFAULT_RUNTIME_DRAWER_WIDTH;
-  const width = Math.min(
-    Math.max(MIN_RUNTIME_DRAWER_WIDTH, requestedWidth),
-    Math.max(MIN_RUNTIME_DRAWER_WIDTH, artboardRect.width)
-  );
-  const drawerRight = artboardRect.right - (bounds ? 0 : DEFAULT_RUNTIME_DRAWER_RIGHT_INSET * scale);
-  const requestedLeft = bounds ? artboardRect.left + bounds.left * scale : drawerRight - width;
-  const maxLeft = drawerRight - width;
-  const left = Math.max(artboardRect.left, Math.min(requestedLeft, maxLeft));
 
-  return {
-    position: "fixed",
-    left,
-    top: SHARED_HEADER_HEIGHT,
-    width,
-    zIndex: 80,
-  };
+  return resolveArtboardDrawerStyle({ bounds, artboardWidth, scale });
 }
 
 /**
@@ -99,10 +77,13 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
     }
 
     let frame = 0;
+    const applyResolvedStyle = () => {
+      setResolvedStyle(resolveArtboardRelativeDrawerStyle(drawerElement, bounds));
+    };
     const updateResolvedStyle = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
-        setResolvedStyle(resolveArtboardRelativeDrawerStyle(drawerElement, bounds));
+        applyResolvedStyle();
       });
     };
 
@@ -111,7 +92,7 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
     if (artboard) {
       resizeObserver.observe(artboard);
     }
-    updateResolvedStyle();
+    applyResolvedStyle();
     window.addEventListener("resize", updateResolvedStyle);
     window.addEventListener("scroll", updateResolvedStyle, true);
 

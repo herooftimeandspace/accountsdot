@@ -303,10 +303,6 @@ input {
   width: 100%;
 }
 
-.pen-stage:has(.runtime-drawer) {
-  min-height: calc(100vh + 480px);
-}
-
 .pen-stage__artboard {
   position: relative;
   overflow: hidden;
