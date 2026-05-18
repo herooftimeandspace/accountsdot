@@ -422,9 +422,8 @@
   - scope rules for this slice are:
     - `IT Admin` sees all sites on all allowed pages
     - `Human Resources` sees district-wide data on all allowed pages
-    - `Site Admin` has exactly one assigned site and sees only that site on site-scoped pages; multi-site Site Admin mapping input must fail closed rather than creating cross-site Site Admin access
-    - `Site Secretary` and `Device Wrangler` see only assigned site(s) on site-scoped pages
-    - `Faculty and Staff` default to their own-site context on allowed pages
+    - `Site Admin`, `Site Secretary`, and `Device Wrangler` each have exactly one assigned site and see only that site on site-scoped pages; multi-site mapping input for those roles must fail closed rather than creating cross-site operational access
+    - `Faculty and Staff` may have multiple associated sites, default to the onboarding/current-assignment-derived site context on allowed pages, and never gain operational site-scoped roles from those associations
     - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
   - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
   - unauthenticated access to any route other than `/login` must return `401`
@@ -2130,8 +2129,8 @@
 - Users hitting the same URL should see access-denied responses when they do not have permission rather than soft-reduced content.
 - The permissions model and associated Google groups are part of the project deliverable and should remain the canonical authorization model once rolled out.
 - The editable in-app permissions model is defined in `docs/permissions-model.md`; that document distinguishes proposed IT Admin edits, stored manual grants/revocations, and effective access used by future server-side authorization.
-- Admin staff access defaults to site-specific scope and may be expanded to multi-site scope by Google group membership.
-- IT grants multi-site overrides for admin staff.
+- Site Admin, Site Secretary, and Device Wrangler access is exactly one site. Google group membership, SAML attributes, manual mappings, and future in-app grants must not create multi-site operational access for those roles.
+- IT Admin or Human Resources roles cover legitimate district-wide operational needs; any attempted multi-site operational persona mapping should fail closed and be routed to IT Admin cleanup.
 - Until Google-group authorization is fully built, site scope is maintained through manual mapping managed by IT Admin.
 - Initial production-auth implementation boundary:
   - `internal/auth` owns the checked-in Google identity evaluation contract for verified SAML identities.
@@ -2387,7 +2386,8 @@
 - route shared header search to the global `/search` page, while the reusable table search/sort primitive searches the currently active directory mode
 - use the DEV-only directory focus dropdown only for result ordering:
   - `IT Admin` and `Human Resources` default to `District-wide`
-  - site-level and staff personas default to their current or assigned site
+  - single-site operational personas default to their one assigned site
+  - Faculty and Staff default to the onboarding/current-assignment-derived site even when additional associated sites exist
   - `site_id=district-wide` disables site boosting
   - a known site id ranks that site first and then returns the rest of the district in stable site/name order
   - an invalid site id falls back to the persona default directory focus

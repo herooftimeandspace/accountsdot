@@ -52,6 +52,84 @@ func TestResolveEffectivePermissionsBlocksCrossSiteLeakageWithoutScope(t *testin
 	}
 }
 
+func TestResolveEffectivePermissionsFailsClosedForMultiSiteOperationalRoles(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	cases := []core.PermissionRole{
+		core.PermissionRoleSiteAdmin,
+		core.PermissionRoleSiteSecretary,
+		core.PermissionRoleDeviceWrangler,
+	}
+
+	for _, role := range cases {
+		t.Run(string(role), func(t *testing.T) {
+			subject := core.PermissionSubject{
+				ID:                    "multi-site",
+				Email:                 "multi.site@staff.wusd.org",
+				GoogleGroupRoles:      []core.PermissionRole{role},
+				GoogleGroupSiteScopes: []string{"clover-hs", "desert-view"},
+			}
+
+			effective := core.ResolveEffectivePermissions(subject, now)
+
+			if effective.Authorized || effective.HasRole(role) {
+				t.Fatalf("expected multi-site %s to fail closed, got %#v", role, effective.Permissions)
+			}
+			if len(effective.Denials) != 2 {
+				t.Fatalf("expected denial entries for both attempted sites, got %#v", effective.Denials)
+			}
+		})
+	}
+}
+
+func TestResolveEffectivePermissionsAllowsFacultyStaffMultipleSites(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:                    "teacher",
+		Email:                 "teacher.multi@staff.wusd.org",
+		GoogleAttributeRoles:  []core.PermissionRole{core.PermissionRoleFacultyStaff},
+		GoogleGroupSiteScopes: []string{"clover-hs", "desert-view"},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if !effective.Authorized || effective.Denied {
+		t.Fatalf("expected multi-site faculty/staff to stay authorized, got %#v", effective)
+	}
+	assertPermission(t, effective, core.PermissionRoleFacultyStaff, "clover-hs")
+	assertPermission(t, effective, core.PermissionRoleFacultyStaff, "desert-view")
+	if effective.HasRole(core.PermissionRoleSiteAdmin) ||
+		effective.HasRole(core.PermissionRoleSiteSecretary) ||
+		effective.HasRole(core.PermissionRoleDeviceWrangler) {
+		t.Fatalf("faculty/staff multi-site association granted operational role: %#v", effective.Permissions)
+	}
+}
+
+func TestResolveEffectivePermissionsManualRevocationCanRepairMultiSiteOperationalRole(t *testing.T) {
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+	subject := core.PermissionSubject{
+		ID:                    "secretary",
+		Email:                 "secretary@staff.wusd.org",
+		GoogleGroupRoles:      []core.PermissionRole{core.PermissionRoleSiteSecretary},
+		GoogleGroupSiteScopes: []string{"clover-hs", "desert-view"},
+		ManualAssignments: []core.PermissionAssignment{
+			{
+				SubjectID: "secretary",
+				Role:      core.PermissionRoleSiteSecretary,
+				Scope:     core.PermissionScope{Kind: core.PermissionScopeSite, SiteID: "desert-view"},
+				Effect:    core.PermissionAssignmentRevoke,
+				Reason:    "cleanup duplicate site assignment",
+			},
+		},
+	}
+
+	effective := core.ResolveEffectivePermissions(subject, now)
+
+	if !effective.Authorized || !effective.HasRole(core.PermissionRoleSiteSecretary) {
+		t.Fatalf("expected cleanup revocation to leave one valid site secretary scope, got %#v", effective)
+	}
+	assertPermission(t, effective, core.PermissionRoleSiteSecretary, "clover-hs")
+}
+
 func TestResolveEffectivePermissionsIgnoresStaleManualGrant(t *testing.T) {
 	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
 	subject := core.PermissionSubject{

@@ -203,9 +203,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `IT Admin` sees all sites on all allowed pages
   - `Human Resources` sees district-wide data on all allowed pages
   - `Site Admin` has exactly one assigned site and sees only that site on site-scoped pages; multi-site Site Admin identity inputs must fail closed and route to IT Admin cleanup rather than granting cross-site access
-  - `Site Secretary` sees only assigned site(s) on site-scoped pages
-  - `Device Wrangler` sees only assigned site(s) on site-scoped pages
-  - `Faculty and Staff` default to their own-site context on allowed pages
+  - `Site Secretary` has exactly one assigned site and sees only that site on site-scoped pages; multi-site Site Secretary identity inputs must fail closed and route to IT Admin cleanup
+  - `Device Wrangler` has exactly one assigned site and sees only that site on site-scoped pages; multi-site Device Wrangler identity inputs must fail closed and route to IT Admin cleanup
+  - `Faculty and Staff` may have multiple associated sites, but their default site context comes from onboarding/current assignment data and does not grant operational site-scoped roles
   - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
 - Pages currently reserved to `IT Admin` only in this slice:
   - `/dashboard/it-admin`
@@ -411,10 +411,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - IT Admin: full visibility and full operational control.
 - Human Resources: district-wide lifecycle visibility, manual intake, reactivation, offboarding, and sensitive personnel data.
 - Administrative Staff / Site Admin Staff: site-scoped operational visibility for onboarding, offboarding, and room-move status.
-- Site Admin is a single-site role. District-wide or multi-site administrative visibility must use a different documented role, such as IT Admin or Human Resources where appropriate.
+- Site Admin, Site Secretary, and Device Wrangler are single-site operational personas. District-wide or multi-site operational visibility must use a different documented role, such as IT Admin or Human Resources where appropriate.
 - Device Wranglers: distinct site-scoped role for student device-accountability reporting. Librarians are one class of Device Wrangler users.
 - Site Secretaries: site-scoped student invalid-name queue and room-move workflow participation.
-- Faculty and Staff: limited self-service for approved personal fields such as preferred name.
+- Faculty and Staff: limited self-service for approved personal fields such as preferred name. Faculty and Staff may be associated with more than one site, with the default site derived from onboarding/current assignment data.
 - No Access: authenticated users who do not meet the access rules must see an access-denied result.
 
 ## Access Model
@@ -748,7 +748,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - The shared header search should route to the global `/search` page, while the reusable table search/sort primitive searches the currently active phone-directory mode.
 - The phone directory must expose a DEV-only directory focus dropdown for implemented mock pages:
   - `IT Admin` and `Human Resources` default to `District-wide`
-  - site-level and staff personas default to their current or assigned site
+  - single-site operational personas default to their one assigned site
+  - Faculty and Staff default to the onboarding/current-assignment-derived site even when additional associated sites exist
   - choosing a site only ranks that site’s people, rooms, and departments first
   - choosing `District-wide` removes site boost without excluding any district result
 - The dashboard must never render person and room directories side by side in the same main view.

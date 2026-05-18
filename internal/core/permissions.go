@@ -208,6 +208,7 @@ func ResolveEffectivePermissions(subject PermissionSubject, now time.Time) Effec
 		delete(grants, key)
 		result.Denials = append(result.Denials, denial)
 	}
+	enforceSingleSiteOperationalRoles(grants, &result)
 
 	for _, grant := range grants {
 		sort.Slice(grant.Sources, func(i, j int) bool { return grant.Sources[i] < grant.Sources[j] })
@@ -286,6 +287,13 @@ func (role PermissionRole) DistrictScoped() bool {
 	return role == PermissionRoleITAdmin || role == PermissionRoleHumanResources
 }
 
+// RequiresExactlyOneSite identifies operational site roles that must fail closed when identity, Google, or manual assignment inputs resolve more than one active site. Faculty and Staff is intentionally excluded because staff may legitimately work at multiple sites while still receiving no operational site-admin permissions.
+func (role PermissionRole) RequiresExactlyOneSite() bool {
+	return role == PermissionRoleSiteAdmin ||
+		role == PermissionRoleSiteSecretary ||
+		role == PermissionRoleDeviceWrangler
+}
+
 // ScopeCompatible keeps district-wide and site-scoped roles from being mixed during validation and resolution. IT Admin and Human Resources are district-only, while the operational school roles must name a concrete site.
 func (role PermissionRole) ScopeCompatible(scope PermissionScope) bool {
 	if !role.Valid() || !scope.Valid() {
@@ -356,6 +364,34 @@ func canonicalPermissionScope(scope PermissionScope) PermissionScope {
 func permissionKey(role PermissionRole, scope PermissionScope) string {
 	scope = canonicalPermissionScope(scope)
 	return string(role) + "|" + string(scope.Kind) + "|" + scope.SiteID
+}
+
+// enforceSingleSiteOperationalRoles is the fail-closed cardinality check shared by SAML, Google, and manual grant resolution. It runs after revocations have removed matching grants so a cleanup revocation can reduce a subject back to one valid operational site instead of leaving them permanently denied.
+func enforceSingleSiteOperationalRoles(grants map[string]EffectivePermission, result *EffectivePermissionSet) {
+	byRole := map[PermissionRole][]EffectivePermission{}
+	for _, grant := range grants {
+		if grant.Scope.Kind == PermissionScopeSite && grant.Role.RequiresExactlyOneSite() {
+			byRole[grant.Role] = append(byRole[grant.Role], grant)
+		}
+	}
+	for _, permissions := range byRole {
+		siteIDs := map[string]struct{}{}
+		for _, permission := range permissions {
+			siteIDs[permission.Scope.SiteID] = struct{}{}
+		}
+		if len(siteIDs) <= 1 {
+			continue
+		}
+		for _, permission := range permissions {
+			delete(grants, permissionKey(permission.Role, permission.Scope))
+			permission.Denied = true
+			reason := "multiple active sites resolved for single-site operational role"
+			if !slices.Contains(permission.Reasons, reason) {
+				permission.Reasons = append(permission.Reasons, reason)
+			}
+			result.Denials = append(result.Denials, permission)
+		}
+	}
 }
 
 // sortEffectivePermissions gives tests, logs, and future audit events stable output ordering. It only reorders the in-memory resolver result and has no persistence side effects.

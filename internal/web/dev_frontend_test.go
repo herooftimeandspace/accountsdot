@@ -824,6 +824,51 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
+	t.Run("dev persona session payloads enforce site cardinality", func(t *testing.T) {
+		tests := []struct {
+			personaID      string
+			defaultSiteID  string
+			visibleSiteIDs []string
+		}{
+			{personaID: "site_admin", defaultSiteID: "clover-hs", visibleSiteIDs: []string{"clover-hs"}},
+			{personaID: "site_secretary", defaultSiteID: "clover-hs", visibleSiteIDs: []string{"clover-hs"}},
+			{personaID: "device_wrangler", defaultSiteID: "franklin-ms", visibleSiteIDs: []string{"franklin-ms"}},
+			{personaID: "faculty_staff", defaultSiteID: "clover-hs", visibleSiteIDs: []string{"clover-hs", "desert-view"}},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.personaID, func(t *testing.T) {
+				cookie := loginAsPersona(t, handler, tt.personaID)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+				req.AddCookie(cookie)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("session returned %d: %s", rec.Code, rec.Body.String())
+				}
+
+				payload := decodeJSON[devSessionResponse](t, rec)
+				if payload.DefaultSiteID != tt.defaultSiteID || payload.CurrentSiteID != tt.defaultSiteID {
+					t.Fatalf("site context = default:%q current:%q, want %q", payload.DefaultSiteID, payload.CurrentSiteID, tt.defaultSiteID)
+				}
+				gotSites := make([]string, 0, len(payload.VisibleSites))
+				for _, site := range payload.VisibleSites {
+					gotSites = append(gotSites, site.ID)
+				}
+				if !slices.Equal(gotSites, tt.visibleSiteIDs) {
+					t.Fatalf("visible sites = %#v, want %#v", gotSites, tt.visibleSiteIDs)
+				}
+				if tt.personaID == "faculty_staff" {
+					for _, route := range []string{"/student-data-cleanup", "/frequent-fliers", "/onboarding", "/offboarding", "/room-moves"} {
+						if slices.Contains(payload.AllowedRoutes, route) {
+							t.Fatalf("faculty/staff multi-site association exposed operational route %q in %#v", route, payload.AllowedRoutes)
+						}
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("breakglass login uses named local account and can load it admin route", func(t *testing.T) {
 		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
 		rec, cookie := breakglassLogin(t, handler, "emergency-alex", "local-test-token", "10.23.4.5:62000")
