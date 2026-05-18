@@ -341,7 +341,8 @@ func isLateStart(startDate string, now time.Time) bool {
 	}
 	current := now.In(onboardingTimeLocation())
 	currentDate := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, onboardingTimeLocation())
-	return parsed.Before(currentDate)
+	daysUntilStart := int(parsed.Sub(currentDate).Hours() / 24)
+	return daysUntilStart >= 0 && daysUntilStart <= 3
 }
 
 func nextAvailableWorkflowCycle(now time.Time) time.Time {
@@ -1372,9 +1373,15 @@ func cloneOnboardingDraft(draft *onboardingManualDraft) *onboardingManualDraft {
 
 func devSeedOnboardingRows(now time.Time, roomOverrides map[string]string) []onboardingRowPayload {
 	scheduledFor := formatOnboardingDateTime(nextAvailableWorkflowCycle(now))
+	scheduledForLateStart := func(startDate string) string {
+		if isLateStart(startDate, now) {
+			return scheduledFor
+		}
+		return ""
+	}
 	rows := []onboardingRowPayload{
 		{
-			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-06", EffectiveDate: "2025-05-06", Person: "Jordan Miles", SiteID: "clover-hs", Site: "Clover HS", RoomID: "iiq-room-cla-101", RoomName: "CLA Room 101", CanUpdateRoom: true, CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", LateStart: isLateStart("2025-05-06", now), ScheduledFor: scheduledFor, AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
+			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-06", EffectiveDate: "2025-05-06", Person: "Jordan Miles", SiteID: "clover-hs", Site: "Clover HS", RoomID: "iiq-room-cla-101", RoomName: "CLA Room 101", CanUpdateRoom: true, CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", LateStart: isLateStart("2025-05-06", now), ScheduledFor: scheduledForLateStart("2025-05-06"), AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
 			WorkflowSteps: []onboardingWorkflowStep{
 				{Name: "Google account", Status: "Complete", Detail: "The account exists and baseline profile planning has completed."},
 				{Name: "Entra convergence", Status: "Running", Detail: "AD → Entra propagation is still inside the expected one-hour window."},
@@ -1382,11 +1389,11 @@ func devSeedOnboardingRows(now time.Time, roomOverrides map[string]string) []onb
 			},
 		},
 		{
-			ID: "nia-brooks", Kind: "seed", DateAdded: "May 1, 2025", DateAddedReason: "Escape inactive employee set active", StartDate: "2025-05-08", EffectiveDate: "2025-05-08", Person: "Nia Brooks", SiteID: "district-office", Site: "District Office", RoomID: "iiq-room-do-hr", RoomName: "District Office HR", CanUpdateRoom: true, CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", ChangeReason: string(core.WorkflowChangeReasonReactivateSameRole), LateStart: isLateStart("2025-05-08", now), ScheduledFor: scheduledFor, AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started",
+			ID: "nia-brooks", Kind: "seed", DateAdded: "May 1, 2025", DateAddedReason: "Escape inactive employee set active", StartDate: "2025-05-08", EffectiveDate: "2025-05-08", Person: "Nia Brooks", SiteID: "district-office", Site: "District Office", RoomID: "iiq-room-do-hr", RoomName: "District Office HR", CanUpdateRoom: true, CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", ChangeReason: string(core.WorkflowChangeReasonReactivateSameRole), LateStart: isLateStart("2025-05-08", now), ScheduledFor: scheduledForLateStart("2025-05-08"), AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started",
 			WorkflowSteps: []onboardingWorkflowStep{{
 				Name:   "Room mapping",
 				Status: "Manual action",
-				Detail: "The target room does not match the IncidentIQ room inventory. Confirm or override the room before provisioning resumes. The Escape start date remains authoritative even though it is already in the past, and the same late-start warning used for manual contractor entries applies.",
+				Detail: "The target room does not match the IncidentIQ room inventory. Confirm or override the room before provisioning resumes. The Escape start date remains authoritative even when the static DEV fixture date is in the past.",
 				Actions: []onboardingWorkflowAction{{
 					Label:      "Resolve room in IncidentIQ",
 					Resolution: "Select the correct room inventory item or document a temporary manual override.",
@@ -1396,7 +1403,7 @@ func devSeedOnboardingRows(now time.Time, roomOverrides map[string]string) []onb
 			}},
 		},
 		{
-			ID: "evan-ruiz", Kind: "seed", DateAdded: "May 2, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-12", EffectiveDate: "2025-05-12", Person: "Evan Ruiz", SiteID: "franklin-ms", Site: "Franklin MS", RoomID: "iiq-room-fms-a101", RoomName: "FMS Room A101", CanUpdateRoom: true, CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", LateStart: isLateStart("2025-05-12", now), ScheduledFor: scheduledFor, AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting",
+			ID: "evan-ruiz", Kind: "seed", DateAdded: "May 2, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-12", EffectiveDate: "2025-05-12", Person: "Evan Ruiz", SiteID: "franklin-ms", Site: "Franklin MS", RoomID: "iiq-room-fms-a101", RoomName: "FMS Room A101", CanUpdateRoom: true, CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", LateStart: isLateStart("2025-05-12", now), ScheduledFor: scheduledForLateStart("2025-05-12"), AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting",
 			WorkflowSteps: []onboardingWorkflowStep{{
 				Name:   "HR intake",
 				Status: "Blocked",
@@ -1410,7 +1417,7 @@ func devSeedOnboardingRows(now time.Time, roomOverrides map[string]string) []onb
 			}},
 		},
 		{
-			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-13", EffectiveDate: "2025-05-13", Person: "Mika Ito", SiteID: "desert-view", Site: "Desert View", RoomID: "iiq-room-dve-c118", RoomName: "DVE Room C118", CanUpdateRoom: true, CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", LateStart: isLateStart("2025-05-13", now), ScheduledFor: scheduledFor, AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
+			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-13", EffectiveDate: "2025-05-13", Person: "Mika Ito", SiteID: "desert-view", Site: "Desert View", RoomID: "iiq-room-dve-c118", RoomName: "DVE Room C118", CanUpdateRoom: true, CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", LateStart: isLateStart("2025-05-13", now), ScheduledFor: scheduledForLateStart("2025-05-13"), AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
 			WorkflowSteps: []onboardingWorkflowStep{{Name: "Baseline readiness", Status: "Ready", Detail: "All required context is present. No user action is required."}},
 		},
 	}

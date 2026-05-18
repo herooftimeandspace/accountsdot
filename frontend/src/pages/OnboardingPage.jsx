@@ -145,6 +145,25 @@ function draftToForm(draft) {
   };
 }
 
+/**
+ * formatPersonalPhoneInput keeps the manual Non-Escape drawer display aligned
+ * with the backend contract. The drawer and DEV mock API both accept
+ * operator-entered punctuation, but the API stores only the canonical ten
+ * digits needed for the planned Aeries upload path, so every render and
+ * keystroke is converted back to the familiar `(NNN) NNN-NNNN` shape without
+ * exposing raw phone text elsewhere.
+ */
+function formatPersonalPhoneInput(value) {
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) {
+    return digits;
+  }
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 function daysBetween(startDate, currentDate) {
   if (!startDate || !currentDate) {
     return null;
@@ -586,6 +605,53 @@ function SelectField({ id, label, value, options, onChange, required = false, cl
   );
 }
 
+/**
+ * ReadOnlyManualDraftDrawer renders manual Non-Escape records for site-scoped
+ * personas. OnboardingPage uses it when Site Admins or Site Secretaries open a
+ * visible manual row: the draft data remains inspectable, but the only mutable
+ * control is the room override that writes through the room-only DEV endpoint.
+ */
+function ReadOnlyManualDraftDrawer({ draft, row, formOptions, onClose, onRoomSaved }) {
+  if (!draft) {
+    return null;
+  }
+  const person = [draft.first_name, draft.last_name].filter(Boolean).join(" ") || row?.person || "Manual Non-Escape Record";
+  return (
+    <RuntimeDrawer title={person} onClose={onClose}>
+      {draft.late_start ? (
+        <div className="onboarding-runtime__late-start">
+          <strong>Late-start warning</strong>
+          <p>{LEAD_TIME_WARNING}</p>
+        </div>
+      ) : null}
+      <RuntimeDetailList
+        items={[
+          { label: "Status", value: draft.status },
+          { label: "Start date", value: formatOnboardingDate(draft.start_date) },
+          { label: "Effective date", value: formatOnboardingDate(draft.effective_date) },
+          { label: "Employee type", value: draft.employee_type },
+          { label: "Classification", value: draft.classification },
+          { label: "Name", value: person },
+          { label: "Job title", value: draft.job_title },
+          { label: "Site", value: draft.site_name || row?.site },
+          { label: "Replacing", value: draft.replacing_employee_name },
+          { label: "Room / classroom", value: row?.room_name || draft.room_name || "None" },
+          { label: "Personal email", value: draft.personal_email },
+          { label: "Personal phone number", value: formatPersonalPhoneInput(draft.personal_phone) },
+          { label: "Preferred device", value: draft.preferred_device },
+          { label: "Requested Aeries access", value: draft.requested_aeries_access },
+          { label: "Generated email", value: draft.generated_email },
+          { label: "Generated ID", value: draft.generated_employee_id },
+          { label: "Notes", value: draft.notes },
+        ]}
+      />
+      {row?.can_update_room ? (
+        <RoomOverrideForm row={row} formOptions={formOptions} onSaved={onRoomSaved} />
+      ) : null}
+    </RuntimeDrawer>
+  );
+}
+
 function ManualDraftDrawer({
   draft,
   form,
@@ -600,7 +666,7 @@ function ManualDraftDrawer({
   onDelete,
 }) {
   const leadTimeDays = daysBetween(form.start_date, currentDate);
-  const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays <= 3;
+  const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays >= 0 && leadTimeDays <= 3;
   const replacingEmployee = formOptions.replacing_employees.find((employee) => employee.id === form.replacing_employee_id);
   const missingSummary = showValidationFeedback && draft.missing_fields?.length
     ? `Missing required fields: ${draft.missing_fields.map(missingFieldLabel).join(", ")}`
@@ -1043,19 +1109,32 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
           onAdd={handleAddManual}
         />
         {activeDraft ? (
-          <ManualDraftDrawer
-            draft={activeDraft}
-            form={draftForm}
-            formOptions={formOptions}
-            currentDate={payload?.page?.current_date}
-            errors={draftErrors}
-            showValidationFeedback={manualSaveAttempted}
-            saving={saving}
-            onChange={handleDraftChange}
-            onClose={handleCloseDraft}
-            onSave={handleSaveDraft}
-            onDelete={handleDeleteDraft}
-          />
+          payload?.page?.can_manage_manual ? (
+            <ManualDraftDrawer
+              draft={activeDraft}
+              form={draftForm}
+              formOptions={formOptions}
+              currentDate={payload?.page?.current_date}
+              errors={draftErrors}
+              showValidationFeedback={manualSaveAttempted}
+              saving={saving}
+              onChange={handleDraftChange}
+              onClose={handleCloseDraft}
+              onSave={handleSaveDraft}
+              onDelete={handleDeleteDraft}
+            />
+          ) : (
+            <ReadOnlyManualDraftDrawer
+              draft={activeDraft}
+              row={selectedRow}
+              formOptions={formOptions}
+              onClose={() => {
+                setActiveDraft(null);
+                setSelectedRow(null);
+              }}
+              onRoomSaved={handleRoomSaved}
+            />
+          )
         ) : addManualError ? (
           <AddManualErrorDrawer message={addManualError} onClose={() => setAddManualError("")} />
         ) : (

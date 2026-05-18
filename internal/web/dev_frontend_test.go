@@ -2750,7 +2750,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
-	t.Run("past-dated manual entry shows warning fields and schedules next cycle", func(t *testing.T) {
+	t.Run("past-dated manual entry does not show stale late-start warning", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "it_admin")
 
 		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
@@ -2788,18 +2788,18 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("past-date update returned %d, want 200", updateRec.Code)
 		}
 		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
-		if !updated.Draft.LateStart {
-			t.Fatal("expected manual past-date draft to be marked late_start")
+		if updated.Draft.LateStart {
+			t.Fatal("expected manual past-date draft to avoid stale late_start")
 		}
-		if updated.Draft.ScheduledFor == "" {
-			t.Fatal("expected manual past-date draft to expose scheduled_for")
+		if updated.Draft.ScheduledFor != "" {
+			t.Fatalf("scheduled_for = %q, want no stale next-cycle schedule", updated.Draft.ScheduledFor)
 		}
 		if updated.Draft.EffectiveDate != pastDate {
 			t.Fatalf("effective date = %q, want %q", updated.Draft.EffectiveDate, pastDate)
 		}
 	})
 
-	t.Run("escape-backed past-date row preserves source date and exposes next-cycle schedule", func(t *testing.T) {
+	t.Run("escape-backed past-date row preserves source date without stale late-start warning", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "human_resources")
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
@@ -2817,11 +2817,11 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			if row.ChangeReason != "reactivate_same_role" {
 				t.Fatalf("change reason = %q, want reactivate_same_role", row.ChangeReason)
 			}
-			if !row.LateStart {
-				t.Fatal("expected Nia Brooks to be marked late_start")
+			if row.LateStart {
+				t.Fatal("expected Nia Brooks to avoid stale late_start")
 			}
-			if row.ScheduledFor == "" {
-				t.Fatal("expected Nia Brooks to expose scheduled_for")
+			if row.ScheduledFor != "" {
+				t.Fatalf("scheduled_for = %q, want no stale next-cycle schedule", row.ScheduledFor)
 			}
 			if row.EffectiveDate != row.StartDate {
 				t.Fatalf("effective date = %q, want preserved source date %q", row.EffectiveDate, row.StartDate)
