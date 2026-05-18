@@ -35,6 +35,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - A phase should not be promoted until its predecessor’s success gates are met and unresolved failure gates are fixed.
 - Within each phase, features should be delivered and validated individually rather than held for one large all-at-once release.
 - New workflows must be validated in `dev` with mocks before real third-party integrations or downstream writes are attempted.
+- Starting in Phase 2, every upstream writeback path must support what-if validation before live mutation. What-if validation is a dry-run contract: it computes the exact provider target, operation, before/after intent, idempotency key, safety checks, rollback reference, and expected post-write verification without changing upstream provider state.
+- Until the project owner explicitly approves broader writeback in a specific merged PR, live upstream writeback may target only the approved pilot accounts `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org`. Application automation must not create, update, disable, delete, license, unlicense, move, rename, ticket, or otherwise mutate any other account, alias, group member, phone assignment, ticket requestor, provider identity, or provider-owned side effect.
+- Approval for each live-write expansion must be tied to a specific PR code change and must not take effect until that PR is merged into the active environment branch. An unmerged PR, local branch, draft implementation, environment variable, feature flag, or operator action must not enable live writes beyond the currently merged pilot scope.
+- Live-write tests must cover approved-account success, non-approved-account denial, ambiguous-target denial, missing-target denial, and post-write provider-state readback for any allowed pilot mutation.
 - Named mock scenarios per workflow must be captured in the implementation plan and kept in sync with a separate `TEST_MATRIX.md` verification artifact.
 - Promotion decisions should use test evidence plus implementation signoff for each workflow bucket.
 - For the current rollout, one passing named scenario per workflow is sufficient minimum scenario evidence unless a later phase-specific rule raises the bar.
@@ -290,6 +294,12 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 ### Phase 2: Baseline Staff Lifecycle Automation
 - Outcome:
   - the common-path onboarding, reactivation, offboarding, and approved self-service write paths for staff are automated with blocking rules, tickets, recoverable workflow state, and actionable security/lifecycle queue controls
+- Live-write pilot boundary:
+  - Phase 2 is the first phase where real upstream writeback may be implemented, but only behind the Phase 2+ live-write safety gate defined above
+  - every Phase 2 provider mutation must first run in what-if mode and produce reviewable evidence before a live write is attempted
+  - live writeback is limited to `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org` until a later merged PR explicitly expands the allowlist with owner approval
+  - if a workflow resolves to any other person, account, alias, group membership, phone assignment, ticket requestor, or provider-owned identity, it must block before mutation and surface the attempted target in sanitized diagnostics
+  - broader staff lifecycle automation may be designed and tested with mocks or what-if output, but it must not mutate non-allowlisted upstream accounts during the pilot
 - Phase-boundary note:
   - `Aeries` access and `Verkada` ticket automation are external `IncidentIQ` configuration TODOs rather than app-owned `Phase 2` workflow steps
 - First-pass provider order for baseline staff onboarding:
