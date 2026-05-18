@@ -1564,6 +1564,7 @@
   - Offboarding rows show status first, then person/account, email, site, end date, next action, and asset work; employee ID is visible only to HR and IT Admin
   - Escape-backed offboarding end dates are source-owned and read-only in the dashboard; non-Escape, orphan, or local override rows may expose an HR/IT-only date picker in the drawer
   - the implemented pre-phase 0 Offboarding page exposes HR/IT-only `Emergency Offboarding` and `Offboard Contractor` actions as runtime-owned buttons that open the shared right-hand drawer; Site Admin, Site Secretary, Device Wrangler, Faculty and Staff, No Access, and logged-out sessions must not see or use these controls
+  - the two top-level Offboarding manual-action buttons render as one vertical action group placed immediately to the right of the summary info boxes, not side by side or detached at the far right, so the related HR/IT workflows stay connected to the dashboard header/action area without excess horizontal whitespace
   - the DEV Emergency Offboarding drawer searches active employees and contractors by name, email, and employee ID, shows selected employment data, requires an explicit selected person in the submitted payload, and records an immediate in-memory `emergency_deprovision` mock action with actor, target, timestamp, and `dev_mock_only` mode
   - the DEV Offboard Contractor drawer searches active contractors only by name, email, and employee ID, shows selected contractor data, lets HR/IT edit the termination date locally, and records a dated in-memory `contractor_scheduled_deprovision` mock action only when `Schedule Offboarding` is submitted
   - candidate search and scheduling endpoints must enforce the HR/IT manual-offboarding permission server-side before exposing employee IDs, contractor data, or mutation results; direct payload construction by other personas returns the same denied behavior as other protected APIs
@@ -2031,7 +2032,7 @@
   - the comparison operator is fixed at `>=`; the runtime control changes the threshold value, not the operator
   - the first DEV runtime pass exposes a threshold dropdown from `1` through `10`, defaulting to `2`, plus a selector for whether the threshold applies to device assignments or linked IncidentIQ tickets
   - the first DEV runtime pass exposes a rolling lookback selector with `30 days`, `60 days`, `90 days`, `6 months`, and `1 year`, defaulting to `90 days`
-  - the `Apply` action commits the selected threshold/type/lookback combination before the table filters, so users can adjust controls without silently changing the result set
+  - changing the threshold/type/lookback dropdowns immediately refreshes the table, so the filter bar must not render a separate `Apply` action
   - row-specific student, device, and ticket context belongs in the shared right-hand drawer; fixed page-local detail panels are layout artifacts and should be hidden in live runtime pages
   - device history links should present serial number first, then device type, and route to deterministic DEV IncidentIQ asset URLs
   - recent ticket rows should route to deterministic DEV IncidentIQ ticket URLs

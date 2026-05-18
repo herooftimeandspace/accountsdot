@@ -228,7 +228,9 @@ function candidateMatches(candidate, query) {
 /**
  * OffboardingActionBar renders the runtime-owned page actions for issue #161.
  * The backend-provided canManageManual flag hides the controls for non-HR and
- * non-IT personas; the schedule APIs repeat that authorization server-side.
+ * non-IT personas; the schedule APIs repeat that authorization server-side. The
+ * buttons stay in one vertical right-side group so the header action area does
+ * not spread these related manual workflows across the page.
  */
 function OffboardingActionBar({ canManageManual, onEmergency, onContractor }) {
   if (!canManageManual) {
