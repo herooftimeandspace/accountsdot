@@ -305,7 +305,14 @@ func canonicalSet(values []string) map[string]struct{} {
 func canonicalAttributeSet(values map[string][]string) map[string]map[string]struct{} {
 	out := map[string]map[string]struct{}{}
 	for key, attributeValues := range values {
-		out[canonicalMappingValue(key)] = canonicalSet(attributeValues)
+		normalizedKey := canonicalMappingValue(key)
+		if normalizedKey == "" {
+			continue
+		}
+		if _, ok := out[normalizedKey]; !ok {
+			out[normalizedKey] = map[string]struct{}{}
+		}
+		addValues(out[normalizedKey], attributeValues)
 	}
 	return out
 }

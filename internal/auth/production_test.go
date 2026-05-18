@@ -71,6 +71,36 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 	}
 }
 
+func TestEvaluateGoogleIdentityUnionsCanonicalAttributeNames(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.AttributeRoleMappings = []auth.AttributeRoleMapping{
+		{Attribute: "wizard_role", Values: []string{"Device Wrangler"}, Roles: []string{auth.RoleDeviceWrangler}},
+		{Attribute: "wizard_role", Values: []string{"Site Secretary"}, Roles: []string{auth.RoleSiteSecretary}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"clover-hs"}},
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"BPL"}, Sites: []string{"bpl"}},
+	}
+
+	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email: "mixed.claims@staff.wusd.org",
+		Attributes: map[string][]string{
+			"Wizard_Role": {"Device Wrangler"},
+			"wizard_role": {"Site Secretary"},
+			"Wizard_Site": {"Clover HS"},
+			"wizard_site": {"BPL"},
+		},
+	})
+
+	if !decision.Authorized {
+		t.Fatalf("decision denied: %#v", decision)
+	}
+	assertContains(t, decision.Roles, auth.RoleDeviceWrangler)
+	assertContains(t, decision.Roles, auth.RoleSiteSecretary)
+	assertContains(t, decision.SiteScopes, "bpl")
+	assertContains(t, decision.SiteScopes, "clover-hs")
+}
+
 func TestEvaluateGoogleIdentityReflectsChangedAssignments(t *testing.T) {
 	policy := auth.DefaultPolicy()
 	policy.GroupRoleMappings = []auth.GroupRoleMapping{
