@@ -39,6 +39,44 @@ This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` 
 - `Action Link`: links that lead to external systems must be defined by product behavior, not created solely because a mock contains link-like text.
 - `Varsity Display Text`: any UI text rendered with the Varsity font must be authored in all lowercase. The product name remains `The WIZARD` in prose, metadata, and non-Varsity UI, but Varsity-rendered display text uses lowercase source copy rather than CSS-only transformation.
 
+### Page Sync/Refresh Primitive Contract
+
+The shared page sync/refresh primitive is the only allowed implementation for implemented pages that show any combination of:
+
+- freshness metadata (`Last refreshed`, `Last synced`, or a page-specific equivalent)
+- optional next-sync timing
+- a manual `Refresh` action
+- a manual `Sync now` action
+
+This contract is intentionally narrow: it standardizes layout, copy, and accessibility to prevent page-local drift while still allowing pages to supply their own action handlers and timestamp values.
+
+#### Layout rules
+
+- When a page exposes a header-level action button (`Refresh` or `Sync now`), the freshness metadata cluster renders immediately to the left of the button with a visible `5px` gap.
+- The freshness metadata cluster may wrap to at most two lines when needed to avoid collisions, but it must not exceed the action button height.
+- The primitive must not:
+  - widen the page canvas
+  - introduce horizontal overflow
+  - create a tall blank vertical strip beside the main content
+  - detach the action button from its freshness metadata by pinning one of them to the viewport edge
+
+#### Copy and semantics
+
+- `Refresh` means a targeted reread for the current surface (page, queue, report, or selected record context) without requesting a source-system reconciliation cycle.
+- `Sync now` means a source reconciliation request, or a DEV mock simulation of that reconciliation, that may update projections beyond the currently visible surface.
+- A page must choose one intentional action label (`Refresh` or `Sync now`). If a page genuinely needs both actions, that must be documented in `PRODUCT_REQUIREMENTS.md` as product behavior and implemented as an intentional two-action pattern (not ad hoc page-local buttons).
+
+#### Accessibility and runtime behavior
+
+- The action control must have a stable accessible name matching the visible action label (`Refresh` or `Sync now`).
+- Disabled/loading state must preserve that accessible name and must not cause layout shift that moves neighboring header controls.
+- After the action completes successfully, the page should update the displayed freshness metadata to reflect the new read model state without requiring a full reload.
+
+#### Where this lives
+
+- `.pen` sources own the canonical header/action geometry and spacing.
+- React owns the primitive implementation, timestamp formatting, disabled/loading state, and the page-specific callback behavior.
+
 ## Status Badge And Button Color Inventory
 
 This inventory records the currently defined status bubbles/buttons and the proposed canonical color treatment for review. The goal is to make repeated badge states a shared primitive instead of page-local styling. Text colors are chosen from the existing brand palette for readable contrast.
