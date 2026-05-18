@@ -1,0 +1,15 @@
+{
+	email {$ACCOUNTSDOT_TLS_EMAIL:}
+}
+
+{$ACCOUNTSDOT_DEV_HOST:dev.localhost} {
+	reverse_proxy app-dev:8080
+}
+
+{$ACCOUNTSDOT_STAGING_HOST:staging.localhost} {
+	reverse_proxy app-staging:8080
+}
+
+{$ACCOUNTSDOT_MAIN_HOST:main.localhost} {
+	reverse_proxy app-main:8080
+}

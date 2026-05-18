@@ -1,4 +1,6 @@
 .env
+deploy/env/*.env
+!deploy/env/*.env.example
 .gocache/
 .gomodcache/
 artifacts/performance/*

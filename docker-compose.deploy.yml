@@ -1,0 +1,104 @@
+name: accountsdot-remote
+
+x-app-common: &app-common
+  restart: unless-stopped
+  expose:
+    - "8080"
+
+services:
+  reverse-proxy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    env_file:
+      - deploy/env/proxy.env
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app-dev
+      - app-staging
+      - app-main
+
+  postgres-dev:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - deploy/env/dev.db.env
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app-dev:
+    <<: *app-common
+    build:
+      context: ../accountsdot-deploy-worktrees/dev
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - deploy/env/dev.app.env
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+
+  postgres-staging:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - deploy/env/staging.db.env
+    volumes:
+      - postgres-staging-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app-staging:
+    <<: *app-common
+    build:
+      context: ../accountsdot-deploy-worktrees/staging
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - deploy/env/staging.app.env
+    depends_on:
+      postgres-staging:
+        condition: service_healthy
+
+  postgres-main:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - deploy/env/main.db.env
+    volumes:
+      - postgres-main-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app-main:
+    <<: *app-common
+    build:
+      context: ../accountsdot-deploy-worktrees/main
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - deploy/env/main.app.env
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:
+  postgres-dev-data:
+  postgres-staging-data:
+  postgres-main-data:
