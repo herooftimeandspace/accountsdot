@@ -1,14 +1,17 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
-import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
   markEdgeWhitespaceForStudentData,
   shouldShowSuggestedStudentNameValue,
 } from "./studentDataCleanupDisplay";
+import {
+  STUDENT_DATA_CLEANUP_ROWS,
+  studentDataCleanupRowsForSession,
+} from "./studentDataCleanupModel.mjs";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -24,156 +27,6 @@ const PANE_TOP = 118;
 const PANE_WIDTH = 1348;
 const DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
 const AERIES_LINK_BASE = "https://windsorusd.aeries.net/admin/Default.aspx";
-
-// Mirrors the legacy Aeries AD sync invalid-name gate:
-// after removing ordinary spaces, first + last name must match /^[a-zA-Z]+$/,
-// and neither first nor last name may begin or end with a space.
-const STUDENT_ROWS = [
-  {
-    id: "carlos-nuno",
-    studentId: "0001021",
-    studentName: "Carlos Nuno",
-    firstNameRaw: "Carlos",
-    lastNameRaw: "Nuño",
-    firstNameClean: "Carlos",
-    lastNameClean: "Nuno",
-    issueType: "Invalid character",
-    grade: "11",
-    submitted: "May 2, 2025 8:58 AM PT",
-  },
-  {
-    id: "alex-oneil",
-    studentId: "0001087",
-    studentName: "Alex O'Neil",
-    firstNameRaw: "Alex",
-    lastNameRaw: "O'Neil",
-    firstNameClean: "Alex",
-    lastNameClean: "ONeil",
-    issueType: "Invalid character",
-    grade: "10",
-    submitted: "May 2, 2025 8:56 AM PT",
-  },
-  {
-    id: "jose-martinez",
-    studentId: "0001142",
-    studentName: "Jose Martinez",
-    firstNameRaw: "Jose",
-    lastNameRaw: "Martínez",
-    firstNameClean: "Jose",
-    lastNameClean: "Martinez",
-    issueType: "Invalid character",
-    grade: "12",
-    submitted: "May 2, 2025 8:54 AM PT",
-  },
-  {
-    id: "taylor-smith-jones",
-    studentId: "0001233",
-    studentName: "Taylor Smith-Jones",
-    firstNameRaw: "Taylor",
-    lastNameRaw: "Smith-Jones",
-    firstNameClean: "Taylor",
-    lastNameClean: "SmithJones",
-    issueType: "Invalid character",
-    grade: "9",
-    submitted: "May 2, 2025 8:52 AM PT",
-  },
-  {
-    id: "ava-oneill",
-    studentId: "0001294",
-    studentName: "Ava ONeill",
-    firstNameRaw: "Ava",
-    lastNameRaw: "O’Neill",
-    firstNameClean: "Ava",
-    lastNameClean: "ONeill",
-    issueType: "Smart punctuation",
-    grade: "8",
-    submitted: "May 2, 2025 8:49 AM PT",
-  },
-  {
-    id: "noah-chenlee",
-    studentId: "0001358",
-    studentName: "Noah ChenLee",
-    firstNameRaw: "Noah",
-    lastNameRaw: "Chen-Lee",
-    firstNameClean: "Noah",
-    lastNameClean: "ChenLee",
-    issueType: "Hyphen",
-    grade: "7",
-    submitted: "May 2, 2025 8:47 AM PT",
-  },
-  {
-    id: "liam-carter",
-    studentId: "0001399",
-    studentName: "Liam Carter",
-    firstNameRaw: "Liam2",
-    lastNameRaw: "Carter",
-    firstNameClean: "Liam",
-    lastNameClean: "Carter",
-    issueType: "Digit",
-    grade: "6",
-    submitted: "May 2, 2025 8:45 AM PT",
-  },
-  {
-    id: "mila-obrien",
-    studentId: "0001442",
-    studentName: "Mila OBrien",
-    firstNameRaw: "Mila",
-    lastNameRaw: "OBrien#",
-    firstNameClean: "Mila",
-    lastNameClean: "OBrien",
-    issueType: "Symbol",
-    grade: "5",
-    submitted: "May 2, 2025 8:43 AM PT",
-  },
-  {
-    id: "erin-park",
-    studentId: "0001488",
-    studentName: "Erin Park",
-    firstNameRaw: " Erin",
-    lastNameRaw: "Park",
-    firstNameClean: "Erin",
-    lastNameClean: "Park",
-    issueType: "Leading whitespace",
-    grade: "4",
-    submitted: "May 2, 2025 8:41 AM PT",
-  },
-  {
-    id: "owen-reed",
-    studentId: "0001527",
-    studentName: "Owen Reed",
-    firstNameRaw: "Owen ",
-    lastNameRaw: "Reed",
-    firstNameClean: "Owen",
-    lastNameClean: "Reed",
-    issueType: "Trailing whitespace",
-    grade: "3",
-    submitted: "May 2, 2025 8:39 AM PT",
-  },
-  {
-    id: "zoe-kim",
-    studentId: "0001583",
-    studentName: "Zoe Kim",
-    firstNameRaw: "Zoe",
-    lastNameRaw: " Kim",
-    firstNameClean: "Zoe",
-    lastNameClean: "Kim",
-    issueType: "Leading whitespace",
-    grade: "2",
-    submitted: "May 2, 2025 8:37 AM PT",
-  },
-  {
-    id: "ivy-stone",
-    studentId: "0001614",
-    studentName: "Ivy Stone",
-    firstNameRaw: "Ivy",
-    lastNameRaw: "Stone ",
-    firstNameClean: "Ivy",
-    lastNameClean: "Stone",
-    issueType: "Trailing whitespace",
-    grade: "1",
-    submitted: "May 2, 2025 8:35 AM PT",
-  },
-];
 
 const STUDENT_COLUMNS = [
   { key: "studentId", label: "Student ID", value: (row) => row.studentId },
@@ -432,6 +285,12 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
   const [filters, setFilters] = useState({ issueType: "all", grade: "all" });
   const [selectedRow, setSelectedRow] = useState(null);
   const [syncState, setSyncState] = useState("idle");
+  const locationSearch = typeof window === "undefined" ? "" : window.location.search;
+  const rows = useMemo(
+    () => studentDataCleanupRowsForSession(STUDENT_DATA_CLEANUP_ROWS, session),
+    [locationSearch, session]
+  );
+  const rowScopeKey = `${session?.current_persona?.id ?? ""}:${session?.current_site_id ?? ""}:${locationSearch}`;
   const textOverrides = buildSharedShellTextOverrides(session);
   const paneNodeIds = useMemo(() => artboard ? collectPaneNodeIds(artboard) : [], [artboard]);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
@@ -462,13 +321,20 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
       onAction: handleSync,
     },
   });
-  const semanticSummary = artboard
-    ? buildArtboardSemanticSummary(artboard, {
-        fallbackTitle: "Student Data Cleanup",
-        textOverrides,
-      })
-    : { title: "Student Data Cleanup", items: [] };
-  const selectedPayloadRow = selectedRow ? STUDENT_ROWS.find((row) => row.id === selectedRow.id) || selectedRow : null;
+  const semanticSummary = {
+    title: "Student Data Cleanup",
+    items: [
+      `${rows.length} active issues`,
+      "Review active student-name field issues that must be corrected in Aeries.",
+      "Corrections must be made in Aeries. Changes will sync automatically.",
+    ],
+  };
+  const selectedPayloadRow = selectedRow ? rows.find((row) => row.id === selectedRow.id) || null : null;
+
+  useEffect(() => {
+    setFilters({ issueType: "all", grade: "all" });
+    setSelectedRow(null);
+  }, [rowScopeKey]);
 
   const handleFilterChange = useCallback((change) => {
     setFilters((current) => ({ ...current, ...change }));
@@ -482,7 +348,7 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
     <>
       {sharedShellRenderOverlay?.({ nodeIndex, textOverrides: overlayTextOverrides })}
       <StudentDataOverlay
-        rows={STUDENT_ROWS}
+        rows={rows}
         selectedRowId={selectedPayloadRow?.id}
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -491,7 +357,7 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
       />
       <StudentDataDrawer row={selectedPayloadRow} onClose={() => setSelectedRow(null)} />
     </>
-  ), [filters, handleClearFilters, handleFilterChange, selectedPayloadRow, sharedShellRenderOverlay]);
+  ), [filters, handleClearFilters, handleFilterChange, rows, selectedPayloadRow, sharedShellRenderOverlay]);
 
   if (artboardStatus === "loading") {
     return (
