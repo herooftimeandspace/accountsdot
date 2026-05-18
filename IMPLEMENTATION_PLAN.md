@@ -508,8 +508,10 @@
   - `0C` auth gate, breakglass, global pause, and emergency controls
     - `P0-0C-001` Staff Domain Allowlist Gate
     - `P0-0C-002` Student Domain Deny Gate
-    - `P0-0C-003` Breakglass Access Bypass
-    - `P0-0C-004` Global Pause Stops New Claims
+    - `P0-0C-003` Google Group And Attribute Role Mapping
+    - `P0-0C-004` Site Scope Recalculation
+    - `P0-0C-005` Breakglass Access Bypass
+    - `P0-0C-006` Global Pause Stops New Claims
   - `0D` provider configuration, read-only connectivity, and mock scaffolding
     - `P0-0D-001` Provider Readiness Mock Success Path
     - `P0-0D-002` Provider Readiness Failure Surfacing
@@ -2111,6 +2113,13 @@
 - Admin staff access defaults to site-specific scope and may be expanded to multi-site scope by Google group membership.
 - IT grants multi-site overrides for admin staff.
 - Until Google-group authorization is fully built, site scope is maintained through manual mapping managed by IT Admin.
+- Initial production-auth implementation boundary:
+  - `internal/auth` owns the checked-in Google identity evaluation contract for verified SAML identities.
+  - Startup config parses `AUTH_ALLOWED_EMAIL_DOMAINS`, `AUTH_DENIED_EMAIL_DOMAINS`, `GOOGLE_SAML_*`, `GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON`, `GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON`, and `GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON`.
+  - The evaluator applies domain checks before any role or site-scope mapping, explicitly denies `@stu.wusd.org`, authorizes only identities with at least one mapped role, and recalculates site scope from current group/attribute inputs each request.
+  - Group and attribute mappings are case-insensitive for matching. Role ids and site ids should use the same stable application ids documented in the permissions matrix and route behavior.
+  - DEV persona switching remains isolated to development endpoints and must not become a production authorization source.
+  - This boundary does not yet validate SAML assertions, create a production session cookie, persist manual site-scope mappings in the database, or implement the local breakglass runtime. Those are follow-up implementation steps after Google Workspace SAML metadata, group names, attribute names, and manual site-scope administration decisions are approved.
 - Site staff should be able to audit current access granted to their site only.
 - Site-access audit fields are limited to:
   - user

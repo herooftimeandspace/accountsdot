@@ -423,6 +423,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Local breakglass accounts are the only exception to the domain gate.
 - Final authorization is based on SAML identity plus Google group or attribute-based role assignment.
 - Users may hit the same URL and receive different access results based on scope and role. Unauthorized users must see access denied, not filtered partial content.
+- The checked-in production authorization contract evaluates verified Google identity data in this order: canonical email, explicit denied-domain check, allowed-domain check, Google group role mapping, Google attribute role mapping, then group/attribute site-scope mapping. A user with a valid staff-domain account but no role mapping is authenticated but not authorized.
+- DEV persona switching remains mock/demo tooling only. It must not be treated as production authorization, and production SAML middleware must not trust the DEV persona cookie.
+- Production SAML runtime wiring still requires environment-managed Google Workspace metadata, assertion validation, and admin-approved role/site mapping values. Those settings must stay out of committed fixtures and should be supplied through deployment configuration or managed secret files.
 
 ## Systems in Scope
 - Aeries
