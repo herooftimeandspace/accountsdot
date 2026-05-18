@@ -314,6 +314,16 @@ input {
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
 }
 
+.pen-stage__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pen-stage__overlay > * {
+  pointer-events: auto;
+}
+
 .page-canvas:not(.page-canvas--login) .pen-stage__artboard {
   overflow: visible;
 }
