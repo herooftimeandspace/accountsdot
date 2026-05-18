@@ -576,6 +576,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - In the pre-phase 0 DEV slice, the Offboarding page exposes two HR/IT-only action buttons:
   - `Emergency Offboarding`
   - `Offboard Contractor`
+- The two top-level Offboarding action buttons must render as one vertical action group placed immediately to the right of the Offboarding summary info boxes, not side by side or detached at the far right, so the related HR/IT manual workflows remain visually connected to the dashboard header/action area without leaving excess horizontal whitespace.
 - `Emergency Offboarding` opens the shared right-hand drawer and is only for emergency, non-scheduled offboarding. The drawer must show this warning text exactly: `This form is only for emergency, non-scheduled offboarding. To schedule offboarding, update the escape record or click the Manual Offboarding button`
 - `Emergency Offboarding` searches currently active employees and contractors by name, email, and employee ID. After the operator selects a person, the drawer shows name, email, employee ID, and the current termination date if one exists, then shows this irreversible-action warning exactly: `Clicking this button will remove all access for this person. This action cannot be undone.`
 - The `Deprovision Employee` action schedules an immediate DEV mock deprovision job for the selected person. It must require the selected person in the submitted payload and must not silently reuse stale drawer state.
