@@ -93,6 +93,7 @@ type devSessionPayload struct {
 	DefaultSiteName string                   `json:"default_site_name,omitempty"`
 	CurrentSiteID   string                   `json:"current_site_id,omitempty"`
 	CurrentSiteName string                   `json:"current_site_name,omitempty"`
+	VisibleSites    []devSiteContext         `json:"visible_sites,omitempty"`
 }
 
 type devLoginRequest struct {
@@ -1727,6 +1728,7 @@ func buildDevSessionPayload(ctx context.Context, config devPersonaConfig) devSes
 		DefaultSiteName: config.DefaultSite.Name,
 		CurrentSiteID:   config.CurrentSite.ID,
 		CurrentSiteName: config.CurrentSite.Name,
+		VisibleSites:    config.VisibleSites,
 	}
 }
 

@@ -147,6 +147,16 @@ Mutation routes include:
 
 Login and logout only write or clear the local DEV session cookie. The feature flag route persists IT Admin-only DEV feature flag target state for persona and site visibility. These routes are documented so session-affecting and feature-flag mock behavior does not disappear from the route inventory when the route drift check runs.
 
+### My Profile
+
+`internal/web/dev_my_profile.go` serves the pre-phase 0 My Profile direct-edit mock API. The GET route returns non-secret mock profile fields for the signed-in DEV persona. The PUT route validates preferred/display first name, preferred/display last name, and pronouns, then overwrites only an in-memory DEV profile store for that persona. It does not update legal-name source data, source-system records, the database, Google, Zoom, Aeries, IncidentIQ, or any provider SDK. The route explicitly rejects unauthenticated callers and student-like personas before it mutates mock state.
+
+Mutation routes include:
+
+- `PUT /api/v1/dev/my-profile`
+
+Repeated PUT requests with the same payload are idempotent in the DEV mock store. Debugging should start from the My Profile drawer save request, then follow `handleDevMyProfile`, field validation, and `buildDevMyProfilePayload` to confirm the returned display name changed while legal-name fields stayed source-authoritative.
+
 ### Onboarding Manual Drafts
 
 `internal/web/dev_onboarding.go` creates, updates, finalizes, and soft-deletes manual onboarding drafts. These routes model intake collision handling and workflow readiness without writing to live HR, Google, Zoom, IncidentIQ, Aeries, or Verkada systems.
@@ -172,7 +182,7 @@ Mutation routes include:
 
 ### Room Moves
 
-`internal/web/dev_room_moves.go` creates, updates, transitions, cancels, deletes, applies, and schedules reverts for mock room-move drafts. These mutations model future room, extension, and Zoom workflow effects in memory only.
+`internal/web/dev_room_moves.go` creates, updates, transitions, cancels, deletes, applies, and schedules reverts for mock room-move drafts. These mutations model future room, extension, and Zoom workflow effects in memory only. Create, update, schedule, and apply paths reject same-room moves by stable current/destination room id so a no-op drawer edit cannot become a planned provider write. Updating an existing seeded single-move row stores the edited draft under the same draft id, preserves the original scoped site when a partial update omits it, and suppresses the seed row in the review table, which models an update to the selected workflow rather than a second workflow. Untouched site-rollover roster rows with destination room `none` remain neutral placeholders and cannot be scheduled or applied until an operator chooses a destination or explicit removal action.
 
 Repeated-user bulk drafts remain DEV-only mock planning today. The mock normalizer groups rows for the same person, preserves all rows, allows one primary desk-phone destination, treats secondary/tertiary/later destinations as shared-line-group-only memberships, keeps common-area/CAP coverage active for non-primary destinations, and returns review warnings when the primary destination is ambiguous. This models planned future Zoom room SLG, primary phone assignment, CAP/common-area, and IncidentIQ room association writes; it does not call Zoom, IncidentIQ, or the database.
 

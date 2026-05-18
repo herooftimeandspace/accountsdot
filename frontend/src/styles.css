@@ -360,7 +360,8 @@ input {
 .dev-toolbar {
   position: fixed;
   left: 16px;
-  bottom: 16px;
+  top: min(758px, calc(100vh - 52px));
+  bottom: auto;
   z-index: 76;
   display: flex;
   flex-direction: column-reverse;
@@ -402,6 +403,9 @@ input {
 }
 
 .dev-toolbar__panel {
+  position: absolute;
+  left: 0;
+  bottom: 44px;
   width: 100%;
   box-sizing: border-box;
   padding: 12px 12px 14px;
@@ -493,6 +497,7 @@ input {
   border-radius: 12px;
   background: rgba(206, 183, 112, 0.9);
   position: fixed !important;
+  z-index: 66 !important;
 }
 
 .shared-shell-nav__icon,
@@ -746,6 +751,125 @@ input {
   margin: 0;
   font-size: 13px;
   line-height: 1.35;
+}
+
+.my-profile-runtime__edit-entry {
+  position: absolute;
+  left: 1114px;
+  top: 146px;
+  z-index: 24;
+  width: 442px;
+  height: 162px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.my-profile-runtime__edit-entry:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.my-profile-runtime__edit-entry:focus-visible,
+.my-profile-runtime__directory-link:focus-visible,
+.my-profile-runtime__drawer-form button:focus-visible,
+.my-profile-runtime__drawer-form input:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.my-profile-runtime__directory-link {
+  position: absolute;
+  left: 1410px;
+  top: 354px;
+  z-index: 24;
+  width: 128px;
+  height: 40px;
+  border: 1px solid var(--color-highlight);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.my-profile-runtime__status {
+  position: absolute;
+  left: 1114px;
+  top: 438px;
+  z-index: 24;
+  width: 442px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.my-profile-runtime__status--error,
+.my-profile-runtime__drawer-form small {
+  color: var(--color-accent-red);
+}
+
+.my-profile-runtime__drawer-form {
+  display: grid;
+  gap: 16px;
+}
+
+.my-profile-runtime__drawer-note,
+.my-profile-runtime__drawer-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.my-profile-runtime__drawer-note {
+  padding: 14px;
+  border: 1px solid var(--color-accent-light-blue);
+  border-radius: 8px;
+  background: rgba(137, 182, 231, 0.22);
+}
+
+.my-profile-runtime__drawer-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.my-profile-runtime__drawer-form input {
+  min-height: 40px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-text);
+  padding: 9px 10px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.my-profile-runtime__drawer-form small {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.my-profile-runtime__drawer-form button {
+  min-height: 42px;
+  border: 1px solid var(--color-highlight);
+  border-radius: 8px;
+  background: var(--color-highlight);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .shared-shell-help-button {
@@ -3278,6 +3402,56 @@ input {
 
 .shared-shell-scope-dropdown__runtime .runtime-dropdown__list {
   min-width: 100%;
+}
+
+.shared-shell-account-menu {
+  position: fixed !important;
+  z-index: 73 !important;
+}
+
+.shared-shell-account-menu__button {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.shared-shell-account-menu__button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.shared-shell-account-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 168px;
+  padding: 6px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+
+.shared-shell-account-menu__panel button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font: 700 13px/1.25 var(--font-ui);
+  text-align: left;
+}
+
+.shared-shell-account-menu__panel button:hover,
+.shared-shell-account-menu__panel button:focus-visible {
+  outline: none;
+  background: rgba(206, 183, 112, 0.28);
 }
 
 .global-search-runtime {
