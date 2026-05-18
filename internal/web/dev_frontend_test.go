@@ -287,6 +287,7 @@ type offboardingResponse struct {
 	PageID string `json:"page_id"`
 	Page   struct {
 		CanManageEndDates bool `json:"can_manage_end_dates"`
+		CanManageManual   bool `json:"can_manage_manual"`
 		ShowEmployeeIDs   bool `json:"show_employee_ids"`
 		Rows              []struct {
 			ID              string `json:"id"`
@@ -312,6 +313,29 @@ type offboardingResponse struct {
 			} `json:"actions"`
 		} `json:"rows"`
 	} `json:"page"`
+}
+
+type offboardingCandidatesResponse struct {
+	Candidates []struct {
+		ID              string `json:"id"`
+		Kind            string `json:"kind"`
+		Person          string `json:"person"`
+		Email           string `json:"email"`
+		EmployeeID      string `json:"employee_id"`
+		TerminationDate string `json:"termination_date"`
+	} `json:"candidates"`
+}
+
+type offboardingScheduleResponse struct {
+	Action struct {
+		Kind         string `json:"kind"`
+		PersonID     string `json:"person_id"`
+		Person       string `json:"person"`
+		ScheduledFor string `json:"scheduled_for"`
+		ActorID      string `json:"actor_id"`
+		Mode         string `json:"mode"`
+		Status       string `json:"status"`
+	} `json:"action"`
 }
 
 type departingSeniorsResponse struct {
@@ -1379,8 +1403,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("it offboarding returned %d, want 200", rec.Code)
 		}
 		itPayload := decodeJSON[offboardingResponse](t, rec)
-		if !itPayload.Page.CanManageEndDates || !itPayload.Page.ShowEmployeeIDs {
-			t.Fatalf("it flags = manage:%v ids:%v, want true/true", itPayload.Page.CanManageEndDates, itPayload.Page.ShowEmployeeIDs)
+		if !itPayload.Page.CanManageEndDates || !itPayload.Page.CanManageManual || !itPayload.Page.ShowEmployeeIDs {
+			t.Fatalf("it flags = manage:%v manual:%v ids:%v, want true/true/true", itPayload.Page.CanManageEndDates, itPayload.Page.CanManageManual, itPayload.Page.ShowEmployeeIDs)
 		}
 		if len(itPayload.Page.Rows) < 5 {
 			t.Fatalf("it rows = %d, want seeded escape and orphan rows", len(itPayload.Page.Rows))
@@ -1419,8 +1443,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("site admin offboarding returned %d, want 200", rec.Code)
 		}
 		sitePayload := decodeJSON[offboardingResponse](t, rec)
-		if sitePayload.Page.CanManageEndDates || sitePayload.Page.ShowEmployeeIDs {
-			t.Fatalf("site flags = manage:%v ids:%v, want false/false", sitePayload.Page.CanManageEndDates, sitePayload.Page.ShowEmployeeIDs)
+		if sitePayload.Page.CanManageEndDates || sitePayload.Page.CanManageManual || sitePayload.Page.ShowEmployeeIDs {
+			t.Fatalf("site flags = manage:%v manual:%v ids:%v, want false/false/false", sitePayload.Page.CanManageEndDates, sitePayload.Page.CanManageManual, sitePayload.Page.ShowEmployeeIDs)
 		}
 		for _, row := range sitePayload.Page.Rows {
 			if row.Status == "Security risk" || row.ID == "orphan-riley-park" {
@@ -1443,8 +1467,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("hr offboarding returned %d, want 200", rec.Code)
 		}
 		hrPayload := decodeJSON[offboardingResponse](t, rec)
-		if !hrPayload.Page.CanManageEndDates || !hrPayload.Page.ShowEmployeeIDs {
-			t.Fatalf("hr flags = manage:%v ids:%v, want true/true", hrPayload.Page.CanManageEndDates, hrPayload.Page.ShowEmployeeIDs)
+		if !hrPayload.Page.CanManageEndDates || !hrPayload.Page.CanManageManual || !hrPayload.Page.ShowEmployeeIDs {
+			t.Fatalf("hr flags = manage:%v manual:%v ids:%v, want true/true/true", hrPayload.Page.CanManageEndDates, hrPayload.Page.CanManageManual, hrPayload.Page.ShowEmployeeIDs)
 		}
 		for _, row := range hrPayload.Page.Rows {
 			if row.Status == "Security risk" || row.ID == "orphan-riley-park" {
@@ -1571,6 +1595,100 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("site admin update returned %d, want 403", rec.Code)
+		}
+	})
+
+	t.Run("manual offboarding actions are limited to HR and IT", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/offboarding/candidates?mode=emergency", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated candidate search returned %d, want 401", rec.Code)
+		}
+
+		siteCookie := loginAsPersona(t, handler, "site_admin")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/offboarding/candidates?mode=emergency", nil)
+		req.AddCookie(siteCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site admin candidate search returned %d, want 403", rec.Code)
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/offboarding/candidates?mode=contractor", nil)
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("hr contractor candidate search returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		candidates := decodeJSON[offboardingCandidatesResponse](t, rec)
+		if len(candidates.Candidates) == 0 {
+			t.Fatal("expected contractor candidates")
+		}
+		for _, candidate := range candidates.Candidates {
+			if candidate.Kind != "contractor" {
+				t.Fatalf("contractor search returned non-contractor candidate %#v", candidate)
+			}
+			if candidate.EmployeeID == "" {
+				t.Fatalf("contractor candidate omitted employee id %#v", candidate)
+			}
+		}
+
+		siteBody := bytes.NewBufferString(`{"person_id":"employee-chris-morgan"}`)
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", siteBody)
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(siteCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("site admin emergency schedule returned %d, want 403", rec.Code)
+		}
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-chris-morgan"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it emergency schedule returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		emergency := decodeJSON[offboardingScheduleResponse](t, rec)
+		if emergency.Action.Kind != "emergency_deprovision" || emergency.Action.ScheduledFor != "immediate" || emergency.Action.Mode != "dev_mock_only" {
+			t.Fatalf("emergency action = %#v, want immediate DEV mock action", emergency.Action)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/contractor-offboarding", bytes.NewBufferString(`{"person_id":"employee-chris-morgan","end_date":"2026-07-15"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("employee contractor schedule returned %d, want 404", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/contractor-offboarding", bytes.NewBufferString(`{"person_id":"contractor-sam-ortega","end_date":"07/15/2026"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("bad contractor date returned %d, want 400", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/contractor-offboarding", bytes.NewBufferString(`{"person_id":"contractor-sam-ortega","end_date":"2026-07-15"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("hr contractor schedule returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		contractor := decodeJSON[offboardingScheduleResponse](t, rec)
+		if contractor.Action.Kind != "contractor_scheduled_deprovision" || contractor.Action.ScheduledFor != "2026-07-15" || contractor.Action.ActorID != "human_resources" {
+			t.Fatalf("contractor action = %#v, want scheduled HR contractor action", contractor.Action)
 		}
 	})
 

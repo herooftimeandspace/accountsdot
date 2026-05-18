@@ -1,12 +1,15 @@
 # Permissions Matrix
 
-This document records the current production authorization boundary for The WIZARD. It does not replace the editable permissions model or breakglass runtime work; it defines the Google SAML and Google group/attribute contract those follow-up surfaces must preserve.
+This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `PRODUCT_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`, and `TEST_MATRIX.md`.
+
+This matrix is current DEV implementation documentation. It is not a completion certificate for the broader permissions backlog. In particular, issue #158 still needs a broader route/API inventory pass before it can close, because several implemented pages are currently static frontend-only surfaces or have frontend route-guard coverage without matching route-specific Go page APIs. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher.
 
 ## Source Order
 
-- `PRODUCT_REQUIREMENTS.md` defines the staff-only product boundary, allowed domains, explicit student denial, and same-URL access-denied requirement.
-- `IMPLEMENTATION_PLAN.md` defines the implementation contract, staged rollout constraints, and follow-up work still required before production SAML is live.
+- `PRODUCT_REQUIREMENTS.md` defines the staff-only product boundary, allowed domains, explicit student denial, same-URL access-denied requirement, lifecycle visibility rules, and HR/IT offboarding action requirements.
+- `IMPLEMENTATION_PLAN.md` defines the implementation contract, staged rollout constraints, Phase 2 live-write pilot gate, route registry, and follow-up work still required before production SAML is live.
 - `internal/auth/production.go` contains the current checked-in evaluator for verified Google identity data.
+- `internal/web` contains the DEV persona-switcher route and API authorization behavior.
 - `TEST_MATRIX.md` defines the scenarios that must be evidenced in dev and staging.
 
 ## Production Auth Flow
@@ -85,9 +88,116 @@ Example mapping shape:
 ]
 ```
 
-## Current Gaps
+## DEV Source Rules
 
-- The current branch adds the evaluator, config contract, tests, and docs. It does not yet validate SAML assertions or issue a production session.
-- Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method.
-- Persistent manual site-scope administration is still follow-up work. Until it exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs.
-- Breakglass runtime behavior is intentionally owned outside this production Google SAML slice.
+- The dashboard is staff-only. Allowed staff domains are `@wusd.org`, `@it.wusd.org`, and `@staff.wusd.org`; `@stu.wusd.org` is denied before normal role authorization. Local breakglass accounts are the only documented domain-gate exception.
+- Unauthenticated users receive `401` for protected DEV page and API routes.
+- Authenticated users without route, persona, feature-flag, site-scope, or field-level permission receive `403` or the route's normal access-denied behavior.
+- Sidebar hiding and disabled controls are defense-in-depth only. Server-side DEV APIs must enforce authorization before returning protected data or mutating DEV state.
+- IT Admin has all current implemented routes and an override for route-level feature flags. Human Resources has district-wide lifecycle access. Site Admin, Site Secretary, Device Wrangler, and Faculty and Staff receive only the route set and site/field visibility listed below.
+- Local breakglass access is documented as a required emergency pattern, but it is not modeled as a selectable DEV persona. The current DEV persona switcher is only a mock-session convenience for implemented staff roles, not proof that breakglass login, source-address restrictions, or emergency audit behavior are implemented.
+- Production authorization remains future work beyond this DEV persona model. The durable target is SAML identity plus Google group or attribute-based authorization, with persistent site-scope mapping where appropriate. The current DEV session payloads, route lists, feature flags, and mock site scopes are implementation scaffolding for route/API behavior, not a production SAML or Google-group integration.
+
+## DEV Persona Route Matrix
+
+| Persona | Implemented route access | Scope | Current status |
+| --- | --- | --- | --- |
+| IT Admin | All implemented routes: `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, phone-directory routes, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile` | District-wide | Implemented |
+| Human Resources | `/dashboard/hr-lifecycle`, `/search`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/my-profile`, `/onboarding`, `/offboarding` | District-wide | Implemented |
+| Site Admin | `/dashboard/site-admin`, `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`, `/room-moves/bulk-draft` | Assigned sites only on site-scoped pages | Implemented |
+| Site Secretary | `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`, `/room-moves/bulk-draft` | Assigned sites only | Implemented |
+| Device Wrangler | `/search`, phone-directory routes, `/my-profile`, `/frequent-fliers`, `/departing-seniors` | Assigned sites only where data is site-scoped | Implemented |
+| Faculty and Staff | `/search`, phone-directory routes, `/my-profile` | Own-site/default staff context in this DEV slice | Implemented |
+| No Access | No protected route access | None | Implemented as denied session state |
+| Local breakglass | Documented as a required emergency access pattern, with named local accounts and network restrictions | Configurable emergency scope | Not implemented in the DEV persona switcher |
+
+## DEV Page And API Matrix
+
+| Surface | Allowed personas | Server-side behavior | Site and field notes | Status | Test coverage |
+| --- | --- | --- | --- | --- | --- |
+| `/api/v1/dev/session`, `/api/v1/dev/login`, `/api/v1/dev/logout` | DEV persona switcher users | Session payload reflects the selected DEV persona and feature-filtered routes | Login/logout write only the local DEV session cookie | Implemented | `TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment` |
+| `/api/v1/dev/pages/data-quality` | IT Admin | `401` signed out, `403` non-IT | IT Admin-only data-quality awareness surface | Implemented | Data Quality auth tests |
+| `/api/v1/dev/search` | Personas with `/search` | Requires authenticated persona and filters by accessible route groups | Employee IDs remain visible/searchable only for IT Admin and HR where the owning payload exposes them | Partially implemented | Global search tests |
+| `/api/v1/dev/pages/onboarding` | IT Admin, HR, Site Admin | Requires `/onboarding` route | IT Admin and HR can manage manual drafts; Site Admin gets scoped/read-only visibility | Implemented | Onboarding page and manual draft tests |
+| `/api/v1/dev/onboarding/manual-drafts*` | IT Admin, HR | Mutations return `403` for other personas, even with valid payloads | Manual Non-Escape personal phone data is accepted only for HR/IT draft workflows | Implemented | Manual onboarding draft mutation tests |
+| `/api/v1/dev/pages/offboarding` | IT Admin, HR, Site Admin | Requires `/offboarding` route | Employee ID and editable end dates are HR/IT only; Site Admin receives assigned-site rows without employee IDs; security-risk orphan rows are excluded | Implemented | Offboarding page tests |
+| `/api/v1/dev/offboarding/records/{id}/end-date` | IT Admin, HR | Mutations return `403` for other personas and reject Escape-backed dates | Non-Escape/orphan local end-date mock updates only | Implemented | Offboarding end-date tests |
+| `/api/v1/dev/offboarding/candidates` | IT Admin, HR | `401` signed out, `403` non-HR/non-IT before candidate data is returned | Exposes employee IDs and active contractor search corpus only to HR/IT | Implemented | Manual offboarding action tests |
+| `/api/v1/dev/offboarding/emergency-deprovision` | IT Admin, HR | `401` signed out, `403` non-HR/non-IT before mutation handling | In-memory DEV mock schedule only; no provider write | Implemented | Manual offboarding action tests |
+| `/api/v1/dev/offboarding/contractor-offboarding` | IT Admin, HR | `401` signed out, `403` non-HR/non-IT before mutation handling | Contractors only; requires explicit selected contractor and valid `YYYY-MM-DD` date; no provider write | Implemented | Manual offboarding action tests |
+| `/api/v1/dev/pages/reports/security-issues` | IT Admin | `401` signed out, `403` non-IT | Owns recent-activity orphan account security rows; Offboarding does not expose these to HR | Implemented | Security Issues report tests |
+| `/api/v1/dev/pages/departing-seniors` | IT Admin, Device Wrangler | Requires `/departing-seniors` route | Retained-year rows and student IDs are limited to this page's allowed personas | Implemented | Departing Seniors access tests |
+| `/api/v1/dev/departing-seniors/records/{id}/end-date`, `/deprovision` | IT Admin, Device Wrangler | Mutations return `403` for other personas | DEV mock end-date/deprovision state only | Implemented | Departing Seniors mutation tests |
+| `/api/v1/dev/pages/room-moves`, `/room-moves/bulk-draft` | IT Admin, Site Admin, Site Secretary | Requires route and site/draft scope | IT Admin can manage district/inter-site rows; site-scoped users can mutate only visible-site drafts | Implemented | Room Moves page and draft tests |
+| `/api/v1/dev/room-moves/*` | IT Admin, Site Admin, Site Secretary according to draft scope | Mutations enforce route, site scope, and admin-only revert authority | DEV mock room-move planning only | Implemented | Room Moves mutation tests |
+| `/api/v1/dev/pages/phone-directory/by-person`, `/by-room`, `/by-department` | All logged-in personas | Requires matching route | Directory results are scope-filtered by persona/site; unknown site requests fail closed for site-scoped users | Implemented | Phone Directory tests |
+| `/api/v1/dev/feature-flags`, `/api/v1/dev/feature-flags/{key}` | IT Admin | Feature flag reads/writes are IT Admin-only | IT Admin override is read-only in target rows and is not stored as a normal editable target | Implemented | Feature flag handler and persistence tests |
+| Static/frontend-only current-slice pages | Varies by session allowed routes | Frontend route guard sends unauthorized direct navigation to login or `403` | `/dashboard/site-admin`, `/student-data-cleanup`, and `/frequent-fliers` currently have documented backend coverage exceptions where no route-specific Go page API exists | Partially implemented | Route registry and page-specific frontend tests |
+
+## Feature Flags
+
+Feature flags currently control sidebar visibility, direct route access, and matching DEV page/API access where a route-backed API exists. A non-IT user receives a flagged feature only when their persona and current site are effectively enabled. IT Admin always sees every route-level feature and active indicator.
+
+Feature flags are not an in-app permissions administration model. They let DEV verify route availability and persona/site enablement, but they do not grant or revoke real user access, persist authorization history, prevent administrative lockout, or calculate effective permissions across SAML claims, Google groups, manual site mappings, and emergency access. Those behaviors belong to the deferred #160 workstream.
+
+## Field-Level Visibility
+
+| Field | IT Admin | Human Resources | Site Admin / Site Secretary | Device Wrangler | Faculty and Staff | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Employee ID on Onboarding/Offboarding | Visible | Visible | Hidden unless a future documented surface grants it | Hidden | Hidden | Implemented on Offboarding; implemented where Onboarding payload exposes HR/IT workflow fields |
+| Last 4 SSN | Full value allowed only in HR/IT manual intake workflows | Full value allowed only in HR/IT manual intake workflows | Hidden | Hidden | Hidden | Partially implemented in DEV manual draft payload; production encryption remains future DB work |
+| Personal email / personal phone for manual Non-Escape intake | HR/IT manual draft only | HR/IT manual draft only | Hidden | Hidden | Hidden | Implemented for DEV manual onboarding draft APIs |
+| Student IDs on Departing Seniors | Visible | No route access | No route access | Visible for allowed Departing Seniors route | No route access | Implemented |
+| Security-risk orphan account details | Visible on `/reports/security-issues` | Hidden from Offboarding | Hidden | Hidden | Hidden | Implemented |
+
+## Known Gaps
+
+### Issue #158: Route/API Inventory Still Open
+
+This matrix documents the currently implemented DEV behavior and the route/API coverage that was verified while building the matrix. It does not prove that #158 is fully complete.
+
+Before #158 can close, a separate inventory pass must confirm every implemented route has the intended authorization layer and matching evidence:
+
+- A frontend route entry and direct-navigation behavior.
+- A sidebar/navigation visibility rule where the route appears in the shell.
+- A route-specific Go page API when the page is runtime-backed.
+- Server-side `401` and `403` tests for route-backed APIs.
+- Site-scope and field-visibility tests where the page exposes sensitive, personnel, student, room, device, or lifecycle data.
+- An explicit documented exception for static frontend-only pages that intentionally do not have a route-specific Go API in the current slice.
+
+The static/frontend-only row in the Page And API Matrix is therefore a known documentation boundary, not a completed authorization audit.
+
+### Issue #160: Editable Permissions Management Deferred
+
+Issue #160 is intentionally deferred. The current DEV persona switcher, feature-flag target editor, and hardcoded mock persona definitions are not sufficient for in-app grant/revoke management.
+
+Real in-app permission management needs a separate editable authorization model that includes:
+
+- Persistent grants, revocations, and site-scope assignments.
+- Lockout protection so IT cannot remove the last effective admin path.
+- Persistent audit history that records who changed access, what changed, when it changed, and why.
+- Effective-permission calculation across direct grants, SAML identity, Google groups or attributes, manual site-scope mappings, feature rollout state, and breakglass/emergency rules.
+- Operator UX that distinguishes proposed access changes from active effective access.
+- Tests for self-lockout, cross-site leakage, stale grants, revoked users, and conflicting group/manual assignments.
+
+Until that model exists, the matrix should be read as DEV enforcement documentation, not as an editable access administration design.
+
+### Breakglass Boundary
+
+Local breakglass behavior is required by `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md`, but it is not represented as a DEV persona-switcher flow. A future breakglass implementation must verify local authentication, named emergency accounts, source-address restrictions, operational auditability, and recovery behavior when third-party authentication is unavailable.
+
+The current row for Local breakglass records the documented requirement only. It does not mean an operator can select a breakglass persona in DEV, and it does not provide evidence for the `0C` breakglass promotion gates in `TEST_MATRIX.md`.
+
+### Production Authorization Boundary
+
+Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method. Persistent manual site-scope administration is also follow-up work. Until it exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs.
+
+The durable product target remains:
+
+- Google SAML authentication.
+- Google group or attribute-based role assignment.
+- Persistent site-scope mapping where Google groups do not fully express the needed scope.
+- Site-access audit visibility for site staff and IT.
+- Application-level staff-domain gating before normal role authorization.
+
+The current DEV model uses mock personas, local session cookies, static allowed-route lists, DEV feature flags, and mock site scopes to validate route/API behavior. Those mechanisms must not be treated as the final production authorization source of truth.
