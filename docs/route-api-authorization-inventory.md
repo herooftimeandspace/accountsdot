@@ -4,6 +4,8 @@ This artifact is the issue #185 audit evidence for issue #158. It inventories ev
 
 Run `npm run route-api-inventory:check` after changing `frontend/src/lib/routeRegistry.js`, `internal/web/app.go`, or this document. The checker verifies that every route-registry entry has a table row and that every API path named here is registered in the Go mux.
 
+Issue #158 remains open after this inventory because the parent acceptance criteria require a full enforcement and regression pass, not only a checked-in route/API table. The closure pass should rerun or add current tests for direct route access, sidebar visibility, feature-flag gating, site-scope filtering, field-level visibility, signed-out `401` behavior, unauthorized `403` behavior, and every registered protected API row. Static frontend-only exceptions should be revalidated during that pass; if a static page starts loading protected route-specific payload data, it must move out of the exception list and gain a runtime DEV API plus authorization tests in the same change.
+
 ## Interpretation Rules
 
 - `401` means no valid DEV session cookie is present.

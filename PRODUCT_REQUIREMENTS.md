@@ -236,6 +236,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - report rows may include an `Open Report` action that routes to the owning implemented page or report route
   - fixed report-detail panels in the artboard are layout artifacts for review only and should not remain visible in the live runtime page
   - the Reports table should use the shared page-level table search and three-way sort primitives rather than static text-only rows
+  - implemented pages should avoid passive decorative stat tiles; summary boxes and metric cards should be a shared actionable primitive (centered text, very large numeric value, explicit good-to-bad number coloring, and a clear action such as navigation, filter, drawer, or operator decision)
   - the Security Issues report should reuse the Reports shell, runtime table search/sort, shared right-hand drawer, and migrated Offboarding security issue details/actions while remaining read-only in this slice
 - Shared-header search behavior for the current foundation slice:
   - the shared header search is a global search entrypoint rather than Phone Directory-only chrome
@@ -256,6 +257,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - DEV-only mock auth, session, and page routes should be available only when `APP_ENV` is explicitly `development`; missing `APP_ENV` should fail closed and behave as non-development
   - the shared-header `Refresh` control should render as a Vegas Gold primary action with readable black text everywhere that implemented pages expose that shared shell control
   - shared-header `Refresh` regressions should be fixed in the authoritative shared `.pen` sources rather than through page-specific runtime styling overrides
+  - the shared-header `Refresh` primitive must not expand the page canvas, push content to the right, or create blank vertical overflow regions; when a page exposes refresh, the button and any freshness metadata must stay inside the documented header/action bounds
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Outcome:
@@ -686,7 +688,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Do not combine Frequent Fliers with student invalid-name review on the same screen.
 - Threshold and lookback must be IT-configurable later, with first-pass defaults of `2` and `90`.
 - The 90-day default exists because librarians requested a longer view to identify longer patterns of abuse than the earlier 45-day draft showed.
-- The comparison operator is fixed as greater-than-or-equal-to. Users may change the DEV threshold value from `1` through `10`, defaulting to `2`, may choose whether the threshold applies to device assignments or IncidentIQ tickets, and may choose a rolling lookback of `30 days`, `60 days`, `90 days`, `6 months`, or `1 year`, defaulting to `90 days`.
+- The comparison operator is fixed as greater-than-or-equal-to. The UI should render it as plain inline `≥` text rather than a boxed control or the two-character `>=` string. Users may change the DEV threshold value from `1` through `10`, defaulting to `2`, may choose whether the threshold applies to device assignments or IncidentIQ tickets, and may choose a rolling lookback of `30 days`, `60 days`, `90 days`, `6 months`, or `1 year`, defaulting to `90 days`.
+- Changing the Frequent Fliers threshold, metric, or lookback dropdown automatically refreshes the visible table. The page should not show an `Apply` button for these controls.
+- DEV/mock Frequent Fliers data should provide visibly different, meaningful result sets for representative supported threshold, metric, and date-range combinations so the dashboard demonstrates each filter view.
 - Frequent Fliers row details must open in the shared right-hand drawer rather than a fixed side panel. Selecting a different row refreshes the drawer with that student's current device and ticket context.
 - Device history should show the serial number before the device type and link to the deterministic DEV IncidentIQ device target. Recent ticket rows should link to deterministic DEV IncidentIQ ticket targets.
 - The row trend should render as a real color-coded graph using the shared severity palette so users can scan whether the recent pattern is below threshold, at review level, or critical.
@@ -703,6 +707,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Support add, change, and removal actions per person.
 - Support warnings, primary-teacher selection, null-room outcomes, and manual ticket fallback when automation cannot complete a phone assignment safely.
 - Primary-room conflicts are not a default manual-ticket path. When a destination room already has an active primary room owner, the Room Moves review drawer must explain the conflicting primary owner, keep the existing primary phone assignment unchanged, and identify the automated outcome as adding the moving user to that room shared line group. A manual action should appear only when automation cannot plan or verify the shared-line-group outcome safely, and then the drawer must name the owner, reason, resolution steps, and linked external systems.
+- Room Moves right-drawer footer actions should use the available drawer content width intentionally. Footer buttons should not cluster at the left while leaving a large blank region to the right; if multiple actions are present, the button row should distribute or size them as a coherent drawer action primitive while preserving readable labels.
+- Room Moves and other implemented pages should use actionable shared summary/info boxes instead of passive, page-local metric cards. Retained info boxes must center their text, make the numeric value prominent, color-code that value on a documented good-to-bad scale, and provide a clear action, filter, navigation target, drawer, or decision path. If a box has no clear operator action or decision value, reassess whether it belongs on the page.
 - Batch Room Moves must support the same person appearing in multiple room rows, including two-room and generalized N-room cases. The planned output must keep the rows distinct, resolve one primary desk-phone owner when possible, and treat secondary, tertiary, or later-order rows as shared-line-group membership only.
 - Repeated-person planning must distinguish the person’s source relationship from the destination intent:
   - if the person was only a shared-line-group member in the source room, the source desk phone and common-area/CAP state stay untouched
@@ -810,6 +816,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - When a page exposes the shared-header `Refresh` control, the `Last refreshed` cluster must render immediately to the left of the button, separated by `5px` of blank space, and the cluster must not exceed the button height; use at most two lines if needed to preserve that height.
 - Implemented pages that expose page-level freshness or source reconciliation actions must use the shared page sync/refresh primitive instead of page-local button variants.
 - Use `Refresh` when the action rereads the current dashboard surface, queue, report, or detail context without requesting source-system reconciliation. Use `Sync now` when the action requests or simulates a provider/source-system reconciliation cycle that can update projections beyond the currently visible surface. The primitive must support last-refreshed metadata, optional next-sync text, disabled/loading state, and a stable accessible action name.
+- Shared right-drawer footer actions should align to the drawer content width and avoid unused blank footer regions that make actions look detached from the drawer.
+- Shared summary/info boxes are allowed only when they lead to an operator action or decision. They should use centered text, a large numeric value, and a documented good-to-bad color scale rather than page-local card variants.
 - Table rows should maintain a visible gap of at least `5px` between row text and horizontal dividers.
 - Bordered cards, rails, tables, notices, and controls should keep a visible `5px` buffer from neighboring bordered elements by default.
 - Exception:
@@ -1057,7 +1065,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Frequent Fliers uses an IT-configurable rolling window and threshold.
 - First-pass defaults are 90 days and 2 or more qualifying device assignments.
 - The product requirement is based on qualifying assignment events, not on incidental metadata such as a student's recent account modification date in Incident IQ.
-- The operator is always greater-than-or-equal-to. In the DEV UI, authorized users can apply the same `1` through `10` threshold to either device assignments or linked IncidentIQ tickets and choose a rolling lookback of `30 days`, `60 days`, `90 days`, `6 months`, or `1 year`; `90 days` remains the default.
+- The operator is always greater-than-or-equal-to. In the DEV UI, authorized users can apply the same `1` through `10` threshold to either device assignments or linked IncidentIQ tickets and choose a rolling lookback of `30 days`, `60 days`, `90 days`, `6 months`, or `1 year`; `90 days` remains the default. Dropdown changes auto-apply immediately, the filter bar should not show an `Apply` button, and the fixed operator should render as plain inline `≥`.
 - Frequent Fliers details use the shared right-hand drawer and page help uses the shared help drawer primitive.
 
 ### Preferred and Legal Name

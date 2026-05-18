@@ -374,6 +374,7 @@
   - the `Data Quality` page must not expose an `Open Mapping Dashboard` shortcut unless `PRODUCT_REQUIREMENTS.md` and this plan define the destination and operator workflow; current routing guidance belongs in the shared help drawer because the legacy `/sync-dashboard/mappings` stub is not a supported implemented-page destination
   - the `Data Quality` queue headers are expected to support `ASC / DESC / NONE` sorting directly on the page rather than routing the user to a separate list surface
   - runtime-backed implemented tables should use the shared table-control primitive for local search/filter and three-way header sorting; each page provides its own default sort column and hidden data remains excluded from search when the role cannot see it
+  - summary/stat cards and metric boxes should use a shared summary info box primitive that centers its text, renders very large numeric values, color-codes the numeric value with a metric-appropriate good-to-bad scale, and always leads to a clear operator action (navigation, filter, drawer, or decision); passive non-actionable decoration should be removed or redesigned rather than persisting as a status tile
   - implemented shell user avatars should prefer a Google profile photo when one is present in the user object and fall back to generated initials when one is not
   - the implemented shell account menu must expose `My Profile` and `Sign Out`; `My Profile` routes to the user's profile page for preferred-name and pronoun updates, while `Sign Out` triggers the configured SAML/SSO sign-out flow
   - during the pre-phase 0 DEV pilot, `My Profile` should land on an internal mock-backed profile route implemented from its authoritative `.pen` and should allow preferred-name and pronoun edits against DEV-local mock state until real profile integration exists
@@ -390,6 +391,9 @@
   - the `Data Quality` refresh control should remain a real re-fetch action, render as a Vegas Gold primary action, and re-collect the current queue payload rather than applying a cosmetic-only reload
   - the top-right shared-header `Refresh` control should use the same Vegas Gold primary-action treatment with readable black text across every implemented page that carries that shared shell pattern, even when a static page is not yet wired to page-specific runtime refresh behavior
   - shared-header `Refresh` styling drift should be corrected in the authoritative `.pen` sources for the repeated header pattern rather than through page-specific CSS or runtime overrides
+  - the shared page sync/refresh primitive must keep the refresh button and any freshness metadata inside the intended header/action bounds; it must not push the page canvas to the right, create horizontal overflow, or leave a tall blank vertical strip beside the main content
+  - shared right-drawer footer actions should be implemented as one drawer action-row primitive that uses the available drawer content width intentionally, keeps labels readable, and avoids left-clustered buttons with a large unused footer region
+  - shared summary/info boxes should become one documented primitive across implemented pages. The primitive must center text, render numeric values prominently, color-code those values on a documented good-to-bad scale, and lead to a concrete action, filter, navigation target, drawer, or operator decision; boxes that cannot satisfy that actionability rule should be removed or redesigned instead of preserved as passive decoration
   - `Next Action` cells in the `Data Quality` queue should deep link to an in-app corrective page when one exists, otherwise render as `{Action} in {system}` with a top-level external system link only when that destination is defined
   - the implemented `Support` affordance should treat the help icon and `Support` label as one IncidentIQ ticket-creation entrypoint once that destination contract is wired
   - the shared-shell auth and route foundation for the current implemented `.pen` inventory now includes `/login`, logged-in/logged-out error pages, a shared route registry, and role-based sidebar filtering/direct-link authorization; deferred shell behaviors such as account-menu actions, live site-selector behavior, and richer sidebar interaction remain separate later slices
@@ -598,7 +602,9 @@
     - invalid-name detail evidence including secretary-friendly current/suggested first-name and last-name labels, source-value preservation, suggested correction, and Aeries base-site link behavior
     - student-denial evidence for this dashboard surface
   - `1E` Frequent Fliers visibility
-    - runtime evidence of threshold/lookback behavior
+    - runtime evidence of threshold/lookback behavior, including immediate table refresh when threshold, metric, or lookback dropdowns change
+    - evidence that the filter bar has no `Apply` button, renders the fixed operator as plain inline `≥`, and does not box the operator like an interactive control
+    - DEV/mock evidence that representative threshold, metric, and lookback combinations produce visibly different table data
     - site-scope evidence for Device Wranglers and Site Admins
     - aggregation evidence for student, device, and ticket context
   - `1F` room-move draft planning and validation surface without execution
@@ -637,6 +643,8 @@
     - `P1-1E-002` Device Wrangler Site Scope
     - `P1-1E-003` Student Device Ticket Aggregation
     - `P1-1E-004` Frequent Fliers Stays On Dedicated Screen
+    - `P1-1E-005` Frequent Fliers Filters Auto-Apply Without Apply Button
+    - `P1-1E-006` Frequent Fliers Mock Views Differ Across Supported Dropdown Combinations
   - `1F` room-move draft planning and validation without execution
     - `P1-1F-001` Site User Saves Room-Move Draft
     - `P1-1F-002` IT Creates District-Wide Room-Move Draft
@@ -648,7 +656,7 @@
   - `1B`: trigger rollback if scope leaks occur, required review-only queue rows are missing, or write controls appear in a Phase 1 review-only surface.
   - `1C`: trigger rollback if the phone directory stops reflecting synced provider data, cross-site scope is wrong, or CSV/manual behavior reappears as the effective source.
   - `1D`: trigger rollback if invalid-name rows are scoped incorrectly, suggested correction or Aeries-link behavior is wrong, or students can reach the surface.
-  - `1E`: trigger rollback if Frequent Fliers threshold/lookback behavior is wrong, site scope leaks, or student/device/ticket aggregation is materially inaccurate.
+  - `1E`: trigger rollback if Frequent Fliers threshold/lookback behavior is wrong, filter changes require a stale manual Apply path, site scope leaks, or student/device/ticket aggregation is materially inaccurate.
   - `1F`: trigger rollback if room-move draft validation causes execution side effects, district/site draft scope is wrong, or saved draft behavior is unreliable.
 - Rollback references for this phase:
   - `1A`: disable the current ingest/projection revision, rebuild the canonical read model from the last known-good source snapshot, and republish projections before reopening operator use.
@@ -849,6 +857,8 @@
     - single-move warnings belong in right-drawer details
     - primary-room conflicts in the right drawer must identify the destination room, the active primary room owner, the reason the primary phone assignment is left unchanged, and the expected automation outcome of adding the moving user to the destination room shared line group
     - if a primary-room conflict cannot be planned or verified as shared-line-group automation, the drawer must show the manual owner, failure reason, resolution steps, and linked external systems instead of a terse `Primary conflict` or `Manual ticket` label
+    - right-drawer footer action buttons should use the drawer content width intentionally; multiple actions should distribute or size as a coherent shared drawer footer primitive rather than leaving a large blank region to the right
+    - Room Moves summary/info boxes must follow the shared actionable info-box primitive. `Draft Moves`, `Warnings`, `Immediate`, and `Batch Cutovers` should each lead to a clear action, filter, navigation target, drawer, or operator decision; if any box cannot support that outcome, reassess whether it belongs on the page
     - bulk-draft warnings belong in a top warning bar above the bulk table, and row-level warnings should render as person-specific bullets so the affected employee is visible before the operator scans the table
     - the main Move Set Review table shows both persona-visible single moves and persona-visible scheduled bulk moves; bulk rows use `Bulk Move` as the name value, include an Author column immediately before State, and include a read-only Scheduled column immediately after State showing the scheduled cutover timestamp or `None`
     - IT Admin can open any Room Moves draft that is visible in the review table, even when another operator authored the draft
