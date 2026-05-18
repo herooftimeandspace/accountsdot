@@ -9,13 +9,14 @@ Room moves model room, phone, and shared-line-group workflow decisions in DEV be
 - Page component: `frontend/src/pages/RoomMovesPage.jsx`
 - App dispatch: `frontend/src/app.jsx` renders `RoomMovesPage` for `room-moves` and `room-moves-bulk-draft` route kinds.
 
-`RoomMovesPage` loads either `/api/v1/dev/pages/room-moves` or `/api/v1/dev/pages/room-moves/bulk-draft`. The same component owns the single-move drawer, bulk draft table, schedule/apply transitions, delete, and row cancel behavior.
+`RoomMovesPage` loads either `/api/v1/dev/pages/room-moves` or `/api/v1/dev/pages/room-moves/bulk-draft`. The same component owns the single-move drawer, bulk draft table, schedule/apply transitions for bulk drafts, delete, and row cancel behavior.
 
 Key frontend helpers:
 
 - `loadPage` fetches the page payload and handles `401` / `403` by delegating to app-level auth handlers.
 - `createDraft` posts a `roomMoveDraftRequest` and navigates to `/room-moves/bulk-draft?draft_id={id}` for bulk flows.
-- `SingleMoveDrawer.saveDraft` posts a single-row draft, then optionally posts `/{draft_id}/schedule` or `/{draft_id}/apply`.
+- `SingleMoveDrawer.saveDraft` posts a new single-row draft or puts an existing selected row back to `PUT /api/v1/dev/room-moves/drafts/{id}` before optionally posting `/{draft_id}/apply`.
+- `frontend/src/pages/roomMovesModel.js` owns drawer-visible same-room validation, default destination behavior, action labels, and close-state helpers so tests can cover the runtime contract without depending on the generated `.pen` artboard.
 - `saveBulkDraft` updates an existing bulk draft through `PUT /api/v1/dev/room-moves/drafts/{id}`.
 - `transitionBulkDraft` calls `POST /api/v1/dev/room-moves/drafts/{id}/schedule` or `/apply`.
 - `deleteBulkDraft` calls `DELETE /api/v1/dev/room-moves/drafts/{id}`.
@@ -123,7 +124,9 @@ Successful mutations return `roomMoveDraftResponse`:
 
 Bulk draft row actions have persisted room-clearing semantics. `change` is the default and preserves the person's current-room context while planning a destination. `add` represents a person who should be added to the selected destination room without a prior room association in this draft, so the saved payload returns `current_room_id: "none"` and a blank `current_room`. `removal` represents removing the person from room phones, shared line groups, and call queues at the site, so the saved payload always returns `destination_room_id: "none"` and `destination_room: "None"` even if the browser submitted an older destination room value. Removal rows with an existing current room also return a person-specific warning such as `Destination room for Morgan Lee is None; phone and room assignments will be removed.` and add that exact warning to the draft-level `warnings` array.
 
-Repeated-person draft rows are normalized as one planning group after the row-level action rules run. `normalizeRoomMoveRows` keeps every row for the same person, then `applyRepeatedUserRoomMovePlanning` enforces the Phase 3 rule that only one destination may own the primary desk-phone assignment. Rows with `destination_role: "secondary"`, `destination_role: "tertiary"`, or `destination_role: "member"` become shared-line-group-only outcomes and do not overwrite existing primary phone owners. Rows with common-area/CAP destination fixtures keep that common-area coverage active unless the row is the single resolved primary destination. If the browser or future live planner sends multiple primary rows, or sends multiple repeated rows without any primary role, the mock API returns actionable warnings and holds primary phone assignment so the operator can choose a deterministic primary room before execution.
+Same-room moves are rejected before persistence. The drawer keeps the documented same-site default of the person's current room when that room is available, compares the selected destination to the person's current site and current room by stable ids, disables the current room option when it is available, and shows person-specific validation copy such as `Jamie Reed is already in C-118. Choose a different destination room.` before a save or apply request is sent. Site-rollover roster drafts are the exception to that default: their preloaded rows persist `None` as the destination room until the operator selects the actual future room, so the initial draft does not store no-op same-room rows. Untouched roster `None` rows are neutral placeholders, not removal rows; they keep the current phone outcome during normalization and are rejected by `validateRoomMoveRowsForTransition` before schedule/apply until the operator selects a destination room or an explicit removal action. The DEV API repeats the same stable-id validation in `normalizeRoomMoveRows` for create and update requests and in `validateRoomMoveRowsForTransition` before schedule/apply transitions, so manually constructed payloads cannot persist or execute a no-op room move.
+
+Repeated-person draft rows are normalized as one planning group after the row-level action rules and same-room guard run. `normalizeRoomMoveRows` keeps every row for the same person, then `applyRepeatedUserRoomMovePlanning` enforces the Phase 3 rule that only one destination may own the primary desk-phone assignment. Rows with `destination_role: "secondary"`, `destination_role: "tertiary"`, or `destination_role: "member"` become shared-line-group-only outcomes and do not overwrite existing primary phone owners. Rows with common-area/CAP destination fixtures keep that common-area coverage active unless the row is the single resolved primary destination. If the browser or future live planner sends multiple primary rows, or sends multiple repeated rows without any primary role, the mock API returns actionable warnings and holds primary phone assignment so the operator can choose a deterministic primary room before execution.
 
 ## Authorization And Persona Behavior
 
@@ -140,6 +143,8 @@ The mutation boundary is the in-memory `devRoomMoveStore` in `internal/web/dev_r
 Mutation effects are DEV-only:
 
 - Create/update changes an in-memory draft.
+- Updating an existing seeded single-move row creates an in-memory draft with that same draft id, preserves the original scoped site on partial updates, and suppresses the seed row, so the review table shows one edited row rather than the original row plus a duplicate.
+- Opening the seeded bulk draft caches its rows for the bulk editor without changing the review table's scheduled seed status or scheduled timestamp.
 - Cancel marks pending drafts in `canceled` and removes them from review rows.
 - Schedule sets draft status to `scheduled`.
 - Apply records the draft as completed and creates a completed-job record.
@@ -155,6 +160,7 @@ Relevant tests live in `internal/web/dev_frontend_test.go`:
 - `room moves page scopes site data and admin controls by persona`
 - `room moves bulk drafts support roster and manual list lifecycle`
 - `room moves cancel pending drafts and schedule IT-only completed-job reversals`
+- `frontend/src/pages/roomMovesModel.test.mjs` covers drawer-visible same-room validation, seeded-row scope preservation for draft updates, `Save and Apply` action labeling, removal of the side-drawer `Schedule` action, safe defaults, and close-state behavior.
 
 The bulk-draft lifecycle test also covers the repeated-user planning contract: a same-person three-room group with primary, secondary, and tertiary rows; CAP-preserving secondary behavior; SLG-only source fixture availability; and ambiguous multi-primary warnings.
 
