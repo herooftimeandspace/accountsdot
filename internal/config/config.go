@@ -3,26 +3,72 @@ package config
 import (
 	"os"
 	"strconv"
+
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/auth"
 )
 
 type Config struct {
-	AppEnv            string
-	AppPort           string
-	ZoomSLGMaxMembers int
-	ReplayEventLimit  int
+	AppEnv               string
+	AppPort              string
+	ZoomSLGMaxMembers    int
+	ReplayEventLimit     int
+	ProductionAuthPolicy auth.Policy
 }
 
-// Load documents the data flow for internal/config/config.go. Startup and configuration tests reach this function; debug it by checking environment variables, defaults, and fallback parsing. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Load builds startup configuration for the Go service. The application
+// entrypoint and config tests call it before any handler or provider setup; it
+// reads environment variables, applies safe defaults, and returns parsed
+// production-auth policy data without opening files, contacting Google, or
+// validating secrets so startup can fail deterministically in later wiring.
 func Load() (Config, error) {
+	authPolicy, err := loadProductionAuthPolicy()
+	if err != nil {
+		return Config{}, err
+	}
 	return Config{
-		AppEnv:            getEnv("APP_ENV", "development"),
-		AppPort:           getEnv("APP_PORT", "8080"),
-		ZoomSLGMaxMembers: getEnvInt("ZOOM_SLG_MAX_MEMBERS", 10),
-		ReplayEventLimit:  getEnvInt("REPLAY_EVENT_LIMIT", 100),
+		AppEnv:               getEnv("APP_ENV", "development"),
+		AppPort:              getEnv("APP_PORT", "8080"),
+		ZoomSLGMaxMembers:    getEnvInt("ZOOM_SLG_MAX_MEMBERS", 10),
+		ReplayEventLimit:     getEnvInt("REPLAY_EVENT_LIMIT", 100),
+		ProductionAuthPolicy: authPolicy,
 	}, nil
 }
 
-// getEnv documents the data flow for internal/config/config.go. Startup and configuration tests reach this function; debug it by checking environment variables, defaults, and fallback parsing. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// loadProductionAuthPolicy parses the checked-in production-auth environment
+// contract. It creates only configuration data: future SAML middleware will use
+// the SAML endpoints and mapping tables to validate Google assertions and apply
+// role/site authorization after the domain gate.
+func loadProductionAuthPolicy() (auth.Policy, error) {
+	policy := auth.DefaultPolicy()
+	policy.AllowedEmailDomains = auth.ParseDomainList(getEnv("AUTH_ALLOWED_EMAIL_DOMAINS", auth.DefaultAllowedEmailDomains))
+	policy.DeniedEmailDomains = auth.ParseDomainList(getEnv("AUTH_DENIED_EMAIL_DOMAINS", auth.DefaultDeniedEmailDomains))
+	policy.SAML = auth.SAMLConfig{
+		EntityID:       getEnv("GOOGLE_SAML_ENTITY_ID", ""),
+		ACSURL:         getEnv("GOOGLE_SAML_ACS_URL", ""),
+		IDPMetadataURL: getEnv("GOOGLE_SAML_IDP_METADATA_URL", ""),
+		IDPSSOURL:      getEnv("GOOGLE_SAML_IDP_SSO_URL", ""),
+		IDPCertFile:    getEnv("GOOGLE_SAML_IDP_CERT_FILE", ""),
+	}
+
+	var err error
+	policy.GroupRoleMappings, err = auth.ParseGroupRoleMappings(getEnv("GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON", ""))
+	if err != nil {
+		return auth.Policy{}, err
+	}
+	policy.AttributeRoleMappings, err = auth.ParseAttributeRoleMappings(getEnv("GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON", ""))
+	if err != nil {
+		return auth.Policy{}, err
+	}
+	policy.SiteScopeMappings, err = auth.ParseSiteScopeMappings(getEnv("GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON", ""))
+	if err != nil {
+		return auth.Policy{}, err
+	}
+	return policy, nil
+}
+
+// getEnv reads one environment variable and applies the caller's fallback when
+// unset. Config loading uses it for non-secret labels and paths as well as
+// secret-bearing settings that are never logged or persisted by this package.
 func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -30,7 +76,9 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-// getEnvInt documents the data flow for internal/config/config.go. Startup and configuration tests reach this function; debug it by checking environment variables, defaults, and fallback parsing. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// getEnvInt parses integer environment variables used by startup configuration.
+// Invalid values fall back to the documented default so local runs do not fail
+// from an unrelated typo in an optional tuning variable.
 func getEnvInt(key string, fallback int) int {
 	value := os.Getenv(key)
 	if value == "" {

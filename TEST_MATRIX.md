@@ -81,8 +81,10 @@ This document tracks the named mock scenarios and verification coverage required
   | --- | --- | --- | --- |
   | `P0-0C-001` | Staff Domain Allowlist Gate | Verify allowed staff-domain identities can reach the app and unauthorized domains are blocked before role logic. | Confirm staging auth gate behavior matches dev for staff domains. |
   | `P0-0C-002` | Student Domain Deny Gate | Verify `@stu.wusd.org` identities are denied access even when otherwise authenticated. | Confirm explicit student denial in staging. |
-  | `P0-0C-003` | Breakglass Access Bypass | Verify local breakglass accounts can access the system when third-party auth is unavailable. | Confirm staging breakglass path is operational and auditable. |
-  | `P0-0C-004` | Global Pause Stops New Claims | Trigger global pause and verify workers stop claiming new jobs while UI and diagnostics remain online. | Confirm staging pause can be used as an emergency cutoff without requiring deployment rollback. |
+  | `P0-0C-003` | Google Group And Attribute Role Mapping | Verify a staff-domain identity receives only roles derived from current Google group and SAML attribute inputs, and that a known staff identity with no role mapping receives access denied instead of partial content. | Confirm staging uses the approved Google Workspace groups/attributes and denies same-URL access for users without matching role assignments. |
+  | `P0-0C-004` | Site Scope Recalculation | Verify site scope is recalculated from current group/attribute mapping input when a user's group or site assignment changes. | Confirm staging reflects changed Google group/site assignments without stale cross-site access. |
+  | `P0-0C-005` | Breakglass Access Bypass | Verify local breakglass accounts can access the system when third-party auth is unavailable. | Confirm staging breakglass path is operational and auditable. |
+  | `P0-0C-006` | Global Pause Stops New Claims | Trigger global pause and verify workers stop claiming new jobs while UI and diagnostics remain online. | Confirm staging pause can be used as an emergency cutoff without requiring deployment rollback. |
 - `0D` provider configuration, read-only connectivity, and mock scaffolding
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
