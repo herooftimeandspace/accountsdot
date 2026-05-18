@@ -23,7 +23,11 @@ type devSessionResponse struct {
 	DefaultSiteName string `json:"default_site_name"`
 	CurrentSiteID   string `json:"current_site_id"`
 	CurrentSiteName string `json:"current_site_name"`
-	CurrentPersona  *struct {
+	VisibleSites    []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"visible_sites"`
+	CurrentPersona *struct {
 		ID string `json:"id"`
 	} `json:"current_persona,omitempty"`
 	LandingPath   string   `json:"landing_path"`
@@ -96,6 +100,18 @@ type featureFlagResponse struct {
 		Enabled    bool   `json:"enabled"`
 		ReadOnly   bool   `json:"read_only"`
 	} `json:"active_indicators"`
+}
+
+type myProfileResponse struct {
+	PageID  string `json:"page_id"`
+	Profile struct {
+		LegalName          string `json:"legal_name"`
+		PreferredFirstName string `json:"preferred_first_name"`
+		PreferredLastName  string `json:"preferred_last_name"`
+		DisplayName        string `json:"display_name"`
+		Pronouns           string `json:"pronouns"`
+		Editable           bool   `json:"editable"`
+	} `json:"profile"`
 }
 
 type dataQualityResponse struct {
@@ -360,6 +376,9 @@ type roomMovesResponse struct {
 			MoveType          string   `json:"move_type"`
 			Person            string   `json:"person"`
 			CurrentSiteID     string   `json:"current_site_id"`
+			DestinationSiteID string   `json:"destination_site_id"`
+			DestinationRoomID string   `json:"destination_room_id"`
+			DestinationRoom   string   `json:"destination_room"`
 			Phone             string   `json:"phone"`
 			Author            string   `json:"author"`
 			State             string   `json:"state"`
@@ -629,6 +648,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	web.ResetDevFeatureFlagStateForTest()
 	t.Cleanup(web.ResetDevFeatureFlagStateForTest)
+	web.ResetDevDepartingSeniorsStateForTest()
+	t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
 
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
@@ -672,6 +693,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if sessionPayload.DefaultSiteID != "clover-hs" || sessionPayload.CurrentSiteID != "clover-hs" {
 			t.Fatalf("expected clover-hs site context, got default=%q current=%q", sessionPayload.DefaultSiteID, sessionPayload.CurrentSiteID)
+		}
+		if len(sessionPayload.VisibleSites) < 6 {
+			t.Fatalf("expected district-wide visible sites in session payload, got %#v", sessionPayload.VisibleSites)
 		}
 		if !slices.Contains(sessionPayload.AllowedRoutes, "/data-quality") {
 			t.Fatalf("expected /data-quality in allowed routes: %#v", sessionPayload.AllowedRoutes)
@@ -1551,6 +1575,11 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	})
 
 	t.Run("departing seniors page is scoped to it and device wranglers", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.May, 18, 12, 0, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -1610,16 +1639,31 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			}
 			if len(row.OutstandingDevices) > 0 {
 				foundDevice = true
-				if row.OutstandingDevices[0].AssetID == "" || row.OutstandingDevices[0].Serial == "" {
-					t.Fatalf("device row missing incidentiq identifiers: %#v", row.OutstandingDevices[0])
+				if row.OutstandingDevices[0].Serial == "" {
+					t.Fatalf("device row missing serial: %#v", row.OutstandingDevices[0])
 				}
-				if row.OutstandingDevices[0].Domain == "" || !strings.Contains(row.OutstandingDevices[0].AssetURL, "/agent/assets/") {
-					t.Fatalf("device row missing incidentiq link data: %#v", row.OutstandingDevices[0])
+				if row.OutstandingDevices[0].AssetID != "" && (row.OutstandingDevices[0].Domain == "" || !strings.Contains(row.OutstandingDevices[0].AssetURL, "/agent/assets/")) {
+					t.Fatalf("device row missing incidentiq link data for real asset id: %#v", row.OutstandingDevices[0])
 				}
 			}
 		}
 		if !foundDevice {
 			t.Fatal("expected at least one senior with outstanding IncidentIQ device data")
+		}
+		foundPlainDevice := false
+		for _, row := range itPayload.Page.Rows {
+			if row.ID == "senior-sam-rivera" {
+				if len(row.OutstandingDevices) != 1 || row.OutstandingDevices[0].AssetID != "" || row.OutstandingDevices[0].AssetURL != "" {
+					t.Fatalf("plain device row = %#v, want serial without invented IncidentIQ link", row.OutstandingDevices)
+				}
+				foundPlainDevice = true
+			}
+			if row.Status == "Ready" {
+				t.Fatalf("current senior row %s status = Ready, want senior grace-period or device-return state before cutoff", row.ID)
+			}
+		}
+		if !foundPlainDevice {
+			t.Fatal("expected current senior fixture without a real IncidentIQ asset link")
 		}
 
 		previousYear := itPayload.Page.SchoolYearOptions[1]
@@ -1636,6 +1680,42 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if len(previousPayload.Page.Rows) == 0 {
 			t.Fatal("expected retained previous senior rows")
+		}
+		rowsByID := map[string]struct {
+			EndDateSource string `json:"end_date_source"`
+			Status        string `json:"status"`
+			Deprovisioned bool   `json:"deprovisioned"`
+		}{}
+		for _, row := range previousPayload.Page.Rows {
+			rowsByID[row.ID] = struct {
+				EndDateSource string `json:"end_date_source"`
+				Status        string `json:"status"`
+				Deprovisioned bool   `json:"deprovisioned"`
+			}{EndDateSource: row.EndDateSource, Status: row.Status, Deprovisioned: row.Deprovisioned}
+		}
+		if got, ok := rowsByID["senior-ava-rodriguez-2025"]; !ok || got.Status != "Device return required" || !got.Deprovisioned {
+			t.Fatalf("previous device-return fixture = %#v, ok=%v; want deprovisioned device-return row", got, ok)
+		}
+		if got, ok := rowsByID["senior-emma-nguyen-2025-override"]; !ok || got.EndDateSource != "Local override" || got.Status != "Access retained by local override" || got.Deprovisioned {
+			t.Fatalf("future override fixture = %#v, ok=%v; want visible intentionally active local override", got, ok)
+		}
+		if _, ok := rowsByID["senior-ben-owens-2025-expired-override"]; ok {
+			t.Fatal("expired local override without devices should not appear in retained previous-year rows")
+		}
+
+		cleanCompletedYear := itPayload.Page.SchoolYearOptions[2]
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year="+url.QueryEscape(cleanCompletedYear.ID), nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("clean previous-year departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		cleanCompletedPayload := decodeJSON[departingSeniorsResponse](t, rec)
+		for _, row := range cleanCompletedPayload.Page.Rows {
+			if row.ID == "senior-noah-kim-2024" {
+				t.Fatal("clean completed Noah Kim fixture should be hidden from retained-year rows")
+			}
 		}
 
 		expiredYear := "2020-2021"
@@ -1660,9 +1740,21 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !slices.Contains(deviceSession.AllowedRoutes, "/departing-seniors") {
 			t.Fatalf("device wrangler allowed routes missing departing seniors: %#v", deviceSession.AllowedRoutes)
 		}
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors", nil)
+		req.AddCookie(deviceCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("device wrangler departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
 	})
 
 	t.Run("departing seniors updates end dates and removes rows only after deprovision without devices", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.May, 18, 12, 0, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
 		itCookie := loginAsPersona(t, handler, "it_admin")
 
 		updateBody, err := json.Marshal(map[string]string{"end_date": "2026-08-31"})
@@ -1741,6 +1833,162 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("invalid departing senior date returned %d, want 400", rec.Code)
+		}
+
+		hrCookie := loginAsPersona(t, handler, "human_resources")
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/deprovision", nil)
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("hr departing senior mutation returned %d, want 403", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/deprovision", nil)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("anonymous departing senior mutation returned %d, want 401", rec.Code)
+		}
+	})
+
+	t.Run("departing seniors retains current rows with expired overrides until cutoff", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.May, 18, 12, 0, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		updateBody, err := json.Marshal(map[string]string{"end_date": "2026-01-15"})
+		if err != nil {
+			t.Fatalf("marshal expired current-year override: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/departing-seniors/records/senior-maya-chen/end-date", bytes.NewReader(updateBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expired current-year override returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year=2025-2026", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("current-year departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		found := false
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-maya-chen" {
+				found = true
+				if row.Deprovisioned || row.Status != "Suppressed by senior exception" {
+					t.Fatalf("expired current-year override row = %#v, want active senior exception row", row)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("expired current-year override hid Maya Chen before cutoff")
+		}
+	})
+
+	t.Run("departing seniors clears fixture backed local overrides", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.May, 18, 12, 0, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		clearBody, err := json.Marshal(map[string]string{"end_date": ""})
+		if err != nil {
+			t.Fatalf("marshal clear fixture override: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/dev/departing-seniors/records/senior-emma-nguyen-2025-override/end-date", bytes.NewReader(clearBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("clear fixture override returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		updated := decodeJSON[struct {
+			Row struct {
+				EndDateSource string `json:"end_date_source"`
+				Deprovisioned bool   `json:"deprovisioned"`
+			} `json:"row"`
+		}](t, rec)
+		if updated.Row.EndDateSource == "Local override" || !updated.Row.Deprovisioned {
+			t.Fatalf("cleared fixture override row = %#v, want default-source deprovisioned row", updated.Row)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year=2024-2025", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("previous-year departing seniors after clear returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-emma-nguyen-2025-override" {
+				t.Fatal("cleared fixture-backed local override remained visible as retained access")
+			}
+		}
+	})
+
+	t.Run("departing seniors evaluates cutoff in district timezone", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.September, 1, 6, 30, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year=2025-2026", nil)
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("district-time cutoff departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		found := false
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-maya-chen" {
+				found = true
+				if row.Deprovisioned || row.Status != "Suppressed by senior exception" {
+					t.Fatalf("district-time cutoff row = %#v, want active until local cutoff day ends", row)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("Maya Chen disappeared while district timezone was still on cutoff day")
+		}
+	})
+
+	t.Run("departing seniors auto-deprovisions after senior cutoff", func(t *testing.T) {
+		web.ResetDevDepartingSeniorsStateForTest()
+		t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+		cleanupClock := web.SetDevDepartingSeniorsClockForTest(time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC))
+		t.Cleanup(cleanupClock)
+
+		itCookie := loginAsPersona(t, handler, "it_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/departing-seniors?school_year=2025-2026", nil)
+		req.AddCookie(itCookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("post-cutoff departing seniors returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[departingSeniorsResponse](t, rec)
+		for _, row := range payload.Page.Rows {
+			if row.ID == "senior-maya-chen" || row.ID == "senior-jordan-miles" {
+				t.Fatalf("post-cutoff clean senior %s should be hidden after auto-deprovision", row.ID)
+			}
+			if len(row.OutstandingDevices) > 0 && (!row.Deprovisioned || row.Status != "Device return required") {
+				t.Fatalf("post-cutoff device row = %#v, want deprovisioned device-return work", row)
+			}
 		}
 	})
 
@@ -2561,15 +2809,34 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		req.AddCookie(secretaryCookie)
 		rec = httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("site-scoped single draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("site-scoped single draft with default current room returned %d, want 400: %s", rec.Code, rec.Body.String())
 		}
-		created := decodeJSON[roomMoveDraftTestResponse](t, rec)
-		if created.Draft.CanManageDistrict {
-			t.Fatal("site-scoped draft should not expose district controls")
+		if !strings.Contains(rec.Body.String(), "Morgan Lee is already in B-210") {
+			t.Fatalf("site-scoped single draft error = %s, want same-room validation for documented current-room default", rec.Body.String())
 		}
-		if len(created.Draft.Rows) != 1 || created.Draft.Rows[0].DestinationRoomID != "cla-b210" {
-			t.Fatalf("created draft rows = %#v, want current room as same-site default", created.Draft.Rows)
+
+		sameRoomBody, err := json.Marshal(map[string]any{
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{{
+				"person_id":           "morgan-lee",
+				"destination_site_id": "clover-hs",
+				"destination_room_id": "cla-b210",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal same-room draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(sameRoomBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("same-room draft returned %d, want 400: %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "Morgan Lee is already in B-210") {
+			t.Fatalf("same-room draft error = %s, want person and current-room validation text", rec.Body.String())
 		}
 
 		primaryConflictBody, err := json.Marshal(map[string]any{
@@ -2688,6 +2955,59 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !foundJamieReed {
 			t.Fatalf("it room moves rows = %#v, want Jamie Reed seed row", itRoomMoves.Page.Rows)
 		}
+		updateJamieBody, err := json.Marshal(map[string]any{
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{{
+				"person_id":           "jamie-reed",
+				"destination_site_id": "desert-view",
+				"destination_room_id": "dve-c122",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal Jamie Reed update: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/room-moves/drafts/single-jamie-reed", bytes.NewReader(updateJamieBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Jamie Reed existing-row update returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		updatedJamie := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(updatedJamie.Draft.Rows) != 1 || updatedJamie.Draft.Rows[0].DestinationRoomID != "dve-c122" {
+			t.Fatalf("updated Jamie Reed draft = %#v, want C-122 destination on existing draft id", updatedJamie.Draft)
+		}
+		if updatedJamie.Draft.ScopeSiteID != "desert-view" {
+			t.Fatalf("updated Jamie Reed scope = %q, want original desert-view scope", updatedJamie.Draft.ScopeSiteID)
+		}
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it room moves after Jamie update returned %d, want 200", rec.Code)
+		}
+		afterJamieUpdate := decodeJSON[roomMovesResponse](t, rec)
+		jamieRows := 0
+		for _, row := range afterJamieUpdate.Page.Rows {
+			if row.DraftID == "single-jamie-reed" {
+				jamieRows++
+				if row.DestinationRoomID != "dve-c122" || row.DestinationRoom != "C-122" {
+					t.Fatalf("Jamie Reed updated row = %#v, want C-122 destination", row)
+				}
+			}
+		}
+		if jamieRows != 1 {
+			t.Fatalf("found %d Jamie Reed rows after edit, want one existing row updated", jamieRows)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/single-jamie-reed/apply", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Jamie Reed existing-row apply returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id=rm-draft-103", nil)
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
@@ -2716,6 +3036,26 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if len(seedBulkDraft.Page.Draft.Warnings) == 0 || seedBulkDraft.Page.Draft.Warnings[0] != expectedRemovalWarning {
 			t.Fatalf("seeded bulk warnings = %#v, want person-specific warning bullet", seedBulkDraft.Page.Draft.Warnings)
+		}
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it room moves after seeded bulk open returned %d, want 200", rec.Code)
+		}
+		afterSeedBulkOpen := decodeJSON[roomMovesResponse](t, rec)
+		seedBulkRows := 0
+		for _, row := range afterSeedBulkOpen.Page.Rows {
+			if row.DraftID == "rm-draft-103" {
+				seedBulkRows++
+				if row.Person != "Bulk Move" || row.State != "Scheduled" || row.ScheduledFor == "" || row.Warning == "" {
+					t.Fatalf("seeded bulk row after draft cache = %#v, want scheduled seed status preserved", row)
+				}
+			}
+		}
+		if seedBulkRows != 1 {
+			t.Fatalf("found %d seeded bulk rows after draft cache, want one preserved review row", seedBulkRows)
 		}
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/cancel", nil)
 		req.AddCookie(itCookie)
@@ -2785,6 +3125,23 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		roster := decodeJSON[roomMoveDraftTestResponse](t, rec)
 		if roster.Draft.Mode != "end_of_year_site_move" || len(roster.Draft.Rows) < 2 {
 			t.Fatalf("roster draft = %#v, want clover roster rows", roster.Draft)
+		}
+		placeholderRow := roster.Draft.Rows[0]
+		if placeholderRow.Action != "change" || placeholderRow.DestinationRoomID != "none" {
+			t.Fatalf("roster placeholder row = %#v, want unchanged destination placeholder", placeholderRow)
+		}
+		if placeholderRow.Phone == "Remove phone and SLGs; convert room to common area" || strings.Contains(placeholderRow.Warning, "will be removed") {
+			t.Fatalf("roster placeholder row = %#v, want neutral placeholder without removal outcome", placeholderRow)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+roster.Draft.ID+"/schedule", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("untouched roster schedule returned %d, want 400: %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "Choose a destination room") {
+			t.Fatalf("untouched roster schedule error = %s, want placeholder validation", rec.Body.String())
 		}
 
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id="+url.QueryEscape(roster.Draft.ID), nil)
@@ -2867,7 +3224,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"mode":          "manual_move_list",
 			"scope_site_id": "clover-hs",
 			"rows": []map[string]string{
-				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b210", "destination_role": "primary"},
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104", "destination_role": "primary"},
 				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "destination_role": "secondary", "action": "add"},
 				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "destination_role": "tertiary", "action": "add"},
 			},
@@ -2916,26 +3273,19 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("inferred-primary repeated-user draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("inferred-primary same-room draft returned %d, want 400: %s", rec.Code, rec.Body.String())
 		}
-		inferredPrimary := decodeJSON[roomMoveDraftTestResponse](t, rec)
-		if len(inferredPrimary.Draft.Warnings) != 0 {
-			t.Fatalf("inferred-primary repeated-user warnings = %#v, want source-room primary inference without manual-review warning", inferredPrimary.Draft.Warnings)
-		}
-		if inferredPrimary.Draft.Rows[0].DestinationRole != "primary" || inferredPrimary.Draft.Rows[0].Phone == "Review required before primary phone assignment" {
-			t.Fatalf("inferred-primary source-room row = %#v, want retained current room inferred as primary", inferredPrimary.Draft.Rows[0])
-		}
-		if inferredPrimary.Draft.Rows[1].DestinationRole != "secondary" || inferredPrimary.Draft.Rows[1].Phone != "Add to room shared line group; keep common-area phone active" {
-			t.Fatalf("inferred-primary added row = %#v, want secondary shared-line-group CAP coverage", inferredPrimary.Draft.Rows[1])
+		if !strings.Contains(rec.Body.String(), "Morgan Lee is already in B-210") {
+			t.Fatalf("inferred-primary same-room error = %s, want stable current-room validation", rec.Body.String())
 		}
 
 		ambiguousBody, err := json.Marshal(map[string]any{
 			"mode":          "manual_move_list",
 			"scope_site_id": "clover-hs",
 			"rows": []map[string]string{
-				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104", "destination_role": "primary"},
 				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "destination_role": "primary"},
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "destination_role": "primary"},
 			},
 		})
 		if err != nil {
@@ -2963,8 +3313,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"mode":          "manual_move_list",
 			"scope_site_id": "clover-hs",
 			"rows": []map[string]string{
-				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104"},
 				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204"},
 			},
 		})
 		if err != nil {
@@ -3005,8 +3355,10 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		siteAdminCookie := loginAsPersona(t, handler, "site_admin")
 
 		cancelBody, err := json.Marshal(map[string]any{
-			"mode":      "mid_year_targeted_move",
-			"person_id": "alex-ramirez",
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{
+				{"person_id": "alex-ramirez", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+			},
 		})
 		if err != nil {
 			t.Fatalf("marshal cancel draft: %v", err)
@@ -3144,6 +3496,93 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		clearCookie := findCookie(rec.Result().Cookies(), "wizard_dev_session")
 		if clearCookie == nil || clearCookie.MaxAge != -1 {
 			t.Fatalf("expected cleared session cookie, got %#v", clearCookie)
+		}
+	})
+}
+
+func TestDevMyProfileDirectEditMockState(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	t.Run("requires an authenticated DEV persona", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("anonymous profile returned %d, want 401", rec.Code)
+		}
+	})
+
+	t.Run("eligible persona can save preferred display name and pronouns", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "faculty_staff")
+
+		getReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
+		getReq.AddCookie(cookie)
+		getRec := httptest.NewRecorder()
+		handler.ServeHTTP(getRec, getReq)
+		if getRec.Code != http.StatusOK {
+			t.Fatalf("profile get returned %d, want 200", getRec.Code)
+		}
+		initial := decodeJSON[myProfileResponse](t, getRec)
+		if initial.PageID != "my-profile" || !initial.Profile.Editable {
+			t.Fatalf("unexpected initial profile payload: %#v", initial)
+		}
+		if initial.Profile.DisplayName != "Avery Shah" {
+			t.Fatalf("display name = %q, want Avery Shah", initial.Profile.DisplayName)
+		}
+
+		body, err := json.Marshal(map[string]string{
+			"preferred_first_name": "  Ave ",
+			"preferred_last_name":  " Shah-Lewis ",
+			"pronouns":             " They / Them ",
+		})
+		if err != nil {
+			t.Fatalf("marshal profile update: %v", err)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/my-profile", bytes.NewReader(body))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("profile update returned %d, want 200", updateRec.Code)
+		}
+		updated := decodeJSON[myProfileResponse](t, updateRec)
+		if updated.Profile.DisplayName != "Ave Shah-Lewis" {
+			t.Fatalf("display name = %q, want Ave Shah-Lewis", updated.Profile.DisplayName)
+		}
+		if updated.Profile.Pronouns != "They / Them" {
+			t.Fatalf("pronouns = %q, want They / Them", updated.Profile.Pronouns)
+		}
+
+		verifyReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
+		verifyReq.AddCookie(cookie)
+		verifyRec := httptest.NewRecorder()
+		handler.ServeHTTP(verifyRec, verifyReq)
+		if verifyRec.Code != http.StatusOK {
+			t.Fatalf("profile verify returned %d, want 200", verifyRec.Code)
+		}
+		verified := decodeJSON[myProfileResponse](t, verifyRec)
+		if verified.Profile.DisplayName != "Ave Shah-Lewis" {
+			t.Fatalf("persisted display name = %q, want Ave Shah-Lewis", verified.Profile.DisplayName)
+		}
+		if verified.Profile.LegalName != "Avery Shah" {
+			t.Fatalf("legal name changed to %q, want source legal name Avery Shah", verified.Profile.LegalName)
+		}
+	})
+
+	t.Run("validation rejects missing preferred name fields", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "faculty_staff")
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/my-profile", strings.NewReader(`{"preferred_first_name":"","preferred_last_name":"","pronouns":""}`))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid profile update returned %d, want 400", updateRec.Code)
+		}
+		if !strings.Contains(updateRec.Body.String(), "preferred_first_name") {
+			t.Fatalf("validation body missing field errors: %s", updateRec.Body.String())
 		}
 	})
 }

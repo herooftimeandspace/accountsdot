@@ -836,6 +836,8 @@
     - `None` appears first in every destination-room dropdown
     - room dropdowns must deduplicate provider or DEV mock room options by selectable room value, with duplicate `None` entries collapsed into the single first option
     - same-site moves default destination room to the person’s current room when available
+    - site-rollover roster drafts are the exception to the same-site current-room default: preloaded roster rows persist destination room as `None` until the operator selects the actual destination room, so the initial draft never stores a no-op same-room move
+    - manually submitted or edited draft rows must reject no-op same-room moves by stable current-room and destination-room id before draft persistence, scheduling, or apply
     - inter-site moves default destination room to `None`
     - if a person is moving sites, the destination room should be set to none
     - bulk-draft `add` rows represent adding a person to the selected destination without a prior room association, so current-room state must be blank/none after save and reload

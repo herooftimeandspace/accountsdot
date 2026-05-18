@@ -6,6 +6,13 @@ import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import {
+  defaultDestinationRoom,
+  roomMoveSingleDraftRequest,
+  roomMoveDrawerClosedState,
+  roomMoveMatchesCurrentRoom,
+  roomMoveSameRoomMessage,
+} from "./roomMovesModel";
+import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
@@ -174,13 +181,6 @@ function findPersonFromAutocompleteValue(people, value) {
     ];
     return exactValues.some((candidate) => String(candidate || "").toLowerCase() === normalized);
   }) || null;
-}
-
-function defaultDestinationRoom(person, destinationSiteId) {
-  if (!person) {
-    return "none";
-  }
-  return destinationSiteId === person.site_id ? person.current_room_id || "none" : "none";
 }
 
 /**
@@ -354,31 +354,28 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
       setError("Select a person before saving the draft.");
       return;
     }
+    if (roomMoveMatchesCurrentRoom(selectedPerson, destinationSiteId, destinationRoomId)) {
+      setError(roomMoveSameRoomMessage(selectedPerson));
+      return;
+    }
     setSaving(true);
     setError("");
     try {
+      const draftEndpoint = row?.draft_id
+        ? `${ROOM_MOVES_DRAFTS_ENDPOINT}/${row.draft_id}`
+        : ROOM_MOVES_DRAFTS_ENDPOINT;
       const response = await readJSON(
-        await fetch(ROOM_MOVES_DRAFTS_ENDPOINT, {
-          method: "POST",
+        await fetch(draftEndpoint, {
+          method: row?.draft_id ? "PUT" : "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({
-            mode: "mid_year_targeted_move",
-            person_id: selectedPerson.id,
-            rows: [
-              {
-                person_id: selectedPerson.id,
-                destination_site_id: destinationSiteId,
-                destination_room_id: destinationRoomId,
-              },
-            ],
-          }),
+          body: JSON.stringify(roomMoveSingleDraftRequest(row, selectedPerson, destinationSiteId, destinationRoomId)),
         })
       );
       setCreatedDraftId(response.draft.id);
-      if (action === "schedule" || action === "apply") {
+      if (action === "apply") {
         const transition = await readJSON(
-          await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${response.draft.id}/${action}`, {
+          await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${response.draft.id}/apply`, {
             method: "POST",
             credentials: "same-origin",
             headers: { Accept: "application/json" },
@@ -486,15 +483,20 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
             onChange={(event) => setDestinationRoomId(event.target.value)}
           >
             {availableRooms.map((room) => (
-              <option key={`${room.site_id}-${room.id}`} value={room.id}>{room.label}</option>
+              <option
+                key={`${room.site_id}-${room.id}`}
+                value={room.id}
+                disabled={roomMoveMatchesCurrentRoom(selectedPerson, destinationSiteId, room.id)}
+              >
+                {room.label}
+              </option>
             ))}
           </select>
         </label>
         {error ? <p className="room-moves-runtime__error">{error}</p> : null}
         <div className="room-moves-runtime__drawer-actions">
           <button type="button" onClick={() => saveDraft("save")} disabled={saving}>Save Draft</button>
-          <button type="button" onClick={() => saveDraft("schedule")} disabled={saving}>Schedule</button>
-          <button type="button" onClick={() => saveDraft("apply")} disabled={saving}>Apply</button>
+          <button type="button" onClick={() => saveDraft("apply")} disabled={saving}>Save and Apply</button>
           <button type="button" className="room-moves-runtime__delete" onClick={cancelDraft} disabled={saving}>Cancel</button>
         </div>
       </div>
@@ -1011,12 +1013,14 @@ export function RoomMovesPage({
           sites={payload.page.sites}
           canManageDistrict={payload.page.can_manage_district}
           onClose={() => {
-            setSelectedRow(null);
-            setShowCreateDrawer(false);
+            const next = roomMoveDrawerClosedState();
+            setSelectedRow(next.selectedRow);
+            setShowCreateDrawer(next.showCreateDrawer);
           }}
           onSaved={() => {
-            setSelectedRow(null);
-            setShowCreateDrawer(false);
+            const next = roomMoveDrawerClosedState();
+            setSelectedRow(next.selectedRow);
+            setShowCreateDrawer(next.showCreateDrawer);
             refresh();
           }}
         />
