@@ -94,13 +94,14 @@ function MyProfileEditDrawer({ profile, onClose, onSave }) {
   const [state, setState] = useState("idle");
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState({});
+  const profileIdentity = `${profile?.email ?? ""}|${profile?.legal_name ?? ""}`;
 
   useEffect(() => {
     setForm(profileFormFromPayload(profile));
     setState("idle");
     setMessage("");
     setErrors({});
-  }, [profile]);
+  }, [profileIdentity]);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
