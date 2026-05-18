@@ -2,12 +2,13 @@
 
 This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `PRODUCT_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`, and `TEST_MATRIX.md`.
 
-This matrix is current DEV implementation documentation. It is not a completion certificate for the broader permissions backlog. In particular, issue #158 still needs a broader route/API inventory pass before it can close, because several implemented pages are currently static frontend-only surfaces or have frontend route-guard coverage without matching route-specific Go page APIs. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher.
+This matrix is current DEV implementation documentation. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher.
 
 ## Source Order
 
 - `PRODUCT_REQUIREMENTS.md` defines the staff-only product boundary, allowed domains, explicit student denial, same-URL access-denied requirement, lifecycle visibility rules, and HR/IT offboarding action requirements.
 - `IMPLEMENTATION_PLAN.md` defines the implementation contract, staged rollout constraints, Phase 2 live-write pilot gate, route registry, and follow-up work still required before production SAML is live.
+- `docs/route-api-authorization-inventory.md` records the route-by-route frontend, DEV API, direct-navigation, feature-flag, and static-page exception audit for issue #185.
 - `internal/auth/production.go` contains the current checked-in evaluator for verified Google identity data.
 - `internal/web` contains the DEV persona-switcher route and API authorization behavior.
 - `TEST_MATRIX.md` defines the scenarios that must be evidenced in dev and staging.
@@ -132,7 +133,7 @@ Example mapping shape:
 | `/api/v1/dev/room-moves/*` | IT Admin, Site Admin, Site Secretary according to draft scope | Mutations enforce route, site scope, and admin-only revert authority | DEV mock room-move planning only | Implemented | Room Moves mutation tests |
 | `/api/v1/dev/pages/phone-directory/by-person`, `/by-room`, `/by-department` | All logged-in personas | Requires matching route | Directory results are scope-filtered by persona/site; unknown site requests fail closed for site-scoped users | Implemented | Phone Directory tests |
 | `/api/v1/dev/feature-flags`, `/api/v1/dev/feature-flags/{key}` | IT Admin | Feature flag reads/writes are IT Admin-only | IT Admin override is read-only in target rows and is not stored as a normal editable target | Implemented | Feature flag handler and persistence tests |
-| Static/frontend-only current-slice pages | Varies by session allowed routes | Frontend route guard sends unauthorized direct navigation to login or `403` | `/dashboard/site-admin`, `/student-data-cleanup`, and `/frequent-fliers` currently have documented backend coverage exceptions where no route-specific Go page API exists | Partially implemented | Route registry and page-specific frontend tests |
+| Static/frontend-only current-slice pages | Varies by session allowed routes | Frontend route guard sends unauthorized direct navigation to login or `403` | `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/sync-transparency`, and `/admin` have documented backend coverage exceptions where no route-specific Go page API exists | Partially implemented | Route registry, page-specific frontend tests, and `docs/route-api-authorization-inventory.md` |
 
 ## Feature Flags
 
@@ -152,11 +153,11 @@ Feature flags are not an in-app permissions administration model. They let DEV v
 
 ## Known Gaps
 
-### Issue #158: Route/API Inventory Still Open
+### Issue #158: Parent Permission Work Still Open
 
-This matrix documents the currently implemented DEV behavior and the route/API coverage that was verified while building the matrix. It does not prove that #158 is fully complete.
+This matrix documents the currently implemented DEV behavior, and `docs/route-api-authorization-inventory.md` supplies the issue #185 route/API audit evidence for #158. The parent issue still should not close automatically from this matrix alone, because #158 also tracks broader permission enforcement concerns beyond the inventory artifact.
 
-Before #158 can close, a separate inventory pass must confirm every implemented route has the intended authorization layer and matching evidence:
+The completed inventory confirms every implemented frontend route has:
 
 - A frontend route entry and direct-navigation behavior.
 - A sidebar/navigation visibility rule where the route appears in the shell.
@@ -165,7 +166,7 @@ Before #158 can close, a separate inventory pass must confirm every implemented 
 - Site-scope and field-visibility tests where the page exposes sensitive, personnel, student, room, device, or lifecycle data.
 - An explicit documented exception for static frontend-only pages that intentionally do not have a route-specific Go API in the current slice.
 
-The static/frontend-only row in the Page And API Matrix is therefore a known documentation boundary, not a completed authorization audit.
+The static/frontend-only row in the Page And API Matrix remains a documented implementation boundary. If one of those static pages later loads protected route-specific payload data, that future change must add a runtime DEV API row, matching authorization tests, and an updated inventory entry.
 
 ### Issue #160: Editable Permissions Management Deferred
 

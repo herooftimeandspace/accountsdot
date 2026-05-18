@@ -3705,6 +3705,94 @@ func TestDevMyProfileDirectEditMockState(t *testing.T) {
 	})
 }
 
+func TestDevRouteAPIAuthorizationInventoryCoverage(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	web.ResetDevFeatureFlagStateForTest()
+	t.Cleanup(web.ResetDevFeatureFlagStateForTest)
+	web.ResetDevDepartingSeniorsStateForTest()
+	t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	protectedEndpoints := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "search", method: http.MethodGet, path: "/api/v1/dev/search?q=alex"},
+		{name: "onboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/onboarding"},
+		{name: "onboarding draft create", method: http.MethodPost, path: "/api/v1/dev/onboarding/manual-drafts"},
+		{name: "onboarding draft update", method: http.MethodPut, path: "/api/v1/dev/onboarding/manual-drafts/draft-unknown", body: `{}`},
+		{name: "offboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/offboarding"},
+		{name: "offboarding end date", method: http.MethodPut, path: "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", body: `{}`},
+		{name: "departing seniors page", method: http.MethodGet, path: "/api/v1/dev/pages/departing-seniors"},
+		{name: "departing seniors end date", method: http.MethodPut, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/end-date", body: `{}`},
+		{name: "departing seniors deprovision", method: http.MethodPost, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/deprovision"},
+		{name: "data quality page", method: http.MethodGet, path: "/api/v1/dev/pages/data-quality"},
+		{name: "room moves page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves"},
+		{name: "room moves bulk page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves/bulk-draft"},
+		{name: "room moves draft create", method: http.MethodPost, path: "/api/v1/dev/room-moves/drafts", body: `{}`},
+		{name: "room moves draft update", method: http.MethodPut, path: "/api/v1/dev/room-moves/drafts/rm-draft-103", body: `{}`},
+		{name: "room moves completed list", method: http.MethodGet, path: "/api/v1/dev/room-moves/completed"},
+		{name: "room moves completed revert", method: http.MethodPost, path: "/api/v1/dev/room-moves/completed/job-unknown/revert"},
+		{name: "phone directory person", method: http.MethodGet, path: "/api/v1/dev/pages/phone-directory/by-person"},
+		{name: "phone directory room", method: http.MethodGet, path: "/api/v1/dev/pages/phone-directory/by-room"},
+		{name: "phone directory department", method: http.MethodGet, path: "/api/v1/dev/pages/phone-directory/by-department"},
+		{name: "security issues report", method: http.MethodGet, path: "/api/v1/dev/pages/reports/security-issues"},
+		{name: "feature flags", method: http.MethodGet, path: "/api/v1/dev/feature-flags"},
+		{name: "feature flag update", method: http.MethodPut, path: "/api/v1/dev/feature-flags/onboarding", body: `{"targets":[]}`},
+		{name: "my profile", method: http.MethodGet, path: "/api/v1/dev/my-profile"},
+		{name: "my profile update", method: http.MethodPut, path: "/api/v1/dev/my-profile", body: `{}`},
+	}
+
+	for _, endpoint := range protectedEndpoints {
+		t.Run("signed out 401 "+endpoint.name, func(t *testing.T) {
+			req := httptest.NewRequest(endpoint.method, endpoint.path, strings.NewReader(endpoint.body))
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("%s %s returned %d, want 401: %s", endpoint.method, endpoint.path, rec.Code, rec.Body.String())
+			}
+		})
+	}
+
+	forbiddenEndpoints := []struct {
+		name      string
+		method    string
+		path      string
+		body      string
+		personaID string
+	}{
+		{name: "onboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/onboarding", personaID: "faculty_staff"},
+		{name: "onboarding draft create", method: http.MethodPost, path: "/api/v1/dev/onboarding/manual-drafts", personaID: "faculty_staff"},
+		{name: "offboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/offboarding", personaID: "faculty_staff"},
+		{name: "offboarding end date", method: http.MethodPut, path: "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", body: `{}`, personaID: "site_admin"},
+		{name: "departing seniors page", method: http.MethodGet, path: "/api/v1/dev/pages/departing-seniors", personaID: "faculty_staff"},
+		{name: "departing seniors end date", method: http.MethodPut, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/end-date", body: `{}`, personaID: "faculty_staff"},
+		{name: "data quality page", method: http.MethodGet, path: "/api/v1/dev/pages/data-quality", personaID: "site_admin"},
+		{name: "room moves page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves", personaID: "faculty_staff"},
+		{name: "room moves draft create", method: http.MethodPost, path: "/api/v1/dev/room-moves/drafts", body: `{}`, personaID: "faculty_staff"},
+		{name: "room moves completed revert", method: http.MethodPost, path: "/api/v1/dev/room-moves/completed/job-unknown/revert", personaID: "site_admin"},
+		{name: "security issues report", method: http.MethodGet, path: "/api/v1/dev/pages/reports/security-issues", personaID: "human_resources"},
+		{name: "feature flags", method: http.MethodGet, path: "/api/v1/dev/feature-flags", personaID: "site_admin"},
+		{name: "feature flag update", method: http.MethodPut, path: "/api/v1/dev/feature-flags/onboarding", body: `{"targets":[]}`, personaID: "site_admin"},
+	}
+
+	for _, endpoint := range forbiddenEndpoints {
+		t.Run("forbidden 403 "+endpoint.name, func(t *testing.T) {
+			cookie := loginAsPersona(t, handler, endpoint.personaID)
+			req := httptest.NewRequest(endpoint.method, endpoint.path, strings.NewReader(endpoint.body))
+			req.AddCookie(cookie)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("%s %s as %s returned %d, want 403: %s", endpoint.method, endpoint.path, endpoint.personaID, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 
