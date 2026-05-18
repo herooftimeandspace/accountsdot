@@ -2110,6 +2110,7 @@
   - local breakglass accounts are exempt from the domain rule
 - Users hitting the same URL should see access-denied responses when they do not have permission rather than soft-reduced content.
 - The permissions model and associated Google groups are part of the project deliverable and should remain the canonical authorization model once rolled out.
+- The editable in-app permissions model is defined in `docs/permissions-model.md`; that document distinguishes proposed IT Admin edits, stored manual grants/revocations, and effective access used by future server-side authorization.
 - Admin staff access defaults to site-specific scope and may be expanded to multi-site scope by Google group membership.
 - IT grants multi-site overrides for admin staff.
 - Until Google-group authorization is fully built, site scope is maintained through manual mapping managed by IT Admin.
