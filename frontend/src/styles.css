@@ -360,7 +360,8 @@ input {
 .dev-toolbar {
   position: fixed;
   left: 16px;
-  bottom: 16px;
+  top: min(758px, calc(100vh - 52px));
+  bottom: auto;
   z-index: 76;
   display: flex;
   flex-direction: column-reverse;
@@ -402,6 +403,9 @@ input {
 }
 
 .dev-toolbar__panel {
+  position: absolute;
+  left: 0;
+  bottom: 44px;
   width: 100%;
   box-sizing: border-box;
   padding: 12px 12px 14px;
@@ -493,6 +497,7 @@ input {
   border-radius: 12px;
   background: rgba(206, 183, 112, 0.9);
   position: fixed !important;
+  z-index: 66 !important;
 }
 
 .shared-shell-nav__icon,
@@ -3278,6 +3283,56 @@ input {
 
 .shared-shell-scope-dropdown__runtime .runtime-dropdown__list {
   min-width: 100%;
+}
+
+.shared-shell-account-menu {
+  position: fixed !important;
+  z-index: 73 !important;
+}
+
+.shared-shell-account-menu__button {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.shared-shell-account-menu__button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.shared-shell-account-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 168px;
+  padding: 6px;
+  border: 1px solid var(--color-canvas);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+}
+
+.shared-shell-account-menu__panel button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font: 700 13px/1.25 var(--font-ui);
+  text-align: left;
+}
+
+.shared-shell-account-menu__panel button:hover,
+.shared-shell-account-menu__panel button:focus-visible {
+  outline: none;
+  background: rgba(206, 183, 112, 0.28);
 }
 
 .global-search-runtime {
