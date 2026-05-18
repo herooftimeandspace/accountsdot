@@ -340,7 +340,7 @@ func globalSearchWorkflowActionResults(ctx context.Context, config devPersonaCon
 
 // globalSearchDepartingSeniorResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchDepartingSeniorResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
-	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now))
+	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now), now)
 	results := make([]rankedGlobalSearchResult, 0, len(rows))
 	for _, row := range rows {
 		values := []string{row.DisplayName, row.FirstName, row.LastName, row.Email, row.StudentID, row.Site, row.GraduationYear, row.Status}
@@ -378,7 +378,7 @@ func globalSearchDepartingSeniorResults(normalizedQuery string, now time.Time) [
 
 // globalSearchDeviceResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchDeviceResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
-	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now))
+	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now), now)
 	results := []rankedGlobalSearchResult{}
 	for _, row := range rows {
 		for _, device := range row.OutstandingDevices {
