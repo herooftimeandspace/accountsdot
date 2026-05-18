@@ -2,6 +2,9 @@ package web_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +20,7 @@ import (
 )
 
 type devSessionResponse struct {
+	Environment     string `json:"environment"`
 	Authenticated   bool   `json:"authenticated"`
 	Authorized      bool   `json:"authorized"`
 	DefaultSiteID   string `json:"default_site_id"`
@@ -30,9 +34,11 @@ type devSessionResponse struct {
 	CurrentPersona *struct {
 		ID string `json:"id"`
 	} `json:"current_persona,omitempty"`
-	LandingPath   string   `json:"landing_path"`
-	AllowedRoutes []string `json:"allowed_routes"`
-	FeatureFlags  []struct {
+	LandingPath         string   `json:"landing_path"`
+	AllowedRoutes       []string `json:"allowed_routes"`
+	AuthenticationMode  string   `json:"authentication_mode"`
+	BreakglassAccountID string   `json:"breakglass_account_id"`
+	FeatureFlags        []struct {
 		Key        string `json:"key"`
 		Label      string `json:"label"`
 		Enabled    bool   `json:"enabled"`
@@ -515,6 +521,31 @@ func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.
 	return cookie
 }
 
+func configureBreakglassForTest(t *testing.T, accountID string, token string) {
+	t.Helper()
+	hash := sha256.Sum256([]byte(token))
+	envID := strings.ToUpper(strings.NewReplacer("-", "_", ".", "_", "@", "_").Replace(accountID))
+	t.Setenv("BREAKGLASS_ACCOUNTS", accountID)
+	t.Setenv("BREAKGLASS_TOKEN_SHA256_"+envID, hex.EncodeToString(hash[:]))
+	t.Setenv("BREAKGLASS_ALLOWED_CIDRS", "10.23.0.0/16,10.19.100.0/24")
+	web.ResetBreakglassAuditForTest()
+	t.Cleanup(web.ResetBreakglassAuditForTest)
+}
+
+func breakglassLogin(t *testing.T, handler http.Handler, accountID string, token string, remoteAddr string) (*httptest.ResponseRecorder, *http.Cookie) {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"account_id": accountID, "token": token})
+	if err != nil {
+		t.Fatalf("marshal breakglass login request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/breakglass/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = remoteAddr
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec, findCookie(rec.Result().Cookies(), "wizard_dev_session")
+}
+
 // isolateDevFeatureFlagState guards tests that mutate DEV feature flags by
 // verifying defaults before the test, resetting state for the test body, and
 // restoring defaults afterward. It prevents one route-permission test from
@@ -766,6 +797,172 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if pagePayload.Hotspots["refresh"].NodeID != "f104" {
 			t.Fatalf("refresh hotspot node = %q, want f104", pagePayload.Hotspots["refresh"].NodeID)
+		}
+	})
+
+	t.Run("breakglass login uses named local account and can load it admin route", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		rec, cookie := breakglassLogin(t, handler, "emergency-alex", "local-test-token", "10.23.4.5:62000")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("breakglass login returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		if cookie == nil || !strings.HasPrefix(cookie.Value, "breakglass:") {
+			t.Fatalf("breakglass login cookie = %#v, want breakglass-scoped session cookie", cookie)
+		}
+		sessionPayload := decodeJSON[devSessionResponse](t, rec)
+		if !sessionPayload.Authenticated || !sessionPayload.Authorized {
+			t.Fatalf("breakglass session authenticated=%v authorized=%v, want true/true", sessionPayload.Authenticated, sessionPayload.Authorized)
+		}
+		if sessionPayload.CurrentPersona == nil || sessionPayload.CurrentPersona.ID != "it_admin" {
+			t.Fatalf("breakglass current persona = %#v, want local IT Admin persona", sessionPayload.CurrentPersona)
+		}
+		if !slices.Contains(sessionPayload.AllowedRoutes, "/data-quality") {
+			t.Fatalf("breakglass allowed routes missing /data-quality: %#v", sessionPayload.AllowedRoutes)
+		}
+
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
+		pageReq.AddCookie(cookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("breakglass data quality returned %d, want 200: %s", pageRec.Code, pageRec.Body.String())
+		}
+
+		audits := web.BreakglassAuditEventsForTest()
+		if len(audits) != 2 {
+			t.Fatalf("breakglass audit count = %d, want login attempt and access granted: %#v", len(audits), audits)
+		}
+		if audits[0].AccountID != "emergency-alex" || audits[0].Action != "login_attempt" || audits[0].Outcome != "allowed" || audits[0].SourceIP != "10.23.4.5" {
+			t.Fatalf("login audit = %#v, want allowed emergency-alex from 10.23.4.5", audits[0])
+		}
+		if audits[1].Action != "access_granted" || audits[1].Outcome != "allowed" {
+			t.Fatalf("access audit = %#v, want access_granted allowed", audits[1])
+		}
+	})
+
+	t.Run("staging consumes only authenticated breakglass sessions", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		t.Setenv("APP_ENV", "staging")
+
+		devLoginBody, err := json.Marshal(map[string]string{"persona_id": "it_admin"})
+		if err != nil {
+			t.Fatalf("marshal dev login request: %v", err)
+		}
+		devLoginReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/login", bytes.NewReader(devLoginBody))
+		devLoginRec := httptest.NewRecorder()
+		handler.ServeHTTP(devLoginRec, devLoginReq)
+		if devLoginRec.Code != http.StatusNotFound {
+			t.Fatalf("staging dev persona login returned %d, want 404", devLoginRec.Code)
+		}
+
+		rec, cookie := breakglassLogin(t, handler, "emergency-alex", "local-test-token", "10.23.4.5:62000")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("staging breakglass login returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		if cookie == nil || !cookie.Secure {
+			t.Fatalf("staging breakglass cookie = %#v, want Secure breakglass session cookie", cookie)
+		}
+		loginPayload := decodeJSON[devSessionResponse](t, rec)
+		if loginPayload.Environment != "staging" || loginPayload.AuthenticationMode != "breakglass" || loginPayload.BreakglassAccountID != "emergency-alex" {
+			t.Fatalf("staging breakglass payload = %#v, want staging breakglass emergency-alex", loginPayload)
+		}
+
+		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		sessionReq.AddCookie(cookie)
+		sessionRec := httptest.NewRecorder()
+		handler.ServeHTTP(sessionRec, sessionReq)
+		if sessionRec.Code != http.StatusOK {
+			t.Fatalf("staging breakglass session returned %d, want 200: %s", sessionRec.Code, sessionRec.Body.String())
+		}
+		sessionPayload := decodeJSON[devSessionResponse](t, sessionRec)
+		if !sessionPayload.Authenticated || sessionPayload.Environment != "staging" || sessionPayload.AuthenticationMode != "breakglass" {
+			t.Fatalf("staging session payload = %#v, want authenticated breakglass session", sessionPayload)
+		}
+
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/data-quality", nil)
+		pageReq.AddCookie(cookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("staging breakglass data quality returned %d, want 200: %s", pageRec.Code, pageRec.Body.String())
+		}
+	})
+
+	t.Run("breakglass cookie is secure for HTTPS requests", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		body, err := json.Marshal(map[string]string{"account_id": "emergency-alex", "token": "local-test-token"})
+		if err != nil {
+			t.Fatalf("marshal breakglass login request: %v", err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "https://wizard.example.test/api/v1/breakglass/login", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "10.23.4.5:62000"
+		req.TLS = &tls.ConnectionState{}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("HTTPS breakglass login returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		cookie := findCookie(rec.Result().Cookies(), "wizard_dev_session")
+		if cookie == nil || !cookie.Secure {
+			t.Fatalf("HTTPS breakglass cookie = %#v, want Secure session cookie", cookie)
+		}
+	})
+
+	t.Run("breakglass denies source address before issuing a session", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		rec, cookie := breakglassLogin(t, handler, "emergency-alex", "local-test-token", "192.0.2.10:62000")
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("breakglass denied-source login returned %d, want 403: %s", rec.Code, rec.Body.String())
+		}
+		if cookie != nil {
+			t.Fatalf("denied source received session cookie: %#v", cookie)
+		}
+		payload := decodeJSON[errorResponse](t, rec)
+		if payload.Code != "breakglass_source_denied" {
+			t.Fatalf("denied source code = %q, want breakglass_source_denied", payload.Code)
+		}
+		audits := web.BreakglassAuditEventsForTest()
+		if len(audits) != 1 || audits[0].FailureCode != "source_address_denied" || audits[0].Outcome != "denied" {
+			t.Fatalf("denied source audit = %#v, want source_address_denied", audits)
+		}
+	})
+
+	t.Run("breakglass denies unknown account without falling back to persona switcher", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		rec, cookie := breakglassLogin(t, handler, "it_admin", "local-test-token", "10.23.4.5:62000")
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unknown breakglass login returned %d, want 401: %s", rec.Code, rec.Body.String())
+		}
+		if cookie != nil {
+			t.Fatalf("unknown account received session cookie: %#v", cookie)
+		}
+		audits := web.BreakglassAuditEventsForTest()
+		if len(audits) != 1 || audits[0].AccountID != "it_admin" || audits[0].FailureCode != "unknown_account" {
+			t.Fatalf("unknown account audit = %#v, want unknown_account for it_admin", audits)
+		}
+	})
+
+	t.Run("breakglass logout audits sign out", func(t *testing.T) {
+		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
+		rec, cookie := breakglassLogin(t, handler, "emergency-alex", "local-test-token", "10.19.100.25:62000")
+		if rec.Code != http.StatusOK || cookie == nil {
+			t.Fatalf("breakglass login returned %d cookie %#v", rec.Code, cookie)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/logout", nil)
+		req.RemoteAddr = "10.19.100.25:62000"
+		req.AddCookie(cookie)
+		logoutRec := httptest.NewRecorder()
+		handler.ServeHTTP(logoutRec, req)
+		if logoutRec.Code != http.StatusOK {
+			t.Fatalf("breakglass logout returned %d, want 200", logoutRec.Code)
+		}
+		audits := web.BreakglassAuditEventsForTest()
+		if len(audits) != 3 {
+			t.Fatalf("breakglass audit count = %d, want login/access/sign_out: %#v", len(audits), audits)
+		}
+		if audits[2].Action != "sign_out" || audits[2].Outcome != "allowed" || audits[2].AccountID != "emergency-alex" {
+			t.Fatalf("sign-out audit = %#v, want allowed emergency-alex sign_out", audits[2])
 		}
 	})
 
@@ -3703,6 +3900,94 @@ func TestDevMyProfileDirectEditMockState(t *testing.T) {
 			t.Fatalf("validation body missing field errors: %s", updateRec.Body.String())
 		}
 	})
+}
+
+func TestDevRouteAPIAuthorizationInventoryCoverage(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	web.ResetDevFeatureFlagStateForTest()
+	t.Cleanup(web.ResetDevFeatureFlagStateForTest)
+	web.ResetDevDepartingSeniorsStateForTest()
+	t.Cleanup(web.ResetDevDepartingSeniorsStateForTest)
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	protectedEndpoints := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "search", method: http.MethodGet, path: "/api/v1/dev/search?q=alex"},
+		{name: "onboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/onboarding"},
+		{name: "onboarding draft create", method: http.MethodPost, path: "/api/v1/dev/onboarding/manual-drafts"},
+		{name: "onboarding draft update", method: http.MethodPut, path: "/api/v1/dev/onboarding/manual-drafts/draft-unknown", body: `{}`},
+		{name: "offboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/offboarding"},
+		{name: "offboarding end date", method: http.MethodPut, path: "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", body: `{}`},
+		{name: "departing seniors page", method: http.MethodGet, path: "/api/v1/dev/pages/departing-seniors"},
+		{name: "departing seniors end date", method: http.MethodPut, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/end-date", body: `{}`},
+		{name: "departing seniors deprovision", method: http.MethodPost, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/deprovision"},
+		{name: "data quality page", method: http.MethodGet, path: "/api/v1/dev/pages/data-quality"},
+		{name: "room moves page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves"},
+		{name: "room moves bulk page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves/bulk-draft"},
+		{name: "room moves draft create", method: http.MethodPost, path: "/api/v1/dev/room-moves/drafts", body: `{}`},
+		{name: "room moves draft update", method: http.MethodPut, path: "/api/v1/dev/room-moves/drafts/rm-draft-103", body: `{}`},
+		{name: "room moves completed list", method: http.MethodGet, path: "/api/v1/dev/room-moves/completed"},
+		{name: "room moves completed revert", method: http.MethodPost, path: "/api/v1/dev/room-moves/completed/job-unknown/revert"},
+		{name: "phone directory person", method: http.MethodGet, path: "/api/v1/dev/pages/phone-directory/by-person"},
+		{name: "phone directory room", method: http.MethodGet, path: "/api/v1/dev/pages/phone-directory/by-room"},
+		{name: "phone directory department", method: http.MethodGet, path: "/api/v1/dev/pages/phone-directory/by-department"},
+		{name: "security issues report", method: http.MethodGet, path: "/api/v1/dev/pages/reports/security-issues"},
+		{name: "feature flags", method: http.MethodGet, path: "/api/v1/dev/feature-flags"},
+		{name: "feature flag update", method: http.MethodPut, path: "/api/v1/dev/feature-flags/onboarding", body: `{"targets":[]}`},
+		{name: "my profile", method: http.MethodGet, path: "/api/v1/dev/my-profile"},
+		{name: "my profile update", method: http.MethodPut, path: "/api/v1/dev/my-profile", body: `{}`},
+	}
+
+	for _, endpoint := range protectedEndpoints {
+		t.Run("signed out 401 "+endpoint.name, func(t *testing.T) {
+			req := httptest.NewRequest(endpoint.method, endpoint.path, strings.NewReader(endpoint.body))
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("%s %s returned %d, want 401: %s", endpoint.method, endpoint.path, rec.Code, rec.Body.String())
+			}
+		})
+	}
+
+	forbiddenEndpoints := []struct {
+		name      string
+		method    string
+		path      string
+		body      string
+		personaID string
+	}{
+		{name: "onboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/onboarding", personaID: "faculty_staff"},
+		{name: "onboarding draft create", method: http.MethodPost, path: "/api/v1/dev/onboarding/manual-drafts", personaID: "faculty_staff"},
+		{name: "offboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/offboarding", personaID: "faculty_staff"},
+		{name: "offboarding end date", method: http.MethodPut, path: "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", body: `{}`, personaID: "site_admin"},
+		{name: "departing seniors page", method: http.MethodGet, path: "/api/v1/dev/pages/departing-seniors", personaID: "faculty_staff"},
+		{name: "departing seniors end date", method: http.MethodPut, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/end-date", body: `{}`, personaID: "faculty_staff"},
+		{name: "data quality page", method: http.MethodGet, path: "/api/v1/dev/pages/data-quality", personaID: "site_admin"},
+		{name: "room moves page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves", personaID: "faculty_staff"},
+		{name: "room moves draft create", method: http.MethodPost, path: "/api/v1/dev/room-moves/drafts", body: `{}`, personaID: "faculty_staff"},
+		{name: "room moves completed revert", method: http.MethodPost, path: "/api/v1/dev/room-moves/completed/job-unknown/revert", personaID: "site_admin"},
+		{name: "security issues report", method: http.MethodGet, path: "/api/v1/dev/pages/reports/security-issues", personaID: "human_resources"},
+		{name: "feature flags", method: http.MethodGet, path: "/api/v1/dev/feature-flags", personaID: "site_admin"},
+		{name: "feature flag update", method: http.MethodPut, path: "/api/v1/dev/feature-flags/onboarding", body: `{"targets":[]}`, personaID: "site_admin"},
+	}
+
+	for _, endpoint := range forbiddenEndpoints {
+		t.Run("forbidden 403 "+endpoint.name, func(t *testing.T) {
+			cookie := loginAsPersona(t, handler, endpoint.personaID)
+			req := httptest.NewRequest(endpoint.method, endpoint.path, strings.NewReader(endpoint.body))
+			req.AddCookie(cookie)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("%s %s as %s returned %d, want 403: %s", endpoint.method, endpoint.path, endpoint.personaID, rec.Code, rec.Body.String())
+			}
+		})
+	}
 }
 
 func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {

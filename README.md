@@ -237,3 +237,109 @@ Required or commonly used local variables:
 - Real third-party integrations are opt-in and should remain disabled for normal local TDD work.
 - The local stack is intentionally lean: app, worker, and postgres are enough for baseline development.
 - Compose binds Postgres to `127.0.0.1` only and reads secrets from `.env`, not from committed example values.
+
+## Manual Remote Deployment
+The remote deployment stack is for a Proxmox QEMU VM that has Docker Engine,
+the Docker Compose plugin, Git, and outbound access to GitHub and public
+container registries. It is separate from the local-development `compose.yaml`
+so local testing remains app/worker/Postgres focused.
+
+The checked-in deployment files are:
+
+- `docker-compose.deploy.yml`: reverse proxy, three app containers, and
+  environment-specific Postgres services.
+- `deploy/Caddyfile`: host-based Caddy routing for dev, staging, and main.
+- `deploy/Dockerfile`: production-style Go service image for each branch.
+- `deploy/remote-redeploy.sh`: manual update helper that fetches Git branches,
+  refreshes branch worktrees, then runs Docker Compose.
+- `deploy/env/*.example`: templates for uncommitted remote environment files.
+
+The stack expects three Git branches to exist on the remote named `dev`,
+`staging`, and `main`. The deployment helper creates or refreshes sibling
+worktrees under `../accountsdot-deploy-worktrees` by default:
+
+```text
+accountsdot/
+accountsdot-deploy-worktrees/
+  dev/
+  staging/
+  main/
+```
+
+Each app image builds from its matching branch worktree. A redeploy therefore
+pulls the latest branch revisions before rebuilding and recreating containers.
+The helper keeps those worktrees on detached checkouts of the matching remote
+branches; do not make hand edits inside `accountsdot-deploy-worktrees`.
+
+### First-Time Remote Setup
+1. Clone the repository on the QEMU VM:
+   ```bash
+   git clone git@github.com:herooftimeandspace/accountsdot.git
+   cd accountsdot
+   ```
+2. Confirm the deployment branches exist:
+   ```bash
+   git ls-remote --heads origin dev staging main
+   ```
+   If `staging` has not been created yet, create it through the documented
+   promotion process before deploying the full three-environment stack.
+3. Copy the example environment files and fill real remote values:
+   ```bash
+   cp deploy/env/proxy.env.example deploy/env/proxy.env
+   cp deploy/env/dev.db.env.example deploy/env/dev.db.env
+   cp deploy/env/dev.app.env.example deploy/env/dev.app.env
+   cp deploy/env/staging.db.env.example deploy/env/staging.db.env
+   cp deploy/env/staging.app.env.example deploy/env/staging.app.env
+   cp deploy/env/main.db.env.example deploy/env/main.db.env
+   cp deploy/env/main.app.env.example deploy/env/main.app.env
+   ```
+4. Replace every placeholder secret with generated values. Use distinct
+   database passwords, `SESSION_SECRET` values, and `ENCRYPTION_KEY` values for
+   dev, staging, and main. Do not reuse staging credentials in main.
+5. Set `ACCOUNTSDOT_DEV_HOST`, `ACCOUNTSDOT_STAGING_HOST`, and
+   `ACCOUNTSDOT_MAIN_HOST` in `deploy/env/proxy.env` to the public hostnames
+   that should terminate TLS at Caddy.
+6. Start the stack:
+   ```bash
+   chmod +x deploy/remote-redeploy.sh
+   ./deploy/remote-redeploy.sh
+   ```
+
+### Redeploying
+Run the same helper from the root clone whenever one or more deployment branches
+has new code:
+
+```bash
+./deploy/remote-redeploy.sh
+```
+
+The helper runs `git fetch`, updates the `dev`, `staging`, and `main`
+deployment worktrees to `origin/dev`, `origin/staging`, and `origin/main`, then
+runs:
+
+```bash
+docker compose -f docker-compose.deploy.yml up -d --build --remove-orphans
+```
+
+Named Docker volumes keep database data across redeploys. Do not use
+`docker compose down -v` on this stack unless you intend to destroy the
+databases.
+
+### Environment Responsibilities
+- Dev runs with `APP_ENV=development`, mock providers enabled, and the
+  long-lived `postgres-dev-data` volume.
+- Staging runs with `APP_ENV=staging`, the long-lived
+  `postgres-staging-data` volume, and sandbox or masked/read-only provider
+  configuration as defined in `ENVIRONMENT_DATA_PLAYBOOK.md`.
+- Main runs with `APP_ENV=production`, production secrets, and the main
+  database only. Production must not reuse dev or staging credentials.
+
+The checked-in examples default staging providers to mocks until the staging
+sandbox or masked provider strategy is configured. Flip individual
+`USE_MOCK_*` flags only after the corresponding staging credential, data, and
+write-safety plan exists.
+
+The current Go service image exposes the backend service on port `8080`. The
+React/Vite DEV UI is still a development-time frontend and is not bundled into
+the remote image by this deployment stack; production frontend asset packaging
+remains a separate deployment decision.

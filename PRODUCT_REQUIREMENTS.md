@@ -421,6 +421,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `@staff.wusd.org`
 - Accounts ending in `@stu.wusd.org` must be explicitly denied.
 - Local breakglass accounts are the only exception to the domain gate.
+- Breakglass must be a separate local emergency authentication path, not a DEV persona-switcher option.
+- Breakglass must use named local emergency accounts, per-account secret material supplied outside the repository, and default source-address restrictions for `10.23.x.x` and `10.19.100.x`.
+- Breakglass events must be auditable, including login attempts, successful emergency access, denied access, and sign-out where the local session layer can observe it.
 - Final authorization is based on SAML identity plus Google group or attribute-based role assignment.
 - Users may hit the same URL and receive different access results based on scope and role. Unauthorized users must see access denied, not filtered partial content.
 - The checked-in production authorization contract evaluates verified Google identity data in this order: canonical email, explicit denied-domain check, allowed-domain check, Google group role mapping, Google attribute role mapping, then group/attribute site-scope mapping. A user with a valid staff-domain account but no role mapping is authenticated but not authorized.

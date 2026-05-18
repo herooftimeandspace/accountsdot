@@ -49,7 +49,7 @@ var devMyProfileStore = struct {
 // memory only; failures return JSON validation errors and never touch live HR, Google, Zoom, or Aeries
 // systems.
 func handleDevMyProfile(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
