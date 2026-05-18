@@ -22,6 +22,7 @@ The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard is a self-host
 - [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) captures the business-facing product requirements and scope boundaries.
 - [ENVIRONMENT_DATA_PLAYBOOK.md](ENVIRONMENT_DATA_PLAYBOOK.md) defines the safe process for creating and refreshing mock and staging environments.
 - [TEST_MATRIX.md](TEST_MATRIX.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
+- [docs/permissions-matrix.md](docs/permissions-matrix.md) documents the currently implemented DEV route/API permission matrix, field-level visibility, and known authorization gaps for review against the PRD and implementation plan.
 - [docs/promotion-pipeline.md](docs/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
 - [docs/reference-inputs/VENDORED_INVENTORY.md](docs/reference-inputs/VENDORED_INVENTORY.md) is the authoritative provenance and refresh ledger for the repo-local reference corpus under `docs/reference-inputs/`.
 - The promotion runbook/process also lives outside the repo. It must capture one implementation-signoff entry per workflow bucket, reference the external IncidentIQ testing-ticket evidence, and use the corresponding documented rollback path and rollback trigger conditions for write-capable buckets. Each bucket entry must include exact metadata for release, ticket, phase, bucket, environment, revisions, timestamps, signoff, evidence links, and rollback references as applicable. Each bucket entry must also include a final disposition plus explicit yes/no attestations for scenario cleanliness, evidence review, and write-safety checks. A bucket that was previously `rolled back` may later be updated to `ready` after a new clean pass, and `superseded` means an older attempt was replaced by a newer one in the same release; the replacement current entry must explicitly link back to the superseded one. A `no` attestation does not require a separate explanation field beyond the disposition and any required closure note. If a rollback trigger blocks a bucket in `dev`, the runbook must carry an explicit closure note with links to the replacement evidence before `staging` can begin for that bucket. The external IncidentIQ testing ticket should use one parent ticket per release with evidence organized in `phase → bucket → dev/staging → scenario` order, with `dev` listed before `staging` in every bucket.
@@ -236,3 +237,109 @@ Required or commonly used local variables:
 - Real third-party integrations are opt-in and should remain disabled for normal local TDD work.
 - The local stack is intentionally lean: app, worker, and postgres are enough for baseline development.
 - Compose binds Postgres to `127.0.0.1` only and reads secrets from `.env`, not from committed example values.
+
+## Manual Remote Deployment
+The remote deployment stack is for a Proxmox QEMU VM that has Docker Engine,
+the Docker Compose plugin, Git, and outbound access to GitHub and public
+container registries. It is separate from the local-development `compose.yaml`
+so local testing remains app/worker/Postgres focused.
+
+The checked-in deployment files are:
+
+- `docker-compose.deploy.yml`: reverse proxy, three app containers, and
+  environment-specific Postgres services.
+- `deploy/Caddyfile`: host-based Caddy routing for dev, staging, and main.
+- `deploy/Dockerfile`: production-style Go service image for each branch.
+- `deploy/remote-redeploy.sh`: manual update helper that fetches Git branches,
+  refreshes branch worktrees, then runs Docker Compose.
+- `deploy/env/*.example`: templates for uncommitted remote environment files.
+
+The stack expects three Git branches to exist on the remote named `dev`,
+`staging`, and `main`. The deployment helper creates or refreshes sibling
+worktrees under `../accountsdot-deploy-worktrees` by default:
+
+```text
+accountsdot/
+accountsdot-deploy-worktrees/
+  dev/
+  staging/
+  main/
+```
+
+Each app image builds from its matching branch worktree. A redeploy therefore
+pulls the latest branch revisions before rebuilding and recreating containers.
+The helper keeps those worktrees on detached checkouts of the matching remote
+branches; do not make hand edits inside `accountsdot-deploy-worktrees`.
+
+### First-Time Remote Setup
+1. Clone the repository on the QEMU VM:
+   ```bash
+   git clone git@github.com:herooftimeandspace/accountsdot.git
+   cd accountsdot
+   ```
+2. Confirm the deployment branches exist:
+   ```bash
+   git ls-remote --heads origin dev staging main
+   ```
+   If `staging` has not been created yet, create it through the documented
+   promotion process before deploying the full three-environment stack.
+3. Copy the example environment files and fill real remote values:
+   ```bash
+   cp deploy/env/proxy.env.example deploy/env/proxy.env
+   cp deploy/env/dev.db.env.example deploy/env/dev.db.env
+   cp deploy/env/dev.app.env.example deploy/env/dev.app.env
+   cp deploy/env/staging.db.env.example deploy/env/staging.db.env
+   cp deploy/env/staging.app.env.example deploy/env/staging.app.env
+   cp deploy/env/main.db.env.example deploy/env/main.db.env
+   cp deploy/env/main.app.env.example deploy/env/main.app.env
+   ```
+4. Replace every placeholder secret with generated values. Use distinct
+   database passwords, `SESSION_SECRET` values, and `ENCRYPTION_KEY` values for
+   dev, staging, and main. Do not reuse staging credentials in main.
+5. Set `ACCOUNTSDOT_DEV_HOST`, `ACCOUNTSDOT_STAGING_HOST`, and
+   `ACCOUNTSDOT_MAIN_HOST` in `deploy/env/proxy.env` to the public hostnames
+   that should terminate TLS at Caddy.
+6. Start the stack:
+   ```bash
+   chmod +x deploy/remote-redeploy.sh
+   ./deploy/remote-redeploy.sh
+   ```
+
+### Redeploying
+Run the same helper from the root clone whenever one or more deployment branches
+has new code:
+
+```bash
+./deploy/remote-redeploy.sh
+```
+
+The helper runs `git fetch`, updates the `dev`, `staging`, and `main`
+deployment worktrees to `origin/dev`, `origin/staging`, and `origin/main`, then
+runs:
+
+```bash
+docker compose -f docker-compose.deploy.yml up -d --build --remove-orphans
+```
+
+Named Docker volumes keep database data across redeploys. Do not use
+`docker compose down -v` on this stack unless you intend to destroy the
+databases.
+
+### Environment Responsibilities
+- Dev runs with `APP_ENV=development`, mock providers enabled, and the
+  long-lived `postgres-dev-data` volume.
+- Staging runs with `APP_ENV=staging`, the long-lived
+  `postgres-staging-data` volume, and sandbox or masked/read-only provider
+  configuration as defined in `ENVIRONMENT_DATA_PLAYBOOK.md`.
+- Main runs with `APP_ENV=production`, production secrets, and the main
+  database only. Production must not reuse dev or staging credentials.
+
+The checked-in examples default staging providers to mocks until the staging
+sandbox or masked provider strategy is configured. Flip individual
+`USE_MOCK_*` flags only after the corresponding staging credential, data, and
+write-safety plan exists.
+
+The current Go service image exposes the backend service on port `8080`. The
+React/Vite DEV UI is still a development-time frontend and is not bundled into
+the remote image by this deployment stack; production frontend asset packaging
+remains a separate deployment decision.

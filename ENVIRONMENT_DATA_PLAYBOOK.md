@@ -127,6 +127,22 @@ This document defines the required process for creating and refreshing safe deve
 
 ## Refresh Playbook
 
+### Remote Compose Database Persistence
+- The manual QEMU deployment stack in `docker-compose.deploy.yml` uses named
+  Docker volumes for `postgres-dev`, `postgres-staging`, and `postgres-main`.
+- `postgres-dev-data` and `postgres-staging-data` are intentionally long-lived
+  and must survive ordinary app redeploys.
+- Redeploying with `deploy/remote-redeploy.sh` may rebuild app images and
+  recreate containers, but it must not delete database volumes.
+- Do not run `docker compose -f docker-compose.deploy.yml down -v` unless the
+  operator intentionally wants to destroy the remote databases and has captured
+  any required backup or refresh evidence first.
+- Staging data loaded into the remote compose database must still follow the
+  masking, sandbox, read-only, and validation requirements in this playbook.
+- Production database storage must use encrypted host storage, encrypted
+  managed storage, or another documented encrypted-at-rest mechanism before the
+  main environment is treated as production-ready.
+
 ### Staging Refresh Cadence
 - Refresh on a documented schedule.
 - Refresh additionally before major release testing or when reference data becomes too stale.
