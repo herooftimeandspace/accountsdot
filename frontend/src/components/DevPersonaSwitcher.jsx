@@ -1,4 +1,6 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
+
+import { sharedShellSpec } from "../generated/artboards.generated.js";
 
 /**
  * DevPersonaSwitcher renders the DEV-only mock-session control inside the shared sidebar bounds. App owns the persona-switch side effect and routing fallback, while this component owns the collapsed/expanded control state, current-persona labeling, and polite status announcements used during demos.
@@ -22,6 +24,47 @@ export function DevPersonaSwitcher({
   const activePersonaLabel =
     personas.find((persona) => persona.id === personaId)?.label || personaId || "Unknown";
   const [expanded, setExpanded] = useState(false);
+
+  const platformStatusValueSelector = useMemo(() => {
+    const nodeId = sharedShellSpec?.sharedShellIds?.platformStatusValue;
+    return nodeId ? `[data-node-id="${nodeId}"]` : null;
+  }, []);
+
+  const [anchoredTopPx, setAnchoredTopPx] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!platformStatusValueSelector) {
+      return undefined;
+    }
+
+    function updateAnchor() {
+      const platformStatusNode = document.querySelector(platformStatusValueSelector);
+      if (!platformStatusNode) {
+        setAnchoredTopPx(null);
+        return;
+      }
+      const rect = platformStatusNode.getBoundingClientRect();
+      if (!rect || Number.isNaN(rect.bottom)) {
+        setAnchoredTopPx(null);
+        return;
+      }
+      const nextTop = Math.max(0, Math.round(rect.bottom + 8));
+      setAnchoredTopPx(nextTop);
+    }
+
+    updateAnchor();
+    window.addEventListener("resize", updateAnchor);
+
+    const observer = new MutationObserver(() => {
+      updateAnchor();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      window.removeEventListener("resize", updateAnchor);
+      observer.disconnect();
+    };
+  }, [platformStatusValueSelector]);
 
   useEffect(() => {
     if (pendingPersonaId) {
@@ -47,7 +90,11 @@ export function DevPersonaSwitcher({
   }
 
   return (
-    <aside className="dev-toolbar" aria-label="Development persona controls">
+    <aside
+      className="dev-toolbar"
+      style={anchoredTopPx === null ? undefined : { top: `${anchoredTopPx}px` }}
+      aria-label="Development persona controls"
+    >
       <button
         type="button"
         className="dev-toolbar__toggle"
