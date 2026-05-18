@@ -118,6 +118,83 @@ export const FREQUENT_FLIER_ROWS = [
       { id: "INC-1774488", summary: "Trackpad Issue", status: "Closed" },
     ],
   },
+  {
+    id: "noah-kim",
+    student: "Noah Kim",
+    studentId: "3506044",
+    grade: "7",
+    site: "Clover High School",
+    deviceAssignments: 6,
+    linkedTickets: 2,
+    assignmentCountsByRange: { 30: 3, 60: 5, 90: 6, 180: 8, 365: 9 },
+    ticketCountsByRange: { 30: 1, 60: 1, 90: 2, 180: 2, 365: 3 },
+    daysSinceLastTicket: 33,
+    trend: [2, 3, 5, 6, 8, 9],
+    note: "High assignment velocity across the year. Confirm whether repeated swaps point to storage, case, or checkout-process issues.",
+    devices: [
+      { serial: "CHS-24-30018", type: "Chromebook", status: "Active" },
+      { serial: "CHS-24-29814", type: "Chromebook", status: "Returned" },
+      { serial: "CHS-24-28755", type: "Chromebook", status: "Returned" },
+      { serial: "CHS-24-27240", type: "Chromebook", status: "Returned" },
+    ],
+    tickets: [
+      { id: "INC-1785128", summary: "Repeated Checkout", status: "Open" },
+      { id: "INC-1778044", summary: "Damaged Case", status: "Closed" },
+    ],
+  },
+  {
+    id: "aaliyah-brooks",
+    student: "Aaliyah Brooks",
+    studentId: "3507112",
+    grade: "6",
+    site: "Desert View",
+    deviceAssignments: 1,
+    linkedTickets: 5,
+    assignmentCountsByRange: { 30: 0, 60: 1, 90: 1, 180: 1, 365: 2 },
+    ticketCountsByRange: { 30: 3, 60: 4, 90: 5, 180: 6, 365: 7 },
+    daysSinceLastTicket: 5,
+    trend: [1, 3, 4, 5, 6, 7],
+    note: "Ticket-heavy pattern without many assignment swaps. Check whether recurring charger and case tickets need a different intervention.",
+    devices: [
+      { serial: "DV-24-22770", type: "Chromebook", status: "Active" },
+      { serial: "DV-24-22164", type: "Chromebook", status: "Returned" },
+    ],
+    tickets: [
+      { id: "INC-1786901", summary: "Charger Missing", status: "Open" },
+      { id: "INC-1785604", summary: "Case Damage", status: "Closed" },
+      { id: "INC-1781229", summary: "Won't Charge", status: "Closed" },
+      { id: "INC-1779055", summary: "Keyboard Cover Missing", status: "Closed" },
+      { id: "INC-1775120", summary: "Loaner Support", status: "Closed" },
+    ],
+  },
+  {
+    id: "omar-castillo",
+    student: "Omar Castillo",
+    studentId: "3508449",
+    grade: "10",
+    site: "Franklin Middle School",
+    deviceAssignments: 3,
+    linkedTickets: 1,
+    assignmentCountsByRange: { 30: 2, 60: 2, 90: 3, 180: 5, 365: 6 },
+    ticketCountsByRange: { 30: 0, 60: 0, 90: 1, 180: 3, 365: 4 },
+    daysSinceLastTicket: 74,
+    trend: [0, 1, 2, 3, 5, 6],
+    note: "Longer lookbacks expose repeated assignments that are not obvious in the shorter ticket view.",
+    devices: [
+      { serial: "FMS-24-32108", type: "Chromebook", status: "Active" },
+      { serial: "FMS-24-31944", type: "Chromebook", status: "Returned" },
+      { serial: "FMS-24-30052", type: "Chromebook", status: "Returned" },
+    ],
+    tickets: [{ id: "INC-1769442", summary: "Cracked Shell", status: "Closed" }],
+  },
+];
+
+export const FREQUENT_FLIERS_REPRESENTATIVE_COMBINATIONS = [
+  { threshold: 2, metric: "devices", range: "90", reason: "default device-assignment queue" },
+  { threshold: 3, metric: "devices", range: "30", reason: "strict short-window device review" },
+  { threshold: 4, metric: "devices", range: "365", reason: "strict full-year device review" },
+  { threshold: 2, metric: "tickets", range: "30", reason: "short-window ticket queue" },
+  { threshold: 4, metric: "tickets", range: "365", reason: "full-year ticket escalation queue" },
 ];
 
 const DEVICE_LINK_BASE = "https://mock.wusd.local/incidentiq/assets";
@@ -145,10 +222,21 @@ export function metricCountForRange(row, metric, range) {
 
 /**
  * frequentFliersRowsForFilters applies the documented fixed greater-than-or-
- * equal comparison after a user commits threshold, metric, and lookback values.
+ * equal comparison to the active threshold, metric, and lookback values. The
+ * Frequent Fliers route calls this helper on every dropdown change, so the DEV
+ * mock table refreshes without a separate Apply step.
  */
 export function frequentFliersRowsForFilters(rows, filters) {
   return rows.filter((row) => metricCountForRange(row, filters.metric, filters.range) >= filters.threshold);
+}
+
+/**
+ * frequentFliersCombinationSignature gives tests and Browser notes a compact
+ * way to compare visible DEV mock rows for representative filter combinations
+ * without depending on table rendering internals.
+ */
+export function frequentFliersCombinationSignature(rows, filters) {
+  return frequentFliersRowsForFilters(rows, filters).map((row) => row.id).join("|");
 }
 
 /**

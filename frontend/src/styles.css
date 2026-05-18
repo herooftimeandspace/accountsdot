@@ -2710,14 +2710,11 @@ input {
 }
 
 .frequent-fliers-runtime__operator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 38px;
-  height: 38px;
-  border: 1px solid var(--color-canvas);
-  border-radius: 8px;
-  background: var(--color-bg);
+  display: inline;
+  min-width: 0;
+  height: auto;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .frequent-fliers-runtime__filters select {
@@ -2739,21 +2736,8 @@ input {
   padding: 8px 10px;
 }
 
-.frequent-fliers-runtime__filters > button {
-  min-width: 96px;
-  min-height: 40px;
-  margin-left: auto;
-  border: 1px solid var(--color-highlight);
-  border-radius: 8px;
-  background: var(--color-highlight);
-  color: var(--color-text);
-  cursor: pointer;
-  font: 800 13px/1 var(--font-ui);
-}
-
 .frequent-fliers-runtime__filters select:focus,
-.frequent-fliers-runtime__filters .runtime-dropdown__button:focus-visible,
-.frequent-fliers-runtime__filters > button:focus-visible {
+.frequent-fliers-runtime__filters .runtime-dropdown__button:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
 }

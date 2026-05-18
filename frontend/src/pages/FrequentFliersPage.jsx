@@ -5,7 +5,6 @@ import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
-import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -35,8 +34,8 @@ const DRAWER_BOUNDS = { left: 1280, top: 92, width: 388, height: 802 };
 
 /**
  * buildFrequentFliersColumns creates the sortable/searchable table contract
- * after the user applies a lookback range, ensuring visible counts and sort
- * values use the same committed range.
+ * for the active lookback range, ensuring visible counts and sort values update
+ * immediately when a dropdown changes the current range.
  */
 function buildFrequentFliersColumns(range) {
   return [
@@ -95,8 +94,8 @@ function collectAllNodeIds(node, ids) {
 
 /**
  * TrendGraph renders the compact Frequent Fliers sparkline for a table row. It
- * receives the already-selected threshold from FrequentFliersOverlay and emits
- * only visual bars with an accessible count summary.
+ * receives the active threshold from FrequentFliersOverlay and emits only
+ * visual bars with an accessible count summary.
  */
 function TrendGraph({ values, threshold }) {
   const maxValue = Math.max(threshold, ...values, 1);
@@ -175,11 +174,12 @@ function FrequentFliersDrawer({ row, threshold, metric, range, onClose }) {
 }
 
 /**
- * FrequentFliersOverlay owns the runtime-only filter form and table that replace
- * the hidden static artboard pane. Pending controls do not affect rows until
- * Apply commits threshold, metric, and range into parent state.
+ * FrequentFliersOverlay owns the runtime-only filter controls and table that
+ * replace the hidden static artboard pane. Dropdown changes call back with the
+ * active filter update, so the DEV mock rows refresh immediately without an
+ * Apply button.
  */
-function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, onPendingChange, onApply, onSelectRow }) {
+function FrequentFliersOverlay({ rows, selectedRowId, filters, onFilterChange, onSelectRow }) {
   const columns = useMemo(() => buildFrequentFliersColumns(filters.range), [filters.range]);
   const tableRows = useMemo(() => {
     return frequentFliersRowsForFilters(rows, filters);
@@ -206,38 +206,37 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
           <p>Students with repeated device assignments or IncidentIQ tickets during the selected date range.</p>
         </div>
       </header>
-      <form className="frequent-fliers-runtime__filters" onSubmit={onApply}>
+      <div className="frequent-fliers-runtime__filters">
         <span>Show students with</span>
         <span className="frequent-fliers-runtime__operator" aria-label="Comparison: greater than or equal to">
-          &gt;=
+          ≥
         </span>
         <RuntimeSelectDropdown
           label="Threshold"
-          value={pendingFilters.threshold}
+          value={filters.threshold}
           options={Array.from({ length: 10 }, (_, index) => {
             const optionValue = index + 1;
             return { value: optionValue, label: String(optionValue) };
           })}
-          onChange={(threshold) => onPendingChange({ threshold: Number(threshold) })}
+          onChange={(threshold) => onFilterChange({ threshold: Number(threshold) })}
         />
         <RuntimeSelectDropdown
           label="Metric"
-          value={pendingFilters.metric}
+          value={filters.metric}
           options={[
             { value: "devices", label: "Devices" },
             { value: "tickets", label: "Tickets" },
           ]}
-          onChange={(metric) => onPendingChange({ metric })}
+          onChange={(metric) => onFilterChange({ metric })}
         />
         <span>in the last</span>
         <RuntimeSelectDropdown
           label="Date range"
-          value={pendingFilters.range}
+          value={filters.range}
           options={FREQUENT_FLIERS_RANGE_OPTIONS}
-          onChange={(range) => onPendingChange({ range })}
+          onChange={(range) => onFilterChange({ range })}
         />
-        <button type="submit">Apply</button>
-      </form>
+      </div>
       <div className="frequent-fliers-runtime__table-card">
         <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
         <div className="frequent-fliers-runtime__table-header">
@@ -282,13 +281,12 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, pendingFilters, o
 /**
  * FrequentFliersPage is the route component for `/frequent-fliers`. It loads the
  * generated shared-shell artboard, hides the static Frequent Fliers pane, and
- * keeps the selected row drawer synchronized with the applied runtime filters.
+ * keeps the selected row drawer synchronized with the active runtime filters.
  */
 export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
   const [filters, setFilters] = useState(DEFAULT_FREQUENT_FLIERS_FILTERS);
-  const [pendingFilters, setPendingFilters] = useState(DEFAULT_FREQUENT_FLIERS_FILTERS);
   const [selectedRow, setSelectedRow] = useState(null);
 
   const textOverrides = buildSharedShellTextOverrides(session);
@@ -309,24 +307,22 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
     activeRoutePath: "/frequent-fliers",
     refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
-  const semanticSummary = artboard
-    ? buildArtboardSemanticSummary(artboard, {
-        fallbackTitle: "Frequent Fliers",
-        textOverrides,
-      })
-    : { title: "Frequent Fliers", items: [] };
+  const semanticSummary = {
+    title: "Frequent Fliers",
+    items: [
+      "Dedicated device-accountability dashboard.",
+      `Current filter: ${filters.metric === "tickets" ? "tickets" : "devices"} ≥ ${filters.threshold} in ${rangeLabelForValue(filters.range)}.`,
+      `${frequentFliersRowsForFilters(FREQUENT_FLIER_ROWS, filters).length} matching students.`,
+    ],
+  };
   const selectedPayloadRow = selectedRow
     ? FREQUENT_FLIER_ROWS.find((row) => row.id === selectedRow.id) || selectedRow
     : null;
 
-  const handlePendingChange = useCallback((change) => {
-    setPendingFilters((current) => ({ ...current, ...change }));
-  }, []);
-  const handleApply = useCallback((event) => {
-    event.preventDefault();
-    setFilters(pendingFilters);
+  const handleFilterChange = useCallback((change) => {
+    setFilters((current) => ({ ...current, ...change }));
     setSelectedRow(null);
-  }, [pendingFilters]);
+  }, []);
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (
     <>
       {sharedShellRenderOverlay?.({ nodeIndex, textOverrides: overlayTextOverrides })}
@@ -334,9 +330,7 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
         rows={FREQUENT_FLIER_ROWS}
         selectedRowId={selectedPayloadRow?.id}
         filters={filters}
-        pendingFilters={pendingFilters}
-        onPendingChange={handlePendingChange}
-        onApply={handleApply}
+        onFilterChange={handleFilterChange}
         onSelectRow={setSelectedRow}
       />
       <FrequentFliersDrawer
@@ -347,7 +341,7 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
         onClose={() => setSelectedRow(null)}
       />
     </>
-  ), [filters, handleApply, handlePendingChange, pendingFilters, selectedPayloadRow, sharedShellRenderOverlay]);
+  ), [filters, handleFilterChange, selectedPayloadRow, sharedShellRenderOverlay]);
 
   if (artboardStatus === "loading") {
     return (
