@@ -370,7 +370,7 @@ input {
 .dev-toolbar {
   position: fixed;
   left: 16px;
-  top: min(758px, calc(100vh - 52px));
+  top: 758px;
   bottom: auto;
   z-index: 76;
   display: flex;
