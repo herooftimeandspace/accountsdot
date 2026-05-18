@@ -23,7 +23,11 @@ type devSessionResponse struct {
 	DefaultSiteName string `json:"default_site_name"`
 	CurrentSiteID   string `json:"current_site_id"`
 	CurrentSiteName string `json:"current_site_name"`
-	CurrentPersona  *struct {
+	VisibleSites    []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"visible_sites"`
+	CurrentPersona *struct {
 		ID string `json:"id"`
 	} `json:"current_persona,omitempty"`
 	LandingPath   string   `json:"landing_path"`
@@ -372,6 +376,9 @@ type roomMovesResponse struct {
 			MoveType          string   `json:"move_type"`
 			Person            string   `json:"person"`
 			CurrentSiteID     string   `json:"current_site_id"`
+			DestinationSiteID string   `json:"destination_site_id"`
+			DestinationRoomID string   `json:"destination_room_id"`
+			DestinationRoom   string   `json:"destination_room"`
 			Phone             string   `json:"phone"`
 			Author            string   `json:"author"`
 			State             string   `json:"state"`
@@ -684,6 +691,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if sessionPayload.DefaultSiteID != "clover-hs" || sessionPayload.CurrentSiteID != "clover-hs" {
 			t.Fatalf("expected clover-hs site context, got default=%q current=%q", sessionPayload.DefaultSiteID, sessionPayload.CurrentSiteID)
+		}
+		if len(sessionPayload.VisibleSites) < 6 {
+			t.Fatalf("expected district-wide visible sites in session payload, got %#v", sessionPayload.VisibleSites)
 		}
 		if !slices.Contains(sessionPayload.AllowedRoutes, "/data-quality") {
 			t.Fatalf("expected /data-quality in allowed routes: %#v", sessionPayload.AllowedRoutes)
@@ -2573,15 +2583,34 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		req.AddCookie(secretaryCookie)
 		rec = httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("site-scoped single draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("site-scoped single draft with default current room returned %d, want 400: %s", rec.Code, rec.Body.String())
 		}
-		created := decodeJSON[roomMoveDraftTestResponse](t, rec)
-		if created.Draft.CanManageDistrict {
-			t.Fatal("site-scoped draft should not expose district controls")
+		if !strings.Contains(rec.Body.String(), "Morgan Lee is already in B-210") {
+			t.Fatalf("site-scoped single draft error = %s, want same-room validation for documented current-room default", rec.Body.String())
 		}
-		if len(created.Draft.Rows) != 1 || created.Draft.Rows[0].DestinationRoomID != "cla-b210" {
-			t.Fatalf("created draft rows = %#v, want current room as same-site default", created.Draft.Rows)
+
+		sameRoomBody, err := json.Marshal(map[string]any{
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{{
+				"person_id":           "morgan-lee",
+				"destination_site_id": "clover-hs",
+				"destination_room_id": "cla-b210",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal same-room draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(sameRoomBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("same-room draft returned %d, want 400: %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "Morgan Lee is already in B-210") {
+			t.Fatalf("same-room draft error = %s, want person and current-room validation text", rec.Body.String())
 		}
 
 		primaryConflictBody, err := json.Marshal(map[string]any{
@@ -2700,6 +2729,59 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if !foundJamieReed {
 			t.Fatalf("it room moves rows = %#v, want Jamie Reed seed row", itRoomMoves.Page.Rows)
 		}
+		updateJamieBody, err := json.Marshal(map[string]any{
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{{
+				"person_id":           "jamie-reed",
+				"destination_site_id": "desert-view",
+				"destination_room_id": "dve-c122",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("marshal Jamie Reed update: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPut, "/api/v1/dev/room-moves/drafts/single-jamie-reed", bytes.NewReader(updateJamieBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Jamie Reed existing-row update returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		updatedJamie := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(updatedJamie.Draft.Rows) != 1 || updatedJamie.Draft.Rows[0].DestinationRoomID != "dve-c122" {
+			t.Fatalf("updated Jamie Reed draft = %#v, want C-122 destination on existing draft id", updatedJamie.Draft)
+		}
+		if updatedJamie.Draft.ScopeSiteID != "desert-view" {
+			t.Fatalf("updated Jamie Reed scope = %q, want original desert-view scope", updatedJamie.Draft.ScopeSiteID)
+		}
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it room moves after Jamie update returned %d, want 200", rec.Code)
+		}
+		afterJamieUpdate := decodeJSON[roomMovesResponse](t, rec)
+		jamieRows := 0
+		for _, row := range afterJamieUpdate.Page.Rows {
+			if row.DraftID == "single-jamie-reed" {
+				jamieRows++
+				if row.DestinationRoomID != "dve-c122" || row.DestinationRoom != "C-122" {
+					t.Fatalf("Jamie Reed updated row = %#v, want C-122 destination", row)
+				}
+			}
+		}
+		if jamieRows != 1 {
+			t.Fatalf("found %d Jamie Reed rows after edit, want one existing row updated", jamieRows)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/single-jamie-reed/apply", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Jamie Reed existing-row apply returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id=rm-draft-103", nil)
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
@@ -2728,6 +2810,26 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if len(seedBulkDraft.Page.Draft.Warnings) == 0 || seedBulkDraft.Page.Draft.Warnings[0] != expectedRemovalWarning {
 			t.Fatalf("seeded bulk warnings = %#v, want person-specific warning bullet", seedBulkDraft.Page.Draft.Warnings)
+		}
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it room moves after seeded bulk open returned %d, want 200", rec.Code)
+		}
+		afterSeedBulkOpen := decodeJSON[roomMovesResponse](t, rec)
+		seedBulkRows := 0
+		for _, row := range afterSeedBulkOpen.Page.Rows {
+			if row.DraftID == "rm-draft-103" {
+				seedBulkRows++
+				if row.Person != "Bulk Move" || row.State != "Scheduled" || row.ScheduledFor == "" || row.Warning == "" {
+					t.Fatalf("seeded bulk row after draft cache = %#v, want scheduled seed status preserved", row)
+				}
+			}
+		}
+		if seedBulkRows != 1 {
+			t.Fatalf("found %d seeded bulk rows after draft cache, want one preserved review row", seedBulkRows)
 		}
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/rm-draft-103/cancel", nil)
 		req.AddCookie(itCookie)
@@ -2797,6 +2899,23 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		roster := decodeJSON[roomMoveDraftTestResponse](t, rec)
 		if roster.Draft.Mode != "end_of_year_site_move" || len(roster.Draft.Rows) < 2 {
 			t.Fatalf("roster draft = %#v, want clover roster rows", roster.Draft)
+		}
+		placeholderRow := roster.Draft.Rows[0]
+		if placeholderRow.Action != "change" || placeholderRow.DestinationRoomID != "none" {
+			t.Fatalf("roster placeholder row = %#v, want unchanged destination placeholder", placeholderRow)
+		}
+		if placeholderRow.Phone == "Remove phone and SLGs; convert room to common area" || strings.Contains(placeholderRow.Warning, "will be removed") {
+			t.Fatalf("roster placeholder row = %#v, want neutral placeholder without removal outcome", placeholderRow)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+roster.Draft.ID+"/schedule", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("untouched roster schedule returned %d, want 400: %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "Choose a destination room") {
+			t.Fatalf("untouched roster schedule error = %s, want placeholder validation", rec.Body.String())
 		}
 
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/room-moves/bulk-draft?draft_id="+url.QueryEscape(roster.Draft.ID), nil)
@@ -2879,7 +2998,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"mode":          "manual_move_list",
 			"scope_site_id": "clover-hs",
 			"rows": []map[string]string{
-				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b210", "destination_role": "primary"},
+				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104", "destination_role": "primary"},
 				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "destination_role": "secondary", "action": "add"},
 				{"person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "destination_role": "tertiary", "action": "add"},
 			},
@@ -2928,26 +3047,19 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("inferred-primary repeated-user draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("inferred-primary same-room draft returned %d, want 400: %s", rec.Code, rec.Body.String())
 		}
-		inferredPrimary := decodeJSON[roomMoveDraftTestResponse](t, rec)
-		if len(inferredPrimary.Draft.Warnings) != 0 {
-			t.Fatalf("inferred-primary repeated-user warnings = %#v, want source-room primary inference without manual-review warning", inferredPrimary.Draft.Warnings)
-		}
-		if inferredPrimary.Draft.Rows[0].DestinationRole != "primary" || inferredPrimary.Draft.Rows[0].Phone == "Review required before primary phone assignment" {
-			t.Fatalf("inferred-primary source-room row = %#v, want retained current room inferred as primary", inferredPrimary.Draft.Rows[0])
-		}
-		if inferredPrimary.Draft.Rows[1].DestinationRole != "secondary" || inferredPrimary.Draft.Rows[1].Phone != "Add to room shared line group; keep common-area phone active" {
-			t.Fatalf("inferred-primary added row = %#v, want secondary shared-line-group CAP coverage", inferredPrimary.Draft.Rows[1])
+		if !strings.Contains(rec.Body.String(), "Morgan Lee is already in B-210") {
+			t.Fatalf("inferred-primary same-room error = %s, want stable current-room validation", rec.Body.String())
 		}
 
 		ambiguousBody, err := json.Marshal(map[string]any{
 			"mode":          "manual_move_list",
 			"scope_site_id": "clover-hs",
 			"rows": []map[string]string{
-				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104", "destination_role": "primary"},
 				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "destination_role": "primary"},
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "destination_role": "primary"},
 			},
 		})
 		if err != nil {
@@ -2975,8 +3087,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			"mode":          "manual_move_list",
 			"scope_site_id": "clover-hs",
 			"rows": []map[string]string{
-				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104"},
 				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+				{"person_id": "casey-nguyen", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204"},
 			},
 		})
 		if err != nil {
@@ -3017,8 +3129,10 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		siteAdminCookie := loginAsPersona(t, handler, "site_admin")
 
 		cancelBody, err := json.Marshal(map[string]any{
-			"mode":      "mid_year_targeted_move",
-			"person_id": "alex-ramirez",
+			"mode": "mid_year_targeted_move",
+			"rows": []map[string]string{
+				{"person_id": "alex-ramirez", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+			},
 		})
 		if err != nil {
 			t.Fatalf("marshal cancel draft: %v", err)

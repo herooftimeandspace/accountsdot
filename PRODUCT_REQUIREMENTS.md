@@ -343,6 +343,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `None` must appear first in destination-room dropdowns
   - destination-room dropdowns must show one unique option per room value; duplicate `None` or duplicate room labels from DEV mocks or provider payloads should collapse to a single selectable value
   - for same-site moves, the default destination room is the person’s current room when that room exists in the destination site
+  - site-rollover roster drafts are the exception to the same-site current-room default: preloaded roster rows persist destination room as `None` until the operator selects the actual destination room, so the initial draft never stores a no-op same-room move
+  - manually submitted or edited draft rows must reject no-op same-room moves by stable current-room and destination-room id before draft persistence, scheduling, or apply
   - for inter-site moves, the destination room defaults to `None`
   - if a person is moving sites, the destination room should be set to none
   - bulk-draft `add` rows clear current-room state because the person has no prior room association in that planned action

@@ -182,7 +182,7 @@ Mutation routes include:
 
 ### Room Moves
 
-`internal/web/dev_room_moves.go` creates, updates, transitions, cancels, deletes, applies, and schedules reverts for mock room-move drafts. These mutations model future room, extension, and Zoom workflow effects in memory only.
+`internal/web/dev_room_moves.go` creates, updates, transitions, cancels, deletes, applies, and schedules reverts for mock room-move drafts. These mutations model future room, extension, and Zoom workflow effects in memory only. Create, update, schedule, and apply paths reject same-room moves by stable current/destination room id so a no-op drawer edit cannot become a planned provider write. Updating an existing seeded single-move row stores the edited draft under the same draft id, preserves the original scoped site when a partial update omits it, and suppresses the seed row in the review table, which models an update to the selected workflow rather than a second workflow. Untouched site-rollover roster rows with destination room `none` remain neutral placeholders and cannot be scheduled or applied until an operator chooses a destination or explicit removal action.
 
 Repeated-user bulk drafts remain DEV-only mock planning today. The mock normalizer groups rows for the same person, preserves all rows, allows one primary desk-phone destination, treats secondary/tertiary/later destinations as shared-line-group-only memberships, keeps common-area/CAP coverage active for non-primary destinations, and returns review warnings when the primary destination is ambiguous. This models planned future Zoom room SLG, primary phone assignment, CAP/common-area, and IncidentIQ room association writes; it does not call Zoom, IncidentIQ, or the database.
 
