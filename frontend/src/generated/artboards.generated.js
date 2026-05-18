@@ -226,9 +226,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "onboarding",
