@@ -112,6 +112,7 @@ const artboardSpecs = [
     key: "my-profile",
     source: "docs/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
     mode: "merge-shell",
+    standardPrimitives: [],
   },
   {
     key: "login",

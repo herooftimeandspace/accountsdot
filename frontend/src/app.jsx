@@ -18,6 +18,7 @@ const DepartingSeniorsPage = lazyNamed(() => import("./pages/DepartingSeniorsPag
 const FrequentFliersPage = lazyNamed(() => import("./pages/FrequentFliersPage"), "FrequentFliersPage");
 const OffboardingPage = lazyNamed(() => import("./pages/OffboardingPage"), "OffboardingPage");
 const OnboardingPage = lazyNamed(() => import("./pages/OnboardingPage"), "OnboardingPage");
+const MyProfilePage = lazyNamed(() => import("./pages/MyProfilePage"), "MyProfilePage");
 const PhoneDirectoryPage = lazyNamed(() => import("./pages/PhoneDirectoryPage"), "PhoneDirectoryPage");
 const ReportsPage = lazyNamed(() => import("./pages/ReportsPage"), "ReportsPage");
 const RoomMovesPage = lazyNamed(() => import("./pages/RoomMovesPage"), "RoomMovesPage");
@@ -606,6 +607,17 @@ export function App() {
         routeKind={currentRoute.kind}
         artboardKey={currentRoute.artboardKey}
         currentSearch={currentSearch}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
+  } else if (currentRoute?.kind === "static" && currentRoute.artboardKey === "my-profile") {
+    page = (
+      <MyProfilePage
+        session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}

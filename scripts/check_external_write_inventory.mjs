@@ -26,6 +26,7 @@ const routeMetadata = new Map([
   ["POST /api/v1/annual-reset", { owner: "annual reset" }],
   ["POST /api/v1/dev/login", { owner: "DEV session mock" }],
   ["POST /api/v1/dev/logout", { owner: "DEV session mock" }],
+  ["PUT /api/v1/dev/my-profile", { owner: "DEV My Profile mock" }],
   ["PUT /api/v1/dev/feature-flags/{key}", { owner: "DEV feature flags" }],
   ["POST /api/v1/dev/onboarding/manual-drafts", { owner: "DEV drafts" }],
   ["PUT /api/v1/dev/onboarding/manual-drafts/{id}", { owner: "DEV drafts" }],

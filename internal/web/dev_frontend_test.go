@@ -102,6 +102,18 @@ type featureFlagResponse struct {
 	} `json:"active_indicators"`
 }
 
+type myProfileResponse struct {
+	PageID  string `json:"page_id"`
+	Profile struct {
+		LegalName          string `json:"legal_name"`
+		PreferredFirstName string `json:"preferred_first_name"`
+		PreferredLastName  string `json:"preferred_last_name"`
+		DisplayName        string `json:"display_name"`
+		Pronouns           string `json:"pronouns"`
+		Editable           bool   `json:"editable"`
+	} `json:"profile"`
+}
+
 type dataQualityResponse struct {
 	PageID string `json:"page_id"`
 	Page   struct {
@@ -3258,6 +3270,93 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		clearCookie := findCookie(rec.Result().Cookies(), "wizard_dev_session")
 		if clearCookie == nil || clearCookie.MaxAge != -1 {
 			t.Fatalf("expected cleared session cookie, got %#v", clearCookie)
+		}
+	})
+}
+
+func TestDevMyProfileDirectEditMockState(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	t.Run("requires an authenticated DEV persona", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("anonymous profile returned %d, want 401", rec.Code)
+		}
+	})
+
+	t.Run("eligible persona can save preferred display name and pronouns", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "faculty_staff")
+
+		getReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
+		getReq.AddCookie(cookie)
+		getRec := httptest.NewRecorder()
+		handler.ServeHTTP(getRec, getReq)
+		if getRec.Code != http.StatusOK {
+			t.Fatalf("profile get returned %d, want 200", getRec.Code)
+		}
+		initial := decodeJSON[myProfileResponse](t, getRec)
+		if initial.PageID != "my-profile" || !initial.Profile.Editable {
+			t.Fatalf("unexpected initial profile payload: %#v", initial)
+		}
+		if initial.Profile.DisplayName != "Avery Shah" {
+			t.Fatalf("display name = %q, want Avery Shah", initial.Profile.DisplayName)
+		}
+
+		body, err := json.Marshal(map[string]string{
+			"preferred_first_name": "  Ave ",
+			"preferred_last_name":  " Shah-Lewis ",
+			"pronouns":             " They / Them ",
+		})
+		if err != nil {
+			t.Fatalf("marshal profile update: %v", err)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/my-profile", bytes.NewReader(body))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("profile update returned %d, want 200", updateRec.Code)
+		}
+		updated := decodeJSON[myProfileResponse](t, updateRec)
+		if updated.Profile.DisplayName != "Ave Shah-Lewis" {
+			t.Fatalf("display name = %q, want Ave Shah-Lewis", updated.Profile.DisplayName)
+		}
+		if updated.Profile.Pronouns != "They / Them" {
+			t.Fatalf("pronouns = %q, want They / Them", updated.Profile.Pronouns)
+		}
+
+		verifyReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
+		verifyReq.AddCookie(cookie)
+		verifyRec := httptest.NewRecorder()
+		handler.ServeHTTP(verifyRec, verifyReq)
+		if verifyRec.Code != http.StatusOK {
+			t.Fatalf("profile verify returned %d, want 200", verifyRec.Code)
+		}
+		verified := decodeJSON[myProfileResponse](t, verifyRec)
+		if verified.Profile.DisplayName != "Ave Shah-Lewis" {
+			t.Fatalf("persisted display name = %q, want Ave Shah-Lewis", verified.Profile.DisplayName)
+		}
+		if verified.Profile.LegalName != "Avery Shah" {
+			t.Fatalf("legal name changed to %q, want source legal name Avery Shah", verified.Profile.LegalName)
+		}
+	})
+
+	t.Run("validation rejects missing preferred name fields", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "faculty_staff")
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/my-profile", strings.NewReader(`{"preferred_first_name":"","preferred_last_name":"","pronouns":""}`))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid profile update returned %d, want 400", updateRec.Code)
+		}
+		if !strings.Contains(updateRec.Body.String(), "preferred_first_name") {
+			t.Fatalf("validation body missing field errors: %s", updateRec.Body.String())
 		}
 	})
 }
