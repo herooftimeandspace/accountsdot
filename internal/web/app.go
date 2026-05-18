@@ -37,6 +37,7 @@ func NewAppHandler(deps HealthDependencies) http.Handler {
 	mux.Handle("/api/v1/dev/pages/onboarding", http.HandlerFunc(handleDevOnboardingPage))
 	mux.Handle("/api/v1/dev/onboarding/manual-drafts", http.HandlerFunc(handleDevOnboardingManualDrafts))
 	mux.Handle("/api/v1/dev/onboarding/manual-drafts/", http.HandlerFunc(handleDevOnboardingManualDraft))
+	mux.Handle("/api/v1/dev/onboarding/rows/", http.HandlerFunc(handleDevOnboardingRoomUpdate))
 	registerDevOffboardingRoutes(mux)
 	mux.Handle("/api/v1/dev/offboarding/records/", http.HandlerFunc(handleDevOffboardingRecord))
 	mux.Handle("/api/v1/dev/pages/departing-seniors", http.HandlerFunc(handleDevDepartingSeniorsPage))

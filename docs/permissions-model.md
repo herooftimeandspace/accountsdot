@@ -78,6 +78,7 @@ Do not persist secrets, SAML assertions, OAuth tokens, service-account JSON, or 
 - Disabled or revoked subjects receive no permissions unless breakglass recovery is active.
 - District-scoped roles resolve to district scope.
 - Site-scoped roles require an explicit site scope. A site-scoped role without a site scope grants no effective site access, preventing cross-site leakage.
+- `site_admin` is a single-site role. If SAML, Google group/attribute input, manual grants, or future editable scope rows resolve a Site Admin subject to more than one active site, the resolver must fail closed for that Site Admin access and surface the condition for IT Admin cleanup instead of granting multi-site visibility. District-wide or multi-site operational needs must use another documented role, such as `it_admin` or `human_resources`.
 - Manual grants are ignored before `StartsAt` and after `ExpiresAt`.
 - Manual revocations are ignored before `StartsAt` and after `ExpiresAt`.
 - Manual revocations remove the matching role/scope from the effective grant set and remain visible in the denial set for audit and operator explanation.

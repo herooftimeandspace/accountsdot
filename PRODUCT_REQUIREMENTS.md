@@ -183,6 +183,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     - `/phone-directory/by-room`
     - `/phone-directory/by-department`
     - `/my-profile`
+    - `/onboarding`
     - `/student-data-cleanup`
     - `/room-moves`
   - `Device Wrangler`
@@ -201,7 +202,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Scope rules for the current foundation slice:
   - `IT Admin` sees all sites on all allowed pages
   - `Human Resources` sees district-wide data on all allowed pages
-  - `Site Admin` sees only assigned site(s) on site-scoped pages
+  - `Site Admin` has exactly one assigned site and sees only that site on site-scoped pages; multi-site Site Admin identity inputs must fail closed and route to IT Admin cleanup rather than granting cross-site access
   - `Site Secretary` sees only assigned site(s) on site-scoped pages
   - `Device Wrangler` sees only assigned site(s) on site-scoped pages
   - `Faculty and Staff` default to their own-site context on allowed pages
@@ -410,6 +411,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - IT Admin: full visibility and full operational control.
 - Human Resources: district-wide lifecycle visibility, manual intake, reactivation, offboarding, and sensitive personnel data.
 - Administrative Staff / Site Admin Staff: site-scoped operational visibility for onboarding, offboarding, and room-move status.
+- Site Admin is a single-site role. District-wide or multi-site administrative visibility must use a different documented role, such as IT Admin or Human Resources where appropriate.
 - Device Wranglers: distinct site-scoped role for student device-accountability reporting. Librarians are one class of Device Wrangler users.
 - Site Secretaries: site-scoped student invalid-name queue and room-move workflow participation.
 - Faculty and Staff: limited self-service for approved personal fields such as preferred name.
@@ -522,6 +524,8 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - assigned email, if present
   - where the person is in the system
   - only for their own site
+- Site Admin and Site Secretary onboarding views must be scoped to the active assigned site. Rows, table counts, page-local search, global search onboarding results, drawer details, and room options must not expose people or workflow details from other sites.
+- In the Onboarding selected-person drawer, Site Admin and Site Secretary may update only `Room`. All other onboarding fields remain read-only for those personas and the DEV API must reject non-Room update attempts server-side. HR and IT Admin retain their documented broader manual onboarding behavior.
 - Support HR sideloading for non-Escape people when required upstream data does not exist.
 - Show blockers clearly, including:
   - unmapped job titles

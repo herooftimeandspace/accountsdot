@@ -424,12 +424,9 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			NotificationCount: "2",
 			PlatformStatus:    "All Systems Operational",
 		},
-		DefaultSite: siteByID("clover-hs"),
-		CurrentSite: siteByID("clover-hs"),
-		VisibleSites: sitesByID(
-			"clover-hs",
-			"desert-view",
-		),
+		DefaultSite:  siteByID("clover-hs"),
+		CurrentSite:  siteByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs"),
 	},
 	"site_secretary": {
 		Persona: devPersona{
@@ -443,6 +440,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			[]string{
 				"/my-profile",
 				devGlobalSearchRoute,
+				"/onboarding",
 				"/student-data-cleanup",
 				"/room-moves",
 				"/room-moves/bulk-draft",
