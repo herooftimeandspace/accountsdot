@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { DEFAULT_RUNTIME_DRAWER_BOUNDS, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSelectDropdown } from "../components/RuntimeDropdown";
@@ -7,7 +7,7 @@ import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey }
 import { helpContentForRoute } from "./routeHelpContent";
 
 const SIDEBAR_TEMPLATE = {
-  firstLabelY: 128,
+  firstLabelY: 140,
   rowStep: 49,
   nestedRowFirstOffset: 30,
   nestedRowStep: 28,
@@ -491,7 +491,7 @@ function SharedShellSidebarRow({
             top: metrics.highlightTop,
             width: metrics.highlightWidth,
             height: metrics.highlightHeight,
-            zIndex: 0,
+            zIndex: 66,
           }}
         />
       ) : null}
@@ -623,6 +623,48 @@ function sidebarRowActive(row, activeNavKey, activeRoutePath) {
     return row.depth === 0 && !row.hasChildren && row.navKey === activeNavKey;
   }
   return row.depth === 0 && row.navKey === activeNavKey;
+}
+
+export function defaultScopeDropdownForSession(session) {
+  const visibleSites = Array.isArray(session?.visible_sites) ? session.visible_sites : [];
+  const isDistrictWide = String(session?.shell?.scope_title ?? "").toLowerCase().includes("district");
+  const options = [
+    ...(isDistrictWide ? [{ id: "district-wide", label: "District-wide" }] : []),
+    ...visibleSites.map((site) => ({
+      id: site.id,
+      label: site.name,
+    })),
+  ];
+  const fallbackSite = session?.current_site_id || session?.default_site_id || options[0]?.id || "current";
+  const urlScope = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("site_id");
+  const value = options.some((option) => option.id === urlScope)
+    ? urlScope
+    : isDistrictWide
+      ? "district-wide"
+      : fallbackSite;
+
+  return {
+    label: "Header scope",
+    value,
+    options: options.length
+      ? options
+      : [{ id: session?.shell?.scope_title ?? "current", label: session?.shell?.scope_title ?? "Current scope" }],
+    onChange: (nextScope) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const nextUrl = new URL(window.location.href);
+      if (nextScope && nextScope !== "district-wide") {
+        nextUrl.searchParams.set("site_id", nextScope);
+      } else {
+        nextUrl.searchParams.delete("site_id");
+      }
+      window.history.pushState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
+      const navigationEvent =
+        typeof PopStateEvent === "function" ? new PopStateEvent("popstate") : new Event("popstate");
+      window.dispatchEvent(navigationEvent);
+    },
+  };
 }
 
 function SharedShellSearchOverlay({ bounds, iconBounds, initialQuery, placeholder, onSearch }) {
@@ -772,6 +814,92 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
   );
 }
 
+async function runDefaultDevLogout() {
+  await fetch("/api/v1/dev/logout", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  window.location.assign("/login");
+}
+
+function SharedShellAccountMenu({ bounds, onNavigate, onLogout }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuId = useId();
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    function handlePointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
+  if (!bounds) {
+    return null;
+  }
+
+  function closeAndNavigate(path) {
+    setIsOpen(false);
+    onNavigate?.(path);
+  }
+
+  async function closeAndLogout() {
+    setIsOpen(false);
+    if (typeof onLogout === "function") {
+      await onLogout();
+      return;
+    }
+    await runDefaultDevLogout();
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className="shared-shell-account-menu"
+      style={{
+        position: "absolute",
+        left: bounds.left,
+        top: bounds.top,
+        width: Math.max(0, bounds.right - bounds.left),
+        height: Math.max(0, bounds.bottom - bounds.top),
+        zIndex: 73,
+      }}
+    >
+      <button
+        type="button"
+        className="shared-shell-account-menu__button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        aria-label="Open account menu"
+        onClick={() => setIsOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setIsOpen(false);
+          }
+        }}
+      />
+      {isOpen ? (
+        <div id={menuId} className="shared-shell-account-menu__panel" role="menu" aria-label="Account menu">
+          <button type="button" role="menuitem" onClick={() => closeAndNavigate("/my-profile")}>
+            My Profile
+          </button>
+          <button type="button" role="menuitem" onClick={() => void closeAndLogout()}>
+            Sign Out
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function defaultHelpContent(activeNavKey, activeRoutePath) {
   return helpContentForRoute(activeRoutePath, activeNavKey);
 }
@@ -787,6 +915,7 @@ export function createSharedShellRenderOverlay({
   pageSyncControl = null,
   helpContent = null,
   scopeDropdown = null,
+  onLogout = null,
 }) {
   if (
     !session?.authenticated ||
@@ -808,17 +937,9 @@ export function createSharedShellRenderOverlay({
     const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
     const resolvedPageSyncControl = normalizePageSyncControl(pageSyncControl, refreshMetadata);
     const helpIconBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.helpIcon), textOverrides);
+    const accountBoxBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.accountBox), textOverrides);
     const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey, activeRoutePath);
-    const resolvedScopeDropdown = scopeDropdown ?? {
-      label: "Header scope",
-      value: session?.shell?.scope_title ?? "",
-      options: [
-        {
-          id: session?.shell?.scope_title ?? "current",
-          label: session?.shell?.scope_title ?? "Current scope",
-        },
-      ],
-    };
+    const resolvedScopeDropdown = scopeDropdown ?? defaultScopeDropdownForSession(session);
 
     return [
       <SharedShellPageSyncControl
@@ -846,6 +967,12 @@ export function createSharedShellRenderOverlay({
         key="shared-shell-help"
         bounds={helpIconBounds}
         helpContent={resolvedHelpContent}
+      />,
+      <SharedShellAccountMenu
+        key="shared-shell-account-menu"
+        bounds={accountBoxBounds}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
       />,
       ...visibleSidebarRows.map((row, index) => {
         return (
