@@ -370,9 +370,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": null,
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "login",
