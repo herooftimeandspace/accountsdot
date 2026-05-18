@@ -1242,8 +1242,10 @@ input {
   right: 72px;
   z-index: 5;
   display: flex;
-  gap: 10px;
-  align-items: center;
+  width: 188px;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .offboarding-runtime__page-action,
@@ -1254,6 +1256,7 @@ input {
   padding: 0 16px;
   cursor: pointer;
   font: 800 13px/1 var(--font-ui);
+  white-space: nowrap;
 }
 
 .offboarding-runtime__page-action:focus-visible,
