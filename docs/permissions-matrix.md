@@ -2,6 +2,8 @@
 
 This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `PRODUCT_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`, and `TEST_MATRIX.md`.
 
+This matrix is current DEV implementation documentation. It is not a completion certificate for the broader permissions backlog. In particular, issue #158 still needs a broader route/API inventory pass before it can close, because several implemented pages are currently static frontend-only surfaces or have frontend route-guard coverage without matching route-specific Go page APIs. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher.
+
 ## Source Order
 
 - `PRODUCT_REQUIREMENTS.md` defines the staff-only product boundary, allowed domains, explicit student denial, same-URL access-denied requirement, lifecycle visibility rules, and HR/IT offboarding action requirements.
@@ -86,13 +88,15 @@ Example mapping shape:
 ]
 ```
 
-## Current DEV Route Rules
+## DEV Source Rules
 
 - The dashboard is staff-only. Allowed staff domains are `@wusd.org`, `@it.wusd.org`, and `@staff.wusd.org`; `@stu.wusd.org` is denied before normal role authorization. Local breakglass accounts are the only documented domain-gate exception.
 - Unauthenticated users receive `401` for protected DEV page and API routes.
 - Authenticated users without route, persona, feature-flag, site-scope, or field-level permission receive `403` or the route's normal access-denied behavior.
 - Sidebar hiding and disabled controls are defense-in-depth only. Server-side DEV APIs must enforce authorization before returning protected data or mutating DEV state.
 - IT Admin has all current implemented routes and an override for route-level feature flags. Human Resources has district-wide lifecycle access. Site Admin, Site Secretary, Device Wrangler, and Faculty and Staff receive only the route set and site/field visibility listed below.
+- Local breakglass access is documented as a required emergency pattern, but it is not modeled as a selectable DEV persona. The current DEV persona switcher is only a mock-session convenience for implemented staff roles, not proof that breakglass login, source-address restrictions, or emergency audit behavior are implemented.
+- Production authorization remains future work beyond this DEV persona model. The durable target is SAML identity plus Google group or attribute-based authorization, with persistent site-scope mapping where appropriate. The current DEV session payloads, route lists, feature flags, and mock site scopes are implementation scaffolding for route/API behavior, not a production SAML or Google-group integration.
 
 ## DEV Persona Route Matrix
 
@@ -134,6 +138,8 @@ Example mapping shape:
 
 Feature flags currently control sidebar visibility, direct route access, and matching DEV page/API access where a route-backed API exists. A non-IT user receives a flagged feature only when their persona and current site are effectively enabled. IT Admin always sees every route-level feature and active indicator.
 
+Feature flags are not an in-app permissions administration model. They let DEV verify route availability and persona/site enablement, but they do not grant or revoke real user access, persist authorization history, prevent administrative lockout, or calculate effective permissions across SAML claims, Google groups, manual site mappings, and emergency access. Those behaviors belong to the deferred #160 workstream.
+
 ## Field-Level Visibility
 
 | Field | IT Admin | Human Resources | Site Admin / Site Secretary | Device Wrangler | Faculty and Staff | Status |
@@ -146,9 +152,52 @@ Feature flags currently control sidebar visibility, direct route access, and mat
 
 ## Known Gaps
 
-- This matrix is current DEV implementation documentation, not a statement that #158 is fully complete. Static frontend-only pages still need a broader route/API inventory pass before #158 can close.
-- #160 is intentionally deferred. In-app persona grant/revoke management needs a separate editable model, lockout protection, persistent audit history, and effective-permission behavior.
-- Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method.
-- Persistent manual site-scope administration is still follow-up work. Until it exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs.
-- Local breakglass behavior is documented but not represented as a DEV persona-switcher flow.
-- Production SAML/Google-group authorization and persistent site-scope mapping are future implementation work beyond the current DEV persona model.
+### Issue #158: Route/API Inventory Still Open
+
+This matrix documents the currently implemented DEV behavior and the route/API coverage that was verified while building the matrix. It does not prove that #158 is fully complete.
+
+Before #158 can close, a separate inventory pass must confirm every implemented route has the intended authorization layer and matching evidence:
+
+- A frontend route entry and direct-navigation behavior.
+- A sidebar/navigation visibility rule where the route appears in the shell.
+- A route-specific Go page API when the page is runtime-backed.
+- Server-side `401` and `403` tests for route-backed APIs.
+- Site-scope and field-visibility tests where the page exposes sensitive, personnel, student, room, device, or lifecycle data.
+- An explicit documented exception for static frontend-only pages that intentionally do not have a route-specific Go API in the current slice.
+
+The static/frontend-only row in the Page And API Matrix is therefore a known documentation boundary, not a completed authorization audit.
+
+### Issue #160: Editable Permissions Management Deferred
+
+Issue #160 is intentionally deferred. The current DEV persona switcher, feature-flag target editor, and hardcoded mock persona definitions are not sufficient for in-app grant/revoke management.
+
+Real in-app permission management needs a separate editable authorization model that includes:
+
+- Persistent grants, revocations, and site-scope assignments.
+- Lockout protection so IT cannot remove the last effective admin path.
+- Persistent audit history that records who changed access, what changed, when it changed, and why.
+- Effective-permission calculation across direct grants, SAML identity, Google groups or attributes, manual site-scope mappings, feature rollout state, and breakglass/emergency rules.
+- Operator UX that distinguishes proposed access changes from active effective access.
+- Tests for self-lockout, cross-site leakage, stale grants, revoked users, and conflicting group/manual assignments.
+
+Until that model exists, the matrix should be read as DEV enforcement documentation, not as an editable access administration design.
+
+### Breakglass Boundary
+
+Local breakglass behavior is required by `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md`, but it is not represented as a DEV persona-switcher flow. A future breakglass implementation must verify local authentication, named emergency accounts, source-address restrictions, operational auditability, and recovery behavior when third-party authentication is unavailable.
+
+The current row for Local breakglass records the documented requirement only. It does not mean an operator can select a breakglass persona in DEV, and it does not provide evidence for the `0C` breakglass promotion gates in `TEST_MATRIX.md`.
+
+### Production Authorization Boundary
+
+Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method. Persistent manual site-scope administration is also follow-up work. Until it exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs.
+
+The durable product target remains:
+
+- Google SAML authentication.
+- Google group or attribute-based role assignment.
+- Persistent site-scope mapping where Google groups do not fully express the needed scope.
+- Site-access audit visibility for site staff and IT.
+- Application-level staff-domain gating before normal role authorization.
+
+The current DEV model uses mock personas, local session cookies, static allowed-route lists, DEV feature flags, and mock site scopes to validate route/API behavior. Those mechanisms must not be treated as the final production authorization source of truth.
