@@ -1239,7 +1239,7 @@ input {
 .offboarding-runtime__action-bar {
   position: absolute;
   top: 171px;
-  right: 72px;
+  left: 1251px;
   z-index: 5;
   display: flex;
   width: 188px;
