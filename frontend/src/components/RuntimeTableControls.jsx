@@ -1,4 +1,10 @@
 import { useMemo, useState } from "react";
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 
 /**
  * nextSortState documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
@@ -48,30 +54,11 @@ export function runtimeTableColumnValue(row, column, purpose) {
   return row?.[column.key];
 }
 
-/**
- * searchableRowText documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
-function searchableRowText(row, columns) {
-  return columns
-    .map((column) => stringifyValue(runtimeTableColumnValue(row, column, "search")))
-    .join(" ")
-    .toLowerCase();
-}
-
-/**
- * compareRows documents runtime data flow for frontend/src/components/RuntimeTableControls.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
-function compareRows(left, right, column, direction) {
-  const leftValue = stringifyValue(runtimeTableColumnValue(left.row, column, "sort"));
-  const rightValue = stringifyValue(runtimeTableColumnValue(right.row, column, "sort"));
-  const comparison = leftValue.localeCompare(rightValue, undefined, {
+function compareRuntimeTableValues(leftValue, rightValue) {
+  return stringifyValue(leftValue).localeCompare(stringifyValue(rightValue), undefined, {
     numeric: true,
     sensitivity: "base",
   });
-  if (comparison !== 0) {
-    return direction === "asc" ? comparison : -comparison;
-  }
-  return left.index - right.index;
 }
 
 /**
@@ -80,28 +67,38 @@ function compareRows(left, right, column, direction) {
 export function useRuntimeTableData(rows, columns, { defaultSort = { key: null, direction: "none" } } = {}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortState, setSortState] = useState(defaultSort);
-
-  const visibleRows = useMemo(() => {
-    const sourceRows = Array.isArray(rows) ? rows : [];
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    const filteredRows = normalizedQuery
-      ? sourceRows.filter((row) => searchableRowText(row, columns).includes(normalizedQuery))
-      : sourceRows;
-
-    if (!sortState?.key || sortState.direction === "none") {
-      return filteredRows;
-    }
-
-    const sortColumn = columns.find((column) => column.key === sortState.key);
-    if (!sortColumn) {
-      return filteredRows;
-    }
-
-    return [...filteredRows]
-      .map((row, index) => ({ row, index }))
-      .sort((left, right) => compareRows(left, right, sortColumn, sortState.direction))
-      .map(({ row }) => row);
-  }, [columns, rows, searchQuery, sortState]);
+  const tableColumns = useMemo(
+    () =>
+      columns.map((column) => ({
+        id: column.key,
+        accessorFn: (row) => runtimeTableColumnValue(row, column, "sort"),
+        sortingFn: (left, right, columnId) =>
+          compareRuntimeTableValues(left.getValue(columnId), right.getValue(columnId)),
+      })),
+    [columns]
+  );
+  const table = useReactTable({
+    data: Array.isArray(rows) ? rows : [],
+    columns: tableColumns,
+    state: {
+      globalFilter: searchQuery.trim().toLowerCase(),
+      sorting:
+        sortState?.key && sortState.direction !== "none"
+          ? [{ id: sortState.key, desc: sortState.direction === "desc" }]
+          : [],
+    },
+    globalFilterFn: (row, _columnId, filterValue) =>
+      !filterValue ||
+      columns.some((column) =>
+        stringifyValue(runtimeTableColumnValue(row.original, column, "search"))
+          .toLowerCase()
+          .includes(filterValue)
+      ),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+  const visibleRows = table.getRowModel().rows.map((row) => row.original);
 
   return {
     visibleRows,

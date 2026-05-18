@@ -27,6 +27,8 @@
     "export:wireframes": "node docs/mocks/export_wireframes_with_pencil.mjs"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.11",
+    "@tanstack/react-table": "^8.21.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
