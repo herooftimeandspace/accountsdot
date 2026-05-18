@@ -1,6 +1,6 @@
 GO ?= go
 DOCKER ?= docker
-GO_IMAGE ?= golang:1.26.2
+GO_IMAGE ?= golang:1.26.3
 GOVULNCHECK ?= govulncheck
 GOVULNCHECK_VERSION ?= latest
 GOVULNCHECK_PACKAGE := golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
