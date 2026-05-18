@@ -1,7 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const SHARED_HEADER_HEIGHT = 76;
 export const DEFAULT_RUNTIME_DRAWER_BOUNDS = { left: 1278, top: SHARED_HEADER_HEIGHT, width: 390, height: 818 };
+const DEFAULT_RUNTIME_DRAWER_WIDTH = 440;
+const DEFAULT_RUNTIME_DRAWER_RIGHT_INSET = 4;
+const MIN_RUNTIME_DRAWER_WIDTH = 320;
 
 function shouldCloseDrawerForPointerTarget(target) {
   if (!(target instanceof Element)) {
@@ -14,6 +17,45 @@ function shouldCloseDrawerForPointerTarget(target) {
     return false;
   }
   return true;
+}
+
+/**
+ * resolveArtboardRelativeDrawerStyle maps drawer geometry from generated artboard coordinates to viewport-fixed CSS so row/help drawers share the same right edge even when mounted outside the PenArtboard overlay.
+ */
+function resolveArtboardRelativeDrawerStyle(drawerElement, bounds) {
+  const artboard = drawerElement.closest(".pen-stage__artboard") ?? document.querySelector(".pen-stage__artboard");
+  if (!artboard) {
+    return bounds
+      ? {
+          position: "fixed",
+          left: bounds.left,
+          top: SHARED_HEADER_HEIGHT,
+          width: bounds.width,
+          zIndex: 80,
+        }
+      : undefined;
+  }
+
+  const artboardRect = artboard.getBoundingClientRect();
+  const artboardWidth = artboard.offsetWidth || artboardRect.width || 1;
+  const scale = artboardRect.width / artboardWidth || 1;
+  const requestedWidth = bounds ? bounds.width * scale : DEFAULT_RUNTIME_DRAWER_WIDTH;
+  const width = Math.min(
+    Math.max(MIN_RUNTIME_DRAWER_WIDTH, requestedWidth),
+    Math.max(MIN_RUNTIME_DRAWER_WIDTH, artboardRect.width)
+  );
+  const drawerRight = artboardRect.right - (bounds ? 0 : DEFAULT_RUNTIME_DRAWER_RIGHT_INSET * scale);
+  const requestedLeft = bounds ? artboardRect.left + bounds.left * scale : drawerRight - width;
+  const maxLeft = drawerRight - width;
+  const left = Math.max(artboardRect.left, Math.min(requestedLeft, maxLeft));
+
+  return {
+    position: "fixed",
+    left,
+    top: SHARED_HEADER_HEIGHT,
+    width,
+    zIndex: 80,
+  };
 }
 
 /**
@@ -43,19 +85,43 @@ export function RuntimeDetailList({ items }) {
  */
 export function RuntimeDrawer({ title, onClose, children, bounds = null, className = "", ariaLive = "polite" }) {
   const closeButtonRef = useRef(null);
+  const drawerRef = useRef(null);
   const restoreFocusRef = useRef(null);
+  const [resolvedStyle, setResolvedStyle] = useState(undefined);
   const titleText = String(title);
   const titleId = `runtime-drawer-title-${titleText.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   const devToolbarClass = import.meta.env.DEV ? "runtime-drawer--dev-toolbar-offset" : "";
-  const boundedStyle = bounds
-    ? {
-        position: "fixed",
-        left: bounds.left,
-        top: SHARED_HEADER_HEIGHT,
-        width: bounds.width,
-        zIndex: 80,
+
+  useLayoutEffect(() => {
+    const drawerElement = drawerRef.current;
+    if (!drawerElement) {
+      return undefined;
     }
-    : undefined;
+
+    let frame = 0;
+    const updateResolvedStyle = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setResolvedStyle(resolveArtboardRelativeDrawerStyle(drawerElement, bounds));
+      });
+    };
+
+    const artboard = drawerElement.closest(".pen-stage__artboard");
+    const resizeObserver = new ResizeObserver(updateResolvedStyle);
+    if (artboard) {
+      resizeObserver.observe(artboard);
+    }
+    updateResolvedStyle();
+    window.addEventListener("resize", updateResolvedStyle);
+    window.addEventListener("scroll", updateResolvedStyle, true);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateResolvedStyle);
+      window.removeEventListener("scroll", updateResolvedStyle, true);
+    };
+  }, [bounds]);
 
   useEffect(() => {
     restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -91,10 +157,11 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
 
   return (
     <aside
+      ref={drawerRef}
       className={`runtime-drawer ${bounds ? "runtime-drawer--bounded" : ""} ${devToolbarClass} ${className}`.trim()}
       aria-labelledby={titleId}
       aria-live={ariaLive}
-      style={boundedStyle}
+      style={resolvedStyle}
     >
       <div className="runtime-drawer__panel">
         <div className="runtime-drawer__header">
