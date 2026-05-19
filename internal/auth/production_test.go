@@ -43,7 +43,7 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 		{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
 	}
 	policy.AttributeRoleMappings = []auth.AttributeRoleMapping{
-		{Attribute: "wizard_role", Values: []string{"Device Wrangler"}, Roles: []string{auth.RoleDeviceWrangler}},
+		{Attribute: "wizard_role", Values: []string{"Faculty"}, Roles: []string{auth.RoleFacultyStaff}},
 	}
 	policy.SiteScopeMappings = []auth.SiteScopeMapping{
 		{SourceType: "group", Source: "wizard-bpl-scope@wusd.org", Sites: []string{"bpl"}},
@@ -51,10 +51,10 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 	}
 
 	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
-		Email:  "Casey.Secretary@staff.wusd.org",
-		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-bpl-scope@wusd.org"},
+		Email:  "Casey.Teacher@staff.wusd.org",
+		Groups: []string{"wizard-bpl-scope@wusd.org"},
 		Attributes: map[string][]string{
-			"wizard_role": {"Device Wrangler"},
+			"wizard_role": {"Faculty"},
 			"wizard_site": {"Clover HS"},
 		},
 	})
@@ -62,11 +62,10 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 	if !decision.Authorized {
 		t.Fatalf("decision denied: %#v", decision)
 	}
-	assertContains(t, decision.Roles, auth.RoleSiteSecretary)
-	assertContains(t, decision.Roles, auth.RoleDeviceWrangler)
+	assertContains(t, decision.Roles, auth.RoleFacultyStaff)
 	assertContains(t, decision.SiteScopes, "bpl")
 	assertContains(t, decision.SiteScopes, "clover-hs")
-	if decision.Email != "casey.secretary@staff.wusd.org" {
+	if decision.Email != "casey.teacher@staff.wusd.org" {
 		t.Fatalf("email = %q, want canonical lowercase address", decision.Email)
 	}
 }
@@ -74,8 +73,7 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 func TestEvaluateGoogleIdentityUnionsCanonicalAttributeNames(t *testing.T) {
 	policy := auth.DefaultPolicy()
 	policy.AttributeRoleMappings = []auth.AttributeRoleMapping{
-		{Attribute: "wizard_role", Values: []string{"Device Wrangler"}, Roles: []string{auth.RoleDeviceWrangler}},
-		{Attribute: "wizard_role", Values: []string{"Site Secretary"}, Roles: []string{auth.RoleSiteSecretary}},
+		{Attribute: "wizard_role", Values: []string{"Faculty"}, Roles: []string{auth.RoleFacultyStaff}},
 	}
 	policy.SiteScopeMappings = []auth.SiteScopeMapping{
 		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"clover-hs"}},
@@ -85,8 +83,7 @@ func TestEvaluateGoogleIdentityUnionsCanonicalAttributeNames(t *testing.T) {
 	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
 		Email: "mixed.claims@staff.wusd.org",
 		Attributes: map[string][]string{
-			"Wizard_Role": {"Device Wrangler"},
-			"wizard_role": {"Site Secretary"},
+			"Wizard_Role": {"Faculty"},
 			"Wizard_Site": {"Clover HS"},
 			"wizard_site": {"BPL"},
 		},
@@ -95,10 +92,55 @@ func TestEvaluateGoogleIdentityUnionsCanonicalAttributeNames(t *testing.T) {
 	if !decision.Authorized {
 		t.Fatalf("decision denied: %#v", decision)
 	}
-	assertContains(t, decision.Roles, auth.RoleDeviceWrangler)
-	assertContains(t, decision.Roles, auth.RoleSiteSecretary)
+	assertContains(t, decision.Roles, auth.RoleFacultyStaff)
 	assertContains(t, decision.SiteScopes, "bpl")
 	assertContains(t, decision.SiteScopes, "clover-hs")
+}
+
+func TestEvaluateGoogleIdentityAllowsSingleSiteOperationalRole(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "group", Source: "wizard-clover-scope@wusd.org", Sites: []string{"clover-hs"}},
+	}
+
+	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "secretary@staff.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-clover-scope@wusd.org"},
+	})
+
+	if !decision.Authorized {
+		t.Fatalf("decision denied: %#v", decision)
+	}
+	assertContains(t, decision.Roles, auth.RoleSiteSecretary)
+	if !slices.Equal(decision.SiteScopes, []string{"clover-hs"}) {
+		t.Fatalf("site scopes = %#v, want clover-hs", decision.SiteScopes)
+	}
+}
+
+func TestEvaluateGoogleIdentityFailsClosedForMultiSiteOperationalRole(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-device-wranglers@wusd.org", Roles: []string{auth.RoleDeviceWrangler}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "group", Source: "wizard-franklin-scope@wusd.org", Sites: []string{"franklin-ms"}},
+		{SourceType: "group", Source: "wizard-highland-scope@wusd.org", Sites: []string{"highland-es"}},
+	}
+
+	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "wrangler@staff.wusd.org",
+		Groups: []string{"wizard-device-wranglers@wusd.org", "wizard-franklin-scope@wusd.org", "wizard-highland-scope@wusd.org"},
+	})
+
+	if decision.Authorized {
+		t.Fatalf("multi-site operational role authorized: %#v", decision)
+	}
+	if decision.Reason != "single_site_role_scope_conflict" {
+		t.Fatalf("reason = %q, want single_site_role_scope_conflict", decision.Reason)
+	}
 }
 
 func TestEvaluateGoogleIdentityReflectsChangedAssignments(t *testing.T) {

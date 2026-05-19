@@ -417,14 +417,14 @@
     - `IT Admin`: all routes
     - `Human Resources`: `/dashboard/hr-lifecycle`, `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/offboarding`
     - `Site Admin`: `/dashboard/site-admin`, `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`
-    - `Site Secretary`: `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`
+    - `Site Secretary`: `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/student-data-cleanup`, `/room-moves`
     - `Device Wrangler`: `/search`, all three phone-directory routes, `/my-profile`, `/frequent-fliers`
     - `Faculty and Staff`: `/search`, all three phone-directory routes, `/my-profile`
   - scope rules for this slice are:
     - `IT Admin` sees all sites on all allowed pages
     - `Human Resources` sees district-wide data on all allowed pages
-    - `Site Admin`, `Site Secretary`, and `Device Wrangler` see only assigned site(s) on site-scoped pages
-    - `Faculty and Staff` default to their own-site context on allowed pages
+    - `Site Admin`, `Site Secretary`, and `Device Wrangler` each have exactly one assigned site and see only that site on site-scoped pages; multi-site mapping input for those roles must fail closed rather than creating cross-site operational access
+    - `Faculty and Staff` may have multiple associated sites, default to the onboarding/current-assignment-derived site context on allowed pages, and never gain operational site-scoped roles from those associations
     - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
   - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
   - unauthenticated access to any route other than `/login` must return `401`
@@ -722,6 +722,8 @@
 - Pre-phase 0 DEV manual Non-Escape intake is implemented as a mock-only slice:
   - `/onboarding` renders a Vegas Gold `Add Non-Escape Record` action for HR and IT only
   - the onboarding table renders `Date Added` first; it is the first Escape import date, the inactive-to-active Escape reactivation date, or the manual Non-Escape creation date
+  - DEV onboarding payloads, table rows, table counts, page-local search, global search onboarding results, row drawers, and room options must use the active site scope for Site Admin and Site Secretary; `Clover High School` site-scoped sessions must not receive District Office, Franklin MS, Desert View, or other non-Clover rows or drawer details
+  - Site Admin and Site Secretary onboarding drawer mutations are limited to `Room`; the DEV API accepts only room update payloads for those personas and rejects any non-Room field attempts server-side while HR and IT retain documented broader manual onboarding behavior
   - row drawers show workflow steps; user-action steps include status, resolution instructions, and deterministic mock links for this DEV slice
   - the action opens the shared right-hand drawer with required fields for start date, last 4 SSN, employee type, classification, first name, last name, job title, site, personal email, preferred device, and requested Aeries access
   - manual drawer fields use compact two-column desktop rows, with missing required fields summarized in the status bubble and controls highlighted with `var(--color-accent-red)` / `#D73533` only after the operator explicitly clicks Save; first-open draft creation and autosave keep validation feedback quiet
@@ -2128,8 +2130,8 @@
 - Users hitting the same URL should see access-denied responses when they do not have permission rather than soft-reduced content.
 - The permissions model and associated Google groups are part of the project deliverable and should remain the canonical authorization model once rolled out.
 - The editable in-app permissions model is defined in `docs/permissions-model.md`; that document distinguishes proposed IT Admin edits, stored manual grants/revocations, and effective access used by future server-side authorization.
-- Admin staff access defaults to site-specific scope and may be expanded to multi-site scope by Google group membership.
-- IT grants multi-site overrides for admin staff.
+- Site Admin, Site Secretary, and Device Wrangler access is exactly one site. Google group membership, SAML attributes, manual mappings, and future in-app grants must not create multi-site operational access for those roles.
+- IT Admin or Human Resources roles cover legitimate district-wide operational needs; any attempted multi-site operational persona mapping should fail closed and be routed to IT Admin cleanup.
 - Until Google-group authorization is fully built, site scope is maintained through manual mapping managed by IT Admin.
 - Initial production-auth implementation boundary:
   - `internal/auth` owns the checked-in Google identity evaluation contract for verified SAML identities.
@@ -2385,7 +2387,8 @@
 - route shared header search to the global `/search` page, while the reusable table search/sort primitive searches the currently active directory mode
 - use the DEV-only directory focus dropdown only for result ordering:
   - `IT Admin` and `Human Resources` default to `District-wide`
-  - site-level and staff personas default to their current or assigned site
+  - single-site operational personas default to their one assigned site
+  - Faculty and Staff default to the onboarding/current-assignment-derived site even when additional associated sites exist
   - `site_id=district-wide` disables site boosting
   - a known site id ranks that site first and then returns the rest of the district in stable site/name order
   - an invalid site id falls back to the persona default directory focus

@@ -64,7 +64,11 @@ type onboardingRowPayload struct {
 	LeadTimeWarning      bool                                 `json:"lead_time_warning,omitempty"`
 	EffectiveDate        string                               `json:"effective_date,omitempty"`
 	Person               string                               `json:"person"`
+	SiteID               string                               `json:"site_id"`
 	Site                 string                               `json:"site"`
+	RoomID               string                               `json:"room_id,omitempty"`
+	RoomName             string                               `json:"room_name,omitempty"`
+	CanUpdateRoom        bool                                 `json:"can_update_room,omitempty"`
 	CurrentStep          string                               `json:"current_step"`
 	IssueAction          string                               `json:"issue_action"`
 	WorkflowStatus       string                               `json:"workflow_status"`
@@ -151,6 +155,10 @@ type onboardingManualDraftRequest struct {
 	Notes                 string `json:"notes"`
 }
 
+type onboardingRoomUpdateRequest struct {
+	RoomID string `json:"room_id"`
+}
+
 type onboardingManualDraftPayload struct {
 	ID                     string                               `json:"id"`
 	Status                 string                               `json:"status"`
@@ -195,10 +203,11 @@ type onboardingManualDraftResponse struct {
 }
 
 type devOnboardingStoreState struct {
-	mu           sync.Mutex
-	nextDraft    int
-	nextEmployee int
-	drafts       map[string]*onboardingManualDraft
+	mu            sync.Mutex
+	nextDraft     int
+	nextEmployee  int
+	drafts        map[string]*onboardingManualDraft
+	roomOverrides map[string]string
 }
 
 type onboardingManualDraft struct {
@@ -255,16 +264,22 @@ var devEscapeEmploymentRecords = []devEscapeEmploymentRecord{
 	{ID: "escape-harper-sloan", FirstName: "Harper", LastName: "Sloan", SiteID: "business-office", SiteName: "Business Office", AssignedEmail: "harper.sloan@wusd.org", EmployeeNumber: "104812", StartDate: "2024-08-12", CurrentStep: "Inactive in Escape", WorkflowStatus: "Inactive", Active: false},
 }
 
-// newDevOnboardingStore builds the value used by internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func newDevOnboardingStore() *devOnboardingStoreState {
 	return &devOnboardingStoreState{
-		nextDraft:    1,
-		nextEmployee: 1,
-		drafts:       map[string]*onboardingManualDraft{},
+		nextDraft:     1,
+		nextEmployee:  1,
+		drafts:        map[string]*onboardingManualDraft{},
+		roomOverrides: map[string]string{},
 	}
 }
 
-// findEscapeEmploymentRecord resolves decision data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// ResetDevOnboardingStateForTest restores the package-level DEV onboarding
+// store so web tests can assert site scoping and drawer mutations without
+// inheriting manual drafts or room overrides from earlier subtests.
+func ResetDevOnboardingStateForTest() {
+	devOnboardingStore = newDevOnboardingStore()
+}
+
 func findEscapeEmploymentRecord(firstName string, lastName string) *devEscapeEmploymentRecord {
 	normalizedFirst := strings.ToLower(normalizeSpaces(firstName))
 	normalizedLast := strings.ToLower(normalizeSpaces(lastName))
@@ -280,7 +295,6 @@ func findEscapeEmploymentRecord(firstName string, lastName string) *devEscapeEmp
 	return nil
 }
 
-// linkedEscapePayloadByID documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func linkedEscapePayloadByID(id string) *onboardingLinkedEscapeRecordPayload {
 	for index := range devEscapeEmploymentRecords {
 		record := &devEscapeEmploymentRecords[index]
@@ -301,7 +315,6 @@ func linkedEscapePayloadByID(id string) *onboardingLinkedEscapeRecordPayload {
 	return nil
 }
 
-// onboardingTimeLocation documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func onboardingTimeLocation() *time.Location {
 	location, err := time.LoadLocation("America/Los_Angeles")
 	if err != nil {
@@ -310,7 +323,6 @@ func onboardingTimeLocation() *time.Location {
 	return location
 }
 
-// parseOnboardingStartDate documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func parseOnboardingStartDate(value string) (time.Time, bool) {
 	if strings.TrimSpace(value) == "" {
 		return time.Time{}, false
@@ -322,7 +334,6 @@ func parseOnboardingStartDate(value string) (time.Time, bool) {
 	return parsed, true
 }
 
-// isLateStart resolves decision data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func isLateStart(startDate string, now time.Time) bool {
 	parsed, ok := parseOnboardingStartDate(startDate)
 	if !ok {
@@ -330,10 +341,10 @@ func isLateStart(startDate string, now time.Time) bool {
 	}
 	current := now.In(onboardingTimeLocation())
 	currentDate := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, onboardingTimeLocation())
-	return parsed.Before(currentDate)
+	daysUntilStart := int(parsed.Sub(currentDate).Hours() / 24)
+	return daysUntilStart >= 0 && daysUntilStart <= 3
 }
 
-// nextAvailableWorkflowCycle documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func nextAvailableWorkflowCycle(now time.Time) time.Time {
 	cadence := 30 * time.Second
 	next := now.UTC().Truncate(cadence).Add(cadence)
@@ -343,7 +354,6 @@ func nextAvailableWorkflowCycle(now time.Time) time.Time {
 	return next
 }
 
-// formatOnboardingDateTime normalizes source data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func formatOnboardingDateTime(value time.Time) string {
 	if value.IsZero() {
 		return ""
@@ -351,7 +361,6 @@ func formatOnboardingDateTime(value time.Time) string {
 	return value.In(onboardingTimeLocation()).Format("Jan 2, 2006 3:04 PM MST")
 }
 
-// handleDevOnboardingPage handles the request path for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
 	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
@@ -374,6 +383,7 @@ func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	config = onboardingConfigWithRequestedSite(config, strings.TrimSpace(r.URL.Query().Get("site_id")))
 
 	now := time.Now().UTC()
 	writeJSON(w, http.StatusOK, onboardingPagePayload{
@@ -387,8 +397,8 @@ func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
 			LastRefreshed:         "Last refreshed:\nMay 3, 2026 9:00 AM PT",
 			CurrentDate:           now.Format("2006-01-02"),
 			CanManageManual:       canManageManualOnboarding(config),
-			Rows:                  devOnboardingStore.rows(now),
-			Drafts:                devOnboardingStore.draftPayloads(now),
+			Rows:                  devOnboardingStore.rows(now, config),
+			Drafts:                devOnboardingStore.draftPayloads(now, config),
 			ManualDraftRetention:  "30 days",
 			ManualAutosaveSeconds: 60,
 		},
@@ -397,7 +407,95 @@ func handleDevOnboardingPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleDevOnboardingManualDrafts handles the request path for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// handleDevOnboardingRoomUpdate applies the DEV-only onboarding drawer room
+// override. Site-scoped personas reach this through /onboarding row drawers and
+// may submit only room_id for rows in the effective site scope; HR and IT keep
+// their broader documented onboarding visibility while sharing the same mock
+// room-write boundary.
+func handleDevOnboardingRoomUpdate(w http.ResponseWriter, r *http.Request) {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPut {
+		http.NotFound(w, r)
+		return
+	}
+	config, ok := resolveAuthenticatedDevPersona(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{
+			"code":    "not_authorized",
+			"message": "You need to sign in before you can update onboarding rooms.",
+		})
+		return
+	}
+	if !routeAllowed(r.Context(), config, "/onboarding") {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"code":    "forbidden",
+			"message": "Onboarding is not available for this role.",
+			"persona": config.Persona,
+		})
+		return
+	}
+	config = onboardingConfigWithRequestedSite(config, strings.TrimSpace(r.URL.Query().Get("site_id")))
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/dev/onboarding/rows/")
+	path = strings.Trim(path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] != "room" {
+		http.NotFound(w, r)
+		return
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"code":    "invalid_request",
+			"message": "Onboarding room update request body is invalid.",
+		})
+		return
+	}
+	if isSiteScopedOnboardingPersona(config) {
+		for key := range raw {
+			if key != "room_id" {
+				writeJSON(w, http.StatusForbidden, map[string]any{
+					"code":    "forbidden_field",
+					"message": "Site Admin and Site Secretary can update only Room from the onboarding drawer.",
+					"field":   key,
+				})
+				return
+			}
+		}
+	}
+	var request onboardingRoomUpdateRequest
+	if value, ok := raw["room_id"]; ok {
+		if err := json.Unmarshal(value, &request.RoomID); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"code":    "invalid_request",
+				"message": "Room must be submitted as a room id.",
+			})
+			return
+		}
+	}
+
+	now := time.Now().UTC()
+	row, status, errors := devOnboardingStore.updateRoom(parts[0], request, now, config)
+	if status != http.StatusOK {
+		code := "validation_failed"
+		message := "Onboarding room update was rejected."
+		if status == http.StatusNotFound {
+			code = "not_found"
+			message = "Onboarding row was not found in this persona's site scope."
+		}
+		writeJSON(w, status, map[string]any{
+			"code":    code,
+			"message": message,
+			"errors":  errors,
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"row":  row,
+		"rows": devOnboardingStore.rows(now, config),
+	})
+}
+
 func handleDevOnboardingManualDrafts(w http.ResponseWriter, r *http.Request) {
 	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -412,7 +510,6 @@ func handleDevOnboardingManualDrafts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, onboardingManualDraftResponse{Draft: draft.toPayload(now)})
 }
 
-// handleDevOnboardingManualDraft handles the request path for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
 	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
@@ -486,7 +583,7 @@ func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, onboardingManualDraftResponse{
 			Draft: draft.toPayload(now),
-			Rows:  devOnboardingStore.rows(now),
+			Rows:  devOnboardingStore.rows(now, config),
 		})
 	case r.Method == http.MethodDelete && !finalize:
 		now := time.Now().UTC()
@@ -500,14 +597,13 @@ func handleDevOnboardingManualDraft(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, onboardingManualDraftResponse{
 			Draft: draft.toPayload(now),
-			Rows:  devOnboardingStore.rows(now),
+			Rows:  devOnboardingStore.rows(now, config),
 		})
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-// requireManualOnboardingManager documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func requireManualOnboardingManager(w http.ResponseWriter, r *http.Request) (devPersonaConfig, bool) {
 	config, ok := resolveAuthenticatedDevPersona(r)
 	if !ok {
@@ -536,16 +632,30 @@ func requireManualOnboardingManager(w http.ResponseWriter, r *http.Request) (dev
 	return config, true
 }
 
-// canManageManualOnboarding resolves decision data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func canManageManualOnboarding(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin" || config.Persona.ID == "human_resources"
 }
 
-// devOnboardingFormOptions documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func devOnboardingFormOptions(config devPersonaConfig) onboardingFormOptions {
 	sites := config.VisibleSites
 	if canManageManualOnboarding(config) {
 		sites = sitesByID("district-office", "clover-hs", "desert-view", "highland-es", "franklin-ms", "business-office")
+	}
+	if isSiteScopedOnboardingPersona(config) {
+		sites = []devSiteContext{onboardingEffectiveSite(config, "")}
+	}
+	rooms := []onboardingRoomOption{
+		{ID: "iiq-room-cla-101", Name: "CLA Room 101", SiteID: "clover-hs", SiteName: "Clover High School"},
+		{ID: "iiq-room-cla-108", Name: "CLA Room 108", SiteID: "clover-hs", SiteName: "Clover High School"},
+		{ID: "iiq-room-dve-c118", Name: "DVE Room C118", SiteID: "desert-view", SiteName: "Desert View"},
+		{ID: "iiq-room-do-hr", Name: "District Office HR", SiteID: "district-office", SiteName: "District Office"},
+		{ID: "iiq-room-fms-a101", Name: "FMS Room A101", SiteID: "franklin-ms", SiteName: "Franklin Middle School"},
+	}
+	if isSiteScopedOnboardingPersona(config) {
+		site := onboardingEffectiveSite(config, "")
+		rooms = slices.DeleteFunc(rooms, func(room onboardingRoomOption) bool {
+			return room.SiteID != site.ID
+		})
 	}
 	return onboardingFormOptions{
 		EmployeeTypes:         []string{"Contractor", "Volunteer", "Intern", "Student Teacher"},
@@ -559,15 +669,45 @@ func devOnboardingFormOptions(config devPersonaConfig) onboardingFormOptions {
 			{ID: "person-clover-riley-vale", Name: "Riley Vale", Email: "riley.vale@mock.wusd.invalid"},
 			{ID: "person-district-jules-rowan", Name: "Jules Rowan", Email: "jules.rowan@mock.wusd.invalid"},
 		},
-		Rooms: []onboardingRoomOption{
-			{ID: "iiq-room-cla-101", Name: "CLA Room 101", SiteID: "clover-hs", SiteName: "Clover High School"},
-			{ID: "iiq-room-do-hr", Name: "District Office HR", SiteID: "district-office", SiteName: "District Office"},
-			{ID: "iiq-room-fms-a101", Name: "FMS Room A101", SiteID: "franklin-ms", SiteName: "Franklin Middle School"},
-		},
+		Rooms: rooms,
 	}
 }
 
-// create documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+func isSiteScopedOnboardingPersona(config devPersonaConfig) bool {
+	return config.Persona.ID == "site_admin" || config.Persona.ID == "site_secretary"
+}
+
+func onboardingEffectiveSite(config devPersonaConfig, requestedSiteID string) devSiteContext {
+	if requestedSiteID != "" {
+		for _, site := range config.VisibleSites {
+			if site.ID == requestedSiteID {
+				return site
+			}
+		}
+	}
+	if config.CurrentSite.ID != "" {
+		return config.CurrentSite
+	}
+	return config.DefaultSite
+}
+
+func onboardingConfigWithRequestedSite(config devPersonaConfig, requestedSiteID string) devPersonaConfig {
+	if !isSiteScopedOnboardingPersona(config) {
+		return config
+	}
+	site := onboardingEffectiveSite(config, requestedSiteID)
+	config.CurrentSite = site
+	return config
+}
+
+func onboardingVisibleForConfig(row onboardingRowPayload, config devPersonaConfig) bool {
+	if !isSiteScopedOnboardingPersona(config) {
+		return true
+	}
+	site := onboardingEffectiveSite(config, "")
+	return row.SiteID == site.ID
+}
+
 func (s *devOnboardingStoreState) create(now time.Time, config devPersonaConfig) *onboardingManualDraft {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -590,7 +730,6 @@ func (s *devOnboardingStoreState) create(now time.Time, config devPersonaConfig)
 	return cloneOnboardingDraft(draft)
 }
 
-// update documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devOnboardingStoreState) update(id string, request onboardingManualDraftRequest, now time.Time, config devPersonaConfig) (*onboardingManualDraft, bool, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -637,7 +776,6 @@ func (s *devOnboardingStoreState) update(id string, request onboardingManualDraf
 	return cloneOnboardingDraft(draft), true, nil
 }
 
-// finalize documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devOnboardingStoreState) finalize(id string, now time.Time) (*onboardingManualDraft, bool, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -685,7 +823,6 @@ func (s *devOnboardingStoreState) finalize(id string, now time.Time) (*onboardin
 	return cloneOnboardingDraft(draft), true, false
 }
 
-// softDelete documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devOnboardingStoreState) softDelete(id string, actor string, now time.Time) (*onboardingManualDraft, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -704,33 +841,88 @@ func (s *devOnboardingStoreState) softDelete(id string, actor string, now time.T
 	return cloneOnboardingDraft(draft), true
 }
 
-// rows documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func (s *devOnboardingStoreState) rows(now time.Time) []onboardingRowPayload {
+func (s *devOnboardingStoreState) rows(now time.Time, config devPersonaConfig) []onboardingRowPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.purgeExpiredLocked(now)
-	rows := devSeedOnboardingRows(now)
+	rows := devSeedOnboardingRows(now, s.roomOverrides)
 	drafts := s.activeDraftsLocked(now)
 	for _, draft := range drafts {
 		rows = append(rows, draft.toRowPayload(now))
 	}
-	return rows
+	return slices.DeleteFunc(rows, func(row onboardingRowPayload) bool {
+		return !onboardingVisibleForConfig(row, config)
+	})
 }
 
-// draftPayloads documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func (s *devOnboardingStoreState) draftPayloads(now time.Time) []onboardingManualDraftPayload {
+func (s *devOnboardingStoreState) draftPayloads(now time.Time, config devPersonaConfig) []onboardingManualDraftPayload {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.purgeExpiredLocked(now)
 	drafts := s.activeDraftsLocked(now)
 	payload := make([]onboardingManualDraftPayload, 0, len(drafts))
 	for _, draft := range drafts {
+		if !onboardingVisibleForConfig(draft.toRowPayload(now), config) {
+			continue
+		}
 		payload = append(payload, draft.toPayload(now))
 	}
 	return payload
 }
 
-// activeDraftsLocked documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+func (s *devOnboardingStoreState) updateRoom(id string, request onboardingRoomUpdateRequest, now time.Time, config devPersonaConfig) (onboardingRowPayload, int, map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.purgeExpiredLocked(now)
+	if !isRoomAllowedForOnboardingConfig(request.RoomID, config) {
+		return onboardingRowPayload{}, http.StatusBadRequest, map[string]string{"room_id": "Room is not an allowed option."}
+	}
+	rows := devSeedOnboardingRows(now, s.roomOverrides)
+	for _, draft := range s.activeDraftsLocked(now) {
+		rows = append(rows, draft.toRowPayload(now))
+	}
+	for _, row := range rows {
+		if row.ID != id {
+			continue
+		}
+		if !onboardingVisibleForConfig(row, config) {
+			return onboardingRowPayload{}, http.StatusNotFound, nil
+		}
+		if row.Kind == "manual" && row.ManualDraftID != "" {
+			draft := s.drafts[row.ManualDraftID]
+			if draft == nil || draft.DeletedAt != nil {
+				return onboardingRowPayload{}, http.StatusNotFound, nil
+			}
+			if draft.FinalizedAt != nil {
+				return onboardingRowPayload{}, http.StatusBadRequest, map[string]string{"room_id": "Finalized manual onboarding records are read-only."}
+			}
+			draft.RoomID = request.RoomID
+			draft.UpdatedAt = now
+			return draft.toRowPayload(now), http.StatusOK, nil
+		}
+		s.roomOverrides[id] = request.RoomID
+		for _, updated := range devSeedOnboardingRows(now, s.roomOverrides) {
+			if updated.ID == id {
+				return updated, http.StatusOK, nil
+			}
+		}
+		return onboardingRowPayload{}, http.StatusNotFound, nil
+	}
+	return onboardingRowPayload{}, http.StatusNotFound, nil
+}
+
+func isRoomAllowedForOnboardingConfig(roomID string, config devPersonaConfig) bool {
+	if strings.TrimSpace(roomID) == "" {
+		return true
+	}
+	for _, room := range devOnboardingFormOptions(config).Rooms {
+		if room.ID == roomID {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *devOnboardingStoreState) activeDraftsLocked(now time.Time) []*onboardingManualDraft {
 	drafts := make([]*onboardingManualDraft, 0, len(s.drafts)+1)
 	drafts = append(drafts, devLeadTimeReviewDraft(now))
@@ -746,7 +938,6 @@ func (s *devOnboardingStoreState) activeDraftsLocked(now time.Time) []*onboardin
 	return drafts
 }
 
-// purgeExpiredLocked documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devOnboardingStoreState) purgeExpiredLocked(now time.Time) {
 	for id, draft := range s.drafts {
 		if draft.FinalizedAt != nil || draft.DeletedAt != nil || draft.ValidityState == onboardingValidityStateInvalid {
@@ -758,7 +949,6 @@ func (s *devOnboardingStoreState) purgeExpiredLocked(now time.Time) {
 	}
 }
 
-// generatedEmailLocked documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (s *devOnboardingStoreState) generatedEmailLocked(draft *onboardingManualDraft) string {
 	existing := map[string]bool{
 		"jordan.miles@wusd.org": true,
@@ -805,7 +995,6 @@ func (s *devOnboardingStoreState) generatedEmailLocked(draft *onboardingManualDr
 	}
 }
 
-// applyDerivedDraftStateLocked documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
 func (s *devOnboardingStoreState) applyDerivedDraftStateLocked(draft *onboardingManualDraft, now time.Time) {
 	draft.ValidityState = onboardingValidityStateValid
 	draft.InvalidReason = ""
@@ -844,7 +1033,6 @@ func (s *devOnboardingStoreState) applyDerivedDraftStateLocked(draft *onboarding
 	draft.Status = onboardingManualDraftStatusIncomplete
 }
 
-// sanitizeManualDraftRequest documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config devPersonaConfig) (onboardingManualDraftRequest, map[string]string) {
 	personalPhoneInput := strings.TrimSpace(request.PersonalPhone)
 	clean := onboardingManualDraftRequest{
@@ -893,7 +1081,6 @@ func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config dev
 	return clean, errors
 }
 
-// validateOption documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func validateOption(errors map[string]string, field string, value string, options []string) {
 	if value == "" {
 		return
@@ -903,7 +1090,6 @@ func validateOption(errors map[string]string, field string, value string, option
 	}
 }
 
-// validateSiteOption documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func validateSiteOption(errors map[string]string, value string, sites []devSiteContext) {
 	if value == "" {
 		return
@@ -916,7 +1102,6 @@ func validateSiteOption(errors map[string]string, value string, sites []devSiteC
 	errors["site_id"] = "Site is not an allowed option."
 }
 
-// validateReplacingEmployee documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func validateReplacingEmployee(errors map[string]string, value string, employees []onboardingEmployeeOption) {
 	if value == "" {
 		return
@@ -929,7 +1114,6 @@ func validateReplacingEmployee(errors map[string]string, value string, employees
 	errors["replacing_employee_id"] = "Replacing employee is not an allowed option."
 }
 
-// validateRoom documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func validateRoom(errors map[string]string, value string, rooms []onboardingRoomOption) {
 	if value == "" {
 		return
@@ -942,7 +1126,6 @@ func validateRoom(errors map[string]string, value string, rooms []onboardingRoom
 	errors["room_id"] = "Room is not an allowed option."
 }
 
-// missingFields documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (draft *onboardingManualDraft) missingFields() []string {
 	required := []struct {
 		name  string
@@ -970,7 +1153,6 @@ func (draft *onboardingManualDraft) missingFields() []string {
 	return missing
 }
 
-// toPayload documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (draft *onboardingManualDraft) toPayload(now time.Time) onboardingManualDraftPayload {
 	site := siteByID(draft.SiteID)
 	replacing := replacingEmployeeByID(draft.ReplacingEmployeeID)
@@ -1029,7 +1211,6 @@ func (draft *onboardingManualDraft) toPayload(now time.Time) onboardingManualDra
 	return payload
 }
 
-// toRowPayload documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (draft *onboardingManualDraft) toRowPayload(now time.Time) onboardingRowPayload {
 	person := strings.TrimSpace(strings.TrimSpace(draft.FirstName) + " " + strings.TrimSpace(draft.LastName))
 	if person == "" {
@@ -1075,7 +1256,11 @@ func (draft *onboardingManualDraft) toRowPayload(now time.Time) onboardingRowPay
 		EffectiveDate:        draft.StartDate,
 		LeadTimeWarning:      draft.hasLeadTimeWarning(),
 		Person:               person,
+		SiteID:               draft.SiteID,
 		Site:                 site.Name,
+		RoomID:               draft.RoomID,
+		RoomName:             roomByID(draft.RoomID).Name,
+		CanUpdateRoom:        true,
 		CurrentStep:          currentStep,
 		IssueAction:          issueAction,
 		WorkflowStatus:       workflowStatus,
@@ -1093,7 +1278,6 @@ func (draft *onboardingManualDraft) toRowPayload(now time.Time) onboardingRowPay
 	}
 }
 
-// workflowSteps documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (draft *onboardingManualDraft) workflowSteps(now time.Time) []onboardingWorkflowStep {
 	missing := draft.missingFields()
 	if draft.ValidityState == onboardingValidityStateInvalid && draft.InvalidReason == onboardingInvalidReasonActiveEscapeContractorCollision {
@@ -1168,7 +1352,6 @@ func (draft *onboardingManualDraft) workflowSteps(now time.Time) []onboardingWor
 	}
 }
 
-// hasLeadTimeWarning documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (draft *onboardingManualDraft) hasLeadTimeWarning() bool {
 	start, ok := parseOnboardingStartDate(draft.StartDate)
 	if !ok || draft.CreatedAt.IsZero() {
@@ -1180,7 +1363,6 @@ func (draft *onboardingManualDraft) hasLeadTimeWarning() bool {
 	return days >= 0 && days <= 3
 }
 
-// cloneOnboardingDraft documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func cloneOnboardingDraft(draft *onboardingManualDraft) *onboardingManualDraft {
 	if draft == nil {
 		return nil
@@ -1189,12 +1371,17 @@ func cloneOnboardingDraft(draft *onboardingManualDraft) *onboardingManualDraft {
 	return &clone
 }
 
-// devSeedOnboardingRows documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func devSeedOnboardingRows(now time.Time) []onboardingRowPayload {
+func devSeedOnboardingRows(now time.Time, roomOverrides map[string]string) []onboardingRowPayload {
 	scheduledFor := formatOnboardingDateTime(nextAvailableWorkflowCycle(now))
-	return []onboardingRowPayload{
+	scheduledForLateStart := func(startDate string) string {
+		if isLateStart(startDate, now) {
+			return scheduledFor
+		}
+		return ""
+	}
+	rows := []onboardingRowPayload{
 		{
-			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-06", EffectiveDate: "2025-05-06", Person: "Jordan Miles", Site: "Clover HS", CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", LateStart: isLateStart("2025-05-06", now), ScheduledFor: scheduledFor, AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
+			ID: "jordan-miles", Kind: "seed", DateAdded: "Apr 29, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-06", EffectiveDate: "2025-05-06", Person: "Jordan Miles", SiteID: "clover-hs", Site: "Clover HS", RoomID: "iiq-room-cla-101", RoomName: "CLA Room 101", CanUpdateRoom: true, CurrentStep: "Google pending", IssueAction: "Waiting Entra convergence", WorkflowStatus: "In Progress", LateStart: isLateStart("2025-05-06", now), ScheduledFor: scheduledForLateStart("2025-05-06"), AssignedEmail: "jordan.miles@wusd.org", IncidentIQ: "No local write owned by this app. User lookup retries at most once per hour.", AeriesTicket: "IT-12904 Open", VerkadaTicket: "MOT-4412 Waiting",
 			WorkflowSteps: []onboardingWorkflowStep{
 				{Name: "Google account", Status: "Complete", Detail: "The account exists and baseline profile planning has completed."},
 				{Name: "Entra convergence", Status: "Running", Detail: "AD → Entra propagation is still inside the expected one-hour window."},
@@ -1202,11 +1389,11 @@ func devSeedOnboardingRows(now time.Time) []onboardingRowPayload {
 			},
 		},
 		{
-			ID: "nia-brooks", Kind: "seed", DateAdded: "May 1, 2025", DateAddedReason: "Escape inactive employee set active", StartDate: "2025-05-08", EffectiveDate: "2025-05-08", Person: "Nia Brooks", Site: "District Office", CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", ChangeReason: string(core.WorkflowChangeReasonReactivateSameRole), LateStart: isLateStart("2025-05-08", now), ScheduledFor: scheduledFor, AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started",
+			ID: "nia-brooks", Kind: "seed", DateAdded: "May 1, 2025", DateAddedReason: "Escape inactive employee set active", StartDate: "2025-05-08", EffectiveDate: "2025-05-08", Person: "Nia Brooks", SiteID: "district-office", Site: "District Office", RoomID: "iiq-room-do-hr", RoomName: "District Office HR", CanUpdateRoom: true, CurrentStep: "Sync dry-run", IssueAction: "Room mapping required", WorkflowStatus: "Needs Review", ChangeReason: string(core.WorkflowChangeReasonReactivateSameRole), LateStart: isLateStart("2025-05-08", now), ScheduledFor: scheduledForLateStart("2025-05-08"), AssignedEmail: "nia.brooks@wusd.org", IncidentIQ: "Room assignment mismatch is waiting on district-office review before provisioning resumes.", AeriesTicket: "IT-12941 Needs room mapping", VerkadaTicket: "MOT-4420 Not started",
 			WorkflowSteps: []onboardingWorkflowStep{{
 				Name:   "Room mapping",
 				Status: "Manual action",
-				Detail: "The target room does not match the IncidentIQ room inventory. Confirm or override the room before provisioning resumes. The Escape start date remains authoritative even though it is already in the past, and the same late-start warning used for manual contractor entries applies.",
+				Detail: "The target room does not match the IncidentIQ room inventory. Confirm or override the room before provisioning resumes. The Escape start date remains authoritative even when the static DEV fixture date is in the past.",
 				Actions: []onboardingWorkflowAction{{
 					Label:      "Resolve room in IncidentIQ",
 					Resolution: "Select the correct room inventory item or document a temporary manual override.",
@@ -1216,7 +1403,7 @@ func devSeedOnboardingRows(now time.Time) []onboardingRowPayload {
 			}},
 		},
 		{
-			ID: "evan-ruiz", Kind: "seed", DateAdded: "May 2, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-12", EffectiveDate: "2025-05-12", Person: "Evan Ruiz", Site: "Franklin MS", CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", LateStart: isLateStart("2025-05-12", now), ScheduledFor: scheduledFor, AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting",
+			ID: "evan-ruiz", Kind: "seed", DateAdded: "May 2, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-12", EffectiveDate: "2025-05-12", Person: "Evan Ruiz", SiteID: "franklin-ms", Site: "Franklin MS", RoomID: "iiq-room-fms-a101", RoomName: "FMS Room A101", CanUpdateRoom: true, CurrentStep: "HR intake", IssueAction: "Missing mandatory field", WorkflowStatus: "Blocked", LateStart: isLateStart("2025-05-12", now), ScheduledFor: scheduledForLateStart("2025-05-12"), AssignedEmail: "evan.ruiz@wusd.org", IncidentIQ: "HR intake is missing a required employment field; downstream account work is blocked.", AeriesTicket: "IT-12988 Waiting on HR", VerkadaTicket: "MOT-4434 Waiting",
 			WorkflowSteps: []onboardingWorkflowStep{{
 				Name:   "HR intake",
 				Status: "Blocked",
@@ -1230,13 +1417,20 @@ func devSeedOnboardingRows(now time.Time) []onboardingRowPayload {
 			}},
 		},
 		{
-			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-13", EffectiveDate: "2025-05-13", Person: "Mika Ito", Site: "Desert View", CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", LateStart: isLateStart("2025-05-13", now), ScheduledFor: scheduledFor, AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
+			ID: "mika-ito", Kind: "seed", DateAdded: "May 3, 2025", DateAddedReason: "First Escape import", StartDate: "2025-05-13", EffectiveDate: "2025-05-13", Person: "Mika Ito", SiteID: "desert-view", Site: "Desert View", RoomID: "iiq-room-dve-c118", RoomName: "DVE Room C118", CanUpdateRoom: true, CurrentStep: "Ready", IssueAction: "No blockers", WorkflowStatus: "Ready", LateStart: isLateStart("2025-05-13", now), ScheduledFor: scheduledForLateStart("2025-05-13"), AssignedEmail: "mika.ito@wusd.org", IncidentIQ: "Ready for baseline provisioning. No external follow-up is currently required.", AeriesTicket: "IT-13002 Ready", VerkadaTicket: "MOT-4441 Ready",
 			WorkflowSteps: []onboardingWorkflowStep{{Name: "Baseline readiness", Status: "Ready", Detail: "All required context is present. No user action is required."}},
 		},
 	}
+	for index := range rows {
+		if roomID, ok := roomOverrides[rows[index].ID]; ok {
+			room := roomByID(roomID)
+			rows[index].RoomID = room.ID
+			rows[index].RoomName = room.Name
+		}
+	}
+	return rows
 }
 
-// devLeadTimeReviewDraft documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func devLeadTimeReviewDraft(now time.Time) *onboardingManualDraft {
 	added := time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, time.UTC)
 	start := added.AddDate(0, 0, 2)
@@ -1261,7 +1455,6 @@ func devLeadTimeReviewDraft(now time.Time) *onboardingManualDraft {
 	}
 }
 
-// formatOnboardingDate normalizes source data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func formatOnboardingDate(value time.Time) string {
 	if value.IsZero() {
 		return ""
@@ -1269,7 +1462,6 @@ func formatOnboardingDate(value time.Time) string {
 	return value.Format("Jan 2, 2006")
 }
 
-// formatOnboardingDateTimePointer normalizes source data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func formatOnboardingDateTimePointer(value *time.Time) string {
 	if value == nil {
 		return ""
@@ -1277,12 +1469,10 @@ func formatOnboardingDateTimePointer(value *time.Time) string {
 	return formatOnboardingDateTime(*value)
 }
 
-// mockWorkflowHref documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func mockWorkflowHref(system string, id string) string {
 	return "https://mock.wusd.invalid/" + system + "/" + id
 }
 
-// replacingEmployeeByID documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func replacingEmployeeByID(id string) onboardingEmployeeOption {
 	for _, employee := range devOnboardingFormOptions(devPersonaConfigs["it_admin"]).ReplacingEmployees {
 		if employee.ID == id {
@@ -1292,7 +1482,6 @@ func replacingEmployeeByID(id string) onboardingEmployeeOption {
 	return onboardingEmployeeOption{}
 }
 
-// roomByID documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func roomByID(id string) onboardingRoomOption {
 	for _, room := range devOnboardingFormOptions(devPersonaConfigs["it_admin"]).Rooms {
 		if room.ID == id {
@@ -1302,7 +1491,6 @@ func roomByID(id string) onboardingRoomOption {
 	return onboardingRoomOption{}
 }
 
-// normalizeSpaces normalizes source data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func normalizeSpaces(value string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
 }
@@ -1322,7 +1510,6 @@ func normalizePersonalPhone(value string) string {
 	return digits
 }
 
-// normalizeEmailNamePart normalizes source data for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func normalizeEmailNamePart(value string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(value) {
@@ -1333,7 +1520,6 @@ func normalizeEmailNamePart(value string) string {
 	return b.String()
 }
 
-// leftPadInt documents the data flow for internal/web/dev_onboarding.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func leftPadInt(value int, width int) string {
 	raw := strconv.Itoa(value)
 	if len(raw) >= width {

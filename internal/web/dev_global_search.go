@@ -104,7 +104,7 @@ func buildDevGlobalSearchGroups(ctx context.Context, config devPersonaConfig, qu
 		ranked = append(ranked, globalSearchPhoneDirectoryResults(config, normalizedQuery)...)
 	}
 	if routeAllowed(ctx, config, "/onboarding") {
-		ranked = append(ranked, globalSearchOnboardingResults(normalizedQuery, now)...)
+		ranked = append(ranked, globalSearchOnboardingResults(config, normalizedQuery, now)...)
 	}
 	if routeAllowed(ctx, config, "/offboarding") {
 		ranked = append(ranked, globalSearchOffboardingResults(config, normalizedQuery)...)
@@ -215,8 +215,8 @@ func globalSearchDirectoryTarget(entry devPhoneDirectoryEntry) (string, string, 
 }
 
 // globalSearchOnboardingResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func globalSearchOnboardingResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
-	rows := devOnboardingStore.rows(now)
+func globalSearchOnboardingResults(config devPersonaConfig, normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
+	rows := devOnboardingStore.rows(now, config)
 	results := make([]rankedGlobalSearchResult, 0, len(rows))
 	for _, row := range rows {
 		values := []string{row.Person, row.Site, row.AssignedEmail, row.EmployeeNumber, row.WorkflowStatus, row.CurrentStep, row.IssueAction, row.AeriesTicket, row.VerkadaTicket}
@@ -282,7 +282,7 @@ func globalSearchOffboardingResults(config devPersonaConfig, normalizedQuery str
 func globalSearchWorkflowActionResults(ctx context.Context, config devPersonaConfig, normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
 	results := []rankedGlobalSearchResult{}
 	if routeAllowed(ctx, config, "/onboarding") {
-		for _, row := range devOnboardingStore.rows(now) {
+		for _, row := range devOnboardingStore.rows(now, config) {
 			for _, step := range row.WorkflowSteps {
 				for _, action := range step.Actions {
 					values := []string{row.Person, row.Site, row.AssignedEmail, step.Name, step.Status, step.Detail, action.Label, action.Resolution, action.System, action.Href}

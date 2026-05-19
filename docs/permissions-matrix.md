@@ -39,10 +39,10 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 | --- | --- | --- |
 | `it_admin` | IT Admin | District-wide by default. |
 | `human_resources` | Human Resources | District-wide lifecycle visibility for HR-owned workflows. |
-| `site_admin` | Administrative Staff / Site Admin Staff | Site-scoped by default, with multi-site expansion only from approved Google group or attribute mappings. |
-| `site_secretary` | Site Secretary | Site-scoped student cleanup and room-move participation. |
-| `device_wrangler` | Device Wrangler | Site-scoped student device-accountability reporting. |
-| `faculty_staff` | Faculty and Staff | Limited self-service only. |
+| `site_admin` | Administrative Staff / Site Admin Staff | Exactly one assigned site. Multi-site Site Admin inputs fail closed and require IT Admin cleanup rather than granting cross-site access. |
+| `site_secretary` | Site Secretary | Exactly one assigned site for student cleanup, onboarding room-only participation where implemented, and room-move participation. |
+| `device_wrangler` | Device Wrangler | Exactly one assigned site for student device-accountability reporting. |
+| `faculty_staff` | Faculty and Staff | Limited self-service with one onboarding/current-assignment default site and any additional associated sites that do not grant operational permissions. |
 
 ## Configuration Contract
 
@@ -105,7 +105,7 @@ Example mapping shape:
 - Unauthenticated users receive `401` for protected DEV page and API routes.
 - Authenticated users without route, persona, feature-flag, site-scope, or field-level permission receive `403` or the route's normal access-denied behavior.
 - Sidebar hiding and disabled controls are defense-in-depth only. Server-side DEV APIs must enforce authorization before returning protected data or mutating DEV state.
-- IT Admin has all current implemented routes and an override for route-level feature flags. Human Resources has district-wide lifecycle access. Site Admin, Site Secretary, Device Wrangler, and Faculty and Staff receive only the route set and site/field visibility listed below.
+- IT Admin has all current implemented routes and an override for route-level feature flags. Human Resources has district-wide lifecycle access. Site Admin, Site Secretary, and Device Wrangler receive exactly one active site. Faculty and Staff may carry multiple associated sites, but those associations only affect documented staff context and must not grant operational site-scoped routes.
 - Local breakglass access is implemented as a separate local emergency login route, not as a selectable DEV persona. The current DEV persona switcher remains only a mock-session convenience for implemented staff roles.
 - Production authorization remains future work beyond this DEV persona model. The durable target is SAML identity plus Google group or attribute-based authorization, with persistent site-scope mapping where appropriate. The current DEV session payloads, route lists, feature flags, and mock site scopes are implementation scaffolding for route/API behavior, not a production SAML or Google-group integration.
 
@@ -115,10 +115,10 @@ Example mapping shape:
 | --- | --- | --- | --- |
 | IT Admin | All implemented routes: `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, phone-directory routes, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile` | District-wide | Implemented |
 | Human Resources | `/dashboard/hr-lifecycle`, `/search`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/my-profile`, `/onboarding`, `/offboarding` | District-wide | Implemented |
-| Site Admin | `/dashboard/site-admin`, `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`, `/room-moves/bulk-draft` | Assigned sites only on site-scoped pages | Implemented |
-| Site Secretary | `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`, `/room-moves/bulk-draft` | Assigned sites only | Implemented |
-| Device Wrangler | `/search`, phone-directory routes, `/my-profile`, `/frequent-fliers`, `/departing-seniors` | Assigned sites only where data is site-scoped | Implemented |
-| Faculty and Staff | `/search`, phone-directory routes, `/my-profile` | Own-site/default staff context in this DEV slice | Implemented |
+| Site Admin | `/dashboard/site-admin`, `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site on site-scoped pages | Implemented |
+| Site Secretary | `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site | Implemented |
+| Device Wrangler | `/search`, phone-directory routes, `/my-profile`, `/frequent-fliers`, `/departing-seniors` | Exactly one assigned site where data is site-scoped | Implemented |
+| Faculty and Staff | `/search`, phone-directory routes, `/my-profile` | Multiple associated sites allowed; onboarding/current-assignment default site provides initial staff context | Implemented |
 | No Access | No protected route access | None | Implemented as denied session state |
 | Local breakglass | Separate local emergency login route with named accounts, token-hash verification, network restrictions, and audit events | Local IT Admin persona for this slice | Implemented outside the DEV persona switcher |
 
@@ -129,8 +129,9 @@ Example mapping shape:
 | `/api/v1/dev/session`, `/api/v1/dev/login`, `/api/v1/dev/logout` | DEV persona switcher users and local Codex tooling in `APP_ENV=development` | Session payload reflects the selected DEV persona and feature-filtered routes; `POST /api/v1/dev/login` with `activate_mock_session=true` also updates the shared in-process DEV mock session consumed by `/api/v1/dev/session` after Browser refresh/navigation | Normal login/logout write only the local DEV session cookie; tooling activation is development-only, supports all DEV personas including `no_access`, preserves default/current site context, and forces anonymous readback after invalid persona ids | Implemented | `TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment`, `TestDevSharedMockPersonaToolingSwitchesFrontendSessionReadback`, `TestDevSharedMockPersonaToolingInvalidPersonaFailsClosed`, `TestDevSharedMockPersonaToolingDeniedOutsideDevelopment` |
 | `/api/v1/dev/pages/data-quality` | IT Admin | `401` signed out, `403` non-IT | IT Admin-only data-quality awareness surface | Implemented | Data Quality auth tests |
 | `/api/v1/dev/search` | Personas with `/search` | Requires authenticated persona and filters by accessible route groups | Employee IDs remain visible/searchable only for IT Admin and HR where the owning payload exposes them | Partially implemented | Global search tests |
-| `/api/v1/dev/pages/onboarding` | IT Admin, HR, Site Admin | Requires `/onboarding` route | IT Admin and HR can manage manual drafts; Site Admin gets scoped/read-only visibility | Implemented | Onboarding page and manual draft tests |
+| `/api/v1/dev/pages/onboarding` | IT Admin, HR, Site Admin, Site Secretary | Requires `/onboarding` route | IT Admin and HR can manage manual drafts; Site Admin and Site Secretary receive active-site-scoped rows, counts, drawer details, and room options | Implemented | Onboarding page and scope tests |
 | `/api/v1/dev/onboarding/manual-drafts*` | IT Admin, HR | Mutations return `403` for other personas, even with valid payloads | Manual Non-Escape personal phone data is accepted only for HR/IT draft workflows | Implemented | Manual onboarding draft mutation tests |
+| `/api/v1/dev/onboarding/rows/{id}/room` | IT Admin, HR, Site Admin, Site Secretary | Requires `/onboarding` route and row visibility in the effective site scope | Site Admin and Site Secretary may submit only `room_id`; non-Room field attempts return `403` before mutation | Implemented | Onboarding site-scope and room-only mutation tests |
 | `/api/v1/dev/pages/offboarding` | IT Admin, HR, Site Admin | Requires `/offboarding` route | Employee ID and editable end dates are HR/IT only; Site Admin receives assigned-site rows without employee IDs; security-risk orphan rows are excluded | Implemented | Offboarding page tests |
 | `/api/v1/dev/offboarding/records/{id}/end-date` | IT Admin, HR | Mutations return `403` for other personas and reject Escape-backed dates | Non-Escape/orphan local end-date mock updates only | Implemented | Offboarding end-date tests |
 | `/api/v1/dev/offboarding/candidates` | IT Admin, HR | `401` signed out, `403` non-HR/non-IT before candidate data is returned | Exposes employee IDs and active contractor search corpus only to HR/IT | Implemented | Manual offboarding action tests |
@@ -158,6 +159,7 @@ Feature flags are not an in-app permissions administration model. They let DEV v
 | Employee ID on Onboarding/Offboarding | Visible | Visible | Hidden unless a future documented surface grants it | Hidden | Hidden | Implemented on Offboarding; implemented where Onboarding payload exposes HR/IT workflow fields |
 | Last 4 SSN | Full value allowed only in HR/IT manual intake workflows | Full value allowed only in HR/IT manual intake workflows | Hidden | Hidden | Hidden | Partially implemented in DEV manual draft payload; production encryption remains future DB work |
 | Personal email / personal phone for manual Non-Escape intake | HR/IT manual draft only | HR/IT manual draft only | Hidden | Hidden | Hidden | Implemented for DEV manual onboarding draft APIs |
+| Onboarding drawer Room | Editable | Editable | Editable only for rows in the active site scope | Hidden | Hidden | Implemented for DEV onboarding room override API |
 | Student IDs on Departing Seniors | Visible | No route access | No route access | Visible for allowed Departing Seniors route | No route access | Implemented |
 | Security-risk orphan account details | Visible on `/reports/security-issues` | Hidden from Offboarding | Hidden | Hidden | Hidden | Implemented |
 

@@ -104,12 +104,16 @@ func EvaluateGoogleIdentity(policy Policy, identity GoogleIdentity) Decision {
 	if len(roles) == 0 {
 		return Decision{Email: email, Reason: "no_role_mapping"}
 	}
+	siteScopes := resolveSiteScopes(policy, identity)
+	if hasSingleSiteOperationalRole(roles) && len(siteScopes) != 1 {
+		return Decision{Email: email, Reason: "single_site_role_scope_conflict"}
+	}
 
 	return Decision{
 		Authorized: true,
 		Email:      email,
 		Roles:      roles,
-		SiteScopes: resolveSiteScopes(policy, identity),
+		SiteScopes: siteScopes,
 	}
 }
 
@@ -231,6 +235,16 @@ func resolveSiteScopes(policy Policy, identity GoogleIdentity) []string {
 		}
 	}
 	return sortedKeys(scopes)
+}
+
+func hasSingleSiteOperationalRole(roles []string) bool {
+	for _, role := range roles {
+		switch role {
+		case RoleSiteAdmin, RoleSiteSecretary, RoleDeviceWrangler:
+			return true
+		}
+	}
+	return false
 }
 
 func emailDomainAllowed(email string, domains []string) bool {

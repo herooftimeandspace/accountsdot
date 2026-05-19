@@ -420,18 +420,15 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Assigned site(s)",
+			ScopeTitle:        "Assigned site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "2",
 			PlatformStatus:    "All Systems Operational",
 		},
-		DefaultSite: siteByID("clover-hs"),
-		CurrentSite: siteByID("clover-hs"),
-		VisibleSites: sitesByID(
-			"clover-hs",
-			"desert-view",
-		),
+		DefaultSite:  siteByID("clover-hs"),
+		CurrentSite:  siteByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs"),
 	},
 	"site_secretary": {
 		Persona: devPersona{
@@ -445,6 +442,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			[]string{
 				"/my-profile",
 				devGlobalSearchRoute,
+				"/onboarding",
 				"/student-data-cleanup",
 				"/room-moves",
 				"/room-moves/bulk-draft",
@@ -452,18 +450,15 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Assigned site(s)",
+			ScopeTitle:        "Assigned site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "1",
 			PlatformStatus:    "All Systems Operational",
 		},
-		DefaultSite: siteByID("clover-hs"),
-		CurrentSite: siteByID("clover-hs"),
-		VisibleSites: sitesByID(
-			"clover-hs",
-			"desert-view",
-		),
+		DefaultSite:  siteByID("clover-hs"),
+		CurrentSite:  siteByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs"),
 	},
 	"device_wrangler": {
 		Persona: devPersona{
@@ -483,18 +478,15 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Assigned site(s)",
+			ScopeTitle:        "Assigned site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "1",
 			PlatformStatus:    "All Systems Operational",
 		},
-		DefaultSite: siteByID("franklin-ms"),
-		CurrentSite: siteByID("franklin-ms"),
-		VisibleSites: sitesByID(
-			"franklin-ms",
-			"highland-es",
-		),
+		DefaultSite:  siteByID("franklin-ms"),
+		CurrentSite:  siteByID("franklin-ms"),
+		VisibleSites: sitesByID("franklin-ms"),
 	},
 	"faculty_staff": {
 		Persona: devPersona{
@@ -512,7 +504,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Home site",
+			ScopeTitle:        "Onboarding default site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "0",
@@ -520,7 +512,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 		},
 		DefaultSite:  siteByID("clover-hs"),
 		CurrentSite:  siteByID("clover-hs"),
-		VisibleSites: sitesByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs", "desert-view"),
 	},
 	"no_access": {
 		Persona: devPersona{

@@ -78,6 +78,8 @@ Do not persist secrets, SAML assertions, OAuth tokens, service-account JSON, or 
 - Disabled or revoked subjects receive no permissions unless breakglass recovery is active.
 - District-scoped roles resolve to district scope.
 - Site-scoped roles require an explicit site scope. A site-scoped role without a site scope grants no effective site access, preventing cross-site leakage.
+- `site_admin`, `site_secretary`, and `device_wrangler` are exactly-one-site operational roles. If SAML, Google group/attribute input, manual grants, or future editable scope rows resolve one of these roles to more than one active site after active revocations are applied, the resolver fails closed for that role and surfaces denial reasons for IT Admin cleanup instead of granting multi-site visibility.
+- `faculty_staff` is not an operational site role. Faculty and Staff may be associated with more than one site, and the onboarding/current-assignment-derived default site is only an initial staff context for allowed self-service and directory surfaces. Multi-site Faculty/Staff association must not imply Site Admin, Site Secretary, Device Wrangler, Human Resources, or IT Admin permissions.
 - Manual grants are ignored before `StartsAt` and after `ExpiresAt`.
 - Manual revocations are ignored before `StartsAt` and after `ExpiresAt`.
 - Manual revocations remove the matching role/scope from the effective grant set and remain visible in the denial set for audit and operator explanation.
