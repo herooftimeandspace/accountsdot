@@ -203,6 +203,11 @@ type onboardingResponse struct {
 			EffectiveDate        string `json:"effective_date"`
 			LeadTimeWarning      bool   `json:"lead_time_warning"`
 			Person               string `json:"person"`
+			SiteID               string `json:"site_id"`
+			Site                 string `json:"site"`
+			RoomID               string `json:"room_id"`
+			RoomName             string `json:"room_name"`
+			CanUpdateRoom        bool   `json:"can_update_room"`
 			ManualDraftID        string `json:"manual_draft_id"`
 			WorkflowStatus       string `json:"workflow_status"`
 			ChangeReason         string `json:"change_reason"`
@@ -239,7 +244,26 @@ type onboardingResponse struct {
 	Form struct {
 		PreferredDevices      []string `json:"preferred_devices"`
 		RequestedAeriesAccess []string `json:"requested_aeries_access"`
+		Rooms                 []struct {
+			ID     string `json:"id"`
+			Name   string `json:"name"`
+			SiteID string `json:"site_id"`
+		} `json:"rooms"`
 	} `json:"form"`
+}
+
+type onboardingRoomUpdateResponse struct {
+	Row struct {
+		ID       string `json:"id"`
+		SiteID   string `json:"site_id"`
+		RoomID   string `json:"room_id"`
+		RoomName string `json:"room_name"`
+	} `json:"row"`
+	Rows []struct {
+		ID     string `json:"id"`
+		SiteID string `json:"site_id"`
+		RoomID string `json:"room_id"`
+	} `json:"rows"`
 }
 
 type onboardingDraftResponse struct {
@@ -1574,6 +1598,100 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
+	t.Run("onboarding scopes site persona rows search and room-only drawer updates", func(t *testing.T) {
+		web.ResetDevOnboardingStateForTest()
+		t.Cleanup(web.ResetDevOnboardingStateForTest)
+
+		siteCookie := loginAsPersona(t, handler, "site_admin")
+		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+		sessionReq.AddCookie(siteCookie)
+		sessionRec := httptest.NewRecorder()
+		handler.ServeHTTP(sessionRec, sessionReq)
+		siteSession := decodeJSON[devSessionResponse](t, sessionRec)
+		if len(siteSession.VisibleSites) != 1 || siteSession.VisibleSites[0].ID != "clover-hs" {
+			t.Fatalf("site admin visible sites = %#v, want exactly Clover High School", siteSession.VisibleSites)
+		}
+
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding?site_id=clover-hs", nil)
+		pageReq.AddCookie(siteCookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("site admin onboarding returned %d, want 200: %s", pageRec.Code, pageRec.Body.String())
+		}
+		pagePayload := decodeJSON[onboardingResponse](t, pageRec)
+		if len(pagePayload.Page.Rows) == 0 {
+			t.Fatal("expected scoped onboarding rows for Clover High School")
+		}
+		for _, row := range pagePayload.Page.Rows {
+			if row.SiteID != "clover-hs" {
+				t.Fatalf("site admin received out-of-scope onboarding row: %#v", row)
+			}
+			if !row.CanUpdateRoom {
+				t.Fatalf("site admin row cannot update room: %#v", row)
+			}
+		}
+		for _, room := range pagePayload.Form.Rooms {
+			if room.SiteID != "clover-hs" {
+				t.Fatalf("site admin received out-of-scope room option: %#v", room)
+			}
+		}
+
+		searchReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/search?q=Nia", nil)
+		searchReq.AddCookie(siteCookie)
+		searchRec := httptest.NewRecorder()
+		handler.ServeHTTP(searchRec, searchReq)
+		if searchRec.Code != http.StatusOK {
+			t.Fatalf("site admin search returned %d, want 200: %s", searchRec.Code, searchRec.Body.String())
+		}
+		searchPayload := decodeJSON[globalSearchResponse](t, searchRec)
+		for _, group := range searchPayload.Page.Groups {
+			for _, result := range group.Results {
+				if result.Source == "Onboarding" && strings.Contains(result.Context, "District Office") {
+					t.Fatalf("site admin search leaked out-of-scope onboarding result: %#v", result)
+				}
+			}
+		}
+
+		forbiddenBody := strings.NewReader(`{"room_id":"iiq-room-cla-108","first_name":"Edited"}`)
+		forbiddenReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/rows/jordan-miles/room", forbiddenBody)
+		forbiddenReq.Header.Set("Content-Type", "application/json")
+		forbiddenReq.AddCookie(siteCookie)
+		forbiddenRec := httptest.NewRecorder()
+		handler.ServeHTTP(forbiddenRec, forbiddenReq)
+		if forbiddenRec.Code != http.StatusForbidden {
+			t.Fatalf("site admin non-room update returned %d, want 403: %s", forbiddenRec.Code, forbiddenRec.Body.String())
+		}
+
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/rows/jordan-miles/room", strings.NewReader(`{"room_id":"iiq-room-cla-108"}`))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(siteCookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("site admin room update returned %d, want 200: %s", updateRec.Code, updateRec.Body.String())
+		}
+		updatePayload := decodeJSON[onboardingRoomUpdateResponse](t, updateRec)
+		if updatePayload.Row.RoomID != "iiq-room-cla-108" || updatePayload.Row.RoomName != "CLA Room 108" {
+			t.Fatalf("updated room = %#v, want CLA Room 108", updatePayload.Row)
+		}
+		for _, row := range updatePayload.Rows {
+			if row.SiteID != "clover-hs" {
+				t.Fatalf("room update response leaked out-of-scope row: %#v", row)
+			}
+		}
+
+		secretaryCookie := loginAsPersona(t, handler, "site_secretary")
+		secretaryReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/rows/jordan-miles/room", strings.NewReader(`{"room_id":"iiq-room-cla-101"}`))
+		secretaryReq.Header.Set("Content-Type", "application/json")
+		secretaryReq.AddCookie(secretaryCookie)
+		secretaryRec := httptest.NewRecorder()
+		handler.ServeHTTP(secretaryRec, secretaryReq)
+		if secretaryRec.Code != http.StatusOK {
+			t.Fatalf("site secretary room update returned %d, want 200: %s", secretaryRec.Code, secretaryRec.Body.String())
+		}
+	})
+
 	t.Run("offboarding page enforces auth and role scoped employee id visibility", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/offboarding", nil)
 		rec := httptest.NewRecorder()
@@ -1650,7 +1768,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			if row.EmployeeID != "" {
 				t.Fatalf("site admin received employee id in row %#v", row)
 			}
-			if row.SiteID != "clover-hs" && row.SiteID != "desert-view" {
+			if row.SiteID != "clover-hs" {
 				t.Fatalf("site admin received out-of-scope row %#v", row)
 			}
 		}
@@ -2632,7 +2750,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
-	t.Run("past-dated manual entry shows warning fields and schedules next cycle", func(t *testing.T) {
+	t.Run("past-dated manual entry does not show stale late-start warning", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "it_admin")
 
 		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
@@ -2670,18 +2788,18 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("past-date update returned %d, want 200", updateRec.Code)
 		}
 		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
-		if !updated.Draft.LateStart {
-			t.Fatal("expected manual past-date draft to be marked late_start")
+		if updated.Draft.LateStart {
+			t.Fatal("expected manual past-date draft to avoid stale late_start")
 		}
-		if updated.Draft.ScheduledFor == "" {
-			t.Fatal("expected manual past-date draft to expose scheduled_for")
+		if updated.Draft.ScheduledFor != "" {
+			t.Fatalf("scheduled_for = %q, want no stale next-cycle schedule", updated.Draft.ScheduledFor)
 		}
 		if updated.Draft.EffectiveDate != pastDate {
 			t.Fatalf("effective date = %q, want %q", updated.Draft.EffectiveDate, pastDate)
 		}
 	})
 
-	t.Run("escape-backed past-date row preserves source date and exposes next-cycle schedule", func(t *testing.T) {
+	t.Run("escape-backed past-date row preserves source date without stale late-start warning", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "human_resources")
 
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
@@ -2699,11 +2817,11 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			if row.ChangeReason != "reactivate_same_role" {
 				t.Fatalf("change reason = %q, want reactivate_same_role", row.ChangeReason)
 			}
-			if !row.LateStart {
-				t.Fatal("expected Nia Brooks to be marked late_start")
+			if row.LateStart {
+				t.Fatal("expected Nia Brooks to avoid stale late_start")
 			}
-			if row.ScheduledFor == "" {
-				t.Fatal("expected Nia Brooks to expose scheduled_for")
+			if row.ScheduledFor != "" {
+				t.Fatalf("scheduled_for = %q, want no stale next-cycle schedule", row.ScheduledFor)
 			}
 			if row.EffectiveDate != row.StartDate {
 				t.Fatalf("effective date = %q, want preserved source date %q", row.EffectiveDate, row.StartDate)
@@ -3921,6 +4039,7 @@ func TestDevRouteAPIAuthorizationInventoryCoverage(t *testing.T) {
 		{name: "onboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/onboarding"},
 		{name: "onboarding draft create", method: http.MethodPost, path: "/api/v1/dev/onboarding/manual-drafts"},
 		{name: "onboarding draft update", method: http.MethodPut, path: "/api/v1/dev/onboarding/manual-drafts/draft-unknown", body: `{}`},
+		{name: "onboarding room update", method: http.MethodPut, path: "/api/v1/dev/onboarding/rows/jordan-miles/room", body: `{"room_id":"iiq-room-cla-108"}`},
 		{name: "offboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/offboarding"},
 		{name: "offboarding end date", method: http.MethodPut, path: "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", body: `{}`},
 		{name: "departing seniors page", method: http.MethodGet, path: "/api/v1/dev/pages/departing-seniors"},
@@ -3963,6 +4082,7 @@ func TestDevRouteAPIAuthorizationInventoryCoverage(t *testing.T) {
 	}{
 		{name: "onboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/onboarding", personaID: "faculty_staff"},
 		{name: "onboarding draft create", method: http.MethodPost, path: "/api/v1/dev/onboarding/manual-drafts", personaID: "faculty_staff"},
+		{name: "onboarding room update", method: http.MethodPut, path: "/api/v1/dev/onboarding/rows/jordan-miles/room", body: `{"room_id":"iiq-room-cla-108"}`, personaID: "faculty_staff"},
 		{name: "offboarding page", method: http.MethodGet, path: "/api/v1/dev/pages/offboarding", personaID: "faculty_staff"},
 		{name: "offboarding end date", method: http.MethodPut, path: "/api/v1/dev/offboarding/records/orphan-avery-cole/end-date", body: `{}`, personaID: "site_admin"},
 		{name: "departing seniors page", method: http.MethodGet, path: "/api/v1/dev/pages/departing-seniors", personaID: "faculty_staff"},

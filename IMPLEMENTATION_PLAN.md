@@ -416,13 +416,14 @@
     - `IT Admin`: all routes
     - `Human Resources`: `/dashboard/hr-lifecycle`, `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/offboarding`
     - `Site Admin`: `/dashboard/site-admin`, `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`
-    - `Site Secretary`: `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`
+    - `Site Secretary`: `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/student-data-cleanup`, `/room-moves`
     - `Device Wrangler`: `/search`, all three phone-directory routes, `/my-profile`, `/frequent-fliers`
     - `Faculty and Staff`: `/search`, all three phone-directory routes, `/my-profile`
   - scope rules for this slice are:
     - `IT Admin` sees all sites on all allowed pages
     - `Human Resources` sees district-wide data on all allowed pages
-    - `Site Admin`, `Site Secretary`, and `Device Wrangler` see only assigned site(s) on site-scoped pages
+    - `Site Admin` has exactly one assigned site and sees only that site on site-scoped pages; multi-site Site Admin mapping input must fail closed rather than creating cross-site Site Admin access
+    - `Site Secretary` and `Device Wrangler` see only assigned site(s) on site-scoped pages
     - `Faculty and Staff` default to their own-site context on allowed pages
     - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
   - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
@@ -721,6 +722,8 @@
 - Pre-phase 0 DEV manual Non-Escape intake is implemented as a mock-only slice:
   - `/onboarding` renders a Vegas Gold `Add Non-Escape Record` action for HR and IT only
   - the onboarding table renders `Date Added` first; it is the first Escape import date, the inactive-to-active Escape reactivation date, or the manual Non-Escape creation date
+  - DEV onboarding payloads, table rows, table counts, page-local search, global search onboarding results, row drawers, and room options must use the active site scope for Site Admin and Site Secretary; `Clover High School` site-scoped sessions must not receive District Office, Franklin MS, Desert View, or other non-Clover rows or drawer details
+  - Site Admin and Site Secretary onboarding drawer mutations are limited to `Room`; the DEV API accepts only room update payloads for those personas and rejects any non-Room field attempts server-side while HR and IT retain documented broader manual onboarding behavior
   - row drawers show workflow steps; user-action steps include status, resolution instructions, and deterministic mock links for this DEV slice
   - the action opens the shared right-hand drawer with required fields for start date, last 4 SSN, employee type, classification, first name, last name, job title, site, personal email, preferred device, and requested Aeries access
   - manual drawer fields use compact two-column desktop rows, with missing required fields summarized in the status bubble and controls highlighted with `var(--color-accent-red)` / `#D73533` only after the operator explicitly clicks Save; first-open draft creation and autosave keep validation feedback quiet
