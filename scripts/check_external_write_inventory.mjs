@@ -33,6 +33,7 @@ const routeMetadata = new Map([
   ["PUT /api/v1/dev/onboarding/manual-drafts/{id}", { owner: "DEV drafts" }],
   ["POST /api/v1/dev/onboarding/manual-drafts/{id}/finalize", { owner: "DEV drafts" }],
   ["DELETE /api/v1/dev/onboarding/manual-drafts/{id}", { owner: "DEV drafts" }],
+  ["PUT /api/v1/dev/onboarding/rows/{id}/room", { owner: "DEV onboarding room overrides" }],
   ["PUT /api/v1/dev/offboarding/records/{id}/end-date", { owner: "offboarding" }],
   ["POST /api/v1/dev/offboarding/emergency-deprovision", { owner: "offboarding" }],
   ["POST /api/v1/dev/offboarding/contractor-offboarding", { owner: "offboarding" }],
@@ -71,6 +72,9 @@ const dynamicRouteResolvers = {
       { method: "POST", path: `${base}/{id}/finalize` },
       { method: "DELETE", path: `${base}/{id}` },
     ];
+  },
+  handleDevOnboardingRoomUpdate(_body, registeredPath) {
+    return [{ method: "PUT", path: `${stripTrailingSlash(registeredPath)}/{id}/room` }];
   },
   handleDevOffboardingRecord(_body, registeredPath) {
     return [{ method: "PUT", path: `${stripTrailingSlash(registeredPath)}/{id}/end-date` }];

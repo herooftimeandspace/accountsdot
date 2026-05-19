@@ -158,7 +158,7 @@ Mutation routes include:
 
 Repeated PUT requests with the same payload are idempotent in the DEV mock store. Debugging should start from the My Profile drawer save request, then follow `handleDevMyProfile`, field validation, and `buildDevMyProfilePayload` to confirm the returned display name changed while legal-name fields stayed source-authoritative.
 
-### Onboarding Manual Drafts
+### Onboarding Manual Drafts And Room Overrides
 
 `internal/web/dev_onboarding.go` creates, updates, finalizes, and soft-deletes manual onboarding drafts. It also stores DEV-only onboarding row room overrides from the selected-person drawer. These routes model intake collision handling, workflow readiness, and room-correction permissions without writing to live HR, Google, Zoom, IncidentIQ, Aeries, or Verkada systems.
 
@@ -170,7 +170,7 @@ Mutation routes include:
 - `DELETE /api/v1/dev/onboarding/manual-drafts/{id}`
 - `PUT /api/v1/dev/onboarding/rows/{id}/room`
 
-The room update route mutates only the in-memory DEV onboarding store. Site Admin and Site Secretary callers must be able to see the row in their active site scope and may submit only `room_id`; any non-Room field attempt is rejected before the store is touched. HR and IT Admin keep their documented broader onboarding behavior while using the same mock room-override boundary for row-level room corrections.
+The room update route is owned by DEV onboarding room overrides and mutates only the in-memory DEV onboarding store. Site Admin and Site Secretary callers must be able to see the row in their active site scope and may submit only `room_id`; any non-Room field attempt is rejected before the store is touched. HR and IT Admin keep their documented broader onboarding behavior while using the same mock room-override boundary for row-level room corrections.
 
 Manual Non-Escape draft updates capture a required personal phone number for the planned Aeries upload payload. The DEV mock API accepts either canonical `10`-digit input or the drawer-submitted `(NNN) NNN-NNNN` display format, rejects other formatting, and stores only the canonical `10`-digit value inside the editable draft payload used by HR/IT. `internal/provider.BuildAeriesUploadPayload` includes that value only when the source is `manual_non_escape`. ESCAPE-sourced Aeries planning omits this field so imported phone data remains source-authoritative. Raw personal phone numbers must stay out of diagnostics, audit summaries, generated artifacts, and fixtures unless a future checked-in requirement documents a safe display need.
 
