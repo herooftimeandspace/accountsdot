@@ -256,6 +256,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - all stroked display text on HTTP error pages should use a fixed `1px` outer stroke
   - all HTTP error pages should include a recovery button; authenticated users should return through `/dashboard` so the app resolves their role-based default landing page, while signed-out users should return to `/login`
   - DEV-only mock auth, session, and page routes should be available only when `APP_ENV` is explicitly `development`; missing `APP_ENV` should fail closed and behave as non-development
+  - Codex and local evidence tooling should be able to switch the active DEV mock persona without Browser clicks, using a development-only backend-supported command/API that updates the same frontend session after refresh or navigation and returns structured confirmation of persona, display name, site context, allowed routes, and authenticated/authorized state
   - the shared-header `Refresh` control should render as a Vegas Gold primary action with readable black text everywhere that implemented pages expose that shared shell control
   - shared-header `Refresh` regressions should be fixed in the authoritative shared `.pen` sources rather than through page-specific runtime styling overrides
   - the shared-header `Refresh` primitive must not expand the page canvas, push content to the right, or create blank vertical overflow regions; when a page exposes refresh, the button and any freshness metadata must stay inside the documented header/action bounds
@@ -431,7 +432,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Final authorization is based on SAML identity plus Google group or attribute-based role assignment.
 - Users may hit the same URL and receive different access results based on scope and role. Unauthorized users must see access denied, not filtered partial content.
 - The checked-in production authorization contract evaluates verified Google identity data in this order: canonical email, explicit denied-domain check, allowed-domain check, Google group role mapping, Google attribute role mapping, then group/attribute site-scope mapping. A user with a valid staff-domain account but no role mapping is authenticated but not authorized.
-- DEV persona switching remains mock/demo tooling only. It must not be treated as production authorization, and production SAML middleware must not trust the DEV persona cookie.
+- DEV persona switching remains mock/demo tooling only. It must not be treated as production authorization, and production SAML middleware must not trust the DEV persona cookie or the development-only shared mock session used by terminal tooling.
 - Production SAML runtime wiring still requires environment-managed Google Workspace metadata, assertion validation, and admin-approved role/site mapping values. Those settings must stay out of committed fixtures and should be supplied through deployment configuration or managed secret files.
 
 ## Systems in Scope

@@ -71,6 +71,7 @@ type devSiteContext struct {
 
 type devPersonaConfig struct {
 	Persona      devPersona
+	NoAccess     bool
 	LandingPath  string
 	Allowed      []string
 	Shell        devShellPayload
@@ -99,7 +100,8 @@ type devSessionPayload struct {
 }
 
 type devLoginRequest struct {
-	PersonaID string `json:"persona_id"`
+	PersonaID           string `json:"persona_id"`
+	ActivateMockSession bool   `json:"activate_mock_session"`
 }
 
 type devFeatureAvailability struct {
@@ -512,7 +514,38 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 		CurrentSite:  siteByID("clover-hs"),
 		VisibleSites: sitesByID("clover-hs", "desert-view"),
 	},
+	"no_access": {
+		Persona: devPersona{
+			ID:          "no_access",
+			Label:       "No Access",
+			DisplayName: "Jordan Lee",
+			Initials:    "JL",
+		},
+		NoAccess:    true,
+		LandingPath: "",
+		Allowed:     []string{},
+		Shell: devShellPayload{
+			ScopeTitle:        "No authorized access",
+			ScopeSubtitle:     "Access Denied",
+			SearchPlaceholder: "Search unavailable for this account...",
+			NotificationCount: "0",
+			PlatformStatus:    "Access review required",
+		},
+		DefaultSite:  siteByID("clover-hs"),
+		CurrentSite:  siteByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs"),
+	},
 }
+
+type devSharedMockSessionSnapshot struct {
+	Active    bool
+	PersonaID string
+}
+
+var (
+	devSharedMockSessionMu    sync.RWMutex
+	devSharedMockSessionState = devSharedMockSessionSnapshot{}
+)
 
 type devFeatureFlagDefinition struct {
 	Key            string
@@ -814,6 +847,7 @@ var devPersonaOrder = []string{
 	"site_secretary",
 	"device_wrangler",
 	"faculty_staff",
+	"no_access",
 }
 
 func handleDevSession(w http.ResponseWriter, r *http.Request) {
@@ -858,6 +892,10 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 
 	config, ok := devPersonaConfigs[strings.TrimSpace(request.PersonaID)]
 	if !ok {
+		if request.activatesSharedMockSession() {
+			setDevSharedMockSessionAnonymous()
+			clearDevSessionCookie(w, r)
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"code":    "invalid_persona",
 			"message": "Unknown DEV persona.",
@@ -865,6 +903,9 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if request.activatesSharedMockSession() {
+		setDevSharedMockSessionPersona(config.Persona.ID)
+	}
 	writeDevSessionCookie(w, r, config.Persona.ID)
 	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
@@ -890,6 +931,9 @@ func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 			writeBreakglassAuditUnavailable(w, err)
 			return
 		}
+	}
+	if devSharedMockSessionActive() {
+		setDevSharedMockSessionAnonymous()
 	}
 	clearDevSessionCookie(w, r)
 	writeJSON(w, http.StatusOK, devSessionPayload{
@@ -1729,14 +1773,21 @@ func concatRoutes(groups ...[]string) []string {
 
 func buildDevSessionPayload(ctx context.Context, config devPersonaConfig) devSessionPayload {
 	persona := config.Persona
+	authorized := !config.NoAccess
+	landingPath := ""
+	allowedRoutes := []string{}
+	if authorized {
+		landingPath = featureFilteredLandingPath(ctx, config)
+		allowedRoutes = featureFilteredRoutes(ctx, config)
+	}
 	return devSessionPayload{
 		Environment:     "development",
 		Authenticated:   true,
-		Authorized:      true,
+		Authorized:      authorized,
 		CurrentPersona:  &persona,
 		Personas:        orderedDevPersonas(),
-		LandingPath:     featureFilteredLandingPath(ctx, config),
-		AllowedRoutes:   featureFilteredRoutes(ctx, config),
+		LandingPath:     landingPath,
+		AllowedRoutes:   allowedRoutes,
 		FeatureFlags:    devFeatureAvailabilities(ctx, config),
 		Shell:           config.Shell,
 		DefaultSiteID:   config.DefaultSite.ID,
@@ -1754,6 +1805,19 @@ type devSessionIdentity struct {
 }
 
 func resolveAuthenticatedDevSession(r *http.Request) (devSessionIdentity, bool) {
+	if devModeEnabled() {
+		if personaID, active := currentDevSharedMockSession(); active {
+			if personaID == "" {
+				return devSessionIdentity{}, false
+			}
+			config, ok := devPersonaConfigs[personaID]
+			if !ok {
+				return devSessionIdentity{}, false
+			}
+			return devSessionIdentity{Config: config}, true
+		}
+	}
+
 	cookie, err := r.Cookie(devSessionCookieName)
 	if err != nil {
 		return devSessionIdentity{}, false
@@ -1797,6 +1861,50 @@ func routeAllowed(ctx context.Context, config devPersonaConfig, path string) boo
 
 func writeDevSessionCookie(w http.ResponseWriter, r *http.Request, personaID string) {
 	writeDevSessionCookieValue(w, r, personaID)
+}
+
+func (request devLoginRequest) activatesSharedMockSession() bool {
+	return request.ActivateMockSession
+}
+
+// setDevSharedMockSessionPersona records the development-only persona selected by
+// terminal tooling. /api/v1/dev/session checks this in-memory override before the
+// browser cookie so a Codex curl or npm helper can refresh the active Browser tab
+// into the same mock persona without needing to click the DEV persona switcher.
+func setDevSharedMockSessionPersona(personaID string) {
+	devSharedMockSessionMu.Lock()
+	defer devSharedMockSessionMu.Unlock()
+	devSharedMockSessionState = devSharedMockSessionSnapshot{Active: true, PersonaID: personaID}
+}
+
+// setDevSharedMockSessionAnonymous stores a development-only signed-out override
+// after invalid tooling input or logout. Keeping the override active prevents a
+// stale Browser cookie from silently restoring a previously authorized persona.
+func setDevSharedMockSessionAnonymous() {
+	devSharedMockSessionMu.Lock()
+	defer devSharedMockSessionMu.Unlock()
+	devSharedMockSessionState = devSharedMockSessionSnapshot{Active: true}
+}
+
+func devSharedMockSessionActive() bool {
+	devSharedMockSessionMu.RLock()
+	defer devSharedMockSessionMu.RUnlock()
+	return devSharedMockSessionState.Active
+}
+
+func currentDevSharedMockSession() (string, bool) {
+	devSharedMockSessionMu.RLock()
+	defer devSharedMockSessionMu.RUnlock()
+	return devSharedMockSessionState.PersonaID, devSharedMockSessionState.Active
+}
+
+// ResetDevSharedMockSessionForTest clears the terminal-tooling persona override
+// between handler tests. Production code never calls this because the override is
+// intentionally process-local and development-only.
+func ResetDevSharedMockSessionForTest() {
+	devSharedMockSessionMu.Lock()
+	defer devSharedMockSessionMu.Unlock()
+	devSharedMockSessionState = devSharedMockSessionSnapshot{}
 }
 
 func writeDevSessionCookieValue(w http.ResponseWriter, r *http.Request, value string) {

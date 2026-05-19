@@ -32,7 +32,9 @@ type devSessionResponse struct {
 		Name string `json:"name"`
 	} `json:"visible_sites"`
 	CurrentPersona *struct {
-		ID string `json:"id"`
+		ID          string `json:"id"`
+		Label       string `json:"label"`
+		DisplayName string `json:"display_name"`
 	} `json:"current_persona,omitempty"`
 	LandingPath         string   `json:"landing_path"`
 	AllowedRoutes       []string `json:"allowed_routes"`
@@ -545,6 +547,19 @@ func loginAsPersona(t *testing.T, handler http.Handler, personaID string) *http.
 	return cookie
 }
 
+func activateSharedMockPersona(t *testing.T, handler http.Handler, personaID string) (*httptest.ResponseRecorder, *http.Cookie) {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"persona_id": personaID, "activate_mock_session": true})
+	if err != nil {
+		t.Fatalf("marshal shared login request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec, findCookie(rec.Result().Cookies(), "wizard_dev_session")
+}
+
 func configureBreakglassForTest(t *testing.T, accountID string, token string) {
 	t.Helper()
 	hash := sha256.Sum256([]byte(token))
@@ -725,6 +740,8 @@ func createAndFinalizeManualOnboarding(t *testing.T, handler http.Handler, cooki
 
 func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
+	web.ResetDevSharedMockSessionForTest()
+	t.Cleanup(web.ResetDevSharedMockSessionForTest)
 	web.ResetDevFeatureFlagStateForTest()
 	t.Cleanup(web.ResetDevFeatureFlagStateForTest)
 	web.ResetDevDepartingSeniorsStateForTest()
@@ -733,6 +750,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
 	t.Run("session is anonymous before login", func(t *testing.T) {
+		web.ResetDevSharedMockSessionForTest()
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -750,6 +768,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 	})
 
 	t.Run("it admin login sets session and can load data quality", func(t *testing.T) {
+		web.ResetDevSharedMockSessionForTest()
 		cookie := loginAsPersona(t, handler, "it_admin")
 
 		sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
@@ -3976,6 +3995,147 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("expected cleared session cookie, got %#v", clearCookie)
 		}
 	})
+}
+
+func TestDevSharedMockPersonaToolingSwitchesFrontendSessionReadback(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	web.ResetDevSharedMockSessionForTest()
+	t.Cleanup(web.ResetDevSharedMockSessionForTest)
+	web.ResetDevFeatureFlagStateForTest()
+	t.Cleanup(web.ResetDevFeatureFlagStateForTest)
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+	staleBrowserCookie := loginAsPersona(t, handler, "it_admin")
+
+	rec, cookie := activateSharedMockPersona(t, handler, "site_admin")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("shared persona switch returned %d: %s", rec.Code, rec.Body.String())
+	}
+	if cookie == nil || cookie.Value != "site_admin" {
+		t.Fatalf("shared persona switch did not issue site_admin cookie: %#v", cookie)
+	}
+
+	payload := decodeJSON[devSessionResponse](t, rec)
+	if !payload.Authenticated || !payload.Authorized {
+		t.Fatalf("switch response authenticated=%v authorized=%v, want true/true", payload.Authenticated, payload.Authorized)
+	}
+	if payload.CurrentPersona == nil || payload.CurrentPersona.ID != "site_admin" || payload.CurrentPersona.DisplayName == "" {
+		t.Fatalf("switch response missing structured persona confirmation: %#v", payload.CurrentPersona)
+	}
+	if payload.DefaultSiteID != "clover-hs" || payload.CurrentSiteID != "clover-hs" {
+		t.Fatalf("switch response site context default=%q current=%q, want clover-hs", payload.DefaultSiteID, payload.CurrentSiteID)
+	}
+	if len(payload.VisibleSites) != 2 {
+		t.Fatalf("site_admin should keep exactly two assigned visible sites, got %#v", payload.VisibleSites)
+	}
+	if !slices.Contains(payload.AllowedRoutes, "/student-data-cleanup") {
+		t.Fatalf("switch response allowed routes missing site-scoped route: %#v", payload.AllowedRoutes)
+	}
+
+	sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+	sessionReq.AddCookie(staleBrowserCookie)
+	sessionRec := httptest.NewRecorder()
+	handler.ServeHTTP(sessionRec, sessionReq)
+	if sessionRec.Code != http.StatusOK {
+		t.Fatalf("frontend session readback returned %d", sessionRec.Code)
+	}
+	sessionPayload := decodeJSON[devSessionResponse](t, sessionRec)
+	if sessionPayload.CurrentPersona == nil || sessionPayload.CurrentPersona.ID != "site_admin" {
+		t.Fatalf("frontend session readback used stale cookie instead of shared persona: %#v", sessionPayload.CurrentPersona)
+	}
+}
+
+func TestDevSharedMockPersonaToolingSupportsNoAccessAndAllPersonas(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	web.ResetDevSharedMockSessionForTest()
+	t.Cleanup(web.ResetDevSharedMockSessionForTest)
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+	sessionRec := httptest.NewRecorder()
+	handler.ServeHTTP(sessionRec, sessionReq)
+	if sessionRec.Code != http.StatusOK {
+		t.Fatalf("anonymous session returned %d", sessionRec.Code)
+	}
+	anonymous := decodeJSON[devSessionResponse](t, sessionRec)
+	seenNoAccess := false
+	for _, persona := range anonymous.Personas {
+		rec, _ := activateSharedMockPersona(t, handler, persona.ID)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("activate %s returned %d: %s", persona.ID, rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[devSessionResponse](t, rec)
+		if payload.CurrentPersona == nil || payload.CurrentPersona.ID != persona.ID {
+			t.Fatalf("activate %s returned persona %#v", persona.ID, payload.CurrentPersona)
+		}
+		if payload.DefaultSiteID == "" || payload.CurrentSiteID == "" {
+			t.Fatalf("activate %s did not include default/current site context: %#v", persona.ID, payload)
+		}
+		if persona.ID == "no_access" {
+			seenNoAccess = true
+			if !payload.Authenticated || payload.Authorized {
+				t.Fatalf("no_access should be authenticated but unauthorized, got authenticated=%v authorized=%v", payload.Authenticated, payload.Authorized)
+			}
+			if len(payload.AllowedRoutes) != 0 {
+				t.Fatalf("no_access should have no allowed routes, got %#v", payload.AllowedRoutes)
+			}
+		}
+	}
+	if !seenNoAccess {
+		t.Fatal("anonymous DEV persona list did not include no_access")
+	}
+}
+
+func TestDevSharedMockPersonaToolingInvalidPersonaFailsClosed(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	web.ResetDevSharedMockSessionForTest()
+	t.Cleanup(web.ResetDevSharedMockSessionForTest)
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+	staleBrowserCookie := loginAsPersona(t, handler, "it_admin")
+
+	rec, _ := activateSharedMockPersona(t, handler, "site_admin")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("activate site_admin returned %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body := strings.NewReader(`{"persona_id":"does_not_exist","activate_mock_session":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dev/login", body)
+	req.Header.Set("Content-Type", "application/json")
+	invalidRec := httptest.NewRecorder()
+	handler.ServeHTTP(invalidRec, req)
+	if invalidRec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid shared persona returned %d, want 400: %s", invalidRec.Code, invalidRec.Body.String())
+	}
+	clearedCookie := findCookie(invalidRec.Result().Cookies(), "wizard_dev_session")
+	if clearedCookie == nil || clearedCookie.MaxAge != -1 {
+		t.Fatalf("invalid shared persona should clear the DEV session cookie, got %#v", clearedCookie)
+	}
+
+	sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
+	sessionReq.AddCookie(staleBrowserCookie)
+	sessionRec := httptest.NewRecorder()
+	handler.ServeHTTP(sessionRec, sessionReq)
+	if sessionRec.Code != http.StatusOK {
+		t.Fatalf("session after invalid switch returned %d", sessionRec.Code)
+	}
+	payload := decodeJSON[devSessionResponse](t, sessionRec)
+	if payload.Authenticated || payload.Authorized || payload.CurrentPersona != nil {
+		t.Fatalf("invalid shared persona should force anonymous readback, got %#v", payload)
+	}
+}
+
+func TestDevSharedMockPersonaToolingDeniedOutsideDevelopment(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	web.ResetDevSharedMockSessionForTest()
+	t.Cleanup(web.ResetDevSharedMockSessionForTest)
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+	rec, _ := activateSharedMockPersona(t, handler, "site_admin")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("shared persona tooling in production returned %d, want 404", rec.Code)
+	}
 }
 
 func TestDevMyProfileDirectEditMockState(t *testing.T) {
