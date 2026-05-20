@@ -35,6 +35,34 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
+// TestP000C001DevAndStagingShareStaffDomainGate records the staging parity
+// evidence available before live SAML assertion handling exists. Config loading
+// keeps the same default allow/deny domain policy in development and staging,
+// so both environments feed identical staff-domain rules to the production
+// Google identity evaluator.
+func TestP000C001DevAndStagingShareStaffDomainGate(t *testing.T) {
+	for _, appEnv := range []string{"development", "staging"} {
+		t.Run(appEnv, func(t *testing.T) {
+			clearProductionAuthEnv(t)
+			t.Setenv("APP_ENV", appEnv)
+
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatalf("Load returned error: %v", err)
+			}
+			if cfg.AppEnv != appEnv {
+				t.Fatalf("app env = %q, want %q", cfg.AppEnv, appEnv)
+			}
+			if !slices.Equal(cfg.ProductionAuthPolicy.AllowedEmailDomains, []string{"it.wusd.org", "staff.wusd.org", "wusd.org"}) {
+				t.Fatalf("allowed domains = %#v", cfg.ProductionAuthPolicy.AllowedEmailDomains)
+			}
+			if !slices.Equal(cfg.ProductionAuthPolicy.DeniedEmailDomains, []string{"stu.wusd.org"}) {
+				t.Fatalf("denied domains = %#v", cfg.ProductionAuthPolicy.DeniedEmailDomains)
+			}
+		})
+	}
+}
+
 // TestLoadOverridesFromEnvironment verifies that startup keeps ordinary service
 // settings and the production SAML/auth mapping contract configurable from the
 // environment without embedding tenant-specific secrets in the repository.
