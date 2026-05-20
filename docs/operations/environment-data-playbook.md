@@ -29,6 +29,7 @@ This document defines the required process for creating and refreshing safe deve
 
 ## Required Output Documents and Assets
 - updated `docs/reference-inputs/VENDORED_INVENTORY.md` when a refresh changes vendored code or other reference inputs
+- passing `P0-0A-001` reference-input startup guard evidence when a refresh or deployment depends on repo-local reference snapshots
 - documented masking rules per source system
 - repeatable export scripts or jobs
 - repeatable masking transform scripts
@@ -152,6 +153,7 @@ This document defines the required process for creating and refreshing safe deve
 
 ### Every Refresh Must Record
 - vendored inventory manifest update when repo-local reference inputs changed
+- reference input snapshot integrity evidence from `go test ./internal/referenceinputs ./internal/config ./cmd/provisioner`
 - who ran it
 - when it ran
 - source snapshot used
@@ -174,6 +176,7 @@ This document defines the required process for creating and refreshing safe deve
 - Checked-in CI/CD branch-gate behavior is defined in `docs/operations/promotion-pipeline.md`.
 - `dev` validation is intentionally mock-heavy and local-first. It proves that repository tests, design sync checks, lint checks, and frontend build behavior are clean before work is proposed for `staging`.
 - `staging` validation includes the `dev` checks plus security and frontend accessibility checks. Staging remains the required proving ground for representative data, sandbox providers, masked production-derived data, and write-path safety evidence before production promotion.
+- `P0-0A-001` staging validation must prove the deployment uses only the checked-out `docs/reference-inputs/` corpus for required references. Workstation paths, cloud-drive paths, missing future snapshots, and links that escape the repository are blockers until the sanitized snapshot and `docs/reference-inputs/VENDORED_INVENTORY.md` entry are added.
 - `main` validation includes the `staging` checks plus release-prep static validation. Main promotion PRs must identify the external promotion runbook, the external IncidentIQ testing ticket, and release/deployment metadata before merge.
 - Automated promotion PRs require the `PROMOTION_PR_TOKEN` repository or organization secret. The token must be separate from `github.token` so GitHub creates ordinary `pull_request` checks for promotion PRs.
 - Workflow secrets and GitHub environments must keep staging and production credentials separate. If a required staging or production credential, environment, release label, deployment manifest, or product decision is missing, document that blocker in the issue or PR rather than guessing or reusing production credentials in staging.
