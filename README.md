@@ -220,6 +220,9 @@ The merged Markdown file is the human-readable summary to copy into external evi
 Required or commonly used local variables:
 
 - `APP_ENV`
+- `ENVIRONMENT_ROLE`
+- `ENVIRONMENT_DATA_MODE`
+- `ENVIRONMENT_DATA_SOURCE`
 - `APP_PORT`
 - `DATABASE_URL`
 - `SESSION_SECRET`
@@ -356,18 +359,32 @@ Named Docker volumes keep database data across redeploys. Do not use
 databases.
 
 ### Environment Responsibilities
-- Dev runs with `APP_ENV=development`, mock providers enabled, and the
-  long-lived `postgres-dev-data` volume.
-- Staging runs with `APP_ENV=staging`, the long-lived
+- Dev runs with `ENVIRONMENT_ROLE=dev`, `APP_ENV=development`,
+  `ENVIRONMENT_DATA_MODE=mock`, mock providers enabled, and the long-lived
+  `postgres-dev-data` volume. Dev examples must not point at staging or main
+  databases and must not assume production-only data exists.
+- Staging runs with `ENVIRONMENT_ROLE=staging`, `APP_ENV=staging`,
+  `ENVIRONMENT_DATA_MODE=masked-read-only`,
+  `ENVIRONMENT_DATA_SOURCE=masked-production-derived`, the long-lived
   `postgres-staging-data` volume, and sandbox or masked/read-only provider
   configuration as defined in `docs/operations/environment-data-playbook.md`.
-- Main runs with `APP_ENV=production`, production secrets, and the main
-  database only. Production must not reuse dev or staging credentials.
+  After a documented sandbox strategy and safety approval exists, staging may
+  instead use `ENVIRONMENT_DATA_MODE=sandbox` and
+  `ENVIRONMENT_DATA_SOURCE=documented-sandbox`.
+- Main runs with `ENVIRONMENT_ROLE=main`, `APP_ENV=production`,
+  `ENVIRONMENT_DATA_MODE=production`, production secrets, and the main database
+  only. Production must not reuse dev or staging credentials.
 
 The checked-in examples default staging providers to mocks until the staging
 sandbox or masked provider strategy is configured. Flip individual
 `USE_MOCK_*` flags only after the corresponding staging credential, data, and
 write-safety plan exists.
+
+Run `npm run environment-roles:check` after editing `deploy/env/*.example`,
+`docker-compose.deploy.yml`, or environment-role documentation. The check
+parses the deployment examples and fails if dev, staging, and main stop using
+distinct roles, data modes, databases, Compose env-file wiring, or
+mock-provider safety settings.
 
 The current Go service image exposes the backend service on port `8080`. The
 React/Vite DEV UI is still a development-time frontend and is not bundled into
