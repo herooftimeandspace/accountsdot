@@ -18,6 +18,8 @@ const DEFAULT_MONITOR = {
   reconcileWorktreeRoot: "/private/tmp/accountsdot-symphony-prs",
   reconcilePrBranches: true,
   safeBranchPrefixes: ["codex/", "issue-"],
+  codexReviewAuthors: ["chatgpt-codex-connector", "github-copilot", "codex-review"],
+  autoResolveOutdatedCodexReviewThreads: true,
   latestCodeAllowedDirty: ["frontend/dist/", "tmp/", ".vite/"],
   browserDefaultUrl: "http://localhost:5173/dashboard/it-admin",
   browserScreenshotRequired: false,
@@ -301,7 +303,7 @@ function listOpenIssues() {
 
 function fetchReviewThreads(baseRef) {
   const query =
-    'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviewThreads(first:100) { nodes { isResolved isOutdated comments(first:10){ nodes { author { login } body createdAt path line originalLine } } } } } } } }';
+    'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviewThreads(first:100) { nodes { id isResolved isOutdated comments(first:10){ nodes { author { login } body createdAt path line originalLine url } } } } } } } }';
   const result = ghJson([
     "api",
     "graphql",
@@ -316,7 +318,9 @@ function fetchReviewThreads(baseRef) {
   ]);
   return result.data.repository.pullRequests.nodes.map((pr) => ({
     number: pr.number,
+    review_threads: pr.reviewThreads.nodes,
     unresolved_threads: pr.reviewThreads.nodes.filter((thread) => !thread.isResolved && !thread.isOutdated),
+    outdated_unresolved_threads: pr.reviewThreads.nodes.filter((thread) => !thread.isResolved && thread.isOutdated),
   }));
 }
 
@@ -339,6 +343,79 @@ function queueReason(pr) {
   return "merge-clean non-draft PR";
 }
 
+function resolveReviewThread(threadId) {
+  const query = "mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}) { thread { id isResolved } } }";
+  return ghJson(["api", "graphql", "-f", `query=${query}`, "-F", `threadId=${threadId}`]);
+}
+
+function commentAuthor(comment) {
+  return comment?.author?.login || "";
+}
+
+function isCodexReviewThread(thread, config = DEFAULT_MONITOR) {
+  const authors = new Set((config.codexReviewAuthors || []).map((author) => String(author).toLowerCase()));
+  return thread.comments.nodes.some((comment) => authors.has(commentAuthor(comment).toLowerCase()));
+}
+
+function summarizeReviewThread(thread) {
+  const firstComment = thread.comments.nodes[0] || {};
+  return {
+    thread_id: thread.id,
+    author: commentAuthor(firstComment),
+    path: firstComment.path || "",
+    line: firstComment.line || firstComment.originalLine || null,
+    url: firstComment.url || "",
+    is_outdated: Boolean(thread.isOutdated),
+    body_excerpt: String(firstComment.body || "").replace(/\s+/g, " ").slice(0, 240),
+  };
+}
+
+function remediateReviewThreads({ reviewThreads, config, dryRun }) {
+  const results = [];
+  for (const pr of reviewThreads) {
+    for (const thread of pr.review_threads || []) {
+      if (thread.isResolved || !isCodexReviewThread(thread, config)) continue;
+      const result = {
+        number: pr.number,
+        action: "skipped",
+        status: "skipped",
+        reason: "",
+        ...summarizeReviewThread(thread),
+      };
+      results.push(result);
+
+      if (thread.isOutdated) {
+        result.action = dryRun ? "would-resolve-outdated-thread" : "resolve-outdated-thread";
+        if (dryRun) {
+          result.status = "dry-run";
+          result.reason = "dry-run performs no review-thread mutations";
+          continue;
+        }
+        if (!config.autoResolveOutdatedCodexReviewThreads) {
+          result.status = "blocked";
+          result.reason = "auto_resolve_outdated_codex_review_threads is disabled";
+          continue;
+        }
+        try {
+          resolveReviewThread(thread.id);
+          result.status = "resolved";
+          result.reason = "outdated Codex Review thread resolved after branch changes made the comment obsolete";
+        } catch (error) {
+          result.status = "blocked";
+          result.reason = error.stderr || error.message || String(error);
+        }
+        continue;
+      }
+
+      result.action = "requires-code-remediation";
+      result.status = "blocked";
+      result.reason =
+        "active Codex Review thread still needs an in-scope code/docs fix before the automation may resolve it";
+    }
+  }
+  return results;
+}
+
 function openIssuesWithoutOpenPr(issues, prs) {
   const prText = prs.map((pr) => `${pr.number} ${pr.title} ${pr.headRefName}`).join("\n").toLowerCase();
   return issues.filter((issue) => !prText.includes(`#${issue.number}`) && !prText.includes(`issue-${issue.number}`));
@@ -357,6 +434,11 @@ function readMonitorConfig(workflowConfig) {
         ? DEFAULT_MONITOR.reconcilePrBranches
         : Boolean(configured.reconcile_pr_branches),
     safeBranchPrefixes: configured.safe_branch_prefixes || DEFAULT_MONITOR.safeBranchPrefixes,
+    codexReviewAuthors: configured.codex_review_authors || DEFAULT_MONITOR.codexReviewAuthors,
+    autoResolveOutdatedCodexReviewThreads:
+      configured.auto_resolve_outdated_codex_review_threads === undefined
+        ? DEFAULT_MONITOR.autoResolveOutdatedCodexReviewThreads
+        : Boolean(configured.auto_resolve_outdated_codex_review_threads),
     latestCodeAllowedDirty: configured.latest_code_allowed_dirty || DEFAULT_MONITOR.latestCodeAllowedDirty,
     browserScreenshotRequired:
       configured.browser_screenshot_required === undefined
@@ -769,7 +851,20 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
     }
     const prs = listOpenPullRequests(monitor.targetBranch);
     const issues = listOpenIssues();
-    const reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    let reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    const reviewRemediations = remediateReviewThreads({
+      reviewThreads,
+      config: monitor,
+      dryRun,
+    });
+    for (const remediation of reviewRemediations) {
+      if (remediation.status === "resolved") {
+        mutations.push(`resolved outdated Codex Review thread on PR #${remediation.number}`);
+      }
+    }
+    if (reviewRemediations.some((remediation) => remediation.status === "resolved")) {
+      reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    }
     const prReconciliations = reconcilePullRequestBranches({
       prs,
       reviewThreads,
@@ -800,6 +895,10 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
       unresolved_review_threads: reviewThreads
         .filter((entry) => entry.unresolved_threads.length > 0)
         .map((entry) => ({ number: entry.number, count: entry.unresolved_threads.length })),
+      outdated_unresolved_review_threads: reviewThreads
+        .filter((entry) => entry.outdated_unresolved_threads.length > 0)
+        .map((entry) => ({ number: entry.number, count: entry.outdated_unresolved_threads.length })),
+      review_remediations: reviewRemediations,
       pr_reconciliations: prReconciliations,
       uncovered_open_issues: openIssuesWithoutOpenPr(issues, prs).map((issue) => ({
         number: issue.number,
@@ -811,6 +910,8 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
       browser_results: [],
       status: latestCode.blocker
         ? "blocked"
+        : reviewRemediations.some((result) => result.status === "blocked")
+          ? "review_remediation_blocked"
         : prReconciliations.some((result) => result.status === "blocked")
           ? "pr_reconciliation_blocked"
         : healthChecks.some((check) => !check.ok)
@@ -912,6 +1013,39 @@ async function selfTest() {
     assert.equal(isSafePrBranch("codex/issue-242-browser-bridge"), true);
     assert.equal(isSafePrBranch("issue-227-room-moves-edit-ownership"), true);
     assert.equal(isSafePrBranch("feature/unknown-user-branch"), false);
+    const codexThread = {
+      id: "thread-1",
+      isResolved: false,
+      isOutdated: true,
+      comments: {
+        nodes: [
+          {
+            author: { login: "chatgpt-codex-connector" },
+            body: "Derive persona setup base URL from monitor config",
+            path: "scripts/symphony_runner.mjs",
+            originalLine: 486,
+            url: "https://example.invalid/thread",
+          },
+        ],
+      },
+    };
+    assert.equal(isCodexReviewThread(codexThread, DEFAULT_MONITOR), true);
+    assert.equal(
+      remediateReviewThreads({
+        reviewThreads: [{ number: 244, review_threads: [codexThread] }],
+        config: DEFAULT_MONITOR,
+        dryRun: true,
+      })[0].action,
+      "would-resolve-outdated-thread",
+    );
+    assert.equal(
+      remediateReviewThreads({
+        reviewThreads: [{ number: 244, review_threads: [{ ...codexThread, isOutdated: false }] }],
+        config: DEFAULT_MONITOR,
+        dryRun: true,
+      })[0].status,
+      "blocked",
+    );
     assert.deepEqual(
       parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
       { path: "/tmp/repo", head: "abc123", branch: "codex/example" },

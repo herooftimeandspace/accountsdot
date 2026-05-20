@@ -54,6 +54,11 @@ maintenance:
     safe_branch_prefixes:
       - codex/
       - issue-
+    codex_review_authors:
+      - chatgpt-codex-connector
+      - github-copilot
+      - codex-review
+    auto_resolve_outdated_codex_review_threads: true
     latest_code_allowed_dirty:
       - frontend/dist/
       - tmp/
@@ -127,7 +132,9 @@ When `safe_rebase` and `reconcile_pr_branches` are enabled, the monitor may auto
 - It requires a clean PR worktree and a local branch head that still matches `origin/<branch>` before rebase.
 - It pushes only with `--force-with-lease`.
 - It records dirty worktrees, divergent local branches, missing remote branches, and rebase conflicts as blocked reconciliation results instead of overwriting local work.
-- It does not manually merge PRs, close issues, resolve review threads, or choose product, data, auth, security, migration, deployment, or documentation conflict behavior.
+- It does not manually merge PRs, close issues, or choose product, data, auth, security, migration, deployment, or documentation conflict behavior.
+
+The monitor also owns stale Codex Review cleanup for PRs in the queue. It must use thread-aware GitHub review data, not flat comments. Outdated unresolved Codex Review threads from configured `codex_review_authors` may be resolved automatically because the reviewed diff line is obsolete. Current unresolved Codex Review threads must remain blocking until the branch contains an in-scope code/docs fix and verification evidence; the automation should report them as review-remediation work instead of hiding them from the queue.
 
 Repo-local Node code does not import the Browser plugin directly. The Codex automation wrapper is responsible for executing `browser_evaluations[]` through the Browser skill bridge, then passing structured `browser_results[]` back to the runner. Missing Browser results must be reported as `needs_browser_evaluation`, not as passed verification.
 

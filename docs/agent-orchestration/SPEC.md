@@ -132,7 +132,7 @@ The workspace manager must not delete workspaces automatically on success. Reten
 
 The orchestrator owns the poll loop, runtime state, dispatch queue, retry queue, and reconciliation logic.
 
-The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, emit Browser evaluation requests, and record Browser results. It does not manually merge PRs, close issues, launch unattended issue workers, resolve review threads, or bypass human review.
+The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, inspect thread-aware Codex Review feedback, resolve outdated Codex Review threads that were left unresolved after the reviewed line became obsolete, emit Browser evaluation requests, and record Browser results. It does not manually merge PRs, close issues, launch unattended issue workers, resolve current actionable review threads without an in-scope fix, or bypass human review.
 
 The package scripts are:
 
@@ -143,6 +143,8 @@ The package scripts are:
 Dry-run mode must remain non-mutating. `npm run symphony:ui-monitor -- --dry-run` may read GitHub, inspect local worktrees, check health endpoints, and report which PR branches would be eligible for safe rebase, but it must not acquire the production monitor lock, update branches, write runner state, restart dev servers, change issues or PRs, or invoke Browser.
 
 The `ui-improvements` branch reconciliation pass is deliberately conservative. It may rebase and push a non-draft PR branch only when the branch name matches the configured safe prefixes, the branch has a remote ref, the selected worktree is clean, and the local branch still matches `origin/<branch>` before rebase. Successful branch updates must use `git push --force-with-lease`. Dirty worktrees, divergent local branches, missing remote refs, and rebase conflicts are recorded as blocked reconciliation results for a later human or issue-worker pass.
+
+Codex Review reconciliation is also conservative. The monitor must read `reviewThreads` so it can distinguish active, resolved, and outdated inline feedback. It may automatically resolve only outdated unresolved threads authored by configured Codex Review accounts, because those comments no longer point at the current diff. Active Codex Review threads remain blocking review-remediation work until an agent applies an in-scope code or documentation fix, runs relevant verification, and records the evidence needed to resolve the thread.
 
 On each tick, it should:
 
@@ -375,6 +377,7 @@ On startup and each poll tick, the orchestrator should reconcile:
 - branch existence
 - worktree existence
 - PR state, when present
+- active and outdated Codex Review thread state
 - retry timers
 - stale workspaces
 
