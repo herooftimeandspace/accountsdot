@@ -1,6 +1,6 @@
 # WIZARD Symphony Service Specification
 
-Status: Draft v1 for issue #238
+Status: Draft v1, with the first repo-owned runner introduced for issue #242
 
 Purpose: Define a workspace-specific service that orchestrates Codex agents against GitHub Issues while preserving The WIZARD repository's safety, documentation, branch, and verification rules.
 
@@ -64,6 +64,12 @@ The workflow loader reads `.agents/WORKFLOW.md`, parses the YAML front matter, a
 
 The loader must reject a missing or invalid `.agents/WORKFLOW.md` rather than falling back to hard-coded behavior.
 
+### 5.1.1 Skill Loader
+
+The runner loads repo-local skill guidance from `.agents/skills/*/SKILL.md` before rendering an issue prompt. Skills are part of the runtime contract, not optional memory. The first implementation routes UI, `.pen`, shared-shell, dashboard, route-visual, and Browser-evidence work through `wizard-ui-hardening`; implemented code, route/API, handler, documentation, comment, external-write, and provider-surface work through `wizard-code-documentation`. When both apply, the UI hardening skill runs first so layer classification and design-source rules are explicit before code/documentation obligations are added.
+
+If an expected skill is missing or unreadable, the run should stop with `agent-blocked` and name the missing path. Prompt rendering should include only applicable skill summaries and file paths, not every skill body.
+
 ### 5.2 GitHub Tracker Client
 
 The tracker client reads GitHub issue data through the GitHub app or authenticated `gh` CLI. It normalizes each issue into the domain model in section 6.
@@ -126,6 +132,16 @@ The workspace manager must not delete workspaces automatically on success. Reten
 
 The orchestrator owns the poll loop, runtime state, dispatch queue, retry queue, and reconciliation logic.
 
+The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, run the lock-protected `ui-improvements` monitor, discover repo-local skills, emit Browser evaluation requests, and record Browser results. It does not manually merge PRs, close issues, launch unattended issue workers, or bypass human review.
+
+The package scripts are:
+
+- `npm run symphony:report`: read-only queue and eligibility report.
+- `npm run symphony:ui-monitor`: lock-protected monitor for `origin/ui-improvements`.
+- `npm run symphony:test`: parser, lock, queue, skill-routing, Browser-result, and status-output self-tests.
+
+Dry-run mode must remain non-mutating. `npm run symphony:ui-monitor -- --dry-run` may read GitHub, inspect local worktrees, and check health endpoints, but it must not acquire the production monitor lock, update branches, write runner state, restart dev servers, change issues or PRs, or invoke Browser.
+
 On each tick, it should:
 
 1. Load and validate `.agents/WORKFLOW.md`.
@@ -171,6 +187,12 @@ The status surface should answer:
 - latest significant event
 - retry count and next retry time
 - required human action, if any
+
+### 5.8 Browser Evaluation Bridge
+
+The repo runner cannot directly import the Codex in-app Browser plugin. Browser use is provided by the Codex automation wrapper that invokes the runner. When UI/runtime verification is needed, the runner emits `browser_evaluations[]` requests in its status JSON. The wrapper executes those requests with `@browser` and writes back `browser_results[]`.
+
+A browser evaluation request should include URL, purpose, persona, expected visible behavior, screenshot requirement, interaction steps, and acceptance checks. A browser result should include URL, status (`passed`, `failed`, or `blocked`), evidence, findings, and checked timestamp. Missing Browser results are not success; the run remains `needs_browser_evaluation`.
 
 ## 6. Domain Model
 
@@ -438,6 +460,7 @@ The first runnable implementation should stay small:
 5. Start at concurrency `1`.
 6. Write local logs and state files.
 7. Require a human to push branches or open PRs until the review packet is trusted.
+8. Provide a maintenance mode for the existing `ui-improvements` monitor that is lock-protected, emits Browser evaluation requests, and stops on dirty latest-code worktrees instead of discarding local edits.
 
 This keeps the service useful while avoiding a premature always-on daemon.
 
@@ -447,4 +470,3 @@ This keeps the service useful while avoiding a premature always-on daemon.
 - The repository contains `.agents/WORKFLOW.md` with machine-readable front matter and a human-readable agent prompt.
 - The implementation plan references the contract as the source for future agent orchestration.
 - The contract clearly defines GitHub issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries.
-
