@@ -44,6 +44,19 @@ const DEFAULT_MONITOR = {
   lockMaxAgeMs: 2 * 60 * 60 * 1000,
 };
 
+const DEFAULT_PULL_REQUESTS = {
+  targetBranch: "phase-0-platform-foundation",
+  inspectBeforeDispatch: true,
+  autoMergeCleanPrs: false,
+  mergeMethod: "squash",
+  codexReviewAuthors: ["chatgpt-codex-connector", "chatgpt-codex-connector[bot]", "github-copilot", "codex-review"],
+  codexReviewBot: "chatgpt-codex-connector[bot]",
+  codexReviewSuccessReactions: ["THUMBS_UP", "+1"],
+  noReviewWithBotThumbsUpIsClean: true,
+  reviewWaitPolicy: "non_blocking_stateful",
+  reviewGracePeriodSeconds: 300,
+};
+
 const SKILL_RULES = [
   {
     skill: "wizard-ui-hardening",
@@ -291,7 +304,7 @@ function listOpenPullRequests(baseRef) {
     "--base",
     baseRef,
     "--json",
-    "number,title,headRefName,isDraft,mergeStateStatus,reviewDecision,headRefOid,statusCheckRollup,updatedAt",
+    "number,title,url,headRefName,isDraft,mergeStateStatus,reviewDecision,headRefOid,statusCheckRollup,updatedAt,labels",
     "--limit",
     "100",
   ]);
@@ -344,6 +357,32 @@ function fetchReviewThreads(baseRef) {
     unresolved_threads: pr.reviewThreads.nodes.filter((thread) => !thread.isResolved && !thread.isOutdated),
     outdated_unresolved_threads: pr.reviewThreads.nodes.filter((thread) => !thread.isResolved && thread.isOutdated),
   }));
+}
+
+function fetchPullRequestReviewSignals(baseRef) {
+  const query =
+    'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviews(first:50){ nodes { author { login } state submittedAt } } comments(first:50){ nodes { author { login } body createdAt reactionGroups { content users(first:20){ nodes { login } } } } } } } } }';
+  const result = ghJson([
+    "api",
+    "graphql",
+    "-f",
+    `query=${query}`,
+    "-F",
+    "owner=herooftimeandspace",
+    "-F",
+    "repo=accountsdot",
+    "-F",
+    `base=${baseRef}`,
+  ]);
+  return new Map(
+    result.data.repository.pullRequests.nodes.map((pr) => [
+      pr.number,
+      {
+        reviews: pr.reviews.nodes,
+        comments: pr.comments.nodes,
+      },
+    ]),
+  );
 }
 
 function queuePullRequests(prs) {
@@ -438,6 +477,138 @@ function remediateReviewThreads({ reviewThreads, config, dryRun }) {
   return results;
 }
 
+function normalizedLogin(login) {
+  return String(login || "")
+    .toLowerCase()
+    .replace(/\[bot\]$/i, "");
+}
+
+function authorMatches(login, authors) {
+  const normalized = normalizedLogin(login);
+  return authors.some((author) => normalizedLogin(author) === normalized);
+}
+
+function statusRollupState(rollup) {
+  if (!rollup || (Array.isArray(rollup) && rollup.length === 0)) return "none";
+  const entries = Array.isArray(rollup) ? rollup : rollup.nodes || [];
+  if (entries.length === 0) return "none";
+  const failing = entries.filter((entry) => {
+    const value = String(entry.conclusion || entry.state || entry.status || "").toUpperCase();
+    return value && !["SUCCESS", "SKIPPED", "NEUTRAL", "COMPLETED"].includes(value);
+  });
+  return failing.length > 0 ? "failing" : "passing";
+}
+
+function reviewThreadsForPr(reviewThreads, number) {
+  return reviewThreads.find((entry) => entry.number === number) || {
+    number,
+    review_threads: [],
+    unresolved_threads: [],
+    outdated_unresolved_threads: [],
+  };
+}
+
+function hasBotSuccessReaction(signals, config) {
+  const successReactions = new Set((config.codexReviewSuccessReactions || []).map((reaction) => String(reaction).toUpperCase()));
+  const botLogin = config.codexReviewBot || "";
+  return (signals.comments || []).some((comment) =>
+    (comment.reactionGroups || []).some((group) => {
+      if (!successReactions.has(String(group.content || "").toUpperCase())) return false;
+      return (group.users?.nodes || []).some((user) => authorMatches(user.login, [botLogin]));
+    }),
+  );
+}
+
+function hasCodexReviewResponse({ signals, threadEntry, config }) {
+  const authors = config.codexReviewAuthors || [];
+  if ((signals.reviews || []).some((review) => authorMatches(review.author?.login, authors))) return true;
+  return (threadEntry.review_threads || []).some((thread) => isCodexReviewThread(thread, { codexReviewAuthors: authors }));
+}
+
+function hasRequestedChanges(signals, config) {
+  const authors = config.codexReviewAuthors || [];
+  return (signals.reviews || []).some(
+    (review) => authorMatches(review.author?.login, authors) && String(review.state || "").toUpperCase() === "CHANGES_REQUESTED",
+  );
+}
+
+function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
+  const threadEntry = reviewThreadsForPr(reviewThreads, pr.number);
+  const blockers = [];
+  const warnings = [];
+  const labelBlockers = prLabelNames(pr).filter((label) => (config.blockedLabels || []).includes(label));
+  if (pr.isDraft) blockers.push("draft PR");
+  if (pr.mergeStateStatus !== "CLEAN") blockers.push(`merge state ${pr.mergeStateStatus}`);
+  if (labelBlockers.length > 0) blockers.push(`blocked labels: ${labelBlockers.join(", ")}`);
+  const checkState = statusRollupState(pr.statusCheckRollup);
+  if (checkState === "failing") blockers.push("status checks are failing or pending");
+  if (threadEntry.unresolved_threads.some((thread) => isCodexReviewThread(thread, { codexReviewAuthors: config.codexReviewAuthors }))) {
+    blockers.push("unresolved current Codex Review thread");
+  }
+  if (hasRequestedChanges(signals, config)) blockers.push("Codex Review requested changes");
+
+  const codexReviewResponse = hasCodexReviewResponse({ signals, threadEntry, config });
+  const botThumbsUp = hasBotSuccessReaction(signals, config);
+  if (!codexReviewResponse && !botThumbsUp) {
+    warnings.push("waiting for Codex Review response or bot thumbs-up reaction");
+  }
+  if (!codexReviewResponse && botThumbsUp && config.noReviewWithBotThumbsUpIsClean) {
+    warnings.push("no Codex Review response, but chatgpt-codex-connector bot thumbs-up is configured as clean evidence");
+  }
+
+  const ready = blockers.length === 0 && (codexReviewResponse || (botThumbsUp && config.noReviewWithBotThumbsUpIsClean));
+  return {
+    number: pr.number,
+    title: pr.title,
+    url: pr.url || "",
+    head_ref: pr.headRefName,
+    merge_state: pr.mergeStateStatus,
+    check_state: checkState,
+    codex_review_response: codexReviewResponse,
+    bot_thumbs_up: botThumbsUp,
+    unresolved_codex_review_threads: threadEntry.unresolved_threads.filter((thread) =>
+      isCodexReviewThread(thread, { codexReviewAuthors: config.codexReviewAuthors }),
+    ).length,
+    status: ready ? "ready_to_merge" : blockers.length > 0 ? "blocked" : "waiting_for_codex_review",
+    blockers,
+    notes: warnings,
+  };
+}
+
+function mergePullRequest({ evaluation, config, dryRun }) {
+  const result = {
+    number: evaluation.number,
+    action: dryRun ? "would-merge" : "merge",
+    status: dryRun ? "dry-run" : "skipped",
+    merge_method: config.mergeMethod,
+    reason: "",
+  };
+  if (evaluation.status !== "ready_to_merge") {
+    result.status = "blocked";
+    result.reason = evaluation.blockers.concat(evaluation.notes).join("; ");
+    return result;
+  }
+  if (!config.autoMergeCleanPrs) {
+    result.status = "blocked";
+    result.reason = "auto_merge_clean_prs is disabled";
+    return result;
+  }
+  if (dryRun) {
+    result.reason = "dry-run performs no PR merge";
+    return result;
+  }
+  const mergeFlag = config.mergeMethod === "merge" ? "--merge" : config.mergeMethod === "rebase" ? "--rebase" : "--squash";
+  const output = run("gh", ["pr", "merge", String(evaluation.number), mergeFlag], { allowFailure: true });
+  if (output.failed) {
+    result.status = "blocked";
+    result.reason = output.stderr || output.stdout || `gh pr merge failed with status ${output.status}`;
+    return result;
+  }
+  result.status = "merged";
+  result.reason = output || `PR #${evaluation.number} merged with ${config.mergeMethod}`;
+  return result;
+}
+
 function openIssuesWithoutOpenPr(issues, prs) {
   const prText = prs.map((pr) => `${pr.number} ${pr.title} ${pr.headRefName}`).join("\n").toLowerCase();
   return issues.filter((issue) => !prText.includes(`#${issue.number}`) && !prText.includes(`issue-${issue.number}`));
@@ -445,6 +616,10 @@ function openIssuesWithoutOpenPr(issues, prs) {
 
 function issueLabelNames(issue) {
   return (issue.labels || []).map((label) => String(label.name || label).toLowerCase());
+}
+
+function prLabelNames(pr) {
+  return (pr.labels || []).map((label) => String(label.name || label).toLowerCase());
 }
 
 function readDispatchConfig(workflowConfig) {
@@ -462,6 +637,36 @@ function readDispatchConfig(workflowConfig) {
     workspaceRoot: dispatch.workspace_root || path.join(os.tmpdir(), "accountsdot-symphony"),
     agentRunnerCommand: dispatch.agent_runner_command || "",
     agentRunnerTimeoutMs: Number(dispatch.agent_runner_timeout_ms || 6 * 60 * 60 * 1000),
+  };
+}
+
+function readPullRequestConfig(workflowConfig, dispatchConfig) {
+  const configured = workflowConfig.pull_requests || {};
+  return {
+    ...DEFAULT_PULL_REQUESTS,
+    targetBranch: configured.target_branch || DEFAULT_PULL_REQUESTS.targetBranch || dispatchConfig.defaultTargetBranch,
+    inspectBeforeDispatch:
+      configured.inspect_before_dispatch === undefined
+        ? DEFAULT_PULL_REQUESTS.inspectBeforeDispatch
+        : Boolean(configured.inspect_before_dispatch),
+    autoMergeCleanPrs:
+      configured.auto_merge_clean_prs === undefined
+        ? DEFAULT_PULL_REQUESTS.autoMergeCleanPrs
+        : Boolean(configured.auto_merge_clean_prs),
+    mergeMethod: configured.merge_method || DEFAULT_PULL_REQUESTS.mergeMethod,
+    codexReviewAuthors: configured.codex_review_authors || DEFAULT_PULL_REQUESTS.codexReviewAuthors,
+    codexReviewBot: configured.codex_review_bot || DEFAULT_PULL_REQUESTS.codexReviewBot,
+    codexReviewSuccessReactions:
+      configured.codex_review_success_reactions || DEFAULT_PULL_REQUESTS.codexReviewSuccessReactions,
+    noReviewWithBotThumbsUpIsClean:
+      configured.no_review_with_bot_thumbs_up_is_clean === undefined
+        ? DEFAULT_PULL_REQUESTS.noReviewWithBotThumbsUpIsClean
+        : Boolean(configured.no_review_with_bot_thumbs_up_is_clean),
+    reviewWaitPolicy: configured.review_wait_policy || DEFAULT_PULL_REQUESTS.reviewWaitPolicy,
+    reviewGracePeriodSeconds: Number(
+      configured.review_grace_period_seconds || DEFAULT_PULL_REQUESTS.reviewGracePeriodSeconds,
+    ),
+    blockedLabels: (workflowConfig.tracker?.blocked_labels || []).map((label) => String(label).toLowerCase()),
   };
 }
 
@@ -1261,16 +1466,39 @@ async function report({ json = false } = {}) {
 async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const workflow = readWorkflow();
   const dispatchConfig = readDispatchConfig(workflow.config);
+  const prConfig = readPullRequestConfig(workflow.config, dispatchConfig);
   const skills = discoverSkills();
   const issues = listOpenIssues();
   const targetBranches = [
     dispatchConfig.defaultTargetBranch,
+    prConfig.targetBranch,
     ...issues.map((issue) => issueTargetBranch(issue, dispatchConfig)),
   ];
   const prs = listOpenPullRequestsForBases(targetBranches);
+  const prReviewThreads = prConfig.inspectBeforeDispatch ? fetchReviewThreads(prConfig.targetBranch) : [];
+  const prSignals = prConfig.inspectBeforeDispatch ? fetchPullRequestReviewSignals(prConfig.targetBranch) : new Map();
+  const targetPrs = prs.filter((pr) => pr.baseRefName === prConfig.targetBranch);
+  const prMergeQueue = queuePullRequests(targetPrs).map((pr) =>
+    evaluatePullRequestForMerge({
+      pr,
+      reviewThreads: prReviewThreads,
+      signals: prSignals.get(pr.number) || { reviews: [], comments: [] },
+      config: prConfig,
+    }),
+  );
+  const prMergeResults = [];
+  if (prConfig.inspectBeforeDispatch) {
+    for (const evaluation of prMergeQueue) {
+      if (evaluation.status !== "ready_to_merge") continue;
+      prMergeResults.push(mergePullRequest({ evaluation, config: prConfig, dryRun }));
+    }
+  }
+  const shouldPauseDispatchForPrQueue =
+    prConfig.inspectBeforeDispatch &&
+    prMergeQueue.length > 0;
   const queue = rankedDispatchQueue(issues, prs, dispatchConfig);
   const maxSelected = maxRuns || dispatchConfig.maxConcurrentRuns;
-  const selected = queue.filter((entry) => entry.eligible).slice(0, maxSelected);
+  const selected = shouldPauseDispatchForPrQueue ? [] : queue.filter((entry) => entry.eligible).slice(0, maxSelected);
   const dispatches = [];
 
   for (const entry of selected) {
@@ -1292,10 +1520,26 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
       agent_runner_configured: Boolean(dispatchConfig.agentRunnerCommand),
       agent_runner_command: dispatchConfig.agentRunnerCommand,
     },
+    pull_request_queue: {
+      target_branch: prConfig.targetBranch,
+      inspect_before_dispatch: prConfig.inspectBeforeDispatch,
+      auto_merge_clean_prs: prConfig.autoMergeCleanPrs,
+      merge_method: prConfig.mergeMethod,
+      review_wait_policy: prConfig.reviewWaitPolicy,
+      items: prMergeQueue,
+      merge_results: prMergeResults,
+      dispatch_paused_for_pr_queue: shouldPauseDispatchForPrQueue,
+    },
     issue_queue: queue.map(({ priority_score, ...entry }) => entry),
     selected_issues: selected.map(({ priority_score, ...entry }) => entry),
     dispatches,
-    status: dispatches.some((dispatch) => dispatch.status === "blocked")
+    status: prMergeResults.some((result) => result.status === "merged")
+      ? "merged_prs"
+      : prMergeQueue.some((entry) => entry.status === "blocked")
+        ? "pr_queue_blocked"
+      : prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")
+        ? "waiting_for_codex_review"
+      : dispatches.some((dispatch) => dispatch.status === "blocked")
       ? "blocked"
       : dispatches.some((dispatch) => dispatch.status === "failed")
         ? "agent_runner_failed"
@@ -1310,9 +1554,14 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
           : "dry-run",
     mutations_performed: dryRun
       ? []
-      : dispatches
-          .filter((dispatch) => ["prepared", "succeeded", "failed"].includes(dispatch.status))
-          .map((dispatch) => `${dispatch.status} ${dispatch.branch} in ${dispatch.repo}`),
+      : [
+          ...prMergeResults
+            .filter((result) => result.status === "merged")
+            .map((result) => `merged PR #${result.number} with ${result.merge_method}`),
+          ...dispatches
+            .filter((dispatch) => ["prepared", "succeeded", "failed"].includes(dispatch.status))
+            .map((dispatch) => `${dispatch.status} ${dispatch.branch} in ${dispatch.repo}`),
+        ],
   };
 
   if (!dryRun) {
@@ -1543,6 +1792,55 @@ async function selfTest() {
       },
       dispatch: { max_concurrent_runs: 2, workspace_root: tempRoot },
     });
+    const prConfig = readPullRequestConfig(
+      {
+        tracker: { blocked_labels: ["blocked"] },
+        pull_requests: {
+          auto_merge_clean_prs: true,
+          codex_review_bot: "chatgpt-codex-connector[bot]",
+          codex_review_success_reactions: ["THUMBS_UP"],
+        },
+      },
+      dispatchConfig,
+    );
+    const readyPr = {
+      number: 286,
+      title: "Fixes #266",
+      headRefName: "codex/issue-266-worker-crash-lease-recovery",
+      isDraft: false,
+      mergeStateStatus: "CLEAN",
+      statusCheckRollup: [],
+      labels: [],
+    };
+    const readyEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [],
+        comments: [
+          {
+            reactionGroups: [
+              {
+                content: "THUMBS_UP",
+                users: { nodes: [{ login: "chatgpt-codex-connector" }] },
+              },
+            ],
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(readyEvaluation.status, "ready_to_merge");
+    assert.equal(readyEvaluation.bot_thumbs_up, true);
+    assert.equal(
+      evaluatePullRequestForMerge({
+        pr: { ...readyPr, labels: [{ name: "blocked" }] },
+        reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+        signals: { reviews: [], comments: [] },
+        config: prConfig,
+      }).status,
+      "blocked",
+    );
     const phaseIssue = {
       number: 900264,
       title: "P0-0A-001: Reference Input Snapshot Integrity",
