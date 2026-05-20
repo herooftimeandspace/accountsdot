@@ -1,4 +1,4 @@
-# AGENTS.md
+# .agents/AGENTS.md
 
 This file applies to the whole repository. It condenses durable repo-specific instructions from prior workspace sessions and the repo markdown so agents can work here without rereading every planning document first.
 
@@ -13,10 +13,10 @@ This file applies to the whole repository. It condenses durable repo-specific in
 ## Core Source Of Truth
 
 - Read `README.md` first for project goals, documentation policy, local setup, test commands, and environment variables.
-- Use `IMPLEMENTATION_PLAN.md` as the authoritative execution plan and implementation decision log.
-- Use `PRODUCT_REQUIREMENTS.md` for business-facing product scope, users, workflows, visibility rules, and current-pass boundaries.
-- Use `TEST_MATRIX.md` for named mock scenarios, verification buckets, and promotion expectations.
-- Use `ENVIRONMENT_DATA_PLAYBOOK.md` for dev/staging/main environment strategy, masking, refresh, and promotion safety.
+- Use `docs/planning/implementation-plan.md` as the authoritative execution plan and implementation decision log.
+- Use `docs/product/product-requirements.md` for business-facing product scope, users, workflows, visibility rules, and current-pass boundaries.
+- Use `docs/testing/test-matrix.md` for named mock scenarios, verification buckets, and promotion expectations.
+- Use `docs/operations/environment-data-playbook.md` for dev/staging/main environment strategy, masking, refresh, and promotion safety.
 - Keep these documents aligned when behavior, access scope, provider behavior, data handling, UI affordances, rollout gates, or operator-facing expectations change.
 - If a user rejects a design or process recommendation, document the recommendation, override decision, and user-provided reason in the repo docs.
 
@@ -41,7 +41,7 @@ This file applies to the whole repository. It condenses durable repo-specific in
 - `internal/web`: HTTP handlers, health, DEV frontend API, and server-rendered legacy surfaces.
 - `frontend/src`: React DEV frontend.
 - `frontend/src/generated`: generated `.pen`-derived artboard files. Do not hand-edit these.
-- `docs/mocks/wireframes`: authoritative `.pen` wireframes and explicit review exports.
+- `docs/design/mocks/wireframes`: authoritative `.pen` wireframes and explicit review exports.
 - `scripts`: frontend design sync, accessibility checks, and mock/wireframe tooling.
 
 ## Data And Environment Safety
@@ -89,9 +89,9 @@ This file applies to the whole repository. It condenses durable repo-specific in
 
 - For implemented pages, `.pen` files own geometry, spacing, typography, text blocks, and static shell/page layout.
 - React runtime owns documented interaction, routing, data loading, access rules, and behavior.
-- Before UI/design work, read the implemented-page UI sections of `IMPLEMENTATION_PLAN.md` and `PRODUCT_REQUIREMENTS.md`, then use `docs/mocks/wireframes/implemented-page-design-contract.md` as the compact working contract.
+- Before UI/design work, read the implemented-page UI sections of `docs/planning/implementation-plan.md` and `docs/product/product-requirements.md`, then use `docs/design/mocks/wireframes/implemented-page-design-contract.md` as the compact working contract.
 - Classify every UI issue before editing as exactly one of `pipeline`, `.pen layout`, `docs/new behavior`, `runtime behavior`, or `review artifact`.
-- Do not add new shell/page behavior until `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md` define it.
+- Do not add new shell/page behavior until `docs/product/product-requirements.md` and `docs/planning/implementation-plan.md` define it.
 - For implemented pages, update the `.pen` source first, then run `npm run pen:sync`. Do not hand-edit generated artboards, generated presentational components, or generated review artifacts.
 - For annotation-driven work, freeze Codex annotate feedback into the relevant checked-in ledger before implementation. Do not start from loose annotation memory.
 - Export SVG/PNG review artifacts only when human review, signoff, archival comparison, or an explicit request needs them.
@@ -135,8 +135,8 @@ This file applies to the whole repository. It condenses durable repo-specific in
 - Use `make test-container` or `make security-container` when the host Go toolchain is missing or unhealthy.
 - UI-heavy workflow buckets need runtime evidence, including at least one UI artifact by default.
 - For frontend changes, verify persona routing, access denial, keyboard focus, mobile/reflow readability, and WCAG behavior.
-- Named mock scenarios in `TEST_MATRIX.md` must stay synchronized with `IMPLEMENTATION_PLAN.md`.
-- Live execution tracking and promotion signoff live outside the repo in IncidentIQ, not as rolling status fields in `TEST_MATRIX.md`.
+- Named mock scenarios in `docs/testing/test-matrix.md` must stay synchronized with `docs/planning/implementation-plan.md`.
+- Live execution tracking and promotion signoff live outside the repo in IncidentIQ, not as rolling status fields in `docs/testing/test-matrix.md`.
 
 ## Documentation And Communication Outputs
 
@@ -146,7 +146,7 @@ This file applies to the whole repository. It condenses durable repo-specific in
 - Do not add speculative feature controls, queues, dashboard affordances, or mock states that are not cleanly supported by the PRD and implementation plan.
 - Keep inline code documentation current with implemented behavior. When code surfaces change, update the function comments, caller comments, debugging docs, and external-write inventory in the same branch.
 - Prune stale documentation aggressively. Remove or rewrite comments and guides that describe deleted functions, renamed routes, obsolete workflow behavior, superseded provider operations, or old debugging paths.
-- Any live, planned, mock-only, or database write path must stay documented in `docs/external-write-inventory.md`, including Zoom, IncidentIQ, Google, local database, and DEV mock store mutations.
+- Any live, planned, mock-only, or database write path must stay documented in `docs/planning/external-write-inventory.md`, including Zoom, IncidentIQ, Google, local database, and DEV mock store mutations.
 
 ## Custom Skill Extraction Guidance
 
@@ -157,4 +157,4 @@ This file applies to the whole repository. It condenses durable repo-specific in
 - Recommended UI trigger: use the UI hardening skill for work on The WIZARD, accountsdot, district account lifecycle, `.pen`-derived dashboard pages, provider sync/orchestration, or dev/staging/main promotion safety when the task is frontend/UI/design oriented.
 - Recommended code documentation trigger: use the code documentation skill whenever implemented code changes, documentation may have gone stale, or an external-write path is introduced, renamed, removed, mocked, or made live.
 - Put long reference detail into skill `references/` files only when it is needed outside the repo or cannot be reliably discovered from the checked-out docs.
-- Preserve the source-of-truth hierarchy: `IMPLEMENTATION_PLAN.md` for implementation decisions, `PRODUCT_REQUIREMENTS.md` for product scope, `TEST_MATRIX.md` for scenario coverage, `ENVIRONMENT_DATA_PLAYBOOK.md` for environment safety, and `README.md` for project overview and commands.
+- Preserve the source-of-truth hierarchy: `docs/planning/implementation-plan.md` for implementation decisions, `docs/product/product-requirements.md` for product scope, `docs/testing/test-matrix.md` for scenario coverage, `docs/operations/environment-data-playbook.md` for environment safety, and `README.md` for project overview and commands.

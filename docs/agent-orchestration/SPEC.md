@@ -12,14 +12,14 @@ The repository has many small, well-scoped implementation, documentation, UI-har
 
 The WIZARD Symphony service should make GitHub Issues the durable control plane for routine agent work. It should continuously inspect eligible issues, create one isolated workspace per issue, run a Codex agent with the repo-owned workflow prompt, and keep enough state and logs for humans to review the result.
 
-The service is a scheduler, workspace manager, prompt builder, and runner. It is not the source of truth for product behavior. Product behavior remains governed by `README.md`, `IMPLEMENTATION_PLAN.md`, `PRODUCT_REQUIREMENTS.md`, `TEST_MATRIX.md`, `ENVIRONMENT_DATA_PLAYBOOK.md`, checked-in code, and issue acceptance criteria.
+The service is a scheduler, workspace manager, prompt builder, and runner. It is not the source of truth for product behavior. Product behavior remains governed by `README.md`, `docs/planning/implementation-plan.md`, `docs/product/product-requirements.md`, `docs/testing/test-matrix.md`, `docs/operations/environment-data-playbook.md`, checked-in code, and issue acceptance criteria.
 
 ## 2. Goals
 
 - Poll GitHub Issues on a fixed cadence with bounded concurrency.
 - Dispatch only issues that are unblocked, eligible, and safe for unattended agent work.
 - Create deterministic per-issue workspaces from the repository integration branch.
-- Load runtime behavior from the repository-owned `WORKFLOW.md` file.
+- Load runtime behavior from the repository-owned `.agents/WORKFLOW.md` file.
 - Start one Codex agent run per eligible issue and pass a complete, issue-specific prompt.
 - Preserve workspaces and logs across restarts so humans can inspect partial work.
 - Stop or mark runs stale when issue state, labels, blockers, or branch state changes.
@@ -41,14 +41,14 @@ The service is a scheduler, workspace manager, prompt builder, and runner. It is
 The runner and each dispatched agent must apply sources in this order:
 
 1. Platform and safety policy from the active Codex environment.
-2. Repository `AGENTS.md` and global AGENTS instructions.
+2. Repository `.agents/AGENTS.md` and global AGENTS instructions.
 3. `README.md`.
-4. `IMPLEMENTATION_PLAN.md`.
-5. `PRODUCT_REQUIREMENTS.md`.
-6. `TEST_MATRIX.md` when the change affects named scenarios or promotion coverage.
-7. `ENVIRONMENT_DATA_PLAYBOOK.md` when the change touches environment data, masking, staging, or promotion safety.
+4. `docs/planning/implementation-plan.md`.
+5. `docs/product/product-requirements.md`.
+6. `docs/testing/test-matrix.md` when the change affects named scenarios or promotion coverage.
+7. `docs/operations/environment-data-playbook.md` when the change touches environment data, masking, staging, or promotion safety.
 8. `docs/agent-orchestration/SPEC.md`.
-9. `WORKFLOW.md`.
+9. `.agents/WORKFLOW.md`.
 10. The GitHub issue body, comments, linked PRs, and acceptance criteria.
 
 If a lower-priority source conflicts with a higher-priority source, the agent should follow the higher-priority source and report the conflict in the issue or PR handoff.
@@ -57,12 +57,12 @@ If a lower-priority source conflicts with a higher-priority source, the agent sh
 
 ### 5.1 Workflow Loader
 
-The workflow loader reads `WORKFLOW.md`, parses the YAML front matter, and returns two values:
+The workflow loader reads `.agents/WORKFLOW.md`, parses the YAML front matter, and returns two values:
 
 - `config`: typed runner settings such as poll cadence, branch prefix, active labels, terminal labels, concurrency, and verification policy.
 - `prompt_template`: the Markdown body used to build an issue-specific agent prompt.
 
-The loader must reject a missing or invalid `WORKFLOW.md` rather than falling back to hard-coded behavior.
+The loader must reject a missing or invalid `.agents/WORKFLOW.md` rather than falling back to hard-coded behavior.
 
 ### 5.2 GitHub Tracker Client
 
@@ -128,7 +128,7 @@ The orchestrator owns the poll loop, runtime state, dispatch queue, retry queue,
 
 On each tick, it should:
 
-1. Load and validate `WORKFLOW.md`.
+1. Load and validate `.agents/WORKFLOW.md`.
 2. Read open candidate issues.
 3. Reconcile active runs with current issue state, branch state, and process state.
 4. Stop runs whose issues became ineligible.
@@ -150,7 +150,7 @@ The runner passes:
 - the issue URL and number
 - the target branch name
 - the expected files or modules when known
-- the required checks from `WORKFLOW.md`
+- the required checks from `.agents/WORKFLOW.md`
 - explicit safety limits
 
 The runner streams output to the workspace log directory and updates the active run status.
@@ -284,7 +284,7 @@ For each issue:
 1. Fetch the latest remote refs.
 2. Create or reuse a worktree from `origin/dev` unless the issue or repo docs specify another integration branch.
 3. Create or switch to `codex/issue-<number>-<slug>` inside that workspace.
-4. Read `README.md`, `AGENTS.md`, and relevant repo docs before edits.
+4. Read `README.md`, `.agents/AGENTS.md`, and relevant repo docs before edits.
 5. Preserve existing user-authored changes.
 6. Keep generated build output such as `frontend/dist/` out of the issue branch unless the issue explicitly changes artifact policy.
 
@@ -431,7 +431,7 @@ For UI-heavy work, the handoff should link screenshots or runtime evidence when 
 
 The first runnable implementation should stay small:
 
-1. Read `WORKFLOW.md`.
+1. Read `.agents/WORKFLOW.md`.
 2. List open GitHub issues with `agent-ready`.
 3. Print an eligibility report without dispatching.
 4. Create workspaces only when invoked with an explicit `--dispatch` flag.
@@ -444,7 +444,7 @@ This keeps the service useful while avoiding a premature always-on daemon.
 ## 18. Acceptance Criteria For This Contract
 
 - The repository contains this workspace-specific Symphony specification.
-- The repository contains `WORKFLOW.md` with machine-readable front matter and a human-readable agent prompt.
+- The repository contains `.agents/WORKFLOW.md` with machine-readable front matter and a human-readable agent prompt.
 - The implementation plan references the contract as the source for future agent orchestration.
 - The contract clearly defines GitHub issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries.
 

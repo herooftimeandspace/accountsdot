@@ -38,10 +38,10 @@ type testTx struct {
 // Begin documents the data flow for internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func (t *testTx) Begin(context.Context) (pgx.Tx, error) { return t, nil }
 
-// Commit documents the data flow for internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// Commit documents the data flow for internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func (t *testTx) Commit(context.Context) error { return t.commitErr }
 
-// Rollback documents the data flow for internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// Rollback documents the data flow for internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func (t *testTx) Rollback(context.Context) error {
 	t.rollbacks++
 	return nil
@@ -63,7 +63,7 @@ func (t *testTx) Prepare(context.Context, string, string) (*pgconn.StatementDesc
 	return nil, nil
 }
 
-// Exec documents the data flow for internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// Exec documents the data flow for internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func (t *testTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
 	return pgconn.CommandTag{}, nil
 }
@@ -106,7 +106,7 @@ func TestIsRetryableTxError(t *testing.T) {
 	}
 }
 
-// TestWithRetryRetriesRetryableBeginErrors exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestWithRetryRetriesRetryableBeginErrors exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestWithRetryRetriesRetryableBeginErrors(t *testing.T) {
 	beginner := &testBeginner{
 		beginErrs: []error{serializableTxErr{}, serializableTxErr{}, nil},
@@ -130,7 +130,7 @@ func TestWithRetryRetriesRetryableBeginErrors(t *testing.T) {
 	}
 }
 
-// TestWithRetryRetriesRetryableFunctionErrors exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestWithRetryRetriesRetryableFunctionErrors exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestWithRetryRetriesRetryableFunctionErrors(t *testing.T) {
 	beginner := &testBeginner{tx: &testTx{}}
 	calls := 0
@@ -159,7 +159,7 @@ func TestWithRetryRetriesRetryableFunctionErrors(t *testing.T) {
 	}
 }
 
-// TestWithRetryReturnsWrappedRetryableFunctionErrorAfterMaxAttempts exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestWithRetryReturnsWrappedRetryableFunctionErrorAfterMaxAttempts exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestWithRetryReturnsWrappedRetryableFunctionErrorAfterMaxAttempts(t *testing.T) {
 	beginner := &testBeginner{tx: &testTx{}}
 
@@ -174,7 +174,7 @@ func TestWithRetryReturnsWrappedRetryableFunctionErrorAfterMaxAttempts(t *testin
 	}
 }
 
-// TestWithRetryReturnsWrappedRetryableCommitErrorAfterMaxAttempts exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestWithRetryReturnsWrappedRetryableCommitErrorAfterMaxAttempts exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestWithRetryReturnsWrappedRetryableCommitErrorAfterMaxAttempts(t *testing.T) {
 	beginner := &testBeginner{
 		tx: &testTx{commitErr: serializableTxErr{}},
@@ -189,7 +189,7 @@ func TestWithRetryReturnsWrappedRetryableCommitErrorAfterMaxAttempts(t *testing.
 	}
 }
 
-// TestWithRetryReturnsNonRetryableBeginError exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestWithRetryReturnsNonRetryableBeginError exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestWithRetryReturnsNonRetryableBeginError(t *testing.T) {
 	beginner := &testBeginner{
 		beginErrs: []error{errors.New("nope")},
@@ -202,7 +202,7 @@ func TestWithRetryReturnsNonRetryableBeginError(t *testing.T) {
 	}
 }
 
-// TestWithRetryReturnsNonRetryableCommitError exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestWithRetryReturnsNonRetryableCommitError exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestWithRetryReturnsNonRetryableCommitError(t *testing.T) {
 	beginner := &testBeginner{
 		tx: &testTx{commitErr: errors.New("commit failed")},
@@ -214,7 +214,7 @@ func TestWithRetryReturnsNonRetryableCommitError(t *testing.T) {
 	}
 }
 
-// TestWithRetryReturnsMaxRetryError exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestWithRetryReturnsMaxRetryError exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestWithRetryReturnsMaxRetryError(t *testing.T) {
 	beginner := &testBeginner{
 		beginErrs: []error{
@@ -236,7 +236,7 @@ func TestWithRetryReturnsMaxRetryError(t *testing.T) {
 	}
 }
 
-// TestDefaultSleepHookReturnsOnCanceledContext exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestDefaultSleepHookReturnsOnCanceledContext exercises and documents internal/db/retry_internal_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestDefaultSleepHookReturnsOnCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

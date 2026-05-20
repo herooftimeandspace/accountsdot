@@ -9,9 +9,9 @@ For this repository, the tracker is GitHub Issues rather than Linear. The safety
 ## Files
 
 - `SPEC.md` defines the local service contract, domain model, state policy, workspace layout, retry behavior, observability, and safety boundaries for a future long-running runner.
-- `../../WORKFLOW.md` is the repo-owned workflow prompt and front matter a runner should load before dispatching an issue to Codex.
+- `../../.agents/WORKFLOW.md` is the repo-owned workflow prompt and front matter a runner should load before dispatching an issue to Codex.
 
 ## Current Status
 
-This is a spec-first slice. It creates the durable contract needed by future automation, but it does not start a background daemon or grant any new credentials. A future implementation should treat this directory and `WORKFLOW.md` as the source of truth for runner behavior.
+This is a spec-first slice. It creates the durable contract needed by future automation, but it does not start a background daemon or grant any new credentials. A future implementation should treat this directory and `.agents/WORKFLOW.md` as the source of truth for runner behavior.
 

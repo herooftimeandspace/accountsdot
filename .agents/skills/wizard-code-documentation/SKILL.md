@@ -10,17 +10,17 @@ Use this skill whenever implemented code changes in The WIZARD. The goal is to k
 ## Source Order
 
 1. Read `README.md` for documentation policy, local setup, and test commands.
-2. Read `AGENTS.md` for repo safety, architecture, access, frontend, and verification rules.
+2. Read `.agents/AGENTS.md` for repo safety, architecture, access, frontend, and verification rules.
 3. Read the code being changed and every direct caller/callee affected by the change.
 4. Read `docs/code-documentation-guide.md` for the repo's call-path and debugging documentation standard.
-5. Read `docs/external-write-inventory.md` before changing any provider, database, or DEV mock mutation path.
+5. Read `docs/planning/external-write-inventory.md` before changing any provider, database, or DEV mock mutation path.
 
 ## Required Documentation Loop
 
 1. Identify the changed functions, routes, handlers, components, test helpers, schemas, and provider-operation names.
 2. Update inline documentation in the same patch as the code change.
 3. Update documentation on direct callers when the callee's behavior, output, side effects, or failure mode changes.
-4. Update `docs/external-write-inventory.md` before adding, removing, or changing any live, planned, mock-only, or database write path.
+4. Update `docs/planning/external-write-inventory.md` before adding, removing, or changing any live, planned, mock-only, or database write path.
 5. Prune comments and guide sections that describe removed functions, obsolete routes, renamed symbols, superseded workflow behavior, or stale debugging steps.
 6. Search for old symbol names, route paths, provider-operation names, JSON fields, and workflow labels before finishing.
 7. Run `npm run docs:comments:check` after adding or editing comments under `cmd/`, `internal/`, or `frontend/src/`.

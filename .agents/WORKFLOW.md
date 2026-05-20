@@ -53,11 +53,11 @@ You are working as a Codex agent on The WIZARD repository. Your task is to compl
 Before changing files, read the repository sources in this order:
 
 1. `README.md`
-2. `AGENTS.md`
-3. `IMPLEMENTATION_PLAN.md`
-4. `PRODUCT_REQUIREMENTS.md`
-5. `TEST_MATRIX.md` when scenarios, verification, or promotion evidence are affected
-6. `ENVIRONMENT_DATA_PLAYBOOK.md` when environment data, masking, staging, production data, or promotion safety are affected
+2. `.agents/AGENTS.md`
+3. `docs/planning/implementation-plan.md`
+4. `docs/product/product-requirements.md`
+5. `docs/testing/test-matrix.md` when scenarios, verification, or promotion evidence are affected
+6. `docs/operations/environment-data-playbook.md` when environment data, masking, staging, production data, or promotion safety are affected
 7. `docs/agent-orchestration/SPEC.md`
 8. the assigned GitHub issue, its comments, linked PRs, and acceptance criteria
 
@@ -77,7 +77,7 @@ Use the most specific checked-in source that applies. If code and docs disagree,
 
 - Prefer small, reversible changes that match existing patterns.
 - Work test-first for behavior changes when feasible.
-- Update `IMPLEMENTATION_PLAN.md`, `PRODUCT_REQUIREMENTS.md`, `TEST_MATRIX.md`, `ENVIRONMENT_DATA_PLAYBOOK.md`, or README when behavior, access scope, data handling, rollout expectations, setup, or operator workflows change.
+- Update `docs/planning/implementation-plan.md`, `docs/product/product-requirements.md`, `docs/testing/test-matrix.md`, `docs/operations/environment-data-playbook.md`, or README when behavior, access scope, data handling, rollout expectations, setup, or operator workflows change.
 - Keep product scope grounded in checked-in docs and issue acceptance criteria.
 - Do not invent new UI affordances, queues, controls, workflow states, or provider behavior without documentation support.
 - For implemented-page UI work, update authoritative `.pen` files first and run the `.pen` sync/check workflow. Do not hand-edit generated artboards, generated presentational components, or generated review exports.

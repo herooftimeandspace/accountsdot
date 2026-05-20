@@ -115,7 +115,7 @@ func TestRunTreatsServerClosedAsCleanExit(t *testing.T) {
 	}
 }
 
-// TestRunShutsDownWhenContextIsCanceled exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestRunShutsDownWhenContextIsCanceled exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestRunShutsDownWhenContextIsCanceled(t *testing.T) {
 	restore := overrideMainDeps(t)
 	defer restore()

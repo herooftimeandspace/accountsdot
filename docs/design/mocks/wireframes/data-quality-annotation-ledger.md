@@ -3,7 +3,7 @@
 This ledger freezes the current Data Quality recovery cycle so the implemented page can be corrected without mixing layout, runtime, docs, and review-export changes in one loop.
 
 ## Recovery Scope
-- Page: `docs/mocks/wireframes/wireframe-data-quality-dashboard.pen`
+- Page: `docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen`
 - Runtime target: `http://localhost:5173/data-quality`
 - Authority rule:
   - `.pen` owns static geometry, spacing, typography, and page-shell layout
@@ -29,5 +29,5 @@ This ledger freezes the current Data Quality recovery cycle so the implemented p
 - Do not edit derived SVG or PNG review artifacts during the recovery cycle.
 - Do not mix layout, docs, and runtime behavior changes in one validation pass.
 - Close layout-only items against the live DEV page first.
-- If a behavior request is still undefined after layout is stable, stop and update `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md` before touching runtime code.
-- Use `docs/mocks/wireframes/implemented-page-design-contract.md` and `docs/mocks/wireframes/annotation-ledgers/implemented-pages.md` for future annotation passes so closed feedback remains tied to a durable lint rule, shared primitive rule, docs update, or accepted one-time fix note.
+- If a behavior request is still undefined after layout is stable, stop and update `docs/product/product-requirements.md` and `docs/planning/implementation-plan.md` before touching runtime code.
+- Use `docs/design/mocks/wireframes/implemented-page-design-contract.md` and `docs/design/mocks/wireframes/annotation-ledgers/implemented-pages.md` for future annotation passes so closed feedback remains tied to a durable lint rule, shared primitive rule, docs update, or accepted one-time fix note.

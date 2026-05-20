@@ -353,7 +353,7 @@ function assertFrontendSourcePaletteUsage() {
 }
 
 function assertPenSourcePaletteUsage() {
-  const penFiles = listFiles("docs/mocks/wireframes", (relativePath) => relativePath.endsWith(".pen"));
+  const penFiles = listFiles("docs/design/mocks/wireframes", (relativePath) => relativePath.endsWith(".pen"));
 
   for (const filePath of penFiles) {
     const hexColors = readText(filePath).match(/#[0-9a-f]{6}/gi) || [];

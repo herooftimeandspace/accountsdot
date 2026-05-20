@@ -101,7 +101,7 @@ Any future production override mutation must add explicit authorization before i
 
 The current `POST /api/v1/sync-status/{user_type}/{user_id}/override` handler only returns `202 Accepted`; it does not mutate an in-memory store, database row, or provider. `handleRoomMappings` similarly returns accepted status for `POST /api/v1/room-mappings` without persisted state.
 
-The planned write boundary is documented in `docs/external-write-inventory.md` under internal sync operations:
+The planned write boundary is documented in `docs/planning/external-write-inventory.md` under internal sync operations:
 
 - `internal.sync_ingest_subject`
 - `internal.sync_update_projection`

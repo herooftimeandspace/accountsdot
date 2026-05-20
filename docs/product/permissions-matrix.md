@@ -1,17 +1,17 @@
 # Permissions Matrix
 
-This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `PRODUCT_REQUIREMENTS.md`, `IMPLEMENTATION_PLAN.md`, and `TEST_MATRIX.md`.
+This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `docs/product/product-requirements.md`, `docs/planning/implementation-plan.md`, and `docs/testing/test-matrix.md`.
 
-This matrix is current DEV implementation documentation. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher. Issue #188 remains open for live production SAML assertion validation, production session issuance, approved Google Workspace metadata/group/attribute decisions, and persistent manual site-scope administration.
+This matrix is current DEV implementation documentation. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/planning/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher. Issue #188 remains open for live production SAML assertion validation, production session issuance, approved Google Workspace metadata/group/attribute decisions, and persistent manual site-scope administration.
 
 ## Source Order
 
-- `PRODUCT_REQUIREMENTS.md` defines the staff-only product boundary, allowed domains, explicit student denial, same-URL access-denied requirement, lifecycle visibility rules, and HR/IT offboarding action requirements.
-- `IMPLEMENTATION_PLAN.md` defines the implementation contract, staged rollout constraints, Phase 2 live-write pilot gate, route registry, and follow-up work still required before production SAML is live.
-- `docs/route-api-authorization-inventory.md` records the route-by-route frontend, DEV API, direct-navigation, feature-flag, and static-page exception audit for issue #185.
+- `docs/product/product-requirements.md` defines the staff-only product boundary, allowed domains, explicit student denial, same-URL access-denied requirement, lifecycle visibility rules, and HR/IT offboarding action requirements.
+- `docs/planning/implementation-plan.md` defines the implementation contract, staged rollout constraints, Phase 2 live-write pilot gate, route registry, and follow-up work still required before production SAML is live.
+- `docs/planning/route-api-authorization-inventory.md` records the route-by-route frontend, DEV API, direct-navigation, feature-flag, and static-page exception audit for issue #185.
 - `internal/auth/production.go` contains the current checked-in evaluator for verified Google identity data.
 - `internal/web` contains the DEV persona-switcher route and API authorization behavior.
-- `TEST_MATRIX.md` defines the scenarios that must be evidenced in dev and staging.
+- `docs/testing/test-matrix.md` defines the scenarios that must be evidenced in dev and staging.
 
 ## Domain Gate
 
@@ -144,7 +144,7 @@ Example mapping shape:
 | `/api/v1/dev/room-moves/*` | IT Admin, Site Admin, Site Secretary according to draft scope | Mutations enforce route, site scope, and admin-only revert authority | DEV mock room-move planning only | Implemented | Room Moves mutation tests |
 | `/api/v1/dev/pages/phone-directory/by-person`, `/by-room`, `/by-department` | All logged-in personas | Requires matching route | Directory results are scope-filtered by persona/site; unknown site requests fail closed for site-scoped users | Implemented | Phone Directory tests |
 | `/api/v1/dev/feature-flags`, `/api/v1/dev/feature-flags/{key}` | IT Admin | Feature flag reads/writes are IT Admin-only | IT Admin override is read-only in target rows and is not stored as a normal editable target | Implemented | Feature flag handler and persistence tests |
-| Static/frontend-only current-slice pages | Varies by session allowed routes | Frontend route guard sends unauthorized direct navigation to login or `403` | `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/sync-transparency`, and `/admin` have documented backend coverage exceptions where no route-specific Go page API exists | Partially implemented | Route registry, page-specific frontend tests, and `docs/route-api-authorization-inventory.md` |
+| Static/frontend-only current-slice pages | Varies by session allowed routes | Frontend route guard sends unauthorized direct navigation to login or `403` | `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/sync-transparency`, and `/admin` have documented backend coverage exceptions where no route-specific Go page API exists | Partially implemented | Route registry, page-specific frontend tests, and `docs/planning/route-api-authorization-inventory.md` |
 
 ## Feature Flags
 
@@ -167,7 +167,7 @@ Feature flags are not an in-app permissions administration model. They let DEV v
 
 ### Issue #158: Parent Permission Work Still Open
 
-This matrix documents the currently implemented DEV behavior, and `docs/route-api-authorization-inventory.md` supplies the issue #185 route/API audit evidence for #158. The parent issue still should not close automatically from this matrix alone, because #158 also tracks broader permission enforcement concerns beyond the inventory artifact.
+This matrix documents the currently implemented DEV behavior, and `docs/planning/route-api-authorization-inventory.md` supplies the issue #185 route/API audit evidence for #158. The parent issue still should not close automatically from this matrix alone, because #158 also tracks broader permission enforcement concerns beyond the inventory artifact.
 
 The completed inventory confirms every implemented frontend route has:
 
@@ -199,7 +199,7 @@ Until that model exists, the matrix should be read as DEV enforcement documentat
 
 ### Breakglass Boundary
 
-Local breakglass behavior is required by `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md`, but it is not represented as a DEV persona-switcher flow. The current implementation verifies local authentication, named emergency accounts, source-address restrictions, and operational audit events for the emergency path used when third-party authentication is unavailable.
+Local breakglass behavior is required by `docs/product/product-requirements.md` and `docs/planning/implementation-plan.md`, but it is not represented as a DEV persona-switcher flow. The current implementation verifies local authentication, named emergency accounts, source-address restrictions, and operational audit events for the emergency path used when third-party authentication is unavailable.
 
 The current row for Local breakglass records the implemented local route only. It does not mean an operator can select a breakglass persona in DEV or administer editable breakglass roles through the permissions model.
 

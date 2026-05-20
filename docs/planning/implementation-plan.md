@@ -54,17 +54,17 @@
   - interim fallback: use Windsor Middle School visuals without text for CLA-specific pages until CLA assets exist
 
 ## Documentation Requirements
-- `IMPLEMENTATION_PLAN.md` is the authoritative execution spec and decision log for behavior that affects implementation.
-- `PRODUCT_REQUIREMENTS.md` must capture the business-facing WHAT of the product, including goals, users, workflows, inputs, outputs, visibility rules, and out-of-scope items for technical and non-technical review.
-- `ENVIRONMENT_DATA_PLAYBOOK.md` must document the exact steps required to derive and refresh mock and staging environments from production-safe source data.
-- `docs/agent-orchestration/SPEC.md` is the authoritative local contract for Symphony-style Codex agent orchestration against GitHub Issues, including issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries. `WORKFLOW.md` is the runner-readable prompt/config contract that future orchestration tooling should load before dispatching any issue work.
+- `docs/planning/implementation-plan.md` is the authoritative execution spec and decision log for behavior that affects implementation.
+- `docs/product/product-requirements.md` must capture the business-facing WHAT of the product, including goals, users, workflows, inputs, outputs, visibility rules, and out-of-scope items for technical and non-technical review.
+- `docs/operations/environment-data-playbook.md` must document the exact steps required to derive and refresh mock and staging environments from production-safe source data.
+- `docs/agent-orchestration/SPEC.md` is the authoritative local contract for Symphony-style Codex agent orchestration against GitHub Issues, including issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries. `.agents/WORKFLOW.md` is the runner-readable prompt/config contract that future orchestration tooling should load before dispatching any issue work.
 - `docs/reference-inputs/VENDORED_INVENTORY.md` must record the current repo-local reference corpus, including vendored source provenance, branch/ref selection, refresh date, and any intentional scope narrowing such as subtree-only snapshots.
-- `TEST_MATRIX.md` must track the named mock scenarios, verification coverage, and phase/workflow test expectations used for promotion decisions.
+- `docs/testing/test-matrix.md` must track the named mock scenarios, verification coverage, and phase/workflow test expectations used for promotion decisions.
 - `README.md` must enumerate the project goals in product terms, not just local setup steps.
 - Code comments and documentation must record business rules, precedence rules, and other non-obvious decisions where they affect code paths.
 - Business-critical code paths should include plain-language comments that explain intent and side effects clearly enough for a new engineer to follow without reverse-engineering every provider interaction.
 - Tests must reflect documented behavior and decision history; test updates are allowed only when the documented intended behavior changes.
-- UI mocks and design previews must stay grounded in the documented product surface. Sample user data and realistic example content are allowed, but mocks must not introduce speculative feature-level controls, workflows, queues, or dashboard affordances that are not cleanly supported by `PRODUCT_REQUIREMENTS.md` and this implementation plan.
+- UI mocks and design previews must stay grounded in the documented product surface. Sample user data and realistic example content are allowed, but mocks must not introduce speculative feature-level controls, workflows, queues, or dashboard affordances that are not cleanly supported by `docs/product/product-requirements.md` and this implementation plan.
 - Generated SVG, PNG, and PEN mocks must exclude test-matrix, mock-policy, validation-process, runbook, evidence, and other governance-oriented language unless that language is itself a documented operator-facing product feature.
 - For legacy mock screens that have not yet been implemented in application code, the shared generator remains the canonical source of truth. Visual or copy changes must be backported into the shared generator before regeneration rather than being left as one-off PEN-only edits.
 - For implemented pages, the page's `.pen` file becomes the authoritative design source. Generated presentational UI code, frontend artboard assets, and any optional review exports must flow from that `.pen` file rather than being hand-edited directly.
@@ -81,13 +81,13 @@
 - For all future implemented-page recovery cycles, the authority split is:
   - the authoritative `.pen` owns geometry, spacing, text blocks, and static shell/page layout
   - the React runtime owns only interactive behavior that already exists
-  - no new shell/page behavior may be implemented until `PRODUCT_REQUIREMENTS.md` and this implementation plan define it explicitly
+  - no new shell/page behavior may be implemented until `docs/product/product-requirements.md` and this implementation plan define it explicitly
 - For implemented pages, shared shell controls must be fixed at the shared pattern level rather than patched one page at a time. This includes branding blocks, top search fields, notification/help clusters, user dropdown sizing, and platform-status alignment.
 - Live implemented pages must not surface non-feature shortcut pills, mock-governance labels, or other shell adornments that are not documented operator-facing product behavior.
 - When a rail or card is expressing one logical paragraph of helper text, the authoritative `.pen` should use one wrapping text node rather than multiple stacked fragments.
 - Implemented table layouts must preserve at least a `5px` visual gap between row text and horizontal dividers while keeping the previously documented shared top-baseline rule.
 - When SVG, PNG, or PEN UI assets are materially changed, this implementation plan must be updated in the same pass whenever the visual change clarifies, constrains, or changes implementation-relevant behavior, layout rules, access scope, field visibility, interaction affordances, or other operator-facing expectations.
-- When design revisions, annotation resolutions, or manual `.pen` adjustments materially affect current or future implementation behavior, phase scope, shared shell patterns, component contracts, visibility rules, interaction rules, or other operator-facing expectations, update both `PRODUCT_REQUIREMENTS.md` and this implementation plan in the same pass.
+- When design revisions, annotation resolutions, or manual `.pen` adjustments materially affect current or future implementation behavior, phase scope, shared shell patterns, component contracts, visibility rules, interaction rules, or other operator-facing expectations, update both `docs/product/product-requirements.md` and this implementation plan in the same pass.
 - For implemented-page annotation review, the default feedback loop is:
   - compare the live UI against the authoritative `.pen`
   - freeze the active annotation set into one page-specific recovery ledger before layout work starts
@@ -105,7 +105,7 @@
   - optional ad-hoc export
 - Only one recovery layer may change at a time, and the live DEV page must be validated after each layer before the next layer starts.
 - If a layout issue remains after a pass, reopen only the `.pen` layer rather than mixing layout, docs, and runtime changes together.
-- If a recovery issue is discovered to require new behavior, stop the active layout/runtime pass and update `PRODUCT_REQUIREMENTS.md` plus this implementation plan before any runtime work begins.
+- If a recovery issue is discovered to require new behavior, stop the active layout/runtime pass and update `docs/product/product-requirements.md` plus this implementation plan before any runtime work begins.
 - A recovery loop is considered detected when the same slice output is produced more than twice without a material state change. In this repo, `same output` includes:
   - the same slice-status or progress narrative repeated three times with no new resolved annotation, no reclassification, and no new blocking fact
   - the same annotation set being reprocessed three times with no change in the frozen ledger state
@@ -135,23 +135,23 @@
   - the user-provided reason for overriding it
 
 ## Agent Orchestration Contract
-- The repo-local version of OpenAI's Symphony pattern is spec-first. The contract lives in `docs/agent-orchestration/SPEC.md`, and the dispatch prompt/config lives in `WORKFLOW.md`.
+- The repo-local version of OpenAI's Symphony pattern is spec-first. The contract lives in `docs/agent-orchestration/SPEC.md`, and the dispatch prompt/config lives in `.agents/WORKFLOW.md`.
 - GitHub Issues are the control plane for routine agent work. The first safe runner implementation should require explicit issue opt-in through an `agent-ready` label, use bounded concurrency, and start at concurrency `1`.
 - Agent workspaces must be isolated per issue, preferably under `/private/tmp/accountsdot-symphony/`, and each issue branch should use `codex/issue-<number>-<short-slug>` from `dev` unless the issue or repo docs specify another integration branch.
 - The orchestrator may schedule, prepare workspaces, render prompts, run Codex, and write local status/log files. It must not bypass human review, close issues before merge, perform production provider writes, weaken promotion gates, or expose secrets in prompts, logs, issues, PRs, or generated artifacts.
 - Routine retries are allowed only for transient tracker, network, or runner failures. Policy violations, missing credentials, ambiguous scope, product/security decisions, unsafe writes, and merge conflicts requiring judgment must stop in a human-review or blocked handoff state.
-- Future implementation work should keep orchestration policy in docs and `WORKFLOW.md`, then build the smallest useful runner around that contract: eligibility report first, explicit dispatch second, and always-on daemon behavior only after the review packet is trusted.
+- Future implementation work should keep orchestration policy in docs and `.agents/WORKFLOW.md`, then build the smallest useful runner around that contract: eligibility report first, explicit dispatch second, and always-on daemon behavior only after the review packet is trusted.
 
 ## Delivery Phases and Gates
 - Branch Gate Semantics:
-  - checked-in CI/CD promotion details live in `docs/promotion-pipeline.md`
+  - checked-in CI/CD promotion details live in `docs/operations/promotion-pipeline.md`
   - `dev` is the developer integration branch and must pass the `dev gate` before automated promotion to `staging` is opened or refreshed
   - `staging` is the realistic proving ground and must pass the `staging gate`, which includes the `dev gate` checks plus security and frontend accessibility validation, before automated promotion to `main` is opened or refreshed
   - `main` is production and must pass the `main gate`, which includes the `staging gate` checks plus release-prep static validation and the PR-level `release-prep-check`
   - promotion PRs must be created or refreshed with the dedicated `PROMOTION_PR_TOKEN` secret rather than `github.token` so required `pull_request` checks are created normally
   - `staging` to `main` promotion uses the disposable `promote/staging-to-main` branch so production branch protection does not require direct bot pushes to `main`
   - this repository does not yet define package version files, semver labels, release notes, or deployment manifests for The WIZARD; until those product decisions are documented, promotion PR release metadata is captured in the PR body and checked for external runbook, IncidentIQ testing-ticket, and release/deployment references before merge
-  - branch protection, required reviews, required status checks, GitHub environments, deployment secrets, badge publishing, and the `PROMOTION_PR_TOKEN` secret are manual repository-administration prerequisites documented in `docs/promotion-pipeline.md`
+  - branch protection, required reviews, required status checks, GitHub environments, deployment secrets, badge publishing, and the `PROMOTION_PR_TOKEN` secret are manual repository-administration prerequisites documented in `docs/operations/promotion-pipeline.md`
 - Pre-phase rule:
   - before the promotable engineering phases begin, the project uses a `Pre-Phase 0` frontend-design and DEV-implementation track to establish the UI shell, design authority model, and mock-backed page pattern
   - `Pre-Phase 0` is preparatory only and does not replace or bypass the existing `Phase 0 → Phase 5` promotion model
@@ -175,7 +175,7 @@
   - every named scenario in the phase must be clean/passing before promotion; written acceptance is not a substitute for an unresolved scenario
   - any rollback trigger that fires for a workflow bucket blocks promotion for that bucket until the trigger condition is resolved and the bucket is clean again
   - if a rollback trigger fires for a workflow bucket in `dev`, `staging` verification for that same bucket is prohibited until the `dev` trigger condition is resolved and `dev` is clean again
-  - the named scenario list must be captured in this implementation plan and kept in sync with `TEST_MATRIX.md`
+  - the named scenario list must be captured in this implementation plan and kept in sync with `docs/testing/test-matrix.md`
   - document any newly introduced manual fallback paths and operator ownership
 - Implementation signoff definition:
   - implementation signoff is recorded per workflow bucket in the external promotion runbook/process, not in the application UI and not in the repository artifacts
@@ -372,15 +372,15 @@
   - tomorrow's recommended resume order is: finish/publish issue `#2` and issue `#4` branch state, then publish issue `#3` documentation branch, then pick from the new follow-up queue by risk and file ownership
 - Current pilot implementation status:
   - `Data Quality` is the first migrated implemented page in the pre-phase 0 track
-  - the authoritative design source for that page is `docs/mocks/wireframes/wireframe-data-quality-dashboard.pen`
-  - the canonical logged-in sidebar/header source is `docs/mocks/wireframes/wireframe-shared-shell.pen`
+  - the authoritative design source for that page is `docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen`
+  - the canonical logged-in sidebar/header source is `docs/design/mocks/wireframes/wireframe-shared-shell.pen`
   - `npm run pen:sync` regenerates only the page's derived frontend artboard/code artifacts
   - `npm run pen:check` is the drift-check command for the implemented-page authority path
-  - `npm run pen:export -- docs/mocks/wireframes/wireframe-data-quality-dashboard.pen` is the ad-hoc single-page SVG/PNG export path when review artifacts are needed
+  - `npm run pen:export -- docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen` is the ad-hoc single-page SVG/PNG export path when review artifacts are needed
   - the legacy wireframe generator must not overwrite `wireframe-data-quality-dashboard.pen` or its derived implemented-page artifacts
   - the DEV implementation target for this pilot is a React + Vite frontend consuming page-shaped mock JSON from the Go backend
   - the `Data Quality` queue remains inline on the implemented page rather than linking to a separate full-queue screen, and the queue card is expected to expand or contract with the current row count
-  - the `Data Quality` page must not expose an `Open Mapping Dashboard` shortcut unless `PRODUCT_REQUIREMENTS.md` and this plan define the destination and operator workflow; current routing guidance belongs in the shared help drawer because the legacy `/sync-dashboard/mappings` stub is not a supported implemented-page destination
+  - the `Data Quality` page must not expose an `Open Mapping Dashboard` shortcut unless `docs/product/product-requirements.md` and this plan define the destination and operator workflow; current routing guidance belongs in the shared help drawer because the legacy `/sync-dashboard/mappings` stub is not a supported implemented-page destination
   - the `Data Quality` queue headers are expected to support `ASC / DESC / NONE` sorting directly on the page rather than routing the user to a separate list surface
   - runtime-backed implemented tables should use the shared table-control primitive for local search/filter and three-way header sorting; each page provides its own default sort column and hidden data remains excluded from search when the role cannot see it
   - summary/stat cards and metric boxes should use a shared summary info box primitive that centers its text, renders very large numeric values, color-codes the numeric value with a metric-appropriate good-to-bad scale, and always leads to a clear operator action (navigation, filter, drawer, or decision); passive non-actionable decoration should be removed or redesigned rather than persisting as a status tile
@@ -406,8 +406,8 @@
   - `Next Action` cells in the `Data Quality` queue should deep link to an in-app corrective page when one exists, otherwise render as `{Action} in {system}` with a top-level external system link only when that destination is defined
   - the implemented `Support` affordance should treat the help icon and `Support` label as one IncidentIQ ticket-creation entrypoint once that destination contract is wired
   - the shared-shell auth and route foundation for the current implemented `.pen` inventory now includes `/login`, logged-in/logged-out error pages, a shared route registry, and role-based sidebar filtering/direct-link authorization; deferred shell behaviors such as account-menu actions, live site-selector behavior, and richer sidebar interaction remain separate later slices
-  - the login authority for this slice is `docs/mocks/wireframes/wireframe-login.pen`; it renders only the centered `Firefly.png` logo at `25%` opacity, the centered `the wizard` title in Vegas Gold Varsity with black stroke outline, and a centered `Log in with Google` button using the Google mark, with no sidebar or header before login succeeds
-  - the reusable error-page authority for this slice is `docs/mocks/wireframes/wireframe-http-error.pen`; logged-out errors render without shell, while logged-in errors merge that page pane into the shared shell from `wireframe-shared-shell.pen`
+  - the login authority for this slice is `docs/design/mocks/wireframes/wireframe-login.pen`; it renders only the centered `Firefly.png` logo at `25%` opacity, the centered `the wizard` title in Vegas Gold Varsity with black stroke outline, and a centered `Log in with Google` button using the Google mark, with no sidebar or header before login succeeds
+  - the reusable error-page authority for this slice is `docs/design/mocks/wireframes/wireframe-http-error.pen`; logged-out errors render without shell, while logged-in errors merge that page pane into the shared shell from `wireframe-shared-shell.pen`
   - HTTP error pages must include one recovery CTA; authenticated users return through `/dashboard` so the router resolves their role-based landing path, while signed-out users return to `/login`
   - the login page display title must use a fixed `1px` outer stroke
   - stroked display text on HTTP error pages must use a fixed `1px` outer stroke
@@ -511,7 +511,7 @@
     - `/health/live` and `/health/ready` evidence under healthy and degraded conditions
     - observability evidence for pause/dependency state
     - promotion-gate evidence showing required scenario checks are enforced
-- Named workflow scenarios to sync with `TEST_MATRIX.md`:
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `0A` repo-local safety artifacts and environment playbooks
     - `P0-0A-001` Reference Input Snapshot Integrity
     - `P0-0A-002` Environment Role Separation
@@ -622,7 +622,7 @@
     - district-wide IT draft-create evidence
     - draft-validation evidence proving no execution side effects occur in this phase
     - evidence that directory detail actions can open a one-person targeted draft with current context prefilled
-- Named workflow scenarios to sync with `TEST_MATRIX.md`:
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `1A` canonical read model ingestion and dashboard projections
     - `P1-1A-001` Escape Ingest Creates Canonical Person Projection
     - `P1-1A-002` Source Conflict Surfaces Without Silent Normalization
@@ -789,7 +789,7 @@
     - downstream workflow summary for the selected action path
     - what-if validation evidence for individual and bulk actions before live mutation
     - denial evidence proving bulk actions skip or block non-allowlisted users before any upstream mutation
-- Named workflow scenarios to sync with `TEST_MATRIX.md`:
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `2A` provisioning-profile and baseline bundle foundation
     - `P2-2A-001` Profile Save Applies To Not-Yet-Started Work
     - `P2-2A-002` Workflow Snapshot Freezes At Start
@@ -927,7 +927,7 @@
     - runtime evidence of bulk path exercised successfully
     - state check confirming non-moving users were untouched
     - fallback-ticket evidence for unresolved conflicts
-- Named workflow scenarios to sync with `TEST_MATRIX.md`:
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `3A` room-move execution path built on earlier drafts, including final review
     - `P3-3A-001` Final Review Promotes Draft To Scheduled Move
     - `P3-3A-002` Scheduled Move Executes On Effective Date
@@ -1010,7 +1010,7 @@
     - evidence distinguishing automation writes from end-user edits
     - observed parity plus the 90-day gate is sufficient at the current evidence bar; a separate staging dry-run retirement rehearsal is not yet required
     - cutover evidence showing the dashboard is the primary control surface before retirement
-- Named workflow scenarios to sync with `TEST_MATRIX.md`:
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `4A` orphaned Zoom cleanup queue and verification surface
     - `P4-4A-001` Zoom Cleanup Stays Unresolved Until Full End-State
     - `P4-4A-002` Generic Queue Row With Zoom Cleanup Subtype
@@ -1082,7 +1082,7 @@
     - runtime evidence of default mapping behavior for explicitly defined deferred-app rules
     - runtime evidence that users without matching rules receive no deferred-app entitlement
     - runtime evidence that IT Admin mapping changes take effect without redeploy
-- Named workflow scenarios to sync with `TEST_MATRIX.md`:
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `5A` student lifecycle and student-access automation
     - `P5-5A-001` Student Base Profile Created From School And Grade
     - `P5-5A-002` Course Change Triggers End-Of-Day Access Recalculation
@@ -1147,10 +1147,10 @@
 - 2026-05-01: The product display name is `The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard`. UI shells, mocks, and operator-facing branding should use the exact vendored mascot logo at `docs/reference-inputs/branding/Firefly.png`, keep that branding inside the sidebar bounds, and use the tagline `Have you checked with The WIZARD?`.
 - 2026-05-07: User override for the shared shell branding tagline: `Have you checked with The WIZARD?` must render in Vegas Gold `#CEB770` on the white sidebar background. The project records this as a deliberate brand exception to normal automated text-contrast enforcement for that exact tagline only, because the user explicitly rejected reverting the tagline to dark text and stated that Vegas Gold on white is an acceptable district brand combination.
 - 2026-04-30: Frontend implementation should begin through a `Pre-Phase 0` DEV-only track. For implemented pages, the associated `.pen` file is the authoritative design source; generated presentational UI code and frontend artboard assets must be regenerated from that `.pen` rather than hand-edited. SVG/PNG mock assets remain derived review artifacts and should be exported on demand rather than on every design refresh. The first pilot slice is the branded shell plus the `Data Quality` page using a React + Vite frontend against mock/page-shaped JSON from the existing Go backend, with a DEV-only persona switcher and an explicit sync command plus CI drift enforcement.
-- 2026-04-30: The first migrated implemented page is `Data Quality`. `docs/mocks/wireframes/wireframe-data-quality-dashboard.pen` is now the authority for that page, `npm run pen:sync` / `npm run pen:check` are the authoritative code/artboard sync and drift commands, `npm run pen:export -- docs/mocks/wireframes/wireframe-data-quality-dashboard.pen` is the ad-hoc SVG/PNG export path when review artifacts are needed, and the legacy wireframe generator must no longer overwrite that page's `.pen` or derived implemented-page artifacts.
+- 2026-04-30: The first migrated implemented page is `Data Quality`. `docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen` is now the authority for that page, `npm run pen:sync` / `npm run pen:check` are the authoritative code/artboard sync and drift commands, `npm run pen:export -- docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen` is the ad-hoc SVG/PNG export path when review artifacts are needed, and the legacy wireframe generator must no longer overwrite that page's `.pen` or derived implemented-page artifacts.
 - 2026-04-30: Implemented-page annotation feedback should update the authoritative `.pen` first, then regenerate derived code/artboard outputs, refresh the DEV page, and export SVG/PNG review artifacts only when needed. Shared-shell and shared-component fixes should be generalized rather than patched one page at a time.
 - 2026-04-30: Implemented-page bordered elements use a `5px` default buffer between independent cards, rails, tables, notices, and controls. Intentional shared edges such as table header/body joins and row dividers should collapse to a single border with no gap and no double-width.
-- 2026-05-01: The Data Quality annotation recovery cycle now uses a frozen page-specific ledger at `docs/mocks/wireframes/data-quality-annotation-ledger.md`. Layout-only issues must be resolved in the authoritative `.pen` first, existing behavior must be verified separately, and new behavior requests must update the PRD and implementation plan before runtime work begins.
+- 2026-05-01: The Data Quality annotation recovery cycle now uses a frozen page-specific ledger at `docs/design/mocks/wireframes/data-quality-annotation-ledger.md`. Layout-only issues must be resolved in the authoritative `.pen` first, existing behavior must be verified separately, and new behavior requests must update the PRD and implementation plan before runtime work begins.
 - 2026-05-01: The current Data Quality recovery ledger locks future behavior contracts before runtime work begins. The shell account menu must eventually expose `My Profile` and `Sign Out`, the header scope field must become a real site-list dropdown, the help icon and `Support` label must converge on one IncidentIQ ticket-creation action, `Next Action` cells must deep link to corrective destinations when defined, and the Data Quality refresh action must remain a real Vegas Gold re-fetch control.
 - 2026-05-13: Issue #57 product validation found no PRD or implementation-plan support for a Data Quality `Open Mapping Dashboard` shortcut to `/sync-dashboard/mappings`. The live `/data-quality` page should therefore remove that unsupported button/hotspot and keep HR/Site/IT queue-routing guidance in the shared help drawer until a future documented IT Admin mapping workflow defines a supported destination.
 - 2026-05-01: The first account-menu behavior cycle should keep the shared shell menu narrow in scope: `My Profile` lands on an internal mock-backed profile page sourced from its authoritative `.pen`, and `Sign Out` uses a dedicated DEV sign-out flow that returns the browser to a signed-out DEV state rather than silently toggling the persona selector.
@@ -2138,7 +2138,7 @@
   - local breakglass accounts are exempt from the domain rule
 - Users hitting the same URL should see access-denied responses when they do not have permission rather than soft-reduced content.
 - The permissions model and associated Google groups are part of the project deliverable and should remain the canonical authorization model once rolled out.
-- The editable in-app permissions model is defined in `docs/permissions-model.md`; that document distinguishes proposed IT Admin edits, stored manual grants/revocations, and effective access used by future server-side authorization.
+- The editable in-app permissions model is defined in `docs/product/permissions-model.md`; that document distinguishes proposed IT Admin edits, stored manual grants/revocations, and effective access used by future server-side authorization.
 - Site Admin, Site Secretary, and Device Wrangler access is exactly one site. Google group membership, SAML attributes, manual mappings, and future in-app grants must not create multi-site operational access for those roles.
 - IT Admin or Human Resources roles cover legitimate district-wide operational needs; any attempted multi-site operational persona mapping should fail closed and be routed to IT Admin cleanup.
 - Until Google-group authorization is fully built, site scope is maintained through manual mapping managed by IT Admin.

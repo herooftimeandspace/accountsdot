@@ -82,7 +82,7 @@ There is no provider, database, or DEV mock store mutation for opening help. The
 - Clicking the help hit target toggles `isOpen`.
 - Closing `RuntimeDrawer` resets `isOpen` to false.
 
-Because there is no external write, this path is not listed as a DEV mock mutation in `docs/external-write-inventory.md`. It still depends on the DEV session cookie path documented there because session login/logout and route visibility determine whether the shell overlay appears.
+Because there is no external write, this path is not listed as a DEV mock mutation in `docs/planning/external-write-inventory.md`. It still depends on the DEV session cookie path documented there because session login/logout and route visibility determine whether the shell overlay appears.
 
 ## Tests
 

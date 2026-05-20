@@ -10,10 +10,10 @@ Use this skill for implemented-page UI/design work in The WIZARD.
 ## Source Order
 
 1. Read `README.md` for project goals and documentation policy.
-2. Read the relevant implemented-page UI sections in `IMPLEMENTATION_PLAN.md`.
-3. Read matching product scope and visibility rules in `PRODUCT_REQUIREMENTS.md`.
-4. Check `TEST_MATRIX.md` only when the UI change affects named scenario coverage.
-5. Use `AGENTS.md` and `docs/mocks/wireframes/implemented-page-design-contract.md` as the compact operating checklist.
+2. Read the relevant implemented-page UI sections in `docs/planning/implementation-plan.md`.
+3. Read matching product scope and visibility rules in `docs/product/product-requirements.md`.
+4. Check `docs/testing/test-matrix.md` only when the UI change affects named scenario coverage.
+5. Use `.agents/AGENTS.md` and `docs/design/mocks/wireframes/implemented-page-design-contract.md` as the compact operating checklist.
 
 ## Layer Classification
 
@@ -38,7 +38,7 @@ Default order is pipeline contract, `.pen layout`, docs for new behavior, runtim
 
 ## Primitive-First Feedback Intake
 
-Before editing, convert every Codex annotate item into a ledger row in `docs/mocks/wireframes/annotation-ledgers/implemented-pages.md` or a page-specific ledger.
+Before editing, convert every Codex annotate item into a ledger row in `docs/design/mocks/wireframes/annotation-ledgers/implemented-pages.md` or a page-specific ledger.
 
 Each row must identify:
 
@@ -53,7 +53,7 @@ Do not close a feedback item as merely "fixed." Closed items must name the durab
 - If the same feedback appears on two or more pages, treat it as shared primitive work.
 - Header, sidebar, profile, search, scope, nav, support, notification, help, and platform-status feedback is always `shared shell`.
 - Row spacing, baseline alignment, dividers, wrapper borders, overflow, and fragmented text are primitive work first; make them page-local only after the primitive rule is clarified.
-- New behavior requests are `docs/new behavior`: stop and update `PRODUCT_REQUIREMENTS.md` plus `IMPLEMENTATION_PLAN.md` before runtime implementation.
+- New behavior requests are `docs/new behavior`: stop and update `docs/product/product-requirements.md` plus `docs/planning/implementation-plan.md` before runtime implementation.
 
 ## Primitive Cleanup Order
 

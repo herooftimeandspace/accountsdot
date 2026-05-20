@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(__filename), "..");
-const inventoryPath = path.join(repoRoot, "docs", "external-write-inventory.md");
+const inventoryPath = path.join(repoRoot, "docs", "planning", "external-write-inventory.md");
 const appPath = path.join(repoRoot, "internal", "web", "app.go");
 const webPath = path.join(repoRoot, "internal", "web");
 
@@ -264,7 +264,7 @@ function checkInventory(markdown, routes = deriveLiveMutatingRoutes().routes, de
     }
     if (!documentedRoutes.has(key) && !exceptions.has(key)) {
       const owner = routeMetadata.get(key)?.owner ?? "unknown owner";
-      failures.push(`${key} (${owner}, ${route.source}) is missing from docs/external-write-inventory.md`);
+      failures.push(`${key} (${owner}, ${route.source}) is missing from docs/planning/external-write-inventory.md`);
     }
   }
 

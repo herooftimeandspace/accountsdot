@@ -23,10 +23,10 @@
     "pen:check": "node scripts/sync_implemented_pages.mjs --check",
     "pen:lint": "node scripts/lint_implemented_pages.mjs",
     "pen:lint:test": "node scripts/lint_implemented_pages.mjs --self-test",
-    "pen:export": "node docs/mocks/export_pen_assets.mjs",
-    "vendor:lucide": "node docs/mocks/vendor_lucide.mjs",
-    "render:wireframes": "node docs/mocks/render_wireframes.mjs",
-    "export:wireframes": "node docs/mocks/export_wireframes_with_pencil.mjs"
+    "pen:export": "node docs/design/mocks/export_pen_assets.mjs",
+    "vendor:lucide": "node docs/design/mocks/vendor_lucide.mjs",
+    "render:wireframes": "node docs/design/mocks/render_wireframes.mjs",
+    "export:wireframes": "node docs/design/mocks/export_wireframes_with_pencil.mjs"
   },
   "dependencies": {
     "react": "^19.2.5",

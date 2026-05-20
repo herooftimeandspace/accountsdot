@@ -1,7 +1,5 @@
 # Accounts Dashboard: Practical Value for District Operations
 
-![Accounts Dashboard day-to-day workflow](docs/sales-assets/accounts-dashboard-day-to-day.svg)
-
 ## Executive Summary
 
 The Accounts dashboard gives district teams one staff-only place to see account, room, phone, onboarding, offboarding, sync, and exception work. The goal is not another reporting layer. The goal is a daily operating surface that shows each team what is ready, what is blocked, who owns the next step, and where work has already been completed.
@@ -45,10 +43,6 @@ That means:
 
 The repo describes a self-hosted intranet application with a Go service, PostgreSQL-backed workflow state, staff-only access, health checks, sync visibility, and phased rollout controls. The current implemented web surface includes sync dashboard pages, workflow and approval APIs, room-mapping endpoints, health endpoints, and event-stream support. The broader product plan extends that foundation into onboarding, offboarding, phone directory, room moves, student invalid-name handling, Frequent Fliers, and safe legacy cutover.
 
-![Accounts Dashboard connected systems](docs/sales-assets/accounts-dashboard-systems.svg)
-
-![Accounts Dashboard rollout path](docs/sales-assets/accounts-dashboard-rollout.svg)
-
 ## Recommended Positioning
 
 Use this as the district's operational account-readiness dashboard, not as a technical automation project. The message to site staff should be simple:
@@ -63,9 +57,9 @@ The message to leadership should be:
 
 This summary is based on the repo's primary Markdown documents:
 
-- [README.md](README.md): project goals, local app scope, documentation policy.
-- [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md): business-facing product scope, user roles, current-pass boundaries, and core dashboard areas.
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md): phased implementation details, workflow behavior, provider rules, sync dashboard design, and legacy-process migration notes.
-- [TEST_MATRIX.md](TEST_MATRIX.md): named verification scenarios and promotion expectations by phase.
-- [ENVIRONMENT_DATA_PLAYBOOK.md](ENVIRONMENT_DATA_PLAYBOOK.md): safe development and staging data strategy.
-- [docs/reference-inputs/README.md](docs/reference-inputs/README.md) and [docs/reference-inputs/VENDORED_INVENTORY.md](docs/reference-inputs/VENDORED_INVENTORY.md): provenance for supporting integration, branding, and legacy-process reference material.
+- [README.md](../../README.md): project goals, local app scope, documentation policy.
+- [Product requirements](../product/product-requirements.md): business-facing product scope, user roles, current-pass boundaries, and core dashboard areas.
+- [Implementation plan](../planning/implementation-plan.md): phased implementation details, workflow behavior, provider rules, sync dashboard design, and legacy-process migration notes.
+- [Test matrix](../testing/test-matrix.md): named verification scenarios and promotion expectations by phase.
+- [Environment data playbook](../operations/environment-data-playbook.md): safe development and staging data strategy.
+- [Reference inputs](../reference-inputs/README.md) and [vendored inventory](../reference-inputs/VENDORED_INVENTORY.md): provenance for supporting integration, branding, and legacy-process reference material.

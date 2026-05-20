@@ -18,13 +18,13 @@ The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard is a self-host
 13. Preserve source-system truth in displayed data. Operator-facing labels and controls stay in English, but imported source values should be shown exactly as stored rather than translated or normalized for language.
 
 ## Documentation Policy
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) is the authoritative execution plan and decision log for implementation-affecting behavior.
-- [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) captures the business-facing product requirements and scope boundaries.
-- [ENVIRONMENT_DATA_PLAYBOOK.md](ENVIRONMENT_DATA_PLAYBOOK.md) defines the safe process for creating and refreshing mock and staging environments.
-- [TEST_MATRIX.md](TEST_MATRIX.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
-- [docs/permissions-matrix.md](docs/permissions-matrix.md) documents the currently implemented DEV route/API permission matrix, field-level visibility, and known authorization gaps for review against the PRD and implementation plan.
-- [docs/promotion-pipeline.md](docs/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
-- [docs/agent-orchestration/SPEC.md](docs/agent-orchestration/SPEC.md) defines the repo-local Symphony-style Codex orchestration contract for GitHub issue driven agent work. [WORKFLOW.md](WORKFLOW.md) is the runner-readable prompt and configuration contract for that workflow.
+- [docs/planning/implementation-plan.md](docs/planning/implementation-plan.md) is the authoritative execution plan and decision log for implementation-affecting behavior.
+- [docs/product/product-requirements.md](docs/product/product-requirements.md) captures the business-facing product requirements and scope boundaries.
+- [docs/operations/environment-data-playbook.md](docs/operations/environment-data-playbook.md) defines the safe process for creating and refreshing mock and staging environments.
+- [docs/testing/test-matrix.md](docs/testing/test-matrix.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
+- [docs/product/permissions-matrix.md](docs/product/permissions-matrix.md) documents the currently implemented DEV route/API permission matrix, field-level visibility, and known authorization gaps for review against the PRD and implementation plan.
+- [docs/operations/promotion-pipeline.md](docs/operations/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
+- [docs/agent-orchestration/SPEC.md](docs/agent-orchestration/SPEC.md) defines the repo-local Symphony-style Codex orchestration contract for GitHub issue driven agent work. [.agents/WORKFLOW.md](.agents/WORKFLOW.md) is the runner-readable prompt and configuration contract for that workflow.
 - [docs/reference-inputs/VENDORED_INVENTORY.md](docs/reference-inputs/VENDORED_INVENTORY.md) is the authoritative provenance and refresh ledger for the repo-local reference corpus under `docs/reference-inputs/`.
 - The promotion runbook/process also lives outside the repo. It must capture one implementation-signoff entry per workflow bucket, reference the external IncidentIQ testing-ticket evidence, and use the corresponding documented rollback path and rollback trigger conditions for write-capable buckets. Each bucket entry must include exact metadata for release, ticket, phase, bucket, environment, revisions, timestamps, signoff, evidence links, and rollback references as applicable. Each bucket entry must also include a final disposition plus explicit yes/no attestations for scenario cleanliness, evidence review, and write-safety checks. A bucket that was previously `rolled back` may later be updated to `ready` after a new clean pass, and `superseded` means an older attempt was replaced by a newer one in the same release; the replacement current entry must explicitly link back to the superseded one. A `no` attestation does not require a separate explanation field beyond the disposition and any required closure note. If a rollback trigger blocks a bucket in `dev`, the runbook must carry an explicit closure note with links to the replacement evidence before `staging` can begin for that bucket. The external IncidentIQ testing ticket should use one parent ticket per release with evidence organized in `phase → bucket → dev/staging → scenario` order, with `dev` listed before `staging` in every bucket.
 - This README must continue to enumerate the product goals at a high level.
@@ -356,7 +356,7 @@ databases.
   long-lived `postgres-dev-data` volume.
 - Staging runs with `APP_ENV=staging`, the long-lived
   `postgres-staging-data` volume, and sandbox or masked/read-only provider
-  configuration as defined in `ENVIRONMENT_DATA_PLAYBOOK.md`.
+  configuration as defined in `docs/operations/environment-data-playbook.md`.
 - Main runs with `APP_ENV=production`, production secrets, and the main
   database only. Production must not reuse dev or staging credentials.
 

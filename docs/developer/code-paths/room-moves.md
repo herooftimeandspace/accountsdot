@@ -151,7 +151,7 @@ Mutation effects are DEV-only:
 - Delete removes pending draft state.
 - Revert creates a scheduled reversal draft from a completed job.
 
-Keep this aligned with `docs/external-write-inventory.md`: the path models future Zoom room shared-line-group, room membership, site-extension, and common-area-phone effects, but it does not call a live provider SDK or write the database today.
+Keep this aligned with `docs/planning/external-write-inventory.md`: the path models future Zoom room shared-line-group, room membership, site-extension, and common-area-phone effects, but it does not call a live provider SDK or write the database today.
 
 ## Tests
 

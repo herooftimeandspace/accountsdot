@@ -4,7 +4,7 @@
 This document tracks the named mock scenarios and verification coverage required to promote each phase safely through `dev → staging → main`.
 
 ## Rules
-- The scenario inventory here must stay synchronized with `IMPLEMENTATION_PLAN.md`.
+- The scenario inventory here must stay synchronized with `docs/planning/implementation-plan.md`.
 - Every workflow introduced in a phase must have named mock scenarios in `dev` before any real third-party integration or downstream write is attempted.
 - Scenario grouping in this document should follow the per-phase delivery buckets defined in the implementation plan.
 - Features within a phase should be validated individually rather than waiting for one large end-of-phase test pass.
@@ -29,7 +29,7 @@ This document tracks the named mock scenarios and verification coverage required
 - This document is a static definition artifact, not a live execution tracker. Do not add rolling status, evidence-link, or last-verified fields here.
 - Live execution tracking, evidence collection, and signoff capture live outside the repo in an external IncidentIQ testing ticket.
 - That external IncidentIQ testing ticket should use one parent ticket per release and organize evidence inside it in `phase → bucket → dev/staging → scenario` order, with `dev` listed before `staging` in every bucket.
-- The CI/CD promotion-pipeline branch gates are defined in `docs/promotion-pipeline.md`. Those gates enforce repository checks and promotion PR shape; they do not replace named scenario evidence, external IncidentIQ evidence, or the external promotion runbook.
+- The CI/CD promotion-pipeline branch gates are defined in `docs/operations/promotion-pipeline.md`. Those gates enforce repository checks and promotion PR shape; they do not replace named scenario evidence, external IncidentIQ evidence, or the external promotion runbook.
 - Promotion evidence should be retained for 90 days after the relevant phase promotion.
 - The external promotion runbook/process must capture one implementation-signoff entry per workflow bucket and reference the corresponding IncidentIQ testing-ticket evidence; it does not need to name a rollback owner.
 - Each write-capable workflow bucket must have its concrete rollback path documented in a dedicated per-phase rollback subsection of the implementation plan and referenced during external promotion review.
@@ -98,7 +98,7 @@ This document tracks the named mock scenarios and verification coverage required
   | --- | --- | --- | --- |
   | `P0-0E-001` | Readiness Fails Closed on Missing Dependency | Simulate DB/service-account/storage dependency loss and verify `/health/ready` fails while `/health/live` remains meaningful. | Confirm staging health endpoints behave consistently under dependency failure drills. |
   | `P0-0E-002` | Health Endpoints Reflect Pause and Dependency State | Verify health endpoints and metrics expose paused/degraded states without implying false readiness. | Confirm staging observability reflects the same readiness/pause semantics. |
-  | `P0-0E-003` | Promotion Gate Requires Named Scenario Passes | Verify promotion tooling/checklist blocks advancement when required scenario evidence is missing, and verify `docs/promotion-pipeline.md` maps local branch gates to the checked-in GitHub workflows. | Confirm staging promotion checklist enforces named scenario completion before main promotion and that the main promotion PR carries external runbook, IncidentIQ testing-ticket, and release/deployment metadata before merge. |
+  | `P0-0E-003` | Promotion Gate Requires Named Scenario Passes | Verify promotion tooling/checklist blocks advancement when required scenario evidence is missing, and verify `docs/operations/promotion-pipeline.md` maps local branch gates to the checked-in GitHub workflows. | Confirm staging promotion checklist enforces named scenario completion before main promotion and that the main promotion PR carries external runbook, IncidentIQ testing-ticket, and release/deployment metadata before merge. |
 
 ## Phase 1
 - Bucket-level evidence requirements for this phase:
