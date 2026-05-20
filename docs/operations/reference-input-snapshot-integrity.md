@@ -12,9 +12,15 @@ The Go service validates the current mandatory reference input baseline during `
 - `docs/reference-inputs/branding/google-g.png`
 - `docs/reference-inputs/branding/Wordmarks/Gold W black outline.png`
 
-The guard also checks local Markdown links in `docs/reference-inputs/README.md` and `docs/reference-inputs/VENDORED_INVENTORY.md`. Local links must resolve inside the repository. Absolute workstation paths such as `/Users/...`, parent-directory escapes, and missing local targets fail validation.
+The guard also checks local Markdown links in `docs/reference-inputs/README.md` and `docs/reference-inputs/VENDORED_INVENTORY.md`. Local links must resolve inside the repository. Directory links such as `/docs/reference-inputs/branding/` are valid because GitHub renders them as navigable repository paths. Root-relative Markdown links that start with `/` are interpreted relative to the repository root, not the host filesystem. Parent-directory escapes and missing local targets fail validation.
 
 When validation fails, startup returns an error beginning with `required repo-local reference input snapshots are missing` or `repo-local reference input documentation links are invalid`. The error names the exact repo-relative file or invalid link so the operator can restore the snapshot or fix the documentation reference before retrying the deployment.
+
+## Runtime Reference Root
+
+Local development normally runs from a repository checkout, so the guard can find `docs/reference-inputs/` by walking upward from the current working directory. Production-style container images do not carry the full checkout. The deploy image therefore copies `docs/reference-inputs/` into `/app/docs/reference-inputs/` and sets `WIZARD_REFERENCE_INPUT_ROOT=/app`.
+
+Operators should set `WIZARD_REFERENCE_INPUT_ROOT` whenever the service runs from a packaged artifact, systemd unit, or container that does not start inside the repository root. The configured directory is treated as the root that contains `docs/reference-inputs/VENDORED_INVENTORY.md`. If that file is missing, startup fails before serving traffic.
 
 ## Required Versus Deferred Inputs
 
@@ -34,7 +40,7 @@ This proves:
 
 - the checked-in reference input baseline is present,
 - missing required snapshots fail clearly with the missing repo-relative path,
-- local reference-input Markdown links resolve within the repository,
+- local reference-input Markdown links resolve within the repository, including directory links and root-relative links,
 - config loading fails before server startup when the reference input guard fails.
 
 ## Staging Verification

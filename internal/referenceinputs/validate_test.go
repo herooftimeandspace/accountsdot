@@ -15,6 +15,41 @@ func TestValidateRepositoryAcceptsRequiredStartupSnapshotsAndLocalLinks(t *testi
 	}
 }
 
+func TestValidateRepositoryAcceptsDirectoryAndRepoRootMarkdownLinks(t *testing.T) {
+	root := buildReferenceInputFixture(t)
+	inventoryPath := filepath.Join(root, "docs", "reference-inputs", "VENDORED_INVENTORY.md")
+	content := "# Vendored Reference Input Inventory\n\nSee [branding](/docs/reference-inputs/branding/) and [README](/docs/reference-inputs/README.md).\n"
+	if err := os.WriteFile(inventoryPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture inventory: %v", err)
+	}
+
+	if err := ValidateRepository(root); err != nil {
+		t.Fatalf("ValidateRepository rejected valid directory and repo-root links: %v", err)
+	}
+}
+
+func TestValidateStartupUsesConfiguredReferenceInputRoot(t *testing.T) {
+	root := buildReferenceInputFixture(t)
+	previousWorkingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("read working directory: %v", err)
+	}
+	emptyWorkingDirectory := t.TempDir()
+	if err := os.Chdir(emptyWorkingDirectory); err != nil {
+		t.Fatalf("change working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previousWorkingDirectory); err != nil {
+			t.Fatalf("restore working directory: %v", err)
+		}
+	})
+	t.Setenv("WIZARD_REFERENCE_INPUT_ROOT", root)
+
+	if err := ValidateStartup(); err != nil {
+		t.Fatalf("ValidateStartup rejected configured reference input root: %v", err)
+	}
+}
+
 func TestValidateRepositoryRejectsMissingStartupSnapshot(t *testing.T) {
 	root := buildReferenceInputFixture(t)
 	missing := filepath.Join(root, "docs", "reference-inputs", "branding", "Firefly.png")
@@ -37,7 +72,7 @@ func TestValidateRepositoryRejectsMissingStartupSnapshot(t *testing.T) {
 func TestValidateRepositoryRejectsReferenceLinksOutsideRepo(t *testing.T) {
 	root := buildReferenceInputFixture(t)
 	inventoryPath := filepath.Join(root, "docs", "reference-inputs", "VENDORED_INVENTORY.md")
-	if err := os.WriteFile(inventoryPath, []byte("[unsafe](/Users/example/private-note.md)\n"), 0o644); err != nil {
+	if err := os.WriteFile(inventoryPath, []byte("[unsafe](../../../private-note.md)\n"), 0o644); err != nil {
 		t.Fatalf("write fixture inventory: %v", err)
 	}
 

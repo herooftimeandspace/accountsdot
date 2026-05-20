@@ -25,7 +25,7 @@ var markdownLinkPattern = regexp.MustCompile(`\[[^\]]+\]\(([^)]+)\)`)
 // this guard so dev and staging deployments fail with an actionable missing-path
 // error instead of later falling back to workstation-only reference files.
 func ValidateStartup() error {
-	root, err := findRepoRoot()
+	root, err := findReferenceInputRoot()
 	if err != nil {
 		return err
 	}
@@ -69,18 +69,25 @@ func RequiredStartupPaths() []string {
 	return append([]string(nil), requiredStartupPaths...)
 }
 
-func findRepoRoot() (string, error) {
+func findReferenceInputRoot() (string, error) {
+	if configuredRoot := strings.TrimSpace(os.Getenv("WIZARD_REFERENCE_INPUT_ROOT")); configuredRoot != "" {
+		if !directoryHasReferenceInputs(configuredRoot) {
+			return "", fmt.Errorf("configured WIZARD_REFERENCE_INPUT_ROOT %s does not contain docs/reference-inputs/VENDORED_INVENTORY.md", configuredRoot)
+		}
+		return configuredRoot, nil
+	}
+
 	workingDirectory, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("read working directory for reference input validation: %w", err)
 	}
 	for directory := workingDirectory; ; directory = filepath.Dir(directory) {
-		if fileExists(filepath.Join(directory, "go.mod")) && directoryHasReferenceInputs(directory) {
+		if directoryHasReferenceInputs(directory) {
 			return directory, nil
 		}
 		parent := filepath.Dir(directory)
 		if parent == directory {
-			return "", fmt.Errorf("locate repository root for reference input validation from %s", workingDirectory)
+			return "", fmt.Errorf("locate reference input root for validation from %s; set WIZARD_REFERENCE_INPUT_ROOT when running outside a repository checkout", workingDirectory)
 		}
 	}
 }
@@ -122,7 +129,7 @@ func validateReferenceMarkdownLinks(root string) error {
 		baseDirectory := filepath.Dir(filepath.Join(root, filepath.FromSlash(relativePath)))
 		for _, match := range markdownLinkPattern.FindAllStringSubmatch(string(content), -1) {
 			link := strings.TrimSpace(match[1])
-			target, ok := localMarkdownTarget(baseDirectory, link)
+			target, ok := localMarkdownTarget(root, baseDirectory, link)
 			if !ok {
 				continue
 			}
@@ -130,7 +137,7 @@ func validateReferenceMarkdownLinks(root string) error {
 				failures = append(failures, fmt.Sprintf("%s links outside repository: %s", relativePath, link))
 				continue
 			}
-			if !fileExists(target) {
+			if !pathExists(target) {
 				failures = append(failures, fmt.Sprintf("%s has unresolved link: %s", relativePath, link))
 			}
 		}
@@ -142,7 +149,7 @@ func validateReferenceMarkdownLinks(root string) error {
 	return nil
 }
 
-func localMarkdownTarget(baseDirectory, link string) (string, bool) {
+func localMarkdownTarget(root, baseDirectory, link string) (string, bool) {
 	if link == "" || strings.HasPrefix(link, "#") {
 		return "", false
 	}
@@ -152,6 +159,9 @@ func localMarkdownTarget(baseDirectory, link string) (string, bool) {
 	pathOnly := strings.Split(link, "#")[0]
 	if pathOnly == "" {
 		return "", false
+	}
+	if strings.HasPrefix(pathOnly, "/") {
+		return filepath.Clean(filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(pathOnly, "/")))), true
 	}
 	if filepath.IsAbs(pathOnly) {
 		return filepath.Clean(pathOnly), true
@@ -170,4 +180,9 @@ func isWithinRoot(root, target string) bool {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

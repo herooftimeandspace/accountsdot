@@ -276,7 +276,10 @@ The checked-in deployment files are:
 - `docker-compose.deploy.yml`: reverse proxy, three app containers, and
   environment-specific Postgres services.
 - `deploy/Caddyfile`: host-based Caddy routing for dev, staging, and main.
-- `deploy/Dockerfile`: production-style Go service image for each branch.
+- `deploy/Dockerfile`: production-style Go service image for each branch. The
+  image copies `docs/reference-inputs/` into `/app/docs/reference-inputs/` and
+  sets `WIZARD_REFERENCE_INPUT_ROOT=/app` so the Phase 0 reference-input guard
+  can run from the packaged container instead of depending on a checkout.
 - `deploy/remote-redeploy.sh`: manual update helper that fetches Git branches,
   refreshes branch worktrees, then runs Docker Compose.
 - `deploy/env/*.example`: templates for uncommitted remote environment files.
