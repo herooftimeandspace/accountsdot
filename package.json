@@ -13,6 +13,7 @@
     "docs:comments:check": "node scripts/check_doc_comment_quality.mjs",
     "docs:comments:test": "node scripts/check_doc_comment_quality.mjs --self-test",
     "symphony:report": "node scripts/symphony_runner.mjs report",
+    "symphony:sync": "node scripts/symphony_runner.mjs sync",
     "symphony:ui-monitor": "node scripts/symphony_runner.mjs ui-monitor",
     "symphony:test": "node scripts/symphony_runner.mjs test",
     "route-api-inventory:check": "node scripts/check_route_api_authorization_inventory.mjs",
