@@ -96,6 +96,13 @@ Current code mostly exercises schema and retry behavior through tests. Future re
 - audit or request-log rows,
 - how to debug serialization/deadlock retries.
 
+Implemented Phase 0 job-lease write primitives:
+
+- `internal/db.ClaimNextJob` updates one `jobs` row from `queued` to `running`, sets `lease_owner`, `lease_expires_at`, `lease_heartbeat_at`, and `updated_at`, and returns the claimed row ordered by `global_tick`. Worker callers must execute it inside `internal/db.WithRetry` so the claim participates in a `SERIALIZABLE` transaction and can be retried on serialization or deadlock errors.
+- `internal/db.RecoverExpiredJobLeases` updates expired `running` rows in `jobs` to `recovering`, clears `lease_owner` and `lease_expires_at`, preserves the prior owner and heartbeat in the returned evidence rows, and uses `FOR UPDATE SKIP LOCKED` so concurrent recovery loops do not handle the same job twice.
+- `internal/db.ReconcileRecoveredJob` reads `external_request_log` for a `succeeded` row tied to the crashed job. If that evidence exists, it updates `jobs.job_state` to `succeeded` without increasing `attempt_count`; otherwise it updates the job back to `queued`, clears lease fields, and increments `attempt_count` so the normal idempotent worker path can retry.
+- These primitives do not call providers. Future provider workers must still perform provider read-before-write reconciliation before any live write and must keep `external_request_log` idempotency behavior documented here.
+
 ## HTTP Route Inventory
 
 `scripts/check_external_write_inventory.mjs` derives every currently known `POST`, `PUT`, `DELETE`, and future `PATCH` route from the registered `internal/web` handlers, then compares those live mutating route boundaries with the backticked route bullets in this file.
