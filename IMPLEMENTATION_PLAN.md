@@ -58,6 +58,7 @@
 - `PRODUCT_REQUIREMENTS.md` must capture the business-facing WHAT of the product, including goals, users, workflows, inputs, outputs, visibility rules, and out-of-scope items for technical and non-technical review.
 - `ENVIRONMENT_DATA_PLAYBOOK.md` must document the exact steps required to derive and refresh mock and staging environments from production-safe source data.
 - `docs/reference-inputs/VENDORED_INVENTORY.md` must record the current repo-local reference corpus, including vendored source provenance, branch/ref selection, refresh date, and any intentional scope narrowing such as subtree-only snapshots.
+- `docs/agent-orchestration/SPEC.md` must record the repo-local Symphony-style orchestration contract for Codex agents. GitHub issues are the durable control plane; `WORKFLOW.md` is the workflow prompt/config contract; any future executable runner, scheduler, or credentialed agent service must be documented here before implementation.
 - `TEST_MATRIX.md` must track the named mock scenarios, verification coverage, and phase/workflow test expectations used for promotion decisions.
 - `README.md` must enumerate the project goals in product terms, not just local setup steps.
 - Code comments and documentation must record business rules, precedence rules, and other non-obvious decisions where they affect code paths.
