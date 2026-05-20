@@ -21,6 +21,7 @@ The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard is a self-host
 - [docs/planning/implementation-plan.md](docs/planning/implementation-plan.md) is the authoritative execution plan and decision log for implementation-affecting behavior.
 - [docs/product/product-requirements.md](docs/product/product-requirements.md) captures the business-facing product requirements and scope boundaries.
 - [docs/operations/environment-data-playbook.md](docs/operations/environment-data-playbook.md) defines the safe process for creating and refreshing mock and staging environments.
+- [docs/operations/reference-input-snapshot-integrity.md](docs/operations/reference-input-snapshot-integrity.md) defines the Phase 0 startup guard for required repo-local reference inputs and the staging evidence expected for snapshot integrity.
 - [docs/testing/test-matrix.md](docs/testing/test-matrix.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
 - [docs/product/permissions-matrix.md](docs/product/permissions-matrix.md) documents the currently implemented DEV route/API permission matrix, field-level visibility, and known authorization gaps for review against the PRD and implementation plan.
 - [docs/operations/promotion-pipeline.md](docs/operations/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
@@ -275,7 +276,10 @@ The checked-in deployment files are:
 - `docker-compose.deploy.yml`: reverse proxy, three app containers, and
   environment-specific Postgres services.
 - `deploy/Caddyfile`: host-based Caddy routing for dev, staging, and main.
-- `deploy/Dockerfile`: production-style Go service image for each branch.
+- `deploy/Dockerfile`: production-style Go service image for each branch. The
+  image copies `docs/reference-inputs/` into `/app/docs/reference-inputs/` and
+  sets `WIZARD_REFERENCE_INPUT_ROOT=/app` so the Phase 0 reference-input guard
+  can run from the packaged container instead of depending on a checkout.
 - `deploy/remote-redeploy.sh`: manual update helper that fetches Git branches,
   refreshes branch worktrees, then runs Docker Compose.
 - `deploy/env/*.example`: templates for uncommitted remote environment files.

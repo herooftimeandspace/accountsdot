@@ -11,6 +11,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/provisi
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /out/provisioner /provisioner
+COPY --from=build /src/docs/reference-inputs /app/docs/reference-inputs
+
+ENV WIZARD_REFERENCE_INPUT_ROOT=/app
 
 EXPOSE 8080
 USER nonroot:nonroot

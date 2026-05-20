@@ -68,7 +68,7 @@ This document tracks the named mock scenarios and verification coverage required
 - `0A` repo-local safety artifacts and environment playbooks
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
-  | `P0-0A-001` | Reference Input Snapshot Integrity | Assert required vendored reference inputs are present, linked docs resolve, and startup fails clearly if required snapshots are missing. | Confirm staging deploy uses repo-local references only and does not depend on workstation paths or missing artifacts. |
+  | `P0-0A-001` | Reference Input Snapshot Integrity | Run `go test ./internal/referenceinputs ./internal/config ./cmd/provisioner` to assert required startup reference inputs are present, local reference-input docs resolve inside the repo, and config/startup fails clearly when a required snapshot is missing. | Confirm staging deploy runs the same guard from the checked-out revision and uses repo-local `docs/reference-inputs/` paths only, with no workstation paths, cloud-drive paths, or missing future artifacts. |
   | `P0-0A-002` | Environment Role Separation | Verify mock configuration distinguishes `dev`, `staging`, and `main` roles and blocks production-only assumptions in `dev`. | Confirm staging config is distinct from dev/main and uses the documented masked-data path. |
 - `0B` core database schema, workflow engine, and recovery primitives
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |

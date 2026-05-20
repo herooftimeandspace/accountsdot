@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/auth"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/referenceinputs"
 )
 
 type Config struct {
@@ -17,10 +18,13 @@ type Config struct {
 
 // Load builds startup configuration for the Go service. The application
 // entrypoint and config tests call it before any handler or provider setup; it
-// reads environment variables, applies safe defaults, and returns parsed
-// production-auth policy data without opening files, contacting Google, or
-// validating secrets so startup can fail deterministically in later wiring.
+// validates the repo-local reference-input baseline, reads environment
+// variables, applies safe defaults, and returns parsed production-auth policy
+// data without contacting Google or validating secrets.
 func Load() (Config, error) {
+	if err := referenceinputs.ValidateStartup(); err != nil {
+		return Config{}, err
+	}
 	authPolicy, err := loadProductionAuthPolicy()
 	if err != nil {
 		return Config{}, err

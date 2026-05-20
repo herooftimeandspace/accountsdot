@@ -22,8 +22,13 @@
 - External plans and legacy implementations may inform architecture, migration strategy, and edge-case handling, but do not override this document.
 - Any non-repo reference input relied on by this plan must be copied into `docs/reference-inputs/` so the spec is not brittle or tied to one workstation.
 - `docs/reference-inputs/VENDORED_INVENTORY.md` is the authoritative provenance and refresh ledger for the repo-local reference corpus and must be updated in the same pass as any vendored snapshot refresh.
-- Required vendored reference inputs currently called out for implementation:
+- Required vendored reference inputs enforced at service startup for the current Phase 0 baseline:
   - `docs/reference-inputs/VENDORED_INVENTORY.md`
+  - `docs/reference-inputs/README.md`
+  - `docs/reference-inputs/branding/Firefly.png`
+  - `docs/reference-inputs/branding/google-g.png`
+  - `docs/reference-inputs/branding/Wordmarks/Gold W black outline.png`
+- Additional reference inputs called out by later provider, migration, data-seeding, and design work must be vendored before that implementation relies on them:
   - `docs/reference-inputs/pipeline/CODEX_GIST_DEV_STAGING_MAIN_PIPELINE.md`
   - `docs/reference-inputs/vendor-code/aeries_ad_sync/Students/`
   - `docs/reference-inputs/vendor-code/aeries-sis-sdk-golang/`
@@ -48,6 +53,7 @@
   - `docs/reference-inputs/zoom/zoomus_ca_template_2026-04-20.csv`
   - `docs/reference-inputs/zoom/zoomus_user_template_2026-04-20.csv`
   - `docs/reference-inputs/branding/WUSD21 Mascot Style Guide.pdf`
+- The startup guard for `P0-0A-001` validates the current mandatory baseline and local links inside the reference-input docs. Future files in the additional list above must not be read from workstation paths; add sanitized repo-local snapshots and inventory entries before using them in code, tests, staging configuration, or promotion evidence.
 - Official branding assets for dashboard use should come from:
   - `docs/reference-inputs/branding/`
   - note: the shared folder snapshot is organized largely by site, and `CLA` is currently not present there
@@ -57,6 +63,7 @@
 - `docs/planning/implementation-plan.md` is the authoritative execution spec and decision log for behavior that affects implementation.
 - `docs/product/product-requirements.md` must capture the business-facing WHAT of the product, including goals, users, workflows, inputs, outputs, visibility rules, and out-of-scope items for technical and non-technical review.
 - `docs/operations/environment-data-playbook.md` must document the exact steps required to derive and refresh mock and staging environments from production-safe source data.
+- `docs/operations/reference-input-snapshot-integrity.md` must document the current startup-required reference input baseline, the clear missing-snapshot failure mode, and the dev/staging evidence expected for `P0-0A-001`.
 - `docs/agent-orchestration/SPEC.md` is the authoritative local contract for Symphony-style Codex agent orchestration against GitHub Issues, including issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries. `.agents/WORKFLOW.md` is the runner-readable prompt/config contract that future orchestration tooling should load before dispatching any issue work.
 - `docs/reference-inputs/VENDORED_INVENTORY.md` must record the current repo-local reference corpus, including vendored source provenance, branch/ref selection, refresh date, and any intentional scope narrowing such as subtree-only snapshots.
 - `docs/testing/test-matrix.md` must track the named mock scenarios, verification coverage, and phase/workflow test expectations used for promotion decisions.
