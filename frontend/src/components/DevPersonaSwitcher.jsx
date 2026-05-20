@@ -30,7 +30,7 @@ export function DevPersonaSwitcher({
     return nodeId ? `[data-node-id="${nodeId}"]` : null;
   }, []);
 
-  const [anchoredTopPx, setAnchoredTopPx] = useState(null);
+  const [anchorStyle, setAnchorStyle] = useState(null);
 
   useLayoutEffect(() => {
     if (!platformStatusValueSelector) {
@@ -38,18 +38,43 @@ export function DevPersonaSwitcher({
     }
 
     function updateAnchor() {
+      const sidebarNodes = Array.from(document.querySelectorAll('[data-shared-shell-sticky="sidebar"]'));
+      const sidebarBounds = sidebarNodes.reduce(
+        (bounds, node) => {
+          const rect = node.getBoundingClientRect();
+          if (!rect || rect.width <= 0 || rect.height <= 0) {
+            return bounds;
+          }
+          return {
+            left: Math.min(bounds.left, rect.left),
+            right: Math.max(bounds.right, rect.right),
+          };
+        },
+        { left: Number.POSITIVE_INFINITY, right: Number.NEGATIVE_INFINITY },
+      );
       const platformStatusNode = document.querySelector(platformStatusValueSelector);
-      if (!platformStatusNode) {
-        setAnchoredTopPx(null);
+      if (!platformStatusNode || !Number.isFinite(sidebarBounds.left) || !Number.isFinite(sidebarBounds.right)) {
+        setAnchorStyle(null);
         return;
       }
       const rect = platformStatusNode.getBoundingClientRect();
       if (!rect || Number.isNaN(rect.bottom)) {
-        setAnchoredTopPx(null);
+        setAnchorStyle(null);
         return;
       }
-      const nextTop = Math.max(0, Math.round(rect.bottom + 8));
-      setAnchoredTopPx(nextTop);
+      const sidebarWidth = Math.max(0, sidebarBounds.right - sidebarBounds.left);
+      const horizontalPadding = sidebarWidth >= 180 ? 16 : 8;
+      const nextStyle = {
+        left: `${Math.round(sidebarBounds.left + horizontalPadding)}px`,
+        top: `${Math.max(0, Math.round(rect.bottom + 8))}px`,
+        width: `${Math.max(0, Math.round(sidebarWidth - horizontalPadding * 2))}px`,
+      };
+      setAnchorStyle((current) => {
+        if (current?.left === nextStyle.left && current?.top === nextStyle.top && current?.width === nextStyle.width) {
+          return current;
+        }
+        return nextStyle;
+      });
     }
 
     updateAnchor();
@@ -92,7 +117,7 @@ export function DevPersonaSwitcher({
   return (
     <aside
       className="dev-toolbar"
-      style={anchoredTopPx === null ? undefined : { top: `${anchoredTopPx}px` }}
+      style={anchorStyle ?? undefined}
       aria-label="Development persona controls"
     >
       <button

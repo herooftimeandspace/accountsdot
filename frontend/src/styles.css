@@ -377,7 +377,7 @@ input {
   flex-direction: column-reverse;
   align-items: stretch;
   width: 232px;
-  max-width: calc(100vw - 32px);
+  max-width: none;
   gap: 8px;
   pointer-events: none;
 }
@@ -388,9 +388,10 @@ input {
   gap: 8px;
   align-items: center;
   width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   min-height: 36px;
-  padding: 7px 12px;
+  padding: 7px clamp(8px, 5%, 12px);
   border: 1px solid rgba(1, 22, 30, 0.14);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
