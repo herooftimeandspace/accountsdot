@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -187,7 +188,7 @@ function OffboardingTableOverlay({ bounds, rows, selectedRowId, showEmployeeIDs,
             }`}
             aria-label={`Open offboarding row for ${row.person}`}
             aria-pressed={selectedRowId === row.id}
-            onClick={() => onSelectRow(row)}
+            onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
           >
             <div className="offboarding-runtime__status-cell">
               <span className={statusClass(row.status)}>{row.status}</span>
@@ -367,7 +368,7 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
   };
 
   return (
-    <RuntimeDrawer title={title} onClose={onClose}>
+    <RuntimeDrawer title={title} onClose={onClose} variant="modal">
       <div className={isEmergency ? "offboarding-runtime__manual-callout offboarding-runtime__manual-callout--danger" : "offboarding-runtime__manual-callout offboarding-runtime__manual-callout--gold"}>
         {isEmergency
           ? "This form is only for emergency, non-scheduled offboarding. To schedule offboarding, update the escape record or click the Manual Offboarding button"

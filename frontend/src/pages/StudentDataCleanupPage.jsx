@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -25,7 +26,6 @@ const STUDENT_DATA_HEADING_ID = "student-data-cleanup-heading";
 const PANE_LEFT = 306;
 const PANE_TOP = 118;
 const PANE_WIDTH = 1348;
-const DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
 const AERIES_LINK_BASE = "https://windsorusd.aeries.net/admin/Default.aspx";
 
 const STUDENT_COLUMNS = [
@@ -115,7 +115,7 @@ function StudentDataDrawer({ row, onClose }) {
       : null,
   ];
   return (
-    <RuntimeDrawer title={row.studentName} bounds={DRAWER_BOUNDS} onClose={onClose}>
+    <RuntimeDrawer title={row.studentName} onClose={onClose}>
       <RuntimeDetailList
         items={[
           { label: "Student ID", value: row.studentId },
@@ -247,7 +247,7 @@ function StudentDataOverlay({
               }`}
               aria-label={`Open student data cleanup row for ${row.studentName}`}
               aria-pressed={selectedRowId === row.id}
-              onClick={() => onSelectRow(row)}
+              onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
             >
               <div>{row.studentId}</div>
               <div>{row.studentName}</div>

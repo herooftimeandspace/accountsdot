@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { DEFAULT_RUNTIME_DRAWER_BOUNDS, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeDrawer } from "../components/RuntimeDrawer";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
@@ -125,7 +125,7 @@ function MyProfileEditDrawer({ profile, onClose, onSave }) {
   }
 
   return (
-    <RuntimeDrawer title="Edit My Profile" bounds={DEFAULT_RUNTIME_DRAWER_BOUNDS} onClose={onClose}>
+    <RuntimeDrawer title="Edit My Profile" onClose={onClose} variant="modal">
       <form className="my-profile-runtime__drawer-form" onSubmit={submitProfile}>
         <p className="my-profile-runtime__drawer-note">
           Update the display name and pronouns used by your profile. Legal-name records stay unchanged.
