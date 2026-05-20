@@ -17,7 +17,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ROOM_MOVES_ENDPOINT = "/api/v1/dev/pages/room-moves";
@@ -46,6 +45,7 @@ const BULK_COLUMNS = [
   { key: "action", label: "Action", value: (row) => row.action },
 ];
 const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
+  "f74", "t75",
   "f92", "t93", "t94", "t95", "t96", "t97",
   "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
   "t109", "t110", "t111", "t112", "t113", "f114", "t115", "l116",
@@ -93,6 +93,22 @@ function nodeBox(node, fallback) {
     width: node.width ?? fallback.width,
     height: node.height ?? fallback.height,
   };
+}
+
+/**
+ * expandedTableBounds reuses the retired Refresh button's right edge as the
+ * Room Moves table edge. RoomMovesPage calls this when layering the live table
+ * over the generated artboard so removing the old shared refresh primitive also
+ * reclaims its reserved right-side gutter instead of leaving unused canvas.
+ */
+function expandedTableBounds(tableNode, retiredRefreshNode, fallback) {
+  const table = nodeBox(tableNode, fallback);
+  const refresh = nodeBox(retiredRefreshNode, null);
+  if (!refresh) {
+    return table;
+  }
+  const reclaimedWidth = refresh.left + refresh.width - table.left;
+  return { ...table, width: Math.max(table.width, reclaimedWidth) };
 }
 
 function statusClass(status) {
@@ -903,11 +919,9 @@ export function RoomMovesPage({
         searchQuery,
         activeNavKey: "roomMoves",
         activeRoutePath: isBulk ? "/room-moves/bulk-draft" : "/room-moves",
-        refreshMetadata: isBulk
-          ? null
-          : payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(meta),
+        refreshMetadata: null,
       }),
-    [isBulk, meta, onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
+    [isBulk, onNavigate, onSearch, searchQuery, session]
   );
 
   const fullOverlay = useCallback(
@@ -920,7 +934,11 @@ export function RoomMovesPage({
       const page = payload.page;
       const tableBounds = isBulk
         ? { left: 288, top: 96, width: 1268, height: 820 }
-        : { ...nodeBox(nodeIndex.get("room-moves__f100"), { left: 288, top: 348, width: 1268, height: 480 }), width: 1268 };
+        : expandedTableBounds(
+            nodeIndex.get("room-moves__f100"),
+            nodeIndex.get("room-moves__f74"),
+            { left: 288, top: 348, width: 1268, height: 480 }
+          );
       const batchBounds = nodeBox(nodeIndex.get("room-moves__f88"), { left: 996, top: 182, width: 220, height: 148 });
 
       return (

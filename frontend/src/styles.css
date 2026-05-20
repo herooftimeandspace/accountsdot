@@ -580,7 +580,6 @@ input {
   overflow: hidden;
   pointer-events: none;
   text-align: right;
-  position: fixed !important;
   z-index: 72 !important;
 }
 
@@ -619,7 +618,6 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
-  position: fixed !important;
   z-index: 73 !important;
 }
 
