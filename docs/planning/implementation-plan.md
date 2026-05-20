@@ -2334,6 +2334,12 @@
   - query the provider first
   - if the intended effect already exists and matches the job intent, mark the step succeeded
   - only perform a write if reconciliation proves it is still needed
+- Phase 0 job-lease recovery starts with local database evidence before live provider writes exist:
+  - `internal/db.ClaimNextJob` claims the oldest eligible queued job by `global_tick`, moves it to `running`, and records `lease_owner`, `lease_expires_at`, and `lease_heartbeat_at`
+  - `internal/db.RecoverExpiredJobLeases` finds expired `running` leases with `FOR UPDATE SKIP LOCKED`, moves them to `recovering`, clears claim ownership, returns the previous owner and nullable heartbeat details for runtime evidence, and also returns already-`recovering` rows so an interrupted recovery loop can reconcile them on the next pass
+  - `internal/db.ReconcileRecoveredJob` checks `external_request_log` before requeueing; an existing `outcome = 'succeeded'` row marks the job `succeeded` without another execution, while no success row moves the job back to `queued` and increments `attempt_count`
+  - worker and recovery-loop callers must run these primitives inside `internal/db.WithRetry` so recovery preserves the repository's `SERIALIZABLE` transaction rule
+  - staging evidence for `P0-0B-001` should run the same claim, expired-lease recovery, and external-request-log reconciliation flow against staging infrastructure without manual database repair
 - Starting with Phase 2, live writeback also requires a what-if validation pass before provider mutation and a pilot allowlist check immediately before the write call. The only approved live-write targets are `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org` until a later project-owner-approved PR explicitly changes the merged allowlist. Provider workers must treat any non-allowlisted, ambiguous, missing, or unmerged-approval target as a hard pre-write denial, not as a warning or manual override.
 
 ## Zoom Rules

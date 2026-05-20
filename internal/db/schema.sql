@@ -127,6 +127,14 @@ create table if not exists jobs (
     updated_at timestamptz not null default now()
 );
 
+create index if not exists jobs_claimable_global_tick_idx
+    on jobs (global_tick)
+    where job_state = 'queued' and approval_required = false;
+
+create index if not exists jobs_expired_lease_global_tick_idx
+    on jobs (lease_expires_at, global_tick)
+    where job_state = 'running' and lease_expires_at is not null;
+
 create table if not exists approval_requests (
     id bigserial primary key,
     workflow_run_id bigint not null references workflow_runs(id) on delete cascade,
@@ -185,6 +193,9 @@ create table if not exists external_request_log (
 
 create unique index if not exists external_request_log_idempotency_key_unique
     on external_request_log (provider, operation, idempotency_key);
+
+create index if not exists external_request_log_job_outcome_idx
+    on external_request_log (job_id, outcome);
 
 create table if not exists provider_circuit_breakers (
     provider text not null,

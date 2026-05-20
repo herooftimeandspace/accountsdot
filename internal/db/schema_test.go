@@ -24,6 +24,11 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 		"create table if not exists jobs",
 		"workflow_run_id bigint references workflow_runs(id)",
 		"approval_required boolean not null default false",
+		"create index if not exists jobs_claimable_global_tick_idx",
+		"create index if not exists jobs_expired_lease_global_tick_idx",
+		"create table if not exists external_request_log",
+		"create unique index if not exists external_request_log_idempotency_key_unique",
+		"create index if not exists external_request_log_job_outcome_idx",
 		"create table if not exists event_outbox",
 		"create table if not exists system_controls",
 		"create table if not exists workflow_runs",
@@ -47,7 +52,9 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 	}
 }
 
-// projectRoot documents the data flow for internal/db/schema_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// projectRoot resolves the repository root for schema text assertions. The
+// schema test runs from internal/db, so this helper keeps the file read anchored
+// to the checkout instead of depending on the caller's shell directory.
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
