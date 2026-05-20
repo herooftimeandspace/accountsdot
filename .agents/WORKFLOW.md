@@ -18,7 +18,8 @@ branching:
   branch_prefix: codex/
   branch_template: codex/issue-{number}-{slug}
 workspace:
-  root: /private/tmp/accountsdot-symphony
+  root_env: ACCOUNTSDOT_WORKTREE_ROOT
+  root_default: ../
   preserve_after_success: true
 dispatch:
   poll_interval_seconds: 300
@@ -42,6 +43,33 @@ safety:
   allow_secret_values_in_prompts: false
   allow_destructive_git_without_human_instruction: false
   allow_frontend_dist_commits_by_default: false
+maintenance:
+  ui_improvements_monitor:
+    target_branch: ui-improvements
+    lock_path: /private/tmp/accountsdot-ui-improvements-github-scan.lock
+    lock_max_age_ms: 7200000
+    latest_code_worktree: /Users/lcampbell/code.internal/accountsdot-latest-ui
+    latest_code_allowed_dirty:
+      - frontend/dist/
+      - tmp/
+      - .vite/
+    browser_default_url: http://localhost:5173/dashboard/it-admin
+    health_urls:
+      - http://localhost:8080/health
+      - http://localhost:5173/api/v1/dev/session
+      - http://localhost:5173/dashboard/it-admin
+    dev_servers:
+      - api
+      - vite
+    browser_required: true
+    safe_rebase: true
+    dirty_worktree_policy: stop
+skill_routing:
+  discover_root: .agents/skills
+  precedence:
+    - wizard-ui-hardening
+    - wizard-code-documentation
+  missing_skill_policy: agent-blocked
 ---
 
 # WIZARD Symphony Agent Workflow
@@ -72,6 +100,30 @@ Use the most specific checked-in source that applies. If code and docs disagree,
 5. Inspect open issues and linked context before implementation.
 6. Identify likely file ownership and conflict risk.
 7. Do not touch unrelated generated output or user-authored changes.
+8. Load applicable repo-local skills from `.agents/skills/*/SKILL.md` before rendering the issue prompt.
+
+## Repo Skill Runtime
+
+The Symphony runner treats checked-in `.agents` skills as runtime guidance. It should discover skill directories automatically, include only the relevant skill summaries in prompts, and report missing expected skills as `agent-blocked`.
+
+- Use `wizard-ui-hardening` for The WIZARD UI, design, `.pen`, generated implemented-page, shared-shell, dashboard, browser-evidence, or route-visual work.
+- Use `wizard-code-documentation` for implemented code, route/API, handler, docs, inline-comment, external-write, or provider-surface work.
+- When both apply, route UI classification first through `wizard-ui-hardening`, then apply code documentation/update obligations through `wizard-code-documentation`.
+- Prefer these checked-in repo skills over global memory or chat-only guidance when they apply.
+
+## UI Monitor And Browser Evaluation Runtime
+
+The `ui_improvements_monitor` maintenance runner replaces the old long prompt-based heartbeat. It owns GitHub queue reporting, safe branch/worktree reconciliation, and latest-code health checks. It must emit `browser_evaluations[]` when UI/runtime validation needs the Codex in-app Browser.
+
+Repo-local Node code does not import the Browser plugin directly. The Codex automation wrapper is responsible for executing `browser_evaluations[]` with `@browser`, then passing structured `browser_results[]` back to the runner. Missing Browser results must be reported as `needs_browser_evaluation`, not as passed verification.
+
+The Codex automation wrapper should stay small:
+
+1. Invoke `npm run symphony:ui-monitor -- --json`.
+2. If the status contains `browser_evaluations[]`, preserve the current local app URL when available, otherwise open the requested URL with `@browser`.
+3. Record each Browser result with URL, status, evidence, findings, and checked timestamp.
+4. Write results back with `node scripts/symphony_runner.mjs record-browser-results --browser-results <path> --json`.
+5. Summarize the queue, blockers, Browser evidence, and next recommended PR without manually merging PRs.
 
 ## Implementation Rules
 
@@ -124,4 +176,3 @@ Finish each run with a concise handoff that includes:
 - follow-up issues created or recommended
 
 If you opened or updated a PR, include the PR URL. If the work is incomplete, mark the issue blocked and explain exactly what decision or access is needed.
-
