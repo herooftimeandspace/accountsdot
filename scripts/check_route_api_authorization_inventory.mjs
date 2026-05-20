@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const inventoryPath = path.join(repoRoot, "docs", "route-api-authorization-inventory.md");
+const inventoryPath = path.join(repoRoot, "docs", "planning", "route-api-authorization-inventory.md");
 const appGoPath = path.join(repoRoot, "internal", "web", "app.go");
 const routeRegistryPath = path.join(repoRoot, "frontend", "src", "lib", "routeRegistry.js");
 
@@ -112,16 +112,16 @@ for (const row of routeInventory) {
 const inventoryDoc = fs.readFileSync(inventoryPath, "utf8");
 for (const apiPath of registeredAPIPaths) {
   if (!inventoryDoc.includes(`\`${apiPath}\``)) {
-    fail(`docs/route-api-authorization-inventory.md missing registered DEV API path ${apiPath}`);
+    fail(`docs/planning/route-api-authorization-inventory.md missing registered DEV API path ${apiPath}`);
   }
 }
 for (const row of routeInventory) {
   if (!inventoryDoc.includes(`| \`${row.route}\` |`)) {
-    fail(`docs/route-api-authorization-inventory.md missing table row for ${row.route}`);
+    fail(`docs/planning/route-api-authorization-inventory.md missing table row for ${row.route}`);
   }
   for (const apiPath of row.apiPaths) {
     if (!inventoryDoc.includes(`\`${apiPath}\``)) {
-      fail(`docs/route-api-authorization-inventory.md missing API path ${apiPath}`);
+      fail(`docs/planning/route-api-authorization-inventory.md missing API path ${apiPath}`);
     }
   }
 }

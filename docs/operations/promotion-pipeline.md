@@ -67,7 +67,7 @@ Issue #197 remains open for the post-bootstrap promotion verification after the 
 
 ## Promotion PR Metadata
 
-This repository does not currently define package-version files, semver labels, deployment manifests, or release-note generation rules for The WIZARD. Until those product decisions exist in `IMPLEMENTATION_PLAN.md` and this document, workflows must not invent a version bump, deployment target, or release-note format.
+This repository does not currently define package-version files, semver labels, deployment manifests, or release-note generation rules for The WIZARD. Until those product decisions exist in `docs/planning/implementation-plan.md` and this document, workflows must not invent a version bump, deployment target, or release-note format.
 
 Promotion PRs therefore carry release metadata in their body:
 
@@ -97,7 +97,7 @@ The following settings are manual repository-administration prerequisites and ca
 
 ## Safety Model
 
-The pipeline follows the environment safety rules in `ENVIRONMENT_DATA_PLAYBOOK.md`:
+The pipeline follows the environment safety rules in `docs/operations/environment-data-playbook.md`:
 
 - `dev` uses mocks by default and may be freely breakable.
 - `staging` is the proving ground for representative data, sandbox providers, masked production-derived data, and write-path safety.

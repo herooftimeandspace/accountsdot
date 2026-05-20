@@ -86,7 +86,7 @@ Any future Aeries or SFTP write path requires explicit documentation because cur
 
 ## Database Writes
 
-`internal/db/schema.sql` defines local tables, constraints, and `external_request_log`. Database writes are expected to run through transaction helpers that match the architecture rules in `AGENTS.md`.
+`internal/db/schema.sql` defines local tables, constraints, and `external_request_log`. Database writes are expected to run through transaction helpers that match the architecture rules in `.agents/AGENTS.md`.
 
 Current code mostly exercises schema and retry behavior through tests. Future repository-owned database write code must document:
 

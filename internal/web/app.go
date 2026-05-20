@@ -10,7 +10,7 @@ import (
 // NewAppHandler wires the production health endpoints, legacy sync-dashboard
 // placeholders, and DEV frontend API routes into one mux for cmd/provisioner
 // and internal/web tests. DEV routes registered here are mock-only surfaces;
-// write-capable handlers must also be listed in docs/external-write-inventory.md.
+// write-capable handlers must also be listed in docs/planning/external-write-inventory.md.
 func NewAppHandler(deps HealthDependencies) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handleIndex))
@@ -372,7 +372,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 // registerDevOffboardingRoutes keeps Offboarding page, search, and scheduling
 // routes grouped so permission reviews can compare read APIs with the DEV-only
-// mock write boundaries documented in docs/external-write-inventory.md.
+// mock write boundaries documented in docs/planning/external-write-inventory.md.
 func registerDevOffboardingRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/v1/dev/pages/offboarding", http.HandlerFunc(handleDevOffboardingPage))
 	mux.Handle("/api/v1/dev/pages/reports/security-issues", http.HandlerFunc(handleDevSecurityIssuesReportPage))

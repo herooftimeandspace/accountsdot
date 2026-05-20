@@ -112,7 +112,7 @@ Site Admin and Site Secretary receive onboarding rows, drawer details, global-se
 
 The mutation boundary is the in-memory `devOnboardingStore` in `internal/web/dev_onboarding.go`. Store methods lock `devOnboardingStoreState.mu`, mutate `drafts` or DEV-only `roomOverrides`, purge expired non-finalized drafts, and return cloned payloads. There are no live provider writes and no database writes in this path.
 
-Keep this aligned with `docs/external-write-inventory.md`: manual draft create, update, finalize, soft-delete, and room override are DEV mock mutations only. The personal phone value is sensitive workflow data; tests may use deterministic reserved `555-01xx` values, but diagnostics, audit summaries, and generated artifacts should redact or omit raw values. Future production onboarding writes must add provider-specific idempotency keys, request logging, staging validation, sanitized diagnostics, and rollback expectations before merging.
+Keep this aligned with `docs/planning/external-write-inventory.md`: manual draft create, update, finalize, soft-delete, and room override are DEV mock mutations only. The personal phone value is sensitive workflow data; tests may use deterministic reserved `555-01xx` values, but diagnostics, audit summaries, and generated artifacts should redact or omit raw values. Future production onboarding writes must add provider-specific idempotency keys, request logging, staging validation, sanitized diagnostics, and rollback expectations before merging.
 
 ## Tests
 

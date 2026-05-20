@@ -21,7 +21,7 @@ type sqlStateError interface {
 
 var sleepHook = defaultSleepHook
 
-// WithRetry documents the data flow for internal/db/retry.go. Database tests and future transaction code reach this function; debug it by checking transaction boundaries, retryable SQLSTATEs, and rollback behavior. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// WithRetry documents the data flow for internal/db/retry.go. Database tests and future transaction code reach this function; debug it by checking transaction boundaries, retryable SQLSTATEs, and rollback behavior. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func WithRetry(ctx context.Context, db TxBeginner, fn func(pgx.Tx) error) error {
 	lastErr := errors.New("serializable transaction failed")
 

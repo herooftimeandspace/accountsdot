@@ -272,7 +272,7 @@ func handleDevSecurityIssuesReportPage(w http.ResponseWriter, r *http.Request) {
 // handleDevOffboardingRecord applies HR/IT local end-date edits for the
 // selected DEV Offboarding row. It requires /offboarding access plus manual
 // end-date permission before parsing the row id, then mutates only the in-memory
-// override map documented in docs/external-write-inventory.md.
+// override map documented in docs/planning/external-write-inventory.md.
 func handleDevOffboardingRecord(w http.ResponseWriter, r *http.Request) {
 	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)

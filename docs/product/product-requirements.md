@@ -39,7 +39,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Until the project owner explicitly approves broader writeback in a specific merged PR, live upstream writeback may target only the approved pilot accounts `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org`. Application automation must not create, update, disable, delete, license, unlicense, move, rename, ticket, or otherwise mutate any other account, alias, group member, phone assignment, ticket requestor, provider identity, or provider-owned side effect.
 - Approval for each live-write expansion must be tied to a specific PR code change and must not take effect until that PR is merged into the active environment branch. An unmerged PR, local branch, draft implementation, environment variable, feature flag, or operator action must not enable live writes beyond the currently merged pilot scope.
 - Live-write tests must cover approved-account success, non-approved-account denial, ambiguous-target denial, missing-target denial, and post-write provider-state readback for any allowed pilot mutation.
-- Named mock scenarios per workflow must be captured in the implementation plan and kept in sync with a separate `TEST_MATRIX.md` verification artifact.
+- Named mock scenarios per workflow must be captured in the implementation plan and kept in sync with a separate `docs/testing/test-matrix.md` verification artifact.
 - Promotion decisions should use test evidence plus implementation signoff for each workflow bucket.
 - For the current rollout, one passing named scenario per workflow is sufficient minimum scenario evidence unless a later phase-specific rule raises the bar.
 - Every named scenario in a phase must be clean/passing before promotion; written acceptance is not a substitute for an unresolved scenario.
@@ -103,7 +103,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - in the DEV pilot, `Log in with Google` is a mock action that completes login and redirects to `/dashboard`
   - if a user is already authenticated with an authorized Google session, `/login` should redirect directly to `/dashboard`
   - after logout, the browser should return to `/login`
-  - all logged-in implemented pages should reuse the shared shell from `docs/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header base
+  - all logged-in implemented pages should reuse the shared shell from `docs/design/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header base
   - all logged-in implemented pages should use the shared inner-page scroll container so page content scrolls while the shared header and left sidebar remain anchored
   - shared row-detail drawers and page-help drawers should anchor to the right edge directly below the shared header, avoid normal internal drawer scrolling, and rely on the shared page scroll range for long content rather than page-local drawer scrollbars
   - all existing implemented `.pen` pages should have stable frontend routes even when richer page behavior is not yet complete
@@ -799,7 +799,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - For implemented pages, `.svg` and `.png` design assets should be treated as derived review artifacts exported from the authoritative `.pen` when human review, signoff, or archival comparison is needed.
 - Implemented pages should use a generated presentational layout component derived from `.pen` plus a separate hand-written container/page component for data and behavior.
 - Unimplemented pages may continue to use the legacy mock/wireframe generation path until they are individually migrated.
-- When design revisions, annotation resolutions, or manual `.pen` adjustments materially affect current or future implementation behavior, visibility rules, interaction rules, shared-shell expectations, or phase-delivery assumptions, update this PRD and `IMPLEMENTATION_PLAN.md` in the same pass.
+- When design revisions, annotation resolutions, or manual `.pen` adjustments materially affect current or future implementation behavior, visibility rules, interaction rules, shared-shell expectations, or phase-delivery assumptions, update this PRD and `docs/planning/implementation-plan.md` in the same pass.
 - For implemented pages, globally shared shell controls such as the branding block, top search field, notification/help icons, user dropdown, and platform-status row must be sized and aligned for the longest supported persona labels and current approved branding assets without clipping, overlap, or text/image collisions.
 - Implemented row-level detail and context surfaces should use the shared right-hand runtime drawer primitive rather than fixed right-side static panels. The drawer is closed by default, opens from an explicit row selection, refreshes in place when another row is selected, closes through its upper-right `X`, anchors directly below the shared header, and does not introduce a normal internal drawer scrollbar for routine content.
 - The implemented user dropdown should render the current user's Google profile photo when one is available in the user object; if no profile photo is available, the shell should fall back to an automatically generated initials avatar.
@@ -846,7 +846,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - For all future implemented-page recovery cycles, the authority split is:
   - the authoritative `.pen` owns geometry, spacing, text blocks, and static shell/page layout
   - the React runtime owns only interactive behavior that already exists
-  - no new shell/page behavior may be added until this PRD and `IMPLEMENTATION_PLAN.md` define it explicitly
+  - no new shell/page behavior may be added until this PRD and `docs/planning/implementation-plan.md` define it explicitly
 - Implemented-page recovery work should proceed in this order:
   - pipeline/workflow contract
   - `.pen` layout
@@ -855,7 +855,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - optional ad-hoc export
 - Only one recovery layer should change at a time, and the live DEV page should be validated after each layer before moving on.
 - If a layout issue remains after a pass, reopen only the `.pen` layer rather than mixing in docs or runtime changes.
-- If a recovery issue is discovered to require new behavior, stop the active layout/runtime pass and update this PRD and `IMPLEMENTATION_PLAN.md` before any runtime work begins.
+- If a recovery issue is discovered to require new behavior, stop the active layout/runtime pass and update this PRD and `docs/planning/implementation-plan.md` before any runtime work begins.
 - A recovery loop is considered detected when the same slice output is produced more than twice without a material state change. In this repo, `same output` includes:
   - the same slice-status or progress narrative repeated three times with no new resolved annotation, no reclassification, and no new blocking fact
   - the same annotation set being reprocessed three times with no change in the frozen ledger state
@@ -877,7 +877,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the one next action needed to resume safely
 - No new feature work may begin after a hard loop termination until that state report has been delivered.
 - The `Data Quality` queue should remain inline on the page rather than linking to a separate full-queue screen, and the queue card should expand or contract with the current row count.
-- The `Data Quality` page should not show a mapping-dashboard navigation button unless the destination and operator workflow are explicitly defined in this PRD and `IMPLEMENTATION_PLAN.md`; routing guidance for HR, Site, and IT queues should live in the shared help drawer in the current DEV slice.
+- The `Data Quality` page should not show a mapping-dashboard navigation button unless the destination and operator workflow are explicitly defined in this PRD and `docs/planning/implementation-plan.md`; routing guidance for HR, Site, and IT queues should live in the shared help drawer in the current DEV slice.
 - The `Data Quality` queue column headers should be clickable and support three sort states: `ASC`, `DESC`, and `NONE`.
 - The `Data Quality` refresh control should render as a Vegas Gold primary action and, when used, should re-collect the full current set of Data Quality issues for the page rather than performing a cosmetic-only refresh.
 - `Next Action` values in the `Data Quality` queue should link directly to the page where the corrective action can be taken whenever an in-app destination exists.

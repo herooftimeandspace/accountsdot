@@ -11,122 +11,122 @@ const STANDALONE_WIDTH = 1672;
 const STANDALONE_HEIGHT = 1080;
 const LOGGED_IN_PANE_X = 264;
 const LOGGED_IN_PANE_Y = 76;
-const SHARED_SHELL_SOURCE = "docs/mocks/wireframes/wireframe-shared-shell.pen";
+const SHARED_SHELL_SOURCE = "docs/design/mocks/wireframes/wireframe-shared-shell.pen";
 
 const artboardSpecs = [
   {
     key: "data-quality",
-    source: "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
+    source: "docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen",
     mode: "merge-shell",
     paneIdPrefix: "",
   },
   {
     key: "dashboard-it-admin",
-    source: "docs/mocks/wireframes/wireframe-it-admin-overview.pen",
+    source: "docs/design/mocks/wireframes/wireframe-it-admin-overview.pen",
     mode: "merge-shell",
   },
   {
     key: "dashboard-hr-lifecycle",
-    source: "docs/mocks/wireframes/wireframe-hr-lifecycle-overview.pen",
+    source: "docs/design/mocks/wireframes/wireframe-hr-lifecycle-overview.pen",
     mode: "merge-shell",
   },
   {
     key: "dashboard-site-admin",
-    source: "docs/mocks/wireframes/wireframe-site-admin-dashboard.pen",
+    source: "docs/design/mocks/wireframes/wireframe-site-admin-dashboard.pen",
     mode: "merge-shell",
   },
   {
     key: "onboarding",
-    source: "docs/mocks/wireframes/wireframe-onboarding-dashboard.pen",
+    source: "docs/design/mocks/wireframes/wireframe-onboarding-dashboard.pen",
     mode: "merge-shell",
   },
   {
     key: "offboarding",
-    source: "docs/mocks/wireframes/wireframe-offboarding-dashboard.pen",
+    source: "docs/design/mocks/wireframes/wireframe-offboarding-dashboard.pen",
     mode: "merge-shell",
   },
   {
     key: "room-moves",
-    source: "docs/mocks/wireframes/wireframe-room-moves.pen",
+    source: "docs/design/mocks/wireframes/wireframe-room-moves.pen",
     mode: "merge-shell",
   },
   {
     key: "room-moves-bulk-draft",
-    source: "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+    source: "docs/design/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
     mode: "merge-shell",
     standardPrimitives: [],
   },
   {
     key: "phone-directory-by-person",
-    source: "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
+    source: "docs/design/mocks/wireframes/wireframe-phone-directory-by-person.pen",
     mode: "merge-shell",
   },
   {
     key: "phone-directory-by-room",
-    source: "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen",
+    source: "docs/design/mocks/wireframes/wireframe-phone-directory-by-room.pen",
     mode: "merge-shell",
   },
   {
     key: "phone-directory-by-department",
-    source: "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen",
+    source: "docs/design/mocks/wireframes/wireframe-phone-directory-by-department.pen",
     mode: "merge-shell",
   },
   {
     key: "frequent-fliers",
-    source: "docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen",
+    source: "docs/design/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen",
     mode: "merge-shell",
   },
   {
     key: "student-data-cleanup",
-    source: "docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen",
+    source: "docs/design/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen",
     mode: "merge-shell",
   },
   {
     key: "reports",
-    source: "docs/mocks/wireframes/wireframe-it-admin-reports.pen",
+    source: "docs/design/mocks/wireframes/wireframe-it-admin-reports.pen",
     mode: "merge-shell",
   },
   {
     key: "reports-sync-transparency",
-    source: "docs/mocks/wireframes/wireframe-sync-transparency-dashboard.pen",
+    source: "docs/design/mocks/wireframes/wireframe-sync-transparency-dashboard.pen",
     mode: "merge-shell",
   },
   {
     key: "reports-ticketing-human-work",
-    source: "docs/mocks/wireframes/wireframe-ticketing-human-work.pen",
+    source: "docs/design/mocks/wireframes/wireframe-ticketing-human-work.pen",
     mode: "merge-shell",
   },
   {
     key: "admin",
-    source: "docs/mocks/wireframes/wireframe-it-admin-admin-controls.pen",
+    source: "docs/design/mocks/wireframes/wireframe-it-admin-admin-controls.pen",
     mode: "merge-shell",
     standardPrimitives: [],
   },
   {
     key: "admin-feature-flags",
-    source: "docs/mocks/wireframes/wireframe-admin-feature-flags.pen",
+    source: "docs/design/mocks/wireframes/wireframe-admin-feature-flags.pen",
     mode: "merge-shell",
     standardPrimitives: [],
   },
   {
     key: "my-profile",
-    source: "docs/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
+    source: "docs/design/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
     mode: "merge-shell",
     standardPrimitives: [],
   },
   {
     key: "login",
-    source: "docs/mocks/wireframes/wireframe-login.pen",
+    source: "docs/design/mocks/wireframes/wireframe-login.pen",
     mode: "passthrough",
   },
   {
     key: "error-logged-in",
-    source: "docs/mocks/wireframes/wireframe-http-error.pen",
+    source: "docs/design/mocks/wireframes/wireframe-http-error.pen",
     mode: "error-logged-in",
   },
   {
     key: "error-logged-out",
-    source: "docs/mocks/wireframes/wireframe-http-error.pen",
+    source: "docs/design/mocks/wireframes/wireframe-http-error.pen",
     mode: "error-logged-out",
   },
 ];
@@ -145,7 +145,7 @@ const stableAssets = new Map([
     "gold-w-black-outline.png",
   ],
   [
-    path.join(repoRoot, "docs", "mocks", "wireframes", "varsity_regular.ttf"),
+    path.join(repoRoot, "docs", "design", "mocks", "wireframes", "varsity_regular.ttf"),
     "varsity_regular.ttf",
   ],
 ]);
@@ -300,11 +300,11 @@ function generatedManifest() {
     schemaVersion: 1,
     sourceOfTruth: [
       "README.md",
-      "IMPLEMENTATION_PLAN.md",
-      "PRODUCT_REQUIREMENTS.md",
-      "TEST_MATRIX.md",
-      "AGENTS.md",
-      "docs/mocks/wireframes/implemented-page-design-contract.md",
+      "docs/planning/implementation-plan.md",
+      "docs/product/product-requirements.md",
+      "docs/testing/test-matrix.md",
+      ".agents/AGENTS.md",
+      "docs/design/mocks/wireframes/implemented-page-design-contract.md",
     ],
     generatedBy: "scripts/sync_implemented_pages.mjs",
     generatedFileGlobs: [

@@ -39,7 +39,7 @@ For database safety:
 1. Read `internal/db/retry.go` before adding transaction logic.
 2. Use `WithRetry` for serializable transaction work that can hit serialization or deadlock failures.
 3. Check `internal/db/schema.sql` for authoritative table and constraint names.
-4. Document every new database write path in `docs/external-write-inventory.md`.
+4. Document every new database write path in `docs/planning/external-write-inventory.md`.
 
 ## Tracing Frontend Data Flow
 
@@ -69,18 +69,18 @@ When documenting a write path, include:
 - retry/idempotency expectation,
 - failure signal used during debugging.
 
-Keep `docs/external-write-inventory.md` synchronized whenever a write path changes. If a live SDK call is added later, document the exact provider method, idempotency key, request-log behavior, and staging validation requirement before merging.
+Keep `docs/planning/external-write-inventory.md` synchronized whenever a write path changes. If a live SDK call is added later, document the exact provider method, idempotency key, request-log behavior, and staging validation requirement before merging.
 
 ## High-Risk Workflow Walkthroughs
 
-Use the walkthroughs in `docs/code-paths/` when debugging or extending high-risk paths that cross frontend UI, route handlers, persona rules, and mutation boundaries:
+Use the walkthroughs in `docs/developer/code-paths/` when debugging or extending high-risk paths that cross frontend UI, route handlers, persona rules, and mutation boundaries:
 
 - [Manual onboarding drafts](code-paths/manual-onboarding-drafts.md)
 - [Room moves](code-paths/room-moves.md)
 - [Sync dashboard overrides](code-paths/sync-dashboard-overrides.md)
 - [Shared shell help content](code-paths/shared-shell-help-content.md)
 
-Each walkthrough names the frontend entrypoint, route, handler/store/helper chain, payload shape, authorization and persona behavior, mutation boundary, tests, and useful breakpoints. Keep those files aligned with `docs/external-write-inventory.md` whenever a route becomes write-capable, stops mutating state, or changes its external-write risk.
+Each walkthrough names the frontend entrypoint, route, handler/store/helper chain, payload shape, authorization and persona behavior, mutation boundary, tests, and useful breakpoints. Keep those files aligned with `docs/planning/external-write-inventory.md` whenever a route becomes write-capable, stops mutating state, or changes its external-write risk.
 
 ## VS Code Debugging
 
@@ -119,7 +119,7 @@ Documentation must evolve with code. Before finishing a code change:
 2. Update direct caller comments when a callee's behavior changes.
 3. Remove or rewrite comments for deleted paths.
 4. Update this guide if the debugging workflow changes.
-5. Update `docs/external-write-inventory.md` when any write-capable path changes.
+5. Update `docs/planning/external-write-inventory.md` when any write-capable path changes.
 
 Stale documentation is dangerous in this project because it can hide provider-write risk. Prefer deleting obsolete detail over leaving a confident but wrong explanation.
 
@@ -139,7 +139,7 @@ make docs-comments-check
 
 The check scans Go, JavaScript, TypeScript, JSX, TSX, and CSS comments under the implemented-code roots and skips generated output such as `frontend/src/generated/`, `frontend/dist/`, caches, and dependency folders. It looks only at comments, not strings or rendered copy, so placeholder words in user-facing text or test data do not fail the gate.
 
-The gate flags boilerplate phrases from the issue #3 documentation pass, including generic data-flow comments, UI-surface summaries, derived-data summaries, request-path comments, frontend event-handler comments, signature-placeholder wording, and broad side-effect warnings that point to `docs/external-write-inventory.md` without naming the actual caller, state, payload, or failure signal.
+The gate flags boilerplate phrases from the issue #3 documentation pass, including generic data-flow comments, UI-surface summaries, derived-data summaries, request-path comments, frontend event-handler comments, signature-placeholder wording, and broad side-effect warnings that point to `docs/planning/external-write-inventory.md` without naming the actual caller, state, payload, or failure signal.
 
 Allowed exceptions are intentionally narrow:
 

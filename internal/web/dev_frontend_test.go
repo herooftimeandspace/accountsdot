@@ -1181,8 +1181,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("it admin feature flags returned %d, want 200", rec.Code)
 		}
 		payload := decodeJSON[featureFlagsResponse](t, rec)
-		productRequirements := repoDoc(t, "PRODUCT_REQUIREMENTS.md")
-		implementationPlan := repoDoc(t, "IMPLEMENTATION_PLAN.md")
+		productRequirements := repoDoc(t, "docs/product/product-requirements.md")
+		implementationPlan := repoDoc(t, "docs/planning/implementation-plan.md")
 
 		seen := map[string]bool{}
 		for _, flag := range payload.Flags {
@@ -1200,10 +1200,10 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 				seen[route] = true
 				if routeCoverage.Exception != "" {
 					if !strings.Contains(productRequirements, routeCoverage.Exception) {
-						t.Fatalf("%s missing from PRODUCT_REQUIREMENTS.md", routeCoverage.Exception)
+						t.Fatalf("%s missing from docs/product/product-requirements.md", routeCoverage.Exception)
 					}
 					if !strings.Contains(implementationPlan, routeCoverage.Exception) {
-						t.Fatalf("%s missing from IMPLEMENTATION_PLAN.md", routeCoverage.Exception)
+						t.Fatalf("%s missing from docs/planning/implementation-plan.md", routeCoverage.Exception)
 					}
 					continue
 				}

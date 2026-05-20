@@ -1,17 +1,17 @@
 # Implemented-Page Design Contract
 
-This contract makes the implemented-page UI rules from `IMPLEMENTATION_PLAN.md` and `PRODUCT_REQUIREMENTS.md` operational for rapid Pre-Phase 0 design work. It does not replace those documents. When this file and the source-of-truth documents disagree, update the source-of-truth documents first, then revise this contract.
+This contract makes the implemented-page UI rules from `docs/planning/implementation-plan.md` and `docs/product/product-requirements.md` operational for rapid Pre-Phase 0 design work. It does not replace those documents. When this file and the source-of-truth documents disagree, update the source-of-truth documents first, then revise this contract.
 
 ## Authority Split
 
 - Authoritative `.pen` files own static geometry, spacing, typography, text blocks, shell layout, page layout, and visual grouping.
 - Generated artboard JSON and generated presentational components are derived outputs. Do not hand-edit them.
-- React owns documented runtime behavior: routing, role authorization, data loading, persona state, form state, sorting, links, access-denied handling, and interactive controls already defined by `PRODUCT_REQUIREMENTS.md` and `IMPLEMENTATION_PLAN.md`.
+- React owns documented runtime behavior: routing, role authorization, data loading, persona state, form state, sorting, links, access-denied handling, and interactive controls already defined by `docs/product/product-requirements.md` and `docs/planning/implementation-plan.md`.
 - New behavior starts as `docs/new behavior`. Do not infer new behavior from a visual mock until the PRD and implementation plan define it.
 
 ## Shared Logged-In Shell
 
-- The logged-in shell uses `docs/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header source.
+- The logged-in shell uses `docs/design/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header source.
 - Sidebar/header shell defects must be fixed at the shared-shell pattern level, not by patching individual pages.
 - Logged-in implemented pages use one shared inner-page scroll container. The generated page body scrolls inside that container while the shared header and left sidebar stay anchored to the viewport through the shared renderer/CSS primitive.
 - The shared header owns the top edge of the logged-in shell. Runtime drawers, help drawers, search, scope, notification/help controls, account controls, and page refresh controls must use the header's bottom edge as their top offset rather than page-local offsets.
@@ -64,7 +64,7 @@ This contract is intentionally narrow: it standardizes layout, copy, and accessi
 
 - `Refresh` means a targeted reread for the current surface (page, queue, report, or selected record context) without requesting a source-system reconciliation cycle.
 - `Sync now` means a source reconciliation request, or a DEV mock simulation of that reconciliation, that may update projections beyond the currently visible surface.
-- A page must choose one intentional action label (`Refresh` or `Sync now`). If a page genuinely needs both actions, that must be documented in `PRODUCT_REQUIREMENTS.md` as product behavior and implemented as an intentional two-action pattern (not ad hoc page-local buttons).
+- A page must choose one intentional action label (`Refresh` or `Sync now`). If a page genuinely needs both actions, that must be documented in `docs/product/product-requirements.md` as product behavior and implemented as an intentional two-action pattern (not ad hoc page-local buttons).
 
 #### Accessibility and runtime behavior
 
@@ -122,7 +122,7 @@ Known cleanup target: migrate status rendering to a shared badge primitive so ru
 
 ## Annotation Ledger Workflow
 
-- Before an annotation-driven pass starts, copy active Codex annotate feedback into a checked-in ledger under `docs/mocks/wireframes/annotation-ledgers/` or the page-specific existing ledger.
+- Before an annotation-driven pass starts, copy active Codex annotate feedback into a checked-in ledger under `docs/design/mocks/wireframes/annotation-ledgers/` or the page-specific existing ledger.
 - Each ledger row must include: id, page, source, layer, expected fix location, status, and durable guard.
 - Valid layers are `pipeline`, `.pen layout`, `docs/new behavior`, `runtime behavior`, and `review artifact`.
 - Valid statuses are `open`, `closed`, `reclassified as behavior`, `accepted exception`, and `still failing`.

@@ -171,7 +171,7 @@ This document defines the required process for creating and refreshing safe deve
   - projection freshness and live action-path verification behavior are both understood for the affected provider
 
 ### GitHub Branch Gates
-- Checked-in CI/CD branch-gate behavior is defined in `docs/promotion-pipeline.md`.
+- Checked-in CI/CD branch-gate behavior is defined in `docs/operations/promotion-pipeline.md`.
 - `dev` validation is intentionally mock-heavy and local-first. It proves that repository tests, design sync checks, lint checks, and frontend build behavior are clean before work is proposed for `staging`.
 - `staging` validation includes the `dev` checks plus security and frontend accessibility checks. Staging remains the required proving ground for representative data, sandbox providers, masked production-derived data, and write-path safety evidence before production promotion.
 - `main` validation includes the `staging` checks plus release-prep static validation. Main promotion PRs must identify the external promotion runbook, the external IncidentIQ testing ticket, and release/deployment metadata before merge.

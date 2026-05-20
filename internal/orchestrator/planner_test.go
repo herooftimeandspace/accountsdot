@@ -65,7 +65,7 @@ func TestPlanWorkflowPersonOnboardWithoutRoomSkipsRoomSteps(t *testing.T) {
 	assertOperations(t, result.Jobs, want)
 }
 
-// TestPlanWorkflowSameSiteTransferCreatesRoomCoverageFollowUp exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestPlanWorkflowSameSiteTransferCreatesRoomCoverageFollowUp exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestPlanWorkflowSameSiteTransferCreatesRoomCoverageFollowUp(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType:         core.WorkflowTypePersonSameSiteTransfer,
@@ -116,7 +116,7 @@ func TestPlanWorkflowSiteTransferRequiresApprovalOnCutover(t *testing.T) {
 	}
 }
 
-// TestPlanWorkflowTerminationWithCoverageCreatesCapFirst exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestPlanWorkflowTerminationWithCoverageCreatesCapFirst exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestPlanWorkflowTerminationWithCoverageCreatesCapFirst(t *testing.T) {
 	result, err := orchestrator.PlanWorkflow(orchestrator.PlanInput{
 		WorkflowType:         core.WorkflowTypePersonTerminate,
@@ -206,7 +206,7 @@ func TestPlanWorkflowRoomCoverage(t *testing.T) {
 	assertOperations(t, result.Jobs, want)
 }
 
-// TestPlanWorkflowUpdateAndContextRefresh exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// TestPlanWorkflowUpdateAndContextRefresh exercises and documents internal/orchestrator/planner_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func TestPlanWorkflowUpdateAndContextRefresh(t *testing.T) {
 	for _, workflowType := range []core.WorkflowType{
 		core.WorkflowTypePersonUpdate,

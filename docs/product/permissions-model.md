@@ -118,7 +118,7 @@ Future-phase:
 - Direct Google group membership mutation from this dashboard.
 - Direct SAML attribute mutation from this dashboard.
 - Audit-history restore or rollback.
-- Profile-level provider entitlement editing beyond the provisioning-profile model already documented in `IMPLEMENTATION_PLAN.md`.
+- Profile-level provider entitlement editing beyond the provisioning-profile model already documented in `docs/planning/implementation-plan.md`.
 
 ## Remaining Work For #160
 

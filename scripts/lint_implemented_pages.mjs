@@ -10,6 +10,7 @@ const manifestPath = path.join(generatedDir, "implemented-page-design-manifest.g
 const hiddenGeneratedNodeLedgerPath = path.join(
   repoRoot,
   "docs",
+  "design",
   "mocks",
   "wireframes",
   "hidden-generated-node-ledger.md"
@@ -44,14 +45,14 @@ const hiddenGeneratedNodeDebtPages = [
     page: "Frequent Fliers",
     key: "frequent-fliers",
     runtimeSource: "frontend/src/pages/FrequentFliersPage.jsx",
-    sourcePens: ["docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen"],
+    sourcePens: ["docs/design/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen"],
     suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
   },
   {
     page: "Offboarding",
     key: "offboarding",
     runtimeSource: "frontend/src/pages/OffboardingPage.jsx",
-    sourcePens: ["docs/mocks/wireframes/wireframe-offboarding-dashboard.pen"],
+    sourcePens: ["docs/design/mocks/wireframes/wireframe-offboarding-dashboard.pen"],
     suppressionSourceTokens: [
       "hiddenNodeIds.push(OFFBOARDING_TABLE_FRAME_NODE_ID, ...STATIC_OFFBOARDING_NODE_IDS)",
     ],
@@ -60,7 +61,7 @@ const hiddenGeneratedNodeDebtPages = [
     page: "Onboarding",
     key: "onboarding",
     runtimeSource: "frontend/src/pages/OnboardingPage.jsx",
-    sourcePens: ["docs/mocks/wireframes/wireframe-onboarding-dashboard.pen"],
+    sourcePens: ["docs/design/mocks/wireframes/wireframe-onboarding-dashboard.pen"],
     suppressionSourceTokens: [
       "hiddenNodeIds.push(...STATIC_ONBOARDING_TABLE_NODE_IDS)",
       "hiddenNodeIds.push(ADD_MANUAL_NODE_ID, ADD_MANUAL_LABEL_NODE_ID)",
@@ -71,9 +72,9 @@ const hiddenGeneratedNodeDebtPages = [
     key: "phone-directory",
     runtimeSource: "frontend/src/pages/PhoneDirectoryPage.jsx",
     sourcePens: [
-      "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
-      "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen",
-      "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen",
+      "docs/design/mocks/wireframes/wireframe-phone-directory-by-person.pen",
+      "docs/design/mocks/wireframes/wireframe-phone-directory-by-room.pen",
+      "docs/design/mocks/wireframes/wireframe-phone-directory-by-department.pen",
     ],
     suppressionSourceTokens: [
       "hiddenNodeIds.push(resultsFrame.id)",
@@ -85,7 +86,7 @@ const hiddenGeneratedNodeDebtPages = [
     page: "Reports",
     key: "reports",
     runtimeSource: "frontend/src/pages/ReportsPage.jsx",
-    sourcePens: ["docs/mocks/wireframes/wireframe-it-admin-reports.pen"],
+    sourcePens: ["docs/design/mocks/wireframes/wireframe-it-admin-reports.pen"],
     suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
   },
   {
@@ -93,8 +94,8 @@ const hiddenGeneratedNodeDebtPages = [
     key: "room-moves",
     runtimeSource: "frontend/src/pages/RoomMovesPage.jsx",
     sourcePens: [
-      "docs/mocks/wireframes/wireframe-room-moves.pen",
-      "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+      "docs/design/mocks/wireframes/wireframe-room-moves.pen",
+      "docs/design/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
     ],
     suppressionSourceTokens: ["...hiddenRoomMovesNodeIds(artboardKey, isBulk)"],
   },
@@ -102,7 +103,7 @@ const hiddenGeneratedNodeDebtPages = [
     page: "Student Data Cleanup",
     key: "student-data-cleanup",
     runtimeSource: "frontend/src/pages/StudentDataCleanupPage.jsx",
-    sourcePens: ["docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen"],
+    sourcePens: ["docs/design/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen"],
     suppressionSourceTokens: ["hiddenNodeIds.push(...paneNodeIds)"],
   },
 ];
@@ -339,7 +340,7 @@ function assertHiddenGeneratedNodeDebtLedger(failures) {
     const ledgerRow = ledger.get(entry.page);
     if (!ledgerRow) {
       failures.push(
-        `${entry.key}: page-local generated nodes are hidden at runtime but ${entry.page} has no row in docs/mocks/wireframes/hidden-generated-node-ledger.md`
+        `${entry.key}: page-local generated nodes are hidden at runtime but ${entry.page} has no row in docs/design/mocks/wireframes/hidden-generated-node-ledger.md`
       );
       continue;
     }
