@@ -49,6 +49,11 @@ maintenance:
     lock_path: /private/tmp/accountsdot-ui-improvements-github-scan.lock
     lock_max_age_ms: 7200000
     latest_code_worktree: /Users/lcampbell/code.internal/accountsdot-latest-ui
+    reconcile_worktree_root: /private/tmp/accountsdot-symphony-prs
+    reconcile_pr_branches: true
+    safe_branch_prefixes:
+      - codex/
+      - issue-
     latest_code_allowed_dirty:
       - frontend/dist/
       - tmp/
@@ -115,6 +120,14 @@ The Symphony runner treats checked-in `.agents` skills as runtime guidance. It s
 
 The `ui_improvements_monitor` maintenance runner replaces the old long prompt-based heartbeat. It owns GitHub queue reporting, safe branch/worktree reconciliation, and latest-code health checks. It must emit `browser_evaluations[]` when UI/runtime validation needs the Codex in-app Browser.
 
+When `safe_rebase` and `reconcile_pr_branches` are enabled, the monitor may automatically rebase and push known agent-owned PR branches onto `origin/ui-improvements`. This remediation is intentionally narrow:
+
+- It only considers non-draft PR branches whose names start with an allowed `safe_branch_prefixes` entry.
+- It requires a clean PR worktree and a local branch head that still matches `origin/<branch>` before rebase.
+- It pushes only with `--force-with-lease`.
+- It records dirty worktrees, divergent local branches, missing remote branches, and rebase conflicts as blocked reconciliation results instead of overwriting local work.
+- It does not manually merge PRs, close issues, resolve review threads, or choose product, data, auth, security, migration, deployment, or documentation conflict behavior.
+
 Repo-local Node code does not import the Browser plugin directly. The Codex automation wrapper is responsible for executing `browser_evaluations[]` through the Browser skill bridge, then passing structured `browser_results[]` back to the runner. Missing Browser results must be reported as `needs_browser_evaluation`, not as passed verification.
 
 The Browser skill bridge is the in-app Browser access path. It uses the `node_repl` JavaScript tool to import the plugin's `scripts/browser-client.mjs`, call `setupBrowserRuntime({ globals: globalThis })`, select `agent.browsers.get("iab")`, and drive that tab with the Browser skill API. The wrapper should not look for a direct `browser` tool namespace.
@@ -122,7 +135,7 @@ The Browser skill bridge is the in-app Browser access path. It uses the `node_re
 The Codex automation wrapper should stay small:
 
 1. Invoke `npm run symphony:ui-monitor -- --json`.
-2. If the status contains `browser_evaluations[]`, activate the requested DEV persona with `npm run dev:persona -- <persona> --base-url http://localhost:5173` before navigation.
+2. If the status contains `browser_evaluations[]`, activate the requested DEV persona with the emitted `persona_setup` command before navigation. The runner derives that command from the configured browser URL origin.
 3. Preserve the current local app URL when available, otherwise open or reload the requested URL through the Browser skill bridge.
 4. Capture DOM and screenshot evidence, saving screenshots under `/private/tmp` or another non-committed evidence path.
 5. Record each Browser result with URL, status, evidence, findings, and checked timestamp.

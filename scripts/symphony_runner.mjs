@@ -15,6 +15,9 @@ const DEFAULT_MONITOR = {
   targetBranch: "ui-improvements",
   lockPath: "/private/tmp/accountsdot-ui-improvements-github-scan.lock",
   latestCodeWorktree: "/Users/lcampbell/code.internal/accountsdot-latest-ui",
+  reconcileWorktreeRoot: "/private/tmp/accountsdot-symphony-prs",
+  reconcilePrBranches: true,
+  safeBranchPrefixes: ["codex/", "issue-"],
   latestCodeAllowedDirty: ["frontend/dist/", "tmp/", ".vite/"],
   browserDefaultUrl: "http://localhost:5173/dashboard/it-admin",
   healthUrls: [
@@ -347,6 +350,12 @@ function readMonitorConfig(workflowConfig) {
     ...snakeToCamel(configured),
     healthUrls: configured.health_urls || DEFAULT_MONITOR.healthUrls,
     devServers: configured.dev_servers || DEFAULT_MONITOR.devServers,
+    reconcileWorktreeRoot: configured.reconcile_worktree_root || DEFAULT_MONITOR.reconcileWorktreeRoot,
+    reconcilePrBranches:
+      configured.reconcile_pr_branches === undefined
+        ? DEFAULT_MONITOR.reconcilePrBranches
+        : Boolean(configured.reconcile_pr_branches),
+    safeBranchPrefixes: configured.safe_branch_prefixes || DEFAULT_MONITOR.safeBranchPrefixes,
     latestCodeAllowedDirty: configured.latest_code_allowed_dirty || DEFAULT_MONITOR.latestCodeAllowedDirty,
     lockMaxAgeMs: Number(configured.lock_max_age_ms || DEFAULT_MONITOR.lockMaxAgeMs),
   };
@@ -474,6 +483,7 @@ async function checkHealth(urls) {
 
 function browserEvaluationsFor(config, latestCode, healthChecks) {
   if (latestCode.blocker || healthChecks.some((check) => !check.ok)) return [];
+  const browserUrlOrigin = new URL(config.browserDefaultUrl).origin;
   return [
     {
       url: config.browserDefaultUrl,
@@ -483,7 +493,7 @@ function browserEvaluationsFor(config, latestCode, healthChecks) {
         "The IT Admin dashboard loads inside the shared shell without visible error overlays, major text overlap, or broken navigation chrome.",
       screenshot_required: true,
       interaction_steps: ["Open or preserve the current local app URL", "Reload after server refresh", "Capture DOM notes and screenshot"],
-      persona_setup: "npm run dev:persona -- it_admin --base-url http://localhost:5173",
+      persona_setup: `npm run dev:persona -- it_admin --base-url ${browserUrlOrigin}`,
       acceptance_checks: [
         "HTTP route loads successfully",
         "Shared shell/sidebar/header are visible",
@@ -492,6 +502,192 @@ function browserEvaluationsFor(config, latestCode, healthChecks) {
       ],
     },
   ];
+}
+
+function safePathSegment(value) {
+  return String(value).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function isSafePrBranch(branchName, prefixes = DEFAULT_MONITOR.safeBranchPrefixes) {
+  return prefixes.some((prefix) => branchName.startsWith(prefix));
+}
+
+function parseWorktreeList(output) {
+  const entries = [];
+  let current = {};
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) {
+      if (current.path) entries.push(current);
+      current = {};
+      continue;
+    }
+    const [key, ...rest] = line.split(" ");
+    const value = rest.join(" ");
+    if (key === "worktree") current.path = value;
+    if (key === "HEAD") current.head = value;
+    if (key === "branch") current.branch = value.replace(/^refs\/heads\//, "");
+    if (key === "detached") current.detached = true;
+  }
+  if (current.path) entries.push(current);
+  return entries;
+}
+
+function worktreeForBranch(branchName) {
+  const output = run("git", ["worktree", "list", "--porcelain"], { cwd: repoRoot, allowFailure: true });
+  if (output.failed) return null;
+  return parseWorktreeList(output).find((entry) => entry.branch === branchName) || null;
+}
+
+function refExists(refName) {
+  const result = run("git", ["rev-parse", "--verify", "--quiet", refName], { cwd: repoRoot, allowFailure: true });
+  return !result.failed;
+}
+
+function cleanStatus(cwd) {
+  const status = run("git", ["status", "--porcelain"], { cwd, allowFailure: true });
+  if (status.failed) {
+    return { clean: false, blocker: status.stderr || "failed to inspect worktree status" };
+  }
+  return {
+    clean: !status,
+    blocker: status ? "worktree has local edits" : "",
+    dirty_files: status
+      ? status
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((line) => line.slice(3))
+      : [],
+  };
+}
+
+function branchEqualsRemote(cwd, branchName) {
+  const local = run("git", ["rev-parse", "HEAD"], { cwd, allowFailure: true });
+  const remote = run("git", ["rev-parse", `origin/${branchName}`], { cwd, allowFailure: true });
+  if (local.failed || remote.failed) return false;
+  return local === remote;
+}
+
+function ensurePrWorktree(config, branchName, prNumber) {
+  const existing = worktreeForBranch(branchName);
+  if (existing) return { cwd: existing.path, reused: true };
+
+  fs.mkdirSync(config.reconcileWorktreeRoot, { recursive: true });
+  const worktreePath = path.join(config.reconcileWorktreeRoot, `pr-${prNumber}-${safePathSegment(branchName)}`);
+  if (fs.existsSync(worktreePath)) {
+    const status = cleanStatus(worktreePath);
+    if (!status.clean) {
+      return {
+        cwd: worktreePath,
+        reused: true,
+        blocker: status.blocker,
+        dirty_files: status.dirty_files,
+      };
+    }
+    const branch = run("git", ["branch", "--show-current"], { cwd: worktreePath, allowFailure: true });
+    if (!branch.failed && branch === branchName) return { cwd: worktreePath, reused: true };
+  }
+
+  if (refExists(branchName)) {
+    run("git", ["worktree", "add", worktreePath, branchName], { cwd: repoRoot });
+    return { cwd: worktreePath, reused: false };
+  }
+
+  run("git", ["worktree", "add", "-b", branchName, worktreePath, `origin/${branchName}`], { cwd: repoRoot });
+  return { cwd: worktreePath, reused: false };
+}
+
+function reconcilePullRequestBranches({ prs, reviewThreads, config, dryRun }) {
+  const results = [];
+  if (!config.safeRebase || !config.reconcilePrBranches) {
+    return results;
+  }
+
+  const unresolvedByPr = new Map(reviewThreads.map((entry) => [entry.number, entry.unresolved_threads.length]));
+  for (const pr of queuePullRequests(prs)) {
+    const result = {
+      number: pr.number,
+      head: pr.headRefName,
+      action: "skipped",
+      status: "skipped",
+      reason: "",
+      unresolved_review_threads: unresolvedByPr.get(pr.number) || 0,
+      worktree: "",
+      before: "",
+      after: "",
+    };
+    results.push(result);
+
+    if (pr.isDraft) {
+      result.reason = "draft PR";
+      continue;
+    }
+    if (!isSafePrBranch(pr.headRefName, config.safeBranchPrefixes)) {
+      result.reason = "branch prefix is not in safe_branch_prefixes";
+      continue;
+    }
+    if (!refExists(`origin/${pr.headRefName}`)) {
+      result.reason = "remote PR branch is missing";
+      continue;
+    }
+    if (dryRun) {
+      result.action = "would-rebase";
+      result.status = "dry-run";
+      result.reason = "dry-run performs no branch mutations";
+      continue;
+    }
+
+    try {
+      const worktree = ensurePrWorktree(config, pr.headRefName, pr.number);
+      result.worktree = worktree.cwd;
+      if (worktree.blocker) {
+        result.status = "blocked";
+        result.reason = worktree.blocker;
+        result.dirty_files = worktree.dirty_files || [];
+        continue;
+      }
+
+      run("git", ["fetch", "--prune", "origin"], { cwd: worktree.cwd });
+      const status = cleanStatus(worktree.cwd);
+      if (!status.clean) {
+        result.status = "blocked";
+        result.reason = status.blocker;
+        result.dirty_files = status.dirty_files;
+        continue;
+      }
+
+      if (!branchEqualsRemote(worktree.cwd, pr.headRefName)) {
+        result.status = "blocked";
+        result.reason = "local branch diverges from origin; refusing to overwrite unknown local work";
+        continue;
+      }
+
+      result.before = run("git", ["rev-parse", "--short", "HEAD"], { cwd: worktree.cwd });
+      const rebase = run("git", ["rebase", `origin/${config.targetBranch}`], { cwd: worktree.cwd, allowFailure: true });
+      if (rebase.failed) {
+        run("git", ["rebase", "--abort"], { cwd: worktree.cwd, allowFailure: true });
+        result.status = "blocked";
+        result.reason = rebase.stderr || rebase.stdout || "rebase failed";
+        continue;
+      }
+
+      result.after = run("git", ["rev-parse", "--short", "HEAD"], { cwd: worktree.cwd });
+      if (result.before === result.after) {
+        result.action = "checked";
+        result.status = "up-to-date";
+        result.reason = "already based on latest target branch";
+        continue;
+      }
+
+      run("git", ["push", "--force-with-lease", "origin", `HEAD:${pr.headRefName}`], { cwd: worktree.cwd });
+      result.action = "rebased-and-pushed";
+      result.status = "updated";
+      result.reason = `rebased onto origin/${config.targetBranch} and pushed with --force-with-lease`;
+    } catch (error) {
+      result.status = "blocked";
+      result.reason = error.stderr || error.message || String(error);
+    }
+  }
+  return results;
 }
 
 function workspaceRoot(config) {
@@ -569,6 +765,17 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
     const prs = listOpenPullRequests(monitor.targetBranch);
     const issues = listOpenIssues();
     const reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    const prReconciliations = reconcilePullRequestBranches({
+      prs,
+      reviewThreads,
+      config: monitor,
+      dryRun,
+    });
+    for (const reconciliation of prReconciliations) {
+      if (reconciliation.status === "updated") {
+        mutations.push(`rebased and pushed PR #${reconciliation.number} (${reconciliation.head})`);
+      }
+    }
     const latestCode = inspectLatestCode(monitor);
     const healthChecks = latestCode.blocker ? [] : await checkHealth(monitor.healthUrls);
     const status = {
@@ -588,6 +795,7 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
       unresolved_review_threads: reviewThreads
         .filter((entry) => entry.unresolved_threads.length > 0)
         .map((entry) => ({ number: entry.number, count: entry.unresolved_threads.length })),
+      pr_reconciliations: prReconciliations,
       uncovered_open_issues: openIssuesWithoutOpenPr(issues, prs).map((issue) => ({
         number: issue.number,
         title: issue.title,
@@ -598,6 +806,8 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
       browser_results: [],
       status: latestCode.blocker
         ? "blocked"
+        : prReconciliations.some((result) => result.status === "blocked")
+          ? "pr_reconciliation_blocked"
         : healthChecks.some((check) => !check.ok)
           ? "dev_server_unhealthy"
           : "needs_browser_evaluation",
@@ -694,9 +904,23 @@ async function selfTest() {
       queued.map((pr) => pr.number),
       [1, 3, 2],
     );
+    assert.equal(isSafePrBranch("codex/issue-242-browser-bridge"), true);
+    assert.equal(isSafePrBranch("issue-227-room-moves-edit-ownership"), true);
+    assert.equal(isSafePrBranch("feature/unknown-user-branch"), false);
+    assert.deepEqual(
+      parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
+      { path: "/tmp/repo", head: "abc123", branch: "codex/example" },
+    );
 
     const evals = browserEvaluationsFor(DEFAULT_MONITOR, { blocker: "" }, [{ ok: true }, { ok: true }]);
     assert.equal(evals.length, 1);
+    assert.equal(evals[0].persona_setup, "npm run dev:persona -- it_admin --base-url http://localhost:5173");
+    assert.equal(
+      browserEvaluationsFor({ ...DEFAULT_MONITOR, browserDefaultUrl: "http://127.0.0.1:6173/dashboard/it-admin" }, { blocker: "" }, [
+        { ok: true },
+      ])[0].persona_setup,
+      "npm run dev:persona -- it_admin --base-url http://127.0.0.1:6173",
+    );
     assert.equal(browserEvaluationsFor(DEFAULT_MONITOR, { blocker: "dirty" }, [{ ok: true }]).length, 0);
     assert.equal(
       validateBrowserResults([

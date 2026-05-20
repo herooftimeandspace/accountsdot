@@ -132,7 +132,7 @@ The workspace manager must not delete workspaces automatically on success. Reten
 
 The orchestrator owns the poll loop, runtime state, dispatch queue, retry queue, and reconciliation logic.
 
-The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, run the lock-protected `ui-improvements` monitor, discover repo-local skills, emit Browser evaluation requests, and record Browser results. It does not manually merge PRs, close issues, launch unattended issue workers, or bypass human review.
+The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, emit Browser evaluation requests, and record Browser results. It does not manually merge PRs, close issues, launch unattended issue workers, resolve review threads, or bypass human review.
 
 The package scripts are:
 
@@ -140,7 +140,9 @@ The package scripts are:
 - `npm run symphony:ui-monitor`: lock-protected monitor for `origin/ui-improvements`.
 - `npm run symphony:test`: parser, lock, queue, skill-routing, Browser-result, and status-output self-tests.
 
-Dry-run mode must remain non-mutating. `npm run symphony:ui-monitor -- --dry-run` may read GitHub, inspect local worktrees, and check health endpoints, but it must not acquire the production monitor lock, update branches, write runner state, restart dev servers, change issues or PRs, or invoke Browser.
+Dry-run mode must remain non-mutating. `npm run symphony:ui-monitor -- --dry-run` may read GitHub, inspect local worktrees, check health endpoints, and report which PR branches would be eligible for safe rebase, but it must not acquire the production monitor lock, update branches, write runner state, restart dev servers, change issues or PRs, or invoke Browser.
+
+The `ui-improvements` branch reconciliation pass is deliberately conservative. It may rebase and push a non-draft PR branch only when the branch name matches the configured safe prefixes, the branch has a remote ref, the selected worktree is clean, and the local branch still matches `origin/<branch>` before rebase. Successful branch updates must use `git push --force-with-lease`. Dirty worktrees, divergent local branches, missing remote refs, and rebase conflicts are recorded as blocked reconciliation results for a later human or issue-worker pass.
 
 On each tick, it should:
 
@@ -192,7 +194,7 @@ The status surface should answer:
 
 The repo runner cannot directly import the Codex in-app Browser plugin. Browser use is provided by the Codex automation wrapper that invokes the runner. When UI/runtime verification is needed, the runner emits `browser_evaluations[]` requests in its status JSON. The wrapper executes those requests through the Browser skill bridge and writes back `browser_results[]`.
 
-A browser evaluation request should include URL, purpose, persona, expected visible behavior, screenshot requirement, interaction steps, and acceptance checks. Before navigation, the wrapper should activate the requested DEV persona with `npm run dev:persona -- <persona> --base-url http://localhost:5173` so authenticated implemented pages are evaluated as the intended operator. A browser result should include URL, status (`passed`, `failed`, or `blocked`), evidence, findings, and checked timestamp. Missing Browser results are not success; the run remains `needs_browser_evaluation`.
+A browser evaluation request should include URL, purpose, persona, expected visible behavior, screenshot requirement, interaction steps, acceptance checks, and a `persona_setup` command. Before navigation, the wrapper should activate the requested DEV persona with the emitted `persona_setup` command so authenticated implemented pages are evaluated as the intended operator on the same origin as the configured Browser URL. A browser result should include URL, status (`passed`, `failed`, or `blocked`), evidence, findings, and checked timestamp. Missing Browser results are not success; the run remains `needs_browser_evaluation`.
 
 The Browser skill bridge is the supported in-app Browser access path. The wrapper should use the `node_repl` JavaScript tool to import the Browser plugin's `scripts/browser-client.mjs`, call `setupBrowserRuntime({ globals: globalThis })`, select `agent.browsers.get("iab")`, and drive the tab with the Browser skill API. If that bridge or the `iab` browser is unavailable after this setup attempt, the wrapper records a blocked Browser result with the capability blocker instead of claiming verification. It should not treat absence of a direct `browser` tool namespace as Browser unavailability.
 
