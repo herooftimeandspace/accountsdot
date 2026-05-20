@@ -1,55 +1,95 @@
 export const SHARED_HEADER_HEIGHT = 76;
+export const DEFAULT_RUNTIME_DRAWER_BOUNDS = { left: 1278, top: SHARED_HEADER_HEIGHT, width: 390, height: 818 };
 export const DEFAULT_RUNTIME_DRAWER_WIDTH = 440;
-export const DEFAULT_RUNTIME_DRAWER_RIGHT_INSET = 4;
+export const DEFAULT_RUNTIME_DRAWER_RIGHT_INSET = 0;
 export const MIN_RUNTIME_DRAWER_WIDTH = 320;
+export const MIN_RUNTIME_DRAWER_HEIGHT = 340;
+export const RUNTIME_DRAWER_HEIGHT_RATIO = 0.6;
+export const RUNTIME_DRAWER_BOTTOM_GAP = 24;
+export const RUNTIME_DRAWER_MOBILE_BREAKPOINT = 760;
 
 function clamp(value, min, max) {
-  return Math.max(min, Math.min(value, max));
+  if (max < min) {
+    return max;
+  }
+  return Math.min(Math.max(value, min), max);
 }
 
-/**
- * resolveArtboardDrawerStyle returns artboard-local drawer geometry for row-detail and help drawers mounted inside a generated `.pen` artboard overlay. RuntimeDrawer uses the returned absolute positioning so the drawer participates in PenArtboard's content-height measurement; that measurement extends the shared page scroll range when a short page opens a long drawer.
- */
-export function resolveArtboardDrawerStyle({ bounds = null, artboardWidth = 1, scale = 1 }) {
-  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
-  const safeArtboardWidth = Math.max(MIN_RUNTIME_DRAWER_WIDTH, Number.isFinite(artboardWidth) ? artboardWidth : 1);
-  const top = SHARED_HEADER_HEIGHT / safeScale;
+export function runtimeDrawerHeightForViewport(viewportHeight, headerHeight = SHARED_HEADER_HEIGHT) {
+  const availableHeight = Math.max(220, viewportHeight - headerHeight - RUNTIME_DRAWER_BOTTOM_GAP);
+  const targetHeight = Math.round(viewportHeight * RUNTIME_DRAWER_HEIGHT_RATIO);
+  return clamp(targetHeight, Math.min(MIN_RUNTIME_DRAWER_HEIGHT, availableHeight), availableHeight);
+}
 
-  if (bounds) {
-    const requestedWidth = Number.isFinite(bounds.width) ? bounds.width : DEFAULT_RUNTIME_DRAWER_WIDTH / safeScale;
-    const width = clamp(requestedWidth, MIN_RUNTIME_DRAWER_WIDTH / safeScale, safeArtboardWidth);
-    const requestedLeft = Number.isFinite(bounds.left) ? bounds.left : safeArtboardWidth - width;
-    const left = clamp(requestedLeft, 0, safeArtboardWidth - width);
+export function resolveRuntimeDrawerPlacement({
+  artboardRect = null,
+  artboardOffsetWidth = 0,
+  headerRect = null,
+  mountedInArtboard = false,
+  bounds = null,
+  viewportWidth,
+  viewportHeight,
+  headerHeight = SHARED_HEADER_HEIGHT,
+}) {
+  const height = runtimeDrawerHeightForViewport(viewportHeight, headerHeight);
+  const mobile = viewportWidth <= RUNTIME_DRAWER_MOBILE_BREAKPOINT;
+  if (mobile) {
     return {
-      position: "absolute",
-      left,
-      top,
-      width,
+      position: "fixed",
+      left: 0,
+      top: headerHeight,
+      width: viewportWidth,
+      height,
       zIndex: 80,
     };
   }
 
-  const width = clamp(DEFAULT_RUNTIME_DRAWER_WIDTH / safeScale, MIN_RUNTIME_DRAWER_WIDTH / safeScale, safeArtboardWidth);
+  if (!artboardRect) {
+    const width = Math.min(DEFAULT_RUNTIME_DRAWER_WIDTH, Math.max(MIN_RUNTIME_DRAWER_WIDTH, viewportWidth - DEFAULT_RUNTIME_DRAWER_RIGHT_INSET));
+    return {
+      position: "fixed",
+      left: Math.max(0, viewportWidth - width - DEFAULT_RUNTIME_DRAWER_RIGHT_INSET),
+      top: headerHeight,
+      width,
+      height,
+      zIndex: 80,
+    };
+  }
+
+  const artboardWidth = artboardOffsetWidth || artboardRect.width || 1;
+  const scale = artboardRect.width / artboardWidth || 1;
+  const styleScale = mountedInArtboard ? scale : 1;
+  const visualTop = headerRect?.bottom ?? headerHeight;
+  const requestedWidth = bounds ? bounds.width * scale : DEFAULT_RUNTIME_DRAWER_WIDTH;
+  const maxContainedWidth = Math.max(MIN_RUNTIME_DRAWER_WIDTH, Math.min(artboardRect.width, viewportWidth - DEFAULT_RUNTIME_DRAWER_RIGHT_INSET));
+  const width = Math.min(Math.max(MIN_RUNTIME_DRAWER_WIDTH, requestedWidth), maxContainedWidth);
+  const pageRight = headerRect?.right ?? artboardRect.right;
+  const drawerRight = Math.min(pageRight - (bounds ? 0 : DEFAULT_RUNTIME_DRAWER_RIGHT_INSET * scale), viewportWidth - DEFAULT_RUNTIME_DRAWER_RIGHT_INSET);
+  const requestedLeft = bounds ? artboardRect.left + bounds.left * scale : drawerRight - width;
+  const maxLeft = drawerRight - width;
+  const left = clamp(requestedLeft, Math.max(0, artboardRect.left), Math.max(0, maxLeft));
+
   return {
-    position: "absolute",
-    left: safeArtboardWidth - DEFAULT_RUNTIME_DRAWER_RIGHT_INSET - width,
-    top,
-    width,
+    position: "fixed",
+    left: left / styleScale,
+    top: visualTop / styleScale,
+    width: width / styleScale,
+    height: height / styleScale,
     zIndex: 80,
   };
 }
 
-/**
- * resolveFallbackFixedDrawerStyle keeps RuntimeDrawer usable in rare callers that mount outside the `.pen` artboard tree. Those drawers cannot contribute to artboard height measurement, so implemented-page row/help drawers should stay inside PenArtboard overlays whenever they need the shared page scroll range.
- */
-export function resolveFallbackFixedDrawerStyle(bounds = null) {
-  return bounds
-    ? {
-        position: "fixed",
-        left: bounds.left,
-        top: SHARED_HEADER_HEIGHT,
-        width: bounds.width,
-        zIndex: 80,
-      }
-    : undefined;
+export function resolveRuntimeDrawerStyle(drawerElement, bounds) {
+  const mountedArtboard = drawerElement.closest(".pen-stage__artboard");
+  const artboard = mountedArtboard ?? document.querySelector(".pen-stage__artboard");
+  const header = document.querySelector(".pen-node--shared-shell-header");
+  return resolveRuntimeDrawerPlacement({
+    artboardRect: artboard ? artboard.getBoundingClientRect() : null,
+    artboardOffsetWidth: artboard?.offsetWidth ?? 0,
+    headerRect: header ? header.getBoundingClientRect() : null,
+    mountedInArtboard: Boolean(mountedArtboard),
+    bounds,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+  });
 }

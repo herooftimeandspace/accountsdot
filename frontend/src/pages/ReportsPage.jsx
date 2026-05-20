@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -18,7 +19,6 @@ const REPORTS_HEADING_ID = "reports-heading";
 const PANE_LEFT = 306;
 const PANE_TOP = 118;
 const PANE_WIDTH = 1260;
-const DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
 
 const REPORT_ROWS = [
   {
@@ -253,7 +253,7 @@ function ReportsDrawer({ item, onClose, onNavigate }) {
   }
   const isReport = item.kind === "report";
   return (
-    <RuntimeDrawer title={isReport ? item.report : item.source} bounds={DRAWER_BOUNDS} onClose={onClose}>
+    <RuntimeDrawer title={isReport ? item.report : item.source} onClose={onClose}>
       <RuntimeDetailList
         items={
           isReport
@@ -353,7 +353,7 @@ function ReportsTable({ selectedId, onSelect }) {
             }`}
             aria-label={`Open report details for ${row.report}`}
             aria-pressed={selectedId === row.id}
-            onClick={() => onSelect({ ...row, kind: "report" })}
+            onClick={() => onSelect(nextRuntimeDrawerSelectionForId(selectedId, { ...row, kind: "report" }))}
           >
             <div>{row.report}</div>
             <div>{row.scope}</div>
@@ -399,7 +399,7 @@ function RefreshTable({ selectedId, onSelect }) {
             }`}
             aria-label={`Open refresh details for ${row.source}`}
             aria-pressed={selectedId === row.id}
-            onClick={() => onSelect({ ...row, kind: "refresh" })}
+            onClick={() => onSelect(nextRuntimeDrawerSelectionForId(selectedId, { ...row, kind: "refresh" }))}
           >
             <div>{row.source}</div>
             <div>{row.lastRefresh}</div>

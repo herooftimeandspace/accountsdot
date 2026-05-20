@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSelectDropdown } from "../components/RuntimeDropdown";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
@@ -30,7 +31,6 @@ const PANE_LEFT = 306;
 const PANE_TOP = 118;
 const PANE_WIDTH = 1260;
 const PANE_HEIGHT = 730;
-const DRAWER_BOUNDS = { left: 1280, top: 92, width: 388, height: 802 };
 
 /**
  * buildFrequentFliersColumns creates the sortable/searchable table contract
@@ -126,7 +126,7 @@ function FrequentFliersDrawer({ row, threshold, metric, range, onClose }) {
   const metricLabel = metric === "tickets" ? "linked tickets" : "device assignments";
   const rangeLabel = rangeLabelForValue(range);
   return (
-    <RuntimeDrawer title={row.student} bounds={DRAWER_BOUNDS} onClose={onClose}>
+    <RuntimeDrawer title={row.student} onClose={onClose}>
       <RuntimeDetailList
         items={[
           { label: "Student ID", value: row.studentId },
@@ -256,7 +256,7 @@ function FrequentFliersOverlay({ rows, selectedRowId, filters, onFilterChange, o
               }`}
               aria-label={`Open frequent flier details for ${row.student}`}
               aria-pressed={selectedRowId === row.id}
-              onClick={() => onSelectRow(row)}
+              onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
             >
               <div>{row.student}</div>
               <div>{row.studentId}</div>

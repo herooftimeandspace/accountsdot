@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -323,7 +324,7 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
             }`}
             aria-label={`Open onboarding row for ${row.person}`}
             aria-pressed={selectedRowId === row.id}
-            onClick={() => onSelectRow(row)}
+            onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
           >
             <div title={row.date_added_reason}>{row.date_added || "Unknown"}</div>
             <div className="onboarding-runtime__start-cell">
@@ -473,7 +474,7 @@ function WorkflowDrawer({ row, formOptions, onClose, onRoomSaved }) {
     return null;
   }
   return (
-    <RuntimeDrawer title={row.person} onClose={onClose}>
+    <RuntimeDrawer title={row.person} onClose={onClose} variant={row.can_update_room ? "modal" : "inspector"}>
       {row.late_start ? (
         <div className="onboarding-runtime__late-start">
           <strong>Late-start warning</strong>
@@ -617,7 +618,7 @@ function ReadOnlyManualDraftDrawer({ draft, row, formOptions, onClose, onRoomSav
   }
   const person = [draft.first_name, draft.last_name].filter(Boolean).join(" ") || row?.person || "Manual Non-Escape Record";
   return (
-    <RuntimeDrawer title={person} onClose={onClose}>
+    <RuntimeDrawer title={person} onClose={onClose} variant={row?.can_update_room ? "modal" : "inspector"}>
       {draft.late_start ? (
         <div className="onboarding-runtime__late-start">
           <strong>Late-start warning</strong>
@@ -677,7 +678,7 @@ function ManualDraftDrawer({
 
   if (isCollision) {
     return (
-      <RuntimeDrawer title="Invalid Manual Entry" onClose={onClose}>
+      <RuntimeDrawer title="Invalid Manual Entry" onClose={onClose} variant="modal">
         <div className="onboarding-runtime__collision">
           <span className="onboarding-runtime__collision-badge">Invalid contractor collision</span>
           <p className="onboarding-runtime__collision-copy">
@@ -716,7 +717,7 @@ function ManualDraftDrawer({
   }
 
   return (
-    <RuntimeDrawer title="Add Non-Escape Record" onClose={onClose}>
+    <RuntimeDrawer title="Add Non-Escape Record" onClose={onClose} variant="modal" isDirty>
       <form className="onboarding-runtime__form" onSubmit={(event) => event.preventDefault()}>
         <div className="onboarding-runtime__generated">
           <span>Status</span>
@@ -960,6 +961,12 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   }, [loadPage]);
 
   const handleSelectRow = useCallback((row) => {
+    if (!row) {
+      setSelectedRow(null);
+      setActiveDraft(null);
+      setManualSaveAttempted(false);
+      return;
+    }
     setSelectedRow(row);
     setAddManualError("");
     if (row.kind === "manual") {

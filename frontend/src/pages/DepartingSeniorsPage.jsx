@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -191,7 +192,7 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, selectedRowId, er
               }`}
               onClick={(event) => {
                 if (shouldSelectRowFromTarget(event.target)) {
-                  onSelectRow(row);
+                  onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row));
                 }
               }}
             >
@@ -201,7 +202,7 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, selectedRowId, er
                   className="departing-seniors-runtime__row-open"
                   aria-label={`Open departing senior details for ${row.display_name}`}
                   aria-pressed={selectedRowId === row.id}
-                  onClick={() => onSelectRow(row)}
+                  onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
                 >
                   <strong>{row.display_name}</strong>
                 </button>

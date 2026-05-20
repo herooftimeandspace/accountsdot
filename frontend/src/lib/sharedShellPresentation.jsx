@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import * as lucideIcons from "lucide-static";
-import { DEFAULT_RUNTIME_DRAWER_BOUNDS, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeDrawer } from "../components/RuntimeDrawer";
 import { RuntimeSelectDropdown } from "../components/RuntimeDropdown";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey } from "./routeRegistry";
@@ -792,7 +792,6 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
       {isOpen ? (
         <RuntimeDrawer
           title={helpContent.title}
-          bounds={DEFAULT_RUNTIME_DRAWER_BOUNDS}
           onClose={() => setIsOpen(false)}
           className="shared-shell-help-runtime-drawer"
         >

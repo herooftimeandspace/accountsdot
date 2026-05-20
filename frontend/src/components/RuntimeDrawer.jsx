@@ -1,11 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  SHARED_HEADER_HEIGHT,
-  resolveArtboardDrawerStyle,
-  resolveFallbackFixedDrawerStyle,
-} from "./runtimeDrawerGeometry.mjs";
-
-export const DEFAULT_RUNTIME_DRAWER_BOUNDS = { left: 1278, top: SHARED_HEADER_HEIGHT, width: 390, height: 818 };
+import { nextRuntimeDrawerSelectionForId } from "./runtimeDrawerController.mjs";
+import { resolveRuntimeDrawerStyle } from "./runtimeDrawerGeometry.mjs";
 
 function shouldCloseDrawerForPointerTarget(target) {
   if (!(target instanceof Element)) {
@@ -18,22 +13,6 @@ function shouldCloseDrawerForPointerTarget(target) {
     return false;
   }
   return true;
-}
-
-/**
- * resolveArtboardRelativeDrawerStyle maps drawer geometry from generated artboard coordinates to artboard-local CSS so row/help drawers share the same right edge and still expand PenArtboard's measured page height when their content is taller than the main page.
- */
-function resolveArtboardRelativeDrawerStyle(drawerElement, bounds) {
-  const artboard = drawerElement.closest(".pen-stage__artboard");
-  if (!artboard) {
-    return resolveFallbackFixedDrawerStyle(bounds);
-  }
-
-  const artboardRect = artboard.getBoundingClientRect();
-  const artboardWidth = artboard.offsetWidth || artboardRect.width || 1;
-  const scale = artboardRect.width / artboardWidth || 1;
-
-  return resolveArtboardDrawerStyle({ bounds, artboardWidth, scale });
 }
 
 /**
@@ -59,9 +38,18 @@ export function RuntimeDetailList({ items }) {
 }
 
 /**
- * RuntimeDrawer is the shared right-hand drawer used by implemented pages for row details, manual workflow forms, and page help. It owns the shell-level top offset, outside-click close behavior, and initial/restore focus handling so every caller gets the same accessible overlay behavior anchored below the shared header. The drawer panel intentionally avoids normal internal scrolling; long content expands the page scroll range instead of trapping keyboard, wheel, or trackpad users inside a nested scroll box.
+ * RuntimeDrawer is the shared right-hand drawer used by implemented pages for row details, manual workflow forms, and page help. It owns shell-relative placement, outside-click and Escape close behavior, fixed-height internal scrolling, and focus management so every caller gets the same accessible overlay behavior anchored below the shared header.
  */
-export function RuntimeDrawer({ title, onClose, children, bounds = null, className = "", ariaLive = "polite" }) {
+export function RuntimeDrawer({
+  title,
+  onClose,
+  children,
+  bounds = null,
+  className = "",
+  ariaLive = "polite",
+  variant = "inspector",
+  isDirty = false,
+}) {
   const closeButtonRef = useRef(null);
   const drawerRef = useRef(null);
   const restoreFocusRef = useRef(null);
@@ -69,6 +57,14 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
   const titleText = String(title);
   const titleId = `runtime-drawer-title-${titleText.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   const devToolbarClass = import.meta.env.DEV ? "runtime-drawer--dev-toolbar-offset" : "";
+  const isModal = variant === "modal";
+
+  function requestClose() {
+    if (isModal && isDirty && !window.confirm("Discard unsaved drawer changes?")) {
+      return;
+    }
+    onClose();
+  }
 
   useLayoutEffect(() => {
     const drawerElement = drawerRef.current;
@@ -78,7 +74,7 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
 
     let frame = 0;
     const applyResolvedStyle = () => {
-      setResolvedStyle(resolveArtboardRelativeDrawerStyle(drawerElement, bounds));
+      setResolvedStyle(resolveRuntimeDrawerStyle(drawerElement, bounds));
     };
     const updateResolvedStyle = () => {
       window.cancelAnimationFrame(frame);
@@ -117,31 +113,73 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
 
   useEffect(() => {
     function handleDocumentPointerDown(event) {
-      if (shouldCloseDrawerForPointerTarget(event.target)) {
-        onClose();
+      if (!shouldCloseDrawerForPointerTarget(event.target)) {
+        return;
       }
+      if (isModal) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      requestClose();
     }
 
     document.addEventListener("pointerdown", handleDocumentPointerDown, true);
     return () => document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
-  }, [onClose]);
+  }, [isDirty, isModal, onClose]);
+
+  useEffect(() => {
+    function handleDocumentKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        requestClose();
+        return;
+      }
+      if (!isModal || event.key !== "Tab") {
+        return;
+      }
+      const focusable = Array.from(
+        drawerRef.current?.querySelectorAll(
+          "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex='-1'])"
+        ) ?? []
+      ).filter((element) => element instanceof HTMLElement && !element.hidden);
+      if (!focusable.length) {
+        event.preventDefault();
+        closeButtonRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleDocumentKeyDown, true);
+    return () => document.removeEventListener("keydown", handleDocumentKeyDown, true);
+  }, [isDirty, isModal, onClose]);
 
   function handleCloseButtonPointerDown(event) {
     event.stopPropagation();
-    onClose();
+    requestClose();
   }
 
   function handleCloseButtonClick(event) {
     event.stopPropagation();
-    onClose();
+    requestClose();
   }
 
   return (
     <aside
       ref={drawerRef}
-      className={`runtime-drawer ${bounds ? "runtime-drawer--bounded" : ""} ${devToolbarClass} ${className}`.trim()}
+      className={`runtime-drawer ${bounds ? "runtime-drawer--bounded" : ""} runtime-drawer--${variant} ${devToolbarClass} ${className}`.trim()}
       aria-labelledby={titleId}
       aria-live={ariaLive}
+      aria-modal={isModal ? "true" : undefined}
+      role={isModal ? "dialog" : undefined}
       style={resolvedStyle}
     >
       <div className="runtime-drawer__panel">
@@ -158,7 +196,7 @@ export function RuntimeDrawer({ title, onClose, children, bounds = null, classNa
             &times;
           </button>
         </div>
-        {children}
+        <div className="runtime-drawer__body">{children}</div>
       </div>
     </aside>
   );
@@ -177,7 +215,7 @@ export function RowHotspotOverlay({ rows, selectedId, onSelect, ariaLabel }) {
           className="runtime-row-hotspot"
           aria-label={row.ariaLabel}
           aria-pressed={selectedId === row.id}
-          onClick={() => onSelect(row)}
+          onClick={() => onSelect(nextRuntimeDrawerSelectionForId(selectedId, row))}
           style={{
             left: row.left,
             top: row.top,

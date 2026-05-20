@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeCombobox } from "../components/RuntimeDropdown";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
@@ -272,7 +273,7 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
               type="button"
               className="room-moves-runtime__row-open"
               aria-label={`Open room move row for ${row.person}`}
-              onClick={() => onSelectRow(row)}
+              onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
             >
               <div>{row.person}</div>
               <div>{row.current_room}</div>
@@ -431,7 +432,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
   const fallbackTicketHref = safeExternalHref(row?.fallback_ticket_href);
 
   return (
-    <RuntimeDrawer title={row ? row.person : "Move Person"} onClose={onClose}>
+    <RuntimeDrawer title={row ? row.person : "Move Person"} onClose={onClose} variant="modal" isDirty>
       {row?.warning ? (
         <div className="room-moves-runtime__warning-bar">
           <strong>Warning</strong>
@@ -978,6 +979,10 @@ export function RoomMovesPage({
                 cancelingDraftId={cancelingDraftId}
                 onCancelRow={cancelMove}
                 onSelectRow={(row) => {
+                  if (!row) {
+                    setSelectedRow(null);
+                    return;
+                  }
                   if (row.move_type === "mid_year_targeted_move") {
                     setSelectedRow(row);
                     setShowCreateDrawer(false);
