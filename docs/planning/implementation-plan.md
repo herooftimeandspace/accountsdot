@@ -501,8 +501,10 @@
   - Aeries masked previous-year staging access is proven without touching live production writes
   - checked-in deploy examples for `dev`, `staging`, and `main` declare distinct
     `ENVIRONMENT_ROLE`, `APP_ENV`, `ENVIRONMENT_DATA_MODE`, database targets,
-    and provider mock settings, and `npm run environment-roles:check` fails if
-    those role boundaries drift
+    provider mock settings, and Compose env-file wiring. `npm run
+    environment-roles:check` fails if those role boundaries drift, while still
+    allowing staging to move from masked read-only data to a documented sandbox
+    profile after sandbox strategy and write-safety approval exist.
 - Failure gates:
   - any write path depends on unmasked production-only testing
   - real provider integrations are attempted before mock validation in `dev`

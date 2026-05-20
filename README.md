@@ -368,6 +368,9 @@ databases.
   `ENVIRONMENT_DATA_SOURCE=masked-production-derived`, the long-lived
   `postgres-staging-data` volume, and sandbox or masked/read-only provider
   configuration as defined in `docs/operations/environment-data-playbook.md`.
+  After a documented sandbox strategy and safety approval exists, staging may
+  instead use `ENVIRONMENT_DATA_MODE=sandbox` and
+  `ENVIRONMENT_DATA_SOURCE=documented-sandbox`.
 - Main runs with `ENVIRONMENT_ROLE=main`, `APP_ENV=production`,
   `ENVIRONMENT_DATA_MODE=production`, production secrets, and the main database
   only. Production must not reuse dev or staging credentials.
@@ -380,7 +383,8 @@ write-safety plan exists.
 Run `npm run environment-roles:check` after editing `deploy/env/*.example`,
 `docker-compose.deploy.yml`, or environment-role documentation. The check
 parses the deployment examples and fails if dev, staging, and main stop using
-distinct roles, data modes, databases, or mock-provider safety settings.
+distinct roles, data modes, databases, Compose env-file wiring, or
+mock-provider safety settings.
 
 The current Go service image exposes the backend service on port `8080`. The
 React/Vite DEV UI is still a development-time frontend and is not bundled into

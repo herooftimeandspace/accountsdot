@@ -13,7 +13,9 @@ This document defines the required process for creating and refreshing safe deve
   `ENVIRONMENT_ROLE=staging`, `APP_ENV=staging`,
   `ENVIRONMENT_DATA_MODE=masked-read-only`,
   `ENVIRONMENT_DATA_SOURCE=masked-production-derived`, and a `postgres-staging`
-  database URL.
+  database URL. After a provider sandbox strategy and write-safety approval are
+  documented, staging may use `ENVIRONMENT_DATA_MODE=sandbox` and
+  `ENVIRONMENT_DATA_SOURCE=documented-sandbox` instead.
 - `main`: production. Remote deployment examples identify this role with
   `ENVIRONMENT_ROLE=main`, `APP_ENV=production`,
   `ENVIRONMENT_DATA_MODE=production`, all `USE_MOCK_*` flags set to `false`,
@@ -195,9 +197,18 @@ This document defines the required process for creating and refreshing safe deve
 - Dev verification is intentionally strict: the dev app example must stay
   mock-backed and must keep every `USE_MOCK_*` provider flag enabled so a local
   or remote dev run cannot depend on production-only data.
-- Staging verification requires the explicit
-  `ENVIRONMENT_DATA_SOURCE=masked-production-derived` marker until a provider
-  has a documented sandbox strategy and safety approval.
+- Staging verification accepts the current
+  `ENVIRONMENT_DATA_MODE=masked-read-only` plus
+  `ENVIRONMENT_DATA_SOURCE=masked-production-derived` pair, or the future
+  `ENVIRONMENT_DATA_MODE=sandbox` plus
+  `ENVIRONMENT_DATA_SOURCE=documented-sandbox` pair after a provider has a
+  documented sandbox strategy and safety approval. Staging provider mock flags
+  must remain explicit booleans so individual `USE_MOCK_*` settings can be
+  disabled only when the corresponding sandbox or masked/read-only provider
+  plan exists.
+- Compose verification checks that every `app-*` and `postgres-*` service loads
+  the matching role-specific env file, so a staging service cannot silently load
+  dev or main configuration while still passing service-name checks.
 - `scripts/run_local_ci.py` includes this check in every branch target so the
   static role contract stays aligned with the checked-in branch gates.
 
