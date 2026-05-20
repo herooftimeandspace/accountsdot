@@ -26,6 +26,9 @@ dispatch:
   max_concurrent_runs: 1
   max_attempts: 4
   require_explicit_agent_ready_label: true
+  workspace_root: /private/tmp/accountsdot-symphony
+  agent_runner_command: codex --ask-for-approval never exec --json --sandbox workspace-write --cd {repo} -
+  agent_runner_timeout_ms: 21600000
 verification:
   docs_only:
     - markdown review
@@ -151,6 +154,20 @@ The Codex automation wrapper should stay small:
 5. Record each Browser result with URL, status, evidence, findings, and checked timestamp.
 6. Write results back with `node scripts/symphony_runner.mjs record-browser-results --browser-results <path> --json`.
 7. Summarize the queue, blockers, Browser evidence, and next recommended PR without manually merging PRs.
+
+## Issue Dispatcher Runtime
+
+The repo-owned issue dispatcher is `npm run symphony:sync`. It is the checked-in entrypoint for turning `agent-ready` GitHub issues into deterministic workspaces and branch prompts. It reads the same `.agents/WORKFLOW.md` front matter as the monitor, uses `tracker.active_labels` and `tracker.blocked_labels` for eligibility, derives each issue target branch from the issue body, and honors the `phase-0-platform-foundation` target branch when that line is present in Phase 0 issues.
+
+The dispatcher is conservative by design:
+
+- `npm run symphony:sync -- --dry-run --json` is non-mutating and should be the first command in any automation tick.
+- A non-dry-run tick creates or reuses one workspace per selected issue under `dispatch.workspace_root`, creates a branch using `branching.branch_template`, and writes `prompt.md` plus `state.json` for the assigned run.
+- The dispatcher skips issues with blocked labels, missing acceptance criteria, missing `agent-ready`, or an already-open PR that references the issue.
+- The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.
+- `dispatch.agent_runner_command` is approved for this repo and launches `codex exec` from the prepared worktree with the rendered issue prompt on stdin. The dispatcher writes runner stdout and stderr to the issue workspace `logs/` directory and records completion or failure in `state.json`.
+
+The Synchronizer wrapper should now call `npm run symphony:sync -- --json` for issue dispatch state instead of maintaining a chat-only issue queue. The wrapper remains responsible for monitoring the resulting issue workspace state, surfacing runner failures, and leaving manual merge decisions to a human.
 
 ## Implementation Rules
 

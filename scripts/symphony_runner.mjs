@@ -86,6 +86,7 @@ function usage() {
     "",
     "Commands:",
     "  report                 Print a read-only issue/PR queue report.",
+    "  sync                   Dispatch eligible GitHub issues into repo-owned workspaces.",
     "  ui-monitor             Run the lock-protected ui-improvements monitor.",
     "  record-browser-results Record Browser plugin results into runner state.",
     "  test                   Run runner self-tests.",
@@ -93,13 +94,14 @@ function usage() {
     "Options:",
     "  --dry-run              Do not mutate refs, branches, issues, PRs, dev servers, Browser, or runner state.",
     "  --json                 Print JSON only.",
+    "  --max-runs N           Maximum issues to dispatch in one sync tick.",
     "  --browser-results PATH JSON file for record-browser-results.",
   ].join("\n");
 }
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
-  const options = { dryRun: false, json: false, browserResultsPath: "" };
+  const options = { dryRun: false, json: false, browserResultsPath: "", maxRuns: null };
   const remaining = [...rest];
   while (remaining.length > 0) {
     const arg = remaining.shift();
@@ -109,6 +111,13 @@ function parseArgs(argv) {
       options.json = true;
     } else if (arg === "--browser-results") {
       options.browserResultsPath = remaining.shift() || "";
+    } else if (arg === "--max-runs") {
+      const rawValue = remaining.shift() || "";
+      const parsed = Number(rawValue);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        throw new Error(`--max-runs must be a positive integer, got ${rawValue}`);
+      }
+      options.maxRuns = parsed;
     } else if (arg === "--help" || arg === "-h") {
       options.help = true;
     } else {
@@ -288,6 +297,19 @@ function listOpenPullRequests(baseRef) {
   ]);
 }
 
+function listOpenPullRequestsForBases(baseRefs) {
+  const seen = new Set();
+  const prs = [];
+  for (const baseRef of [...new Set(baseRefs.filter(Boolean))]) {
+    for (const pr of listOpenPullRequests(baseRef)) {
+      if (seen.has(pr.number)) continue;
+      seen.add(pr.number);
+      prs.push({ ...pr, baseRefName: baseRef });
+    }
+  }
+  return prs;
+}
+
 function listOpenIssues() {
   return ghJson([
     "issue",
@@ -295,9 +317,9 @@ function listOpenIssues() {
     "--state",
     "open",
     "--json",
-    "number,title,labels,url,updatedAt",
+    "number,title,body,labels,url,updatedAt,assignees",
     "--limit",
-    "100",
+    "200",
   ]);
 }
 
@@ -419,6 +441,396 @@ function remediateReviewThreads({ reviewThreads, config, dryRun }) {
 function openIssuesWithoutOpenPr(issues, prs) {
   const prText = prs.map((pr) => `${pr.number} ${pr.title} ${pr.headRefName}`).join("\n").toLowerCase();
   return issues.filter((issue) => !prText.includes(`#${issue.number}`) && !prText.includes(`issue-${issue.number}`));
+}
+
+function issueLabelNames(issue) {
+  return (issue.labels || []).map((label) => String(label.name || label).toLowerCase());
+}
+
+function readDispatchConfig(workflowConfig) {
+  const dispatch = workflowConfig.dispatch || {};
+  const tracker = workflowConfig.tracker || {};
+  const branching = workflowConfig.branching || {};
+  return {
+    activeLabels: (tracker.active_labels || ["agent-ready"]).map((label) => String(label).toLowerCase()),
+    blockedLabels: (tracker.blocked_labels || []).map((label) => String(label).toLowerCase()),
+    defaultTargetBranch: branching.integration_branch || "dev",
+    branchPrefix: branching.branch_prefix || "codex/",
+    branchTemplate: branching.branch_template || "codex/issue-{number}-{slug}",
+    maxConcurrentRuns: Number(dispatch.max_concurrent_runs || 1),
+    requireExplicitAgentReadyLabel: dispatch.require_explicit_agent_ready_label !== false,
+    workspaceRoot: dispatch.workspace_root || path.join(os.tmpdir(), "accountsdot-symphony"),
+    agentRunnerCommand: dispatch.agent_runner_command || "",
+    agentRunnerTimeoutMs: Number(dispatch.agent_runner_timeout_ms || 6 * 60 * 60 * 1000),
+  };
+}
+
+function issueHasAcceptanceCriteria(issue) {
+  const body = String(issue.body || "");
+  return /acceptance criteria/i.test(body) || /-\s+\[[ xX]\]/.test(body);
+}
+
+function issueTargetBranch(issue, dispatchConfig) {
+  const body = String(issue.body || "");
+  const match = body.match(/Target branch:\s*`?([A-Za-z0-9._/-]+)`?/i);
+  return match ? match[1].replace(/[.`]+$/g, "") : dispatchConfig.defaultTargetBranch;
+}
+
+function issueSlug(issue) {
+  return safePathSegment(
+    String(issue.title || `issue-${issue.number}`)
+      .toLowerCase()
+      .replace(/^p0-[0-9a-z-]+:\s*/i, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48),
+  );
+}
+
+function issueBranchName(issue, dispatchConfig) {
+  return dispatchConfig.branchTemplate
+    .replace("{number}", String(issue.number))
+    .replace("{slug}", issueSlug(issue));
+}
+
+function issuePriorityScore(issue, dispatchConfig) {
+  const labels = new Set(issueLabelNames(issue));
+  let score = 0;
+  if (labels.has("phase-0")) score -= 1000;
+  if (labels.has("documentation")) score -= 80;
+  if (labels.has("enhancement")) score -= 40;
+  if (String(issue.title || "").startsWith("P0-")) score -= 200;
+  if (issueTargetBranch(issue, dispatchConfig) !== dispatchConfig.defaultTargetBranch) score -= 20;
+  return score + Number(issue.number || 0);
+}
+
+function prReferencesIssue(pr, issue) {
+  const text = `${pr.title || ""} ${pr.headRefName || ""}`.toLowerCase();
+  return text.includes(`#${issue.number}`) || text.includes(`issue-${issue.number}-`);
+}
+
+function activeWorkspaceForIssue(issue, dispatchConfig) {
+  const workspacePath = issueWorkspacePath(issue, dispatchConfig);
+  const statePath = path.join(workspacePath, "state.json");
+  const promptPath = path.join(workspacePath, "prompt.md");
+  if (fs.existsSync(statePath)) {
+    try {
+      const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      const activeStatuses = new Set(["prepared", "running", "waiting_retry", "human_review", "succeeded", "failed"]);
+      if (activeStatuses.has(state.status)) {
+        return { workspace: workspacePath, prompt_path: promptPath, state_path: statePath, status: state.status };
+      }
+    } catch (error) {
+      return { workspace: workspacePath, prompt_path: promptPath, state_path: statePath, status: "unreadable_state", blocker: error.message };
+    }
+  }
+  const branchName = issueBranchName(issue, dispatchConfig);
+  const existingWorktree = worktreeForBranch(branchName);
+  if (existingWorktree) {
+    return { workspace: path.dirname(existingWorktree.path), prompt_path: promptPath, state_path: statePath, status: "branch_checked_out" };
+  }
+  return null;
+}
+
+function classifyIssueForDispatch(issue, prs, dispatchConfig) {
+  const labels = new Set(issueLabelNames(issue));
+  const targetBranch = issueTargetBranch(issue, dispatchConfig);
+  const branchName = issueBranchName(issue, dispatchConfig);
+  const openPr = prs.find((pr) => prReferencesIssue(pr, issue));
+  const activeWorkspace = activeWorkspaceForIssue(issue, dispatchConfig);
+  const reasons = [];
+  const blockedBy = [...labels].filter((label) => dispatchConfig.blockedLabels.includes(label));
+
+  if (dispatchConfig.requireExplicitAgentReadyLabel) {
+    const hasActiveLabel = dispatchConfig.activeLabels.some((label) => labels.has(label));
+    if (!hasActiveLabel) reasons.push(`missing active label (${dispatchConfig.activeLabels.join(", ")})`);
+  }
+  if (blockedBy.length > 0) reasons.push(`blocked by label: ${blockedBy.join(", ")}`);
+  if (!issueHasAcceptanceCriteria(issue)) reasons.push("missing acceptance criteria");
+  if (openPr) reasons.push(`open PR already references issue (#${openPr.number})`);
+  if (activeWorkspace) reasons.push(`active workspace already exists (${activeWorkspace.status})`);
+  if (!targetBranch) reasons.push("missing target branch");
+
+  return {
+    number: issue.number,
+    title: issue.title,
+    url: issue.url,
+    labels: [...labels].sort(),
+    target_branch: targetBranch,
+    branch: branchName,
+    workspace: activeWorkspace?.workspace || "",
+    prompt_path: activeWorkspace?.prompt_path || "",
+    state_path: activeWorkspace?.state_path || "",
+    open_pr: openPr ? { number: openPr.number, head: openPr.headRefName, base: openPr.baseRefName || "" } : null,
+    eligible: reasons.length === 0,
+    status: reasons.length === 0 ? "eligible" : "skipped",
+    reason: reasons.join("; "),
+    priority_score: issuePriorityScore(issue, dispatchConfig),
+  };
+}
+
+function rankedDispatchQueue(issues, prs, dispatchConfig) {
+  return issues
+    .map((issue) => classifyIssueForDispatch(issue, prs, dispatchConfig))
+    .sort((a, b) => {
+      if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+      if (a.priority_score !== b.priority_score) return a.priority_score - b.priority_score;
+      return a.number - b.number;
+    })
+    .map((entry, index) => ({ rank: index + 1, ...entry }));
+}
+
+function issueWorkspacePath(issue, dispatchConfig) {
+  return path.join(dispatchConfig.workspaceRoot, `issue-${issue.number}-${issueSlug(issue)}`);
+}
+
+function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
+  const routedSkills = routeSkills(`${issue.title}\n${issue.body || ""}`, skills);
+  const skillSection =
+    routedSkills.length === 0
+      ? "No repo-local skill matched this issue. Apply the base workflow and source-of-truth order."
+      : routedSkills
+          .map(
+            (skill) =>
+              `## ${skill.skill_name}\nPath: ${skill.skill_path}\nReason: ${skill.reason_selected}\nStatus: ${
+                skill.missing_or_blocked || "included"
+              }\n\n${skill.summary || ""}`,
+          )
+          .join("\n\n");
+  const targetBranch = issueTargetBranch(issue, dispatchConfig);
+  const branchName = issueBranchName(issue, dispatchConfig);
+  return [
+    "# Symphony Issue Dispatch Prompt",
+    "",
+    `Issue: #${issue.number} ${issue.title}`,
+    `Issue URL: ${issue.url}`,
+    `Target branch: ${targetBranch}`,
+    `Working branch: ${branchName}`,
+    `Workspace root: ${issueWorkspacePath(issue, dispatchConfig)}`,
+    "",
+    "## Issue Body",
+    "",
+    issue.body || "(No issue body was returned by GitHub.)",
+    "",
+    "## Repo Workflow Prompt",
+    "",
+    workflow.promptTemplate.trim(),
+    "",
+    "## Applicable Repo Skills",
+    "",
+    skillSection,
+    "",
+    "## Dispatcher Contract",
+    "",
+    "- Work only in the prepared issue worktree and branch.",
+    "- Keep PRs for this issue targeted to the target branch above.",
+    "- Do not perform production writes, provider writeback, secret disclosure, destructive git, or manual merges.",
+    "- Update `/docs` for any implemented behavior, setup, schema, API, database access, or operator workflow change.",
+    "- Commit completed work on the prepared branch, push it, and open a PR against the target branch when verification passes.",
+    "- Finish with changed files, verification evidence, safety notes, and PR URL if one is opened.",
+    "",
+  ].join("\n");
+}
+
+function splitCommandLine(commandLine) {
+  const tokens = [];
+  let current = "";
+  let quote = "";
+  let escaped = false;
+  for (const char of String(commandLine)) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) {
+        quote = "";
+      } else {
+        current += char;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (escaped) current += "\\";
+  if (quote) throw new Error(`Unclosed quote in command: ${commandLine}`);
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function renderCommandToken(token, replacements) {
+  return String(token).replace(/\{([a-z_]+)\}/g, (match, key) => {
+    if (!(key in replacements)) return match;
+    return replacements[key];
+  });
+}
+
+function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, branchName, targetBranch, logsPath, timeoutMs }) {
+  const tokens = splitCommandLine(commandLine);
+  if (tokens.length === 0) {
+    return { status: "skipped", runner_status: "needs_agent_runner", reason: "agent runner command is empty" };
+  }
+  const replacements = {
+    repo: repoPath,
+    prompt_path: promptPath,
+    issue_number: String(issue.number),
+    issue_url: issue.url || "",
+    branch: branchName,
+    target_branch: targetBranch,
+  };
+  const [cmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
+  const startedAt = new Date().toISOString();
+  try {
+    const stdout = execFileSync(cmd, args, {
+      cwd: repoPath,
+      input: prompt,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: timeoutMs,
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    const completedAt = new Date().toISOString();
+    const stdoutPath = path.join(logsPath, "agent-stdout.log");
+    const stderrPath = path.join(logsPath, "agent-stderr.log");
+    fs.writeFileSync(stdoutPath, stdout || "");
+    fs.writeFileSync(stderrPath, "");
+    return {
+      status: "succeeded",
+      runner_status: "completed",
+      command: [cmd, ...args],
+      started_at: startedAt,
+      completed_at: completedAt,
+      stdout_path: stdoutPath,
+      stderr_path: stderrPath,
+      reason: "agent runner completed successfully",
+    };
+  } catch (error) {
+    const completedAt = new Date().toISOString();
+    const stdoutPath = path.join(logsPath, "agent-stdout.log");
+    const stderrPath = path.join(logsPath, "agent-stderr.log");
+    fs.writeFileSync(stdoutPath, String(error.stdout || ""));
+    fs.writeFileSync(stderrPath, String(error.stderr || error.message || ""));
+    return {
+      status: "failed",
+      runner_status: "failed",
+      command: [cmd, ...args],
+      started_at: startedAt,
+      completed_at: completedAt,
+      stdout_path: stdoutPath,
+      stderr_path: stderrPath,
+      exit_status: error.status ?? null,
+      reason: String(error.stderr || error.message || "agent runner failed").trim(),
+    };
+  }
+}
+
+function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
+  const workspacePath = issueWorkspacePath(issue, dispatchConfig);
+  const repoPath = path.join(workspacePath, "repo");
+  const logsPath = path.join(workspacePath, "logs");
+  const promptPath = path.join(workspacePath, "prompt.md");
+  const statePath = path.join(workspacePath, "state.json");
+  const branchName = issueBranchName(issue, dispatchConfig);
+  const targetBranch = issueTargetBranch(issue, dispatchConfig);
+  const result = {
+    number: issue.number,
+    title: issue.title,
+    status: dryRun ? "would-prepare" : "prepared",
+    branch: branchName,
+    target_branch: targetBranch,
+    workspace: workspacePath,
+    repo: repoPath,
+    prompt_path: promptPath,
+    state_path: statePath,
+    runner_status: dispatchConfig.agentRunnerCommand ? "runner_configured" : "needs_agent_runner",
+    reason: "",
+  };
+
+  if (dryRun) {
+    result.reason = "dry-run performs no branch, worktree, prompt, or state mutations";
+    return result;
+  }
+
+  fs.mkdirSync(logsPath, { recursive: true });
+  if (fs.existsSync(repoPath)) {
+    const status = cleanStatus(repoPath);
+    if (!status.clean) {
+      return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
+    }
+  } else {
+    run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
+    const existingWorktree = worktreeForBranch(branchName);
+    if (existingWorktree) {
+      return {
+        ...result,
+        status: "blocked",
+        reason: `branch is already checked out at ${existingWorktree.path}`,
+      };
+    }
+    if (!refExists(`origin/${targetBranch}`)) {
+      return { ...result, status: "blocked", reason: `target branch origin/${targetBranch} does not exist` };
+    }
+    if (refExists(branchName)) {
+      run("git", ["worktree", "add", repoPath, branchName], { cwd: repoRoot });
+    } else {
+      run("git", ["worktree", "add", "-b", branchName, repoPath, `origin/${targetBranch}`], { cwd: repoRoot });
+    }
+  }
+
+  const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills });
+  fs.writeFileSync(promptPath, `${prompt}\n`);
+  const runner = dispatchConfig.agentRunnerCommand
+    ? runAgentRunner({
+        commandLine: dispatchConfig.agentRunnerCommand,
+        repoPath,
+        promptPath,
+        prompt,
+        issue,
+        branchName,
+        targetBranch,
+        logsPath,
+        timeoutMs: dispatchConfig.agentRunnerTimeoutMs,
+      })
+    : { status: result.status, runner_status: result.runner_status, reason: "no repo-owned agent runner command is configured yet" };
+  const state = {
+    issue_number: issue.number,
+    issue_url: issue.url,
+    title: issue.title,
+    target_branch: targetBranch,
+    branch: branchName,
+    workspace_path: workspacePath,
+    repo_path: repoPath,
+    status: runner.status,
+    runner_status: runner.runner_status,
+    prompt_path: promptPath,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    runner,
+    last_event:
+      runner.runner_status === "completed"
+        ? "workspace prepared and agent runner completed"
+        : runner.runner_status === "failed"
+          ? "workspace prepared and agent runner failed"
+          : "workspace prepared; no repo-owned agent runner command is configured yet",
+  };
+  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  return { ...result, status: runner.status, runner_status: runner.runner_status, reason: runner.reason };
 }
 
 function readMonitorConfig(workflowConfig) {
@@ -797,6 +1209,15 @@ function writeState(workflowConfig, status) {
   return { statePath, eventPath };
 }
 
+function writeDispatchState(dispatchConfig, status) {
+  fs.mkdirSync(dispatchConfig.workspaceRoot, { recursive: true });
+  const statePath = path.join(dispatchConfig.workspaceRoot, "dispatcher-status.json");
+  const eventPath = path.join(dispatchConfig.workspaceRoot, "runs.jsonl");
+  fs.writeFileSync(statePath, `${JSON.stringify(status, null, 2)}\n`);
+  fs.appendFileSync(eventPath, `${JSON.stringify({ timestamp: new Date().toISOString(), ...status })}\n`);
+  return { statePath, eventPath };
+}
+
 async function report({ json = false } = {}) {
   const workflow = readWorkflow();
   const monitor = readMonitorConfig(workflow.config);
@@ -833,6 +1254,70 @@ async function report({ json = false } = {}) {
     browser_results: [],
     mutations_performed: [],
   };
+  printStatus(status, json);
+  return status;
+}
+
+async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
+  const workflow = readWorkflow();
+  const dispatchConfig = readDispatchConfig(workflow.config);
+  const skills = discoverSkills();
+  const issues = listOpenIssues();
+  const targetBranches = [
+    dispatchConfig.defaultTargetBranch,
+    ...issues.map((issue) => issueTargetBranch(issue, dispatchConfig)),
+  ];
+  const prs = listOpenPullRequestsForBases(targetBranches);
+  const queue = rankedDispatchQueue(issues, prs, dispatchConfig);
+  const maxSelected = maxRuns || dispatchConfig.maxConcurrentRuns;
+  const selected = queue.filter((entry) => entry.eligible).slice(0, maxSelected);
+  const dispatches = [];
+
+  for (const entry of selected) {
+    const issue = issues.find((candidate) => candidate.number === entry.number);
+    dispatches.push(ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }));
+  }
+
+  const status = {
+    command: "sync",
+    dry_run: dryRun,
+    generated_at: new Date().toISOString(),
+    dispatcher: {
+      workspace_root: dispatchConfig.workspaceRoot,
+      default_target_branch: dispatchConfig.defaultTargetBranch,
+      max_concurrent_runs: dispatchConfig.maxConcurrentRuns,
+      max_selected_this_tick: maxSelected,
+      active_labels: dispatchConfig.activeLabels,
+      blocked_labels: dispatchConfig.blockedLabels,
+      agent_runner_configured: Boolean(dispatchConfig.agentRunnerCommand),
+      agent_runner_command: dispatchConfig.agentRunnerCommand,
+    },
+    issue_queue: queue.map(({ priority_score, ...entry }) => entry),
+    selected_issues: selected.map(({ priority_score, ...entry }) => entry),
+    dispatches,
+    status: dispatches.some((dispatch) => dispatch.status === "blocked")
+      ? "blocked"
+      : dispatches.some((dispatch) => dispatch.status === "failed")
+        ? "agent_runner_failed"
+      : dispatches.some((dispatch) => dispatch.status === "succeeded")
+        ? "agent_runner_complete"
+      : dispatches.some((dispatch) => dispatch.status === "prepared")
+        ? dispatchConfig.agentRunnerCommand
+          ? "prepared"
+          : "prepared_needs_agent_runner"
+        : selected.length === 0
+          ? "idle"
+          : "dry-run",
+    mutations_performed: dryRun
+      ? []
+      : dispatches
+          .filter((dispatch) => ["prepared", "succeeded", "failed"].includes(dispatch.status))
+          .map((dispatch) => `${dispatch.status} ${dispatch.branch} in ${dispatch.repo}`),
+  };
+
+  if (!dryRun) {
+    status.state_files = writeDispatchState(dispatchConfig, status);
+  }
   printStatus(status, json);
   return status;
 }
@@ -1050,6 +1535,47 @@ async function selfTest() {
       parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
       { path: "/tmp/repo", head: "abc123", branch: "codex/example" },
     );
+    const dispatchConfig = readDispatchConfig({
+      tracker: { active_labels: ["agent-ready"], blocked_labels: ["blocked", "human-only"] },
+      branching: {
+        integration_branch: "dev",
+        branch_template: "codex/issue-{number}-{slug}",
+      },
+      dispatch: { max_concurrent_runs: 2, workspace_root: tempRoot },
+    });
+    const phaseIssue = {
+      number: 900264,
+      title: "P0-0A-001: Reference Input Snapshot Integrity",
+      body: "Target branch: phase-0-platform-foundation.\n\n## Acceptance Criteria\n\n- [ ] Snapshot references are immutable.",
+      labels: [{ name: "agent-ready" }, { name: "phase-0" }],
+      url: "https://example.invalid/issues/900264",
+    };
+    const blockedIssue = {
+      ...phaseIssue,
+      number: 265,
+      labels: [{ name: "agent-ready" }, { name: "blocked" }],
+    };
+    assert.equal(issueTargetBranch(phaseIssue, dispatchConfig), "phase-0-platform-foundation");
+    assert.equal(issueBranchName(phaseIssue, dispatchConfig), "codex/issue-900264-reference-input-snapshot-integrity");
+    assert.equal(classifyIssueForDispatch(phaseIssue, [], dispatchConfig).eligible, true);
+    assert.equal(classifyIssueForDispatch(blockedIssue, [], dispatchConfig).eligible, false);
+    assert.equal(
+      classifyIssueForDispatch(phaseIssue, [{ number: 310, title: "Fixes #900264", headRefName: "codex/issue-900264-fix" }], dispatchConfig)
+        .eligible,
+      false,
+    );
+    assert.equal(rankedDispatchQueue([blockedIssue, phaseIssue], [], dispatchConfig)[0].number, 900264);
+    assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
+    assert.deepEqual(splitCommandLine("codex --ask-for-approval never exec --cd {repo} -"), [
+      "codex",
+      "--ask-for-approval",
+      "never",
+      "exec",
+      "--cd",
+      "{repo}",
+      "-",
+    ]);
+    assert.equal(renderCommandToken("{repo}/prompt.md", { repo: "/tmp/example" }), "/tmp/example/prompt.md");
 
     const evals = browserEvaluationsFor(DEFAULT_MONITOR, { blocker: "" }, [{ ok: true }, { ok: true }]);
     assert.equal(evals.length, 1);
@@ -1097,6 +1623,8 @@ async function main() {
   }
   if (command === "report") {
     await report(options);
+  } else if (command === "sync") {
+    await sync(options);
   } else if (command === "ui-monitor") {
     await uiMonitor(options);
   } else if (command === "record-browser-results") {
