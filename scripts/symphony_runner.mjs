@@ -15,8 +15,14 @@ const DEFAULT_MONITOR = {
   targetBranch: "ui-improvements",
   lockPath: "/private/tmp/accountsdot-ui-improvements-github-scan.lock",
   latestCodeWorktree: "/Users/lcampbell/code.internal/accountsdot-latest-ui",
+  reconcileWorktreeRoot: "/private/tmp/accountsdot-symphony-prs",
+  reconcilePrBranches: true,
+  safeBranchPrefixes: ["codex/", "issue-"],
+  codexReviewAuthors: ["chatgpt-codex-connector", "github-copilot", "codex-review"],
+  autoResolveOutdatedCodexReviewThreads: true,
   latestCodeAllowedDirty: ["frontend/dist/", "tmp/", ".vite/"],
   browserDefaultUrl: "http://localhost:5173/dashboard/it-admin",
+  browserScreenshotRequired: false,
   healthUrls: [
     "http://localhost:8080/health",
     "http://localhost:5173/api/v1/dev/session",
@@ -297,7 +303,7 @@ function listOpenIssues() {
 
 function fetchReviewThreads(baseRef) {
   const query =
-    'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviewThreads(first:100) { nodes { isResolved isOutdated comments(first:10){ nodes { author { login } body createdAt path line originalLine } } } } } } } }';
+    'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviewThreads(first:100) { nodes { id isResolved isOutdated comments(first:10){ nodes { author { login } body createdAt path line originalLine url } } } } } } } }';
   const result = ghJson([
     "api",
     "graphql",
@@ -312,7 +318,9 @@ function fetchReviewThreads(baseRef) {
   ]);
   return result.data.repository.pullRequests.nodes.map((pr) => ({
     number: pr.number,
+    review_threads: pr.reviewThreads.nodes,
     unresolved_threads: pr.reviewThreads.nodes.filter((thread) => !thread.isResolved && !thread.isOutdated),
+    outdated_unresolved_threads: pr.reviewThreads.nodes.filter((thread) => !thread.isResolved && thread.isOutdated),
   }));
 }
 
@@ -335,6 +343,79 @@ function queueReason(pr) {
   return "merge-clean non-draft PR";
 }
 
+function resolveReviewThread(threadId) {
+  const query = "mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}) { thread { id isResolved } } }";
+  return ghJson(["api", "graphql", "-f", `query=${query}`, "-F", `threadId=${threadId}`]);
+}
+
+function commentAuthor(comment) {
+  return comment?.author?.login || "";
+}
+
+function isCodexReviewThread(thread, config = DEFAULT_MONITOR) {
+  const authors = new Set((config.codexReviewAuthors || []).map((author) => String(author).toLowerCase()));
+  return thread.comments.nodes.some((comment) => authors.has(commentAuthor(comment).toLowerCase()));
+}
+
+function summarizeReviewThread(thread) {
+  const firstComment = thread.comments.nodes[0] || {};
+  return {
+    thread_id: thread.id,
+    author: commentAuthor(firstComment),
+    path: firstComment.path || "",
+    line: firstComment.line || firstComment.originalLine || null,
+    url: firstComment.url || "",
+    is_outdated: Boolean(thread.isOutdated),
+    body_excerpt: String(firstComment.body || "").replace(/\s+/g, " ").slice(0, 240),
+  };
+}
+
+function remediateReviewThreads({ reviewThreads, config, dryRun }) {
+  const results = [];
+  for (const pr of reviewThreads) {
+    for (const thread of pr.review_threads || []) {
+      if (thread.isResolved || !isCodexReviewThread(thread, config)) continue;
+      const result = {
+        number: pr.number,
+        action: "skipped",
+        status: "skipped",
+        reason: "",
+        ...summarizeReviewThread(thread),
+      };
+      results.push(result);
+
+      if (thread.isOutdated) {
+        result.action = dryRun ? "would-resolve-outdated-thread" : "resolve-outdated-thread";
+        if (dryRun) {
+          result.status = "dry-run";
+          result.reason = "dry-run performs no review-thread mutations";
+          continue;
+        }
+        if (!config.autoResolveOutdatedCodexReviewThreads) {
+          result.status = "blocked";
+          result.reason = "auto_resolve_outdated_codex_review_threads is disabled";
+          continue;
+        }
+        try {
+          resolveReviewThread(thread.id);
+          result.status = "resolved";
+          result.reason = "outdated Codex Review thread resolved after branch changes made the comment obsolete";
+        } catch (error) {
+          result.status = "blocked";
+          result.reason = error.stderr || error.message || String(error);
+        }
+        continue;
+      }
+
+      result.action = "requires-code-remediation";
+      result.status = "blocked";
+      result.reason =
+        "active Codex Review thread still needs an in-scope code/docs fix before the automation may resolve it";
+    }
+  }
+  return results;
+}
+
 function openIssuesWithoutOpenPr(issues, prs) {
   const prText = prs.map((pr) => `${pr.number} ${pr.title} ${pr.headRefName}`).join("\n").toLowerCase();
   return issues.filter((issue) => !prText.includes(`#${issue.number}`) && !prText.includes(`issue-${issue.number}`));
@@ -347,7 +428,22 @@ function readMonitorConfig(workflowConfig) {
     ...snakeToCamel(configured),
     healthUrls: configured.health_urls || DEFAULT_MONITOR.healthUrls,
     devServers: configured.dev_servers || DEFAULT_MONITOR.devServers,
+    reconcileWorktreeRoot: configured.reconcile_worktree_root || DEFAULT_MONITOR.reconcileWorktreeRoot,
+    reconcilePrBranches:
+      configured.reconcile_pr_branches === undefined
+        ? DEFAULT_MONITOR.reconcilePrBranches
+        : Boolean(configured.reconcile_pr_branches),
+    safeBranchPrefixes: configured.safe_branch_prefixes || DEFAULT_MONITOR.safeBranchPrefixes,
+    codexReviewAuthors: configured.codex_review_authors || DEFAULT_MONITOR.codexReviewAuthors,
+    autoResolveOutdatedCodexReviewThreads:
+      configured.auto_resolve_outdated_codex_review_threads === undefined
+        ? DEFAULT_MONITOR.autoResolveOutdatedCodexReviewThreads
+        : Boolean(configured.auto_resolve_outdated_codex_review_threads),
     latestCodeAllowedDirty: configured.latest_code_allowed_dirty || DEFAULT_MONITOR.latestCodeAllowedDirty,
+    browserScreenshotRequired:
+      configured.browser_screenshot_required === undefined
+        ? DEFAULT_MONITOR.browserScreenshotRequired
+        : Boolean(configured.browser_screenshot_required),
     lockMaxAgeMs: Number(configured.lock_max_age_ms || DEFAULT_MONITOR.lockMaxAgeMs),
   };
 }
@@ -474,6 +570,7 @@ async function checkHealth(urls) {
 
 function browserEvaluationsFor(config, latestCode, healthChecks) {
   if (latestCode.blocker || healthChecks.some((check) => !check.ok)) return [];
+  const browserUrlOrigin = new URL(config.browserDefaultUrl).origin;
   return [
     {
       url: config.browserDefaultUrl,
@@ -481,8 +578,9 @@ function browserEvaluationsFor(config, latestCode, healthChecks) {
       persona: "it_admin",
       expected_visible_behavior:
         "The IT Admin dashboard loads inside the shared shell without visible error overlays, major text overlap, or broken navigation chrome.",
-      screenshot_required: true,
+      screenshot_required: Boolean(config.browserScreenshotRequired),
       interaction_steps: ["Open or preserve the current local app URL", "Reload after server refresh", "Capture DOM notes and screenshot"],
+      persona_setup: `npm run dev:persona -- it_admin --base-url ${browserUrlOrigin}`,
       acceptance_checks: [
         "HTTP route loads successfully",
         "Shared shell/sidebar/header are visible",
@@ -491,6 +589,192 @@ function browserEvaluationsFor(config, latestCode, healthChecks) {
       ],
     },
   ];
+}
+
+function safePathSegment(value) {
+  return String(value).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function isSafePrBranch(branchName, prefixes = DEFAULT_MONITOR.safeBranchPrefixes) {
+  return prefixes.some((prefix) => branchName.startsWith(prefix));
+}
+
+function parseWorktreeList(output) {
+  const entries = [];
+  let current = {};
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) {
+      if (current.path) entries.push(current);
+      current = {};
+      continue;
+    }
+    const [key, ...rest] = line.split(" ");
+    const value = rest.join(" ");
+    if (key === "worktree") current.path = value;
+    if (key === "HEAD") current.head = value;
+    if (key === "branch") current.branch = value.replace(/^refs\/heads\//, "");
+    if (key === "detached") current.detached = true;
+  }
+  if (current.path) entries.push(current);
+  return entries;
+}
+
+function worktreeForBranch(branchName) {
+  const output = run("git", ["worktree", "list", "--porcelain"], { cwd: repoRoot, allowFailure: true });
+  if (output.failed) return null;
+  return parseWorktreeList(output).find((entry) => entry.branch === branchName) || null;
+}
+
+function refExists(refName) {
+  const result = run("git", ["rev-parse", "--verify", "--quiet", refName], { cwd: repoRoot, allowFailure: true });
+  return !result.failed;
+}
+
+function cleanStatus(cwd) {
+  const status = run("git", ["status", "--porcelain"], { cwd, allowFailure: true });
+  if (status.failed) {
+    return { clean: false, blocker: status.stderr || "failed to inspect worktree status" };
+  }
+  return {
+    clean: !status,
+    blocker: status ? "worktree has local edits" : "",
+    dirty_files: status
+      ? status
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((line) => line.slice(3))
+      : [],
+  };
+}
+
+function branchEqualsRemote(cwd, branchName) {
+  const local = run("git", ["rev-parse", "HEAD"], { cwd, allowFailure: true });
+  const remote = run("git", ["rev-parse", `origin/${branchName}`], { cwd, allowFailure: true });
+  if (local.failed || remote.failed) return false;
+  return local === remote;
+}
+
+function ensurePrWorktree(config, branchName, prNumber) {
+  const existing = worktreeForBranch(branchName);
+  if (existing) return { cwd: existing.path, reused: true };
+
+  fs.mkdirSync(config.reconcileWorktreeRoot, { recursive: true });
+  const worktreePath = path.join(config.reconcileWorktreeRoot, `pr-${prNumber}-${safePathSegment(branchName)}`);
+  if (fs.existsSync(worktreePath)) {
+    const status = cleanStatus(worktreePath);
+    if (!status.clean) {
+      return {
+        cwd: worktreePath,
+        reused: true,
+        blocker: status.blocker,
+        dirty_files: status.dirty_files,
+      };
+    }
+    const branch = run("git", ["branch", "--show-current"], { cwd: worktreePath, allowFailure: true });
+    if (!branch.failed && branch === branchName) return { cwd: worktreePath, reused: true };
+  }
+
+  if (refExists(branchName)) {
+    run("git", ["worktree", "add", worktreePath, branchName], { cwd: repoRoot });
+    return { cwd: worktreePath, reused: false };
+  }
+
+  run("git", ["worktree", "add", "-b", branchName, worktreePath, `origin/${branchName}`], { cwd: repoRoot });
+  return { cwd: worktreePath, reused: false };
+}
+
+function reconcilePullRequestBranches({ prs, reviewThreads, config, dryRun }) {
+  const results = [];
+  if (!config.safeRebase || !config.reconcilePrBranches) {
+    return results;
+  }
+
+  const unresolvedByPr = new Map(reviewThreads.map((entry) => [entry.number, entry.unresolved_threads.length]));
+  for (const pr of queuePullRequests(prs)) {
+    const result = {
+      number: pr.number,
+      head: pr.headRefName,
+      action: "skipped",
+      status: "skipped",
+      reason: "",
+      unresolved_review_threads: unresolvedByPr.get(pr.number) || 0,
+      worktree: "",
+      before: "",
+      after: "",
+    };
+    results.push(result);
+
+    if (pr.isDraft) {
+      result.reason = "draft PR";
+      continue;
+    }
+    if (!isSafePrBranch(pr.headRefName, config.safeBranchPrefixes)) {
+      result.reason = "branch prefix is not in safe_branch_prefixes";
+      continue;
+    }
+    if (!refExists(`origin/${pr.headRefName}`)) {
+      result.reason = "remote PR branch is missing";
+      continue;
+    }
+    if (dryRun) {
+      result.action = "would-rebase";
+      result.status = "dry-run";
+      result.reason = "dry-run performs no branch mutations";
+      continue;
+    }
+
+    try {
+      const worktree = ensurePrWorktree(config, pr.headRefName, pr.number);
+      result.worktree = worktree.cwd;
+      if (worktree.blocker) {
+        result.status = "blocked";
+        result.reason = worktree.blocker;
+        result.dirty_files = worktree.dirty_files || [];
+        continue;
+      }
+
+      run("git", ["fetch", "--prune", "origin"], { cwd: worktree.cwd });
+      const status = cleanStatus(worktree.cwd);
+      if (!status.clean) {
+        result.status = "blocked";
+        result.reason = status.blocker;
+        result.dirty_files = status.dirty_files;
+        continue;
+      }
+
+      if (!branchEqualsRemote(worktree.cwd, pr.headRefName)) {
+        result.status = "blocked";
+        result.reason = "local branch diverges from origin; refusing to overwrite unknown local work";
+        continue;
+      }
+
+      result.before = run("git", ["rev-parse", "--short", "HEAD"], { cwd: worktree.cwd });
+      const rebase = run("git", ["rebase", `origin/${config.targetBranch}`], { cwd: worktree.cwd, allowFailure: true });
+      if (rebase.failed) {
+        run("git", ["rebase", "--abort"], { cwd: worktree.cwd, allowFailure: true });
+        result.status = "blocked";
+        result.reason = rebase.stderr || rebase.stdout || "rebase failed";
+        continue;
+      }
+
+      result.after = run("git", ["rev-parse", "--short", "HEAD"], { cwd: worktree.cwd });
+      if (result.before === result.after) {
+        result.action = "checked";
+        result.status = "up-to-date";
+        result.reason = "already based on latest target branch";
+        continue;
+      }
+
+      run("git", ["push", "--force-with-lease", "origin", `HEAD:${pr.headRefName}`], { cwd: worktree.cwd });
+      result.action = "rebased-and-pushed";
+      result.status = "updated";
+      result.reason = `rebased onto origin/${config.targetBranch} and pushed with --force-with-lease`;
+    } catch (error) {
+      result.status = "blocked";
+      result.reason = error.stderr || error.message || String(error);
+    }
+  }
+  return results;
 }
 
 function workspaceRoot(config) {
@@ -567,7 +851,31 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
     }
     const prs = listOpenPullRequests(monitor.targetBranch);
     const issues = listOpenIssues();
-    const reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    let reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    const reviewRemediations = remediateReviewThreads({
+      reviewThreads,
+      config: monitor,
+      dryRun,
+    });
+    for (const remediation of reviewRemediations) {
+      if (remediation.status === "resolved") {
+        mutations.push(`resolved outdated Codex Review thread on PR #${remediation.number}`);
+      }
+    }
+    if (reviewRemediations.some((remediation) => remediation.status === "resolved")) {
+      reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    }
+    const prReconciliations = reconcilePullRequestBranches({
+      prs,
+      reviewThreads,
+      config: monitor,
+      dryRun,
+    });
+    for (const reconciliation of prReconciliations) {
+      if (reconciliation.status === "updated") {
+        mutations.push(`rebased and pushed PR #${reconciliation.number} (${reconciliation.head})`);
+      }
+    }
     const latestCode = inspectLatestCode(monitor);
     const healthChecks = latestCode.blocker ? [] : await checkHealth(monitor.healthUrls);
     const status = {
@@ -587,6 +895,11 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
       unresolved_review_threads: reviewThreads
         .filter((entry) => entry.unresolved_threads.length > 0)
         .map((entry) => ({ number: entry.number, count: entry.unresolved_threads.length })),
+      outdated_unresolved_review_threads: reviewThreads
+        .filter((entry) => entry.outdated_unresolved_threads.length > 0)
+        .map((entry) => ({ number: entry.number, count: entry.outdated_unresolved_threads.length })),
+      review_remediations: reviewRemediations,
+      pr_reconciliations: prReconciliations,
       uncovered_open_issues: openIssuesWithoutOpenPr(issues, prs).map((issue) => ({
         number: issue.number,
         title: issue.title,
@@ -597,6 +910,10 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
       browser_results: [],
       status: latestCode.blocker
         ? "blocked"
+        : reviewRemediations.some((result) => result.status === "blocked")
+          ? "review_remediation_blocked"
+        : prReconciliations.some((result) => result.status === "blocked")
+          ? "pr_reconciliation_blocked"
         : healthChecks.some((check) => !check.ok)
           ? "dev_server_unhealthy"
           : "needs_browser_evaluation",
@@ -693,9 +1010,57 @@ async function selfTest() {
       queued.map((pr) => pr.number),
       [1, 3, 2],
     );
+    assert.equal(isSafePrBranch("codex/issue-242-browser-bridge"), true);
+    assert.equal(isSafePrBranch("issue-227-room-moves-edit-ownership"), true);
+    assert.equal(isSafePrBranch("feature/unknown-user-branch"), false);
+    const codexThread = {
+      id: "thread-1",
+      isResolved: false,
+      isOutdated: true,
+      comments: {
+        nodes: [
+          {
+            author: { login: "chatgpt-codex-connector" },
+            body: "Derive persona setup base URL from monitor config",
+            path: "scripts/symphony_runner.mjs",
+            originalLine: 486,
+            url: "https://example.invalid/thread",
+          },
+        ],
+      },
+    };
+    assert.equal(isCodexReviewThread(codexThread, DEFAULT_MONITOR), true);
+    assert.equal(
+      remediateReviewThreads({
+        reviewThreads: [{ number: 244, review_threads: [codexThread] }],
+        config: DEFAULT_MONITOR,
+        dryRun: true,
+      })[0].action,
+      "would-resolve-outdated-thread",
+    );
+    assert.equal(
+      remediateReviewThreads({
+        reviewThreads: [{ number: 244, review_threads: [{ ...codexThread, isOutdated: false }] }],
+        config: DEFAULT_MONITOR,
+        dryRun: true,
+      })[0].status,
+      "blocked",
+    );
+    assert.deepEqual(
+      parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
+      { path: "/tmp/repo", head: "abc123", branch: "codex/example" },
+    );
 
     const evals = browserEvaluationsFor(DEFAULT_MONITOR, { blocker: "" }, [{ ok: true }, { ok: true }]);
     assert.equal(evals.length, 1);
+    assert.equal(evals[0].screenshot_required, false);
+    assert.equal(evals[0].persona_setup, "npm run dev:persona -- it_admin --base-url http://localhost:5173");
+    assert.equal(
+      browserEvaluationsFor({ ...DEFAULT_MONITOR, browserDefaultUrl: "http://127.0.0.1:6173/dashboard/it-admin" }, { blocker: "" }, [
+        { ok: true },
+      ])[0].persona_setup,
+      "npm run dev:persona -- it_admin --base-url http://127.0.0.1:6173",
+    );
     assert.equal(browserEvaluationsFor(DEFAULT_MONITOR, { blocker: "dirty" }, [{ ok: true }]).length, 0);
     assert.equal(
       validateBrowserResults([
