@@ -97,6 +97,11 @@ create table if not exists workflow_runs (
     subject_id text not null,
     trigger_type text not null,
     status text not null,
+    job_family text not null default 'unclassified',
+    scheduled_for timestamptz,
+    deferred_from_run_id bigint references workflow_runs(id) on delete set null,
+    overlap_state text not null default 'none',
+    overlap_count integer not null default 0,
     approval_state text not null default 'not_required',
     desired_snapshot jsonb not null default '{}'::jsonb,
     source_batch_id bigint references import_batches(id) on delete set null,
@@ -104,6 +109,16 @@ create table if not exists workflow_runs (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+create index if not exists workflow_runs_scheduled_family_active_idx
+    on workflow_runs (job_family, created_at)
+    where trigger_type = 'scheduled'
+      and status in ('planned', 'running', 'recovering', 'waiting_manual');
+
+create index if not exists workflow_runs_scheduled_family_overlap_idx
+    on workflow_runs (job_family, overlap_count, created_at)
+    where trigger_type = 'scheduled'
+      and overlap_state <> 'none';
 
 create table if not exists jobs (
     id bigserial primary key,

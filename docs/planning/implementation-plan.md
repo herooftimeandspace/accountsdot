@@ -2637,7 +2637,7 @@
   - workers execute jobs, recovery reconciles expired leases, and janitor loops clean residual state
 - Core orchestration types:
   - `WorkflowType`: `person_onboard`, `person_update`, `person_same_site_transfer`, `person_site_transfer`, `person_leave`, `person_terminate`, `room_coverage`, `directory_publish`, `context_refresh`
-  - `WorkflowRunState`: `planned`, `running`, `waiting_manual`, `blocked`, `recovering`, `succeeded`, `failed`, `canceled`
+  - `WorkflowRunState`: `planned`, `deferred`, `running`, `waiting_manual`, `blocked`, `recovering`, `succeeded`, `failed`, `canceled`
   - `ApprovalState`: `not_required`, `pending`, `approved`, `rejected`, `expired`
   - `ProviderKind`: `hr_sftp`, `aeries`, `zoom`, `google_sheets`, `internal`
 - Planner rules:
@@ -2666,6 +2666,9 @@
   - `Google Sheets`: optional compatibility exports only, not the authoritative dashboard data plane
 - Scheduler overlap protection:
   - if a scheduled sync family is still running when its next cadence window arrives, do not start a conflicting second run for that same provider/job family
+  - Phase 0 stores the scheduled family key on `workflow_runs.job_family`, the cadence window on `workflow_runs.scheduled_for`, the blocking run on `workflow_runs.deferred_from_run_id`, and overlap evidence on `workflow_runs.overlap_state` plus `workflow_runs.overlap_count`
+  - schedule-start code must serialize decisions for the same `job_family` with a transaction-scoped PostgreSQL advisory lock before it reads or inserts `workflow_runs`
+  - a duplicate scheduled start records a new `deferred` workflow run with `overlap_state = deferred_due_to_active_run`; it must not change the still-running workflow row, job leases, or provider state
   - allow the in-flight run to continue until complete, then carry any deferred work into the next eligible cycle without duplicate writes
   - track overlap/overrun frequency per scheduled job family
   - after 5 overlaps within 7 days for the same job family, raise or update an operational IncidentIQ ticket recommending cadence adjustment
