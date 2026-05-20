@@ -23,7 +23,7 @@ workspace:
   preserve_after_success: true
 dispatch:
   poll_interval_seconds: 300
-  max_concurrent_runs: 1
+  max_concurrent_runs: 6
   max_attempts: 4
   require_explicit_agent_ready_label: true
   workspace_root: /private/tmp/accountsdot-symphony
