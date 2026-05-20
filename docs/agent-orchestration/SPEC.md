@@ -151,6 +151,8 @@ Codex Review reconciliation is also conservative. The monitor must read `reviewT
 
 Phase 0 clean PR merging is an orchestrator responsibility, not a heartbeat-prompt responsibility. For open PRs targeting `phase-0-platform-foundation`, `symphony:sync` should inspect merge state, checks, blocked labels, thread-aware Codex Review state, requested-changes reviews, and PR conversation reactions before selecting more issue work. A PR may be merged automatically only when it is non-draft, cleanly mergeable, targeted to `phase-0-platform-foundation`, unblocked by labels, not missing required runtime evidence, and free of unresolved current Codex Review feedback. When no Codex Review response exists, a thumbs-up reaction from `chatgpt-codex-connector[bot]` is an accepted clean signal if the other gates pass. An eyes reaction or missing reaction means `waiting_for_codex_review`, not merge-ready.
 
+Current unresolved Codex Review feedback is not a terminal orchestration blocker. It is a higher-priority remediation work item. The orchestrator should convert each blocked PR with actionable Codex Review threads into a review-remediation agent run in that PR's existing issue workspace. The remediation prompt must include the PR URL, branch, target branch, linked issue, thread URLs, file paths, line numbers, and comment excerpts. The agent owns inspecting the feedback, implementing the fix, running verification, committing and pushing the PR branch, and replying to or resolving the thread only after the change makes the comment fixed or obsolete. If the workspace is dirty, missing, or ambiguous, the orchestrator records that exact blocker and leaves unrelated issue dispatch paused.
+
 Review waiting must be non-blocking. The orchestrator records the review request or pending signal and exits the tick instead of sleeping for several minutes. The next scheduled tick re-evaluates state. This prevents a single long wait from causing missed quarter-hour automation windows.
 
 On each tick, it should:
@@ -158,7 +160,7 @@ On each tick, it should:
 1. Load and validate `.agents/WORKFLOW.md`.
 2. Read open pull requests for the configured target branch and evaluate merge readiness.
 3. Merge clean approved PRs when the configured gates pass.
-4. Prioritize conflicted PRs or actionable Codex Review remediation over new issue work.
+4. Launch remediation agents for conflicted PRs or actionable Codex Review feedback before new issue work.
 5. Read open candidate issues.
 6. Reconcile active runs with current issue state, branch state, and process state.
 7. Stop runs whose issues became ineligible.

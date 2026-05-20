@@ -53,6 +53,8 @@ const DEFAULT_PULL_REQUESTS = {
   codexReviewBot: "chatgpt-codex-connector[bot]",
   codexReviewSuccessReactions: ["THUMBS_UP", "+1"],
   noReviewWithBotThumbsUpIsClean: true,
+  remediateBlockedPrs: false,
+  maxReviewRemediationsPerTick: 1,
   reviewWaitPolicy: "non_blocking_stateful",
   reviewGracePeriodSeconds: 300,
 };
@@ -562,6 +564,7 @@ function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
     title: pr.title,
     url: pr.url || "",
     head_ref: pr.headRefName,
+    target_branch: config.targetBranch,
     merge_state: pr.mergeStateStatus,
     check_state: checkState,
     codex_review_response: codexReviewResponse,
@@ -569,6 +572,9 @@ function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
     unresolved_codex_review_threads: threadEntry.unresolved_threads.filter((thread) =>
       isCodexReviewThread(thread, { codexReviewAuthors: config.codexReviewAuthors }),
     ).length,
+    unresolved_codex_review_thread_summaries: threadEntry.unresolved_threads
+      .filter((thread) => isCodexReviewThread(thread, { codexReviewAuthors: config.codexReviewAuthors }))
+      .map(summarizeReviewThread),
     status: ready ? "ready_to_merge" : blockers.length > 0 ? "blocked" : "waiting_for_codex_review",
     blockers,
     notes: warnings,
@@ -662,6 +668,13 @@ function readPullRequestConfig(workflowConfig, dispatchConfig) {
       configured.no_review_with_bot_thumbs_up_is_clean === undefined
         ? DEFAULT_PULL_REQUESTS.noReviewWithBotThumbsUpIsClean
         : Boolean(configured.no_review_with_bot_thumbs_up_is_clean),
+    remediateBlockedPrs:
+      configured.remediate_blocked_prs === undefined
+        ? DEFAULT_PULL_REQUESTS.remediateBlockedPrs
+        : Boolean(configured.remediate_blocked_prs),
+    maxReviewRemediationsPerTick: Number(
+      configured.max_review_remediations_per_tick || DEFAULT_PULL_REQUESTS.maxReviewRemediationsPerTick,
+    ),
     reviewWaitPolicy: configured.review_wait_policy || DEFAULT_PULL_REQUESTS.reviewWaitPolicy,
     reviewGracePeriodSeconds: Number(
       configured.review_grace_period_seconds || DEFAULT_PULL_REQUESTS.reviewGracePeriodSeconds,
@@ -943,6 +956,165 @@ function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, bran
       reason: String(error.stderr || error.message || "agent runner failed").trim(),
     };
   }
+}
+
+function issueForPullRequest(pr, issues) {
+  const text = `${pr.title || ""}\n${pr.head_ref || pr.headRefName || ""}`.toLowerCase();
+  const issueMatch = text.match(/(?:#|issue-)(\d+)/i);
+  if (issueMatch) {
+    const byNumber = issues.find((issue) => issue.number === Number(issueMatch[1]));
+    if (byNumber) return byNumber;
+  }
+  return issues.find((issue) => text.includes(String(issue.number)));
+}
+
+function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills }) {
+  const targetBranch = pr.target_branch || "phase-0-platform-foundation";
+  const branchName = pr.head_ref;
+  const threadList =
+    pr.unresolved_codex_review_thread_summaries.length === 0
+      ? "- No thread details were returned; inspect the PR review threads directly before changing code."
+      : pr.unresolved_codex_review_thread_summaries
+          .map((thread, index) =>
+            [
+              `### Thread ${index + 1}`,
+              `- URL: ${thread.url || "(missing)"}`,
+              `- File: ${thread.path || "(missing)"}`,
+              `- Line: ${thread.line || "(unknown)"}`,
+              `- Author: ${thread.author || "(unknown)"}`,
+              `- Excerpt: ${thread.body_excerpt || "(empty)"}`,
+            ].join("\n"),
+          )
+          .join("\n\n");
+  const routedSkills = routeSkills(`${pr.title}\n${issue?.body || ""}\nCodex Review remediation`, skills);
+  const skillSection =
+    routedSkills.length === 0
+      ? "No repo-local skill matched this PR remediation. Apply the base workflow and source-of-truth order."
+      : routedSkills
+          .map(
+            (skill) =>
+              `## ${skill.skill_name}\nPath: ${skill.skill_path}\nReason: ${skill.reason_selected}\nStatus: ${
+                skill.missing_or_blocked || "included"
+              }\n\n${skill.summary || ""}`,
+          )
+          .join("\n\n");
+  return [
+    "# Symphony PR Review Remediation Prompt",
+    "",
+    `Pull request: #${pr.number} ${pr.title}`,
+    `PR URL: ${pr.url}`,
+    `Linked issue: ${issue ? `#${issue.number} ${issue.title}` : "(not resolved)"}`,
+    `Target branch: ${targetBranch}`,
+    `Working branch: ${branchName}`,
+    "",
+    "## Codex Review Threads To Address",
+    "",
+    threadList,
+    "",
+    "## Linked Issue Body",
+    "",
+    issue?.body || "(No linked issue body was resolved. Use the PR and review thread context.)",
+    "",
+    "## Repo Workflow Prompt",
+    "",
+    workflow.promptTemplate.trim(),
+    "",
+    "## Applicable Repo Skills",
+    "",
+    skillSection,
+    "",
+    "## Remediation Contract",
+    "",
+    "- Work only in the prepared PR worktree and branch.",
+    "- Inspect each active Codex Review thread and decide whether it needs a code, docs, test, or generated-artifact fix.",
+    "- Implement only in-scope fixes for this PR and preserve unrelated local or user-authored changes.",
+    "- Run the relevant verification for the files touched.",
+    "- Commit and push the PR branch with `--force-with-lease` only if a rebase or history rewrite is needed.",
+    "- Reply to or resolve Codex Review threads only after the branch update makes the comment fixed or obsolete.",
+    "- Do not perform production writes, provider writeback, secret disclosure, destructive git, or manual merges.",
+    "- Finish with changed files, verification evidence, safety notes, and thread actions taken.",
+    "",
+  ].join("\n");
+}
+
+function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun }) {
+  const issue = issueForPullRequest(pr, issues);
+  const workspacePath = issue ? issueWorkspacePath(issue, dispatchConfig) : path.join(dispatchConfig.workspaceRoot, `pr-${pr.number}`);
+  const repoPath = path.join(workspacePath, "repo");
+  const logsPath = path.join(workspacePath, "logs");
+  const promptPath = path.join(workspacePath, `review-remediation-${pr.number}.md`);
+  const statePath = path.join(workspacePath, "state.json");
+  const result = {
+    number: pr.number,
+    title: pr.title,
+    issue_number: issue?.number || null,
+    status: dryRun ? "would-remediate" : "prepared",
+    branch: pr.head_ref,
+    target_branch: "phase-0-platform-foundation",
+    workspace: workspacePath,
+    repo: repoPath,
+    prompt_path: promptPath,
+    state_path: statePath,
+    runner_status: dispatchConfig.agentRunnerCommand ? "runner_configured" : "needs_agent_runner",
+    reason: "",
+  };
+
+  if (dryRun) {
+    result.reason = "dry-run performs no PR review-remediation mutations";
+    return result;
+  }
+  if (!issue) {
+    return { ...result, status: "blocked", reason: "could not resolve linked issue for PR review remediation" };
+  }
+  if (!fs.existsSync(repoPath)) {
+    return { ...result, status: "blocked", reason: `missing prepared PR workspace at ${repoPath}` };
+  }
+  const status = cleanStatus(repoPath);
+  if (!status.clean) {
+    return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
+  }
+
+  fs.mkdirSync(logsPath, { recursive: true });
+  const prompt = renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills });
+  fs.writeFileSync(promptPath, `${prompt}\n`);
+  const runner = dispatchConfig.agentRunnerCommand
+    ? runAgentRunner({
+        commandLine: dispatchConfig.agentRunnerCommand,
+        repoPath,
+        promptPath,
+        prompt,
+        issue,
+        branchName: pr.head_ref,
+        targetBranch: result.target_branch,
+        logsPath,
+        timeoutMs: dispatchConfig.agentRunnerTimeoutMs,
+      })
+    : { status: result.status, runner_status: result.runner_status, reason: "no repo-owned agent runner command is configured yet" };
+  const priorState = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
+  const state = {
+    ...priorState,
+    issue_number: issue.number,
+    issue_url: issue.url,
+    title: issue.title,
+    target_branch: result.target_branch,
+    branch: pr.head_ref,
+    workspace_path: workspacePath,
+    repo_path: repoPath,
+    status: runner.status,
+    runner_status: runner.runner_status,
+    review_remediation_pr: pr.number,
+    review_remediation_prompt_path: promptPath,
+    updated_at: new Date().toISOString(),
+    runner,
+    last_event:
+      runner.runner_status === "completed"
+        ? "review remediation agent completed"
+        : runner.runner_status === "failed"
+          ? "review remediation agent failed"
+          : "review remediation prompt prepared; no repo-owned agent runner command is configured yet",
+  };
+  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  return { ...result, status: runner.status, runner_status: runner.runner_status, reason: runner.reason };
 }
 
 function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
@@ -1493,11 +1665,23 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
       prMergeResults.push(mergePullRequest({ evaluation, config: prConfig, dryRun }));
     }
   }
+  const maxSelected = maxRuns || dispatchConfig.maxConcurrentRuns;
+  const reviewRemediationCandidates = prConfig.remediateBlockedPrs
+    ? prMergeQueue.filter(
+        (entry) =>
+          entry.status === "blocked" &&
+          entry.unresolved_codex_review_threads > 0 &&
+          entry.head_ref &&
+          entry.unresolved_codex_review_thread_summaries.length > 0,
+      )
+    : [];
+  const reviewRemediations = reviewRemediationCandidates
+    .slice(0, Math.min(maxSelected, prConfig.maxReviewRemediationsPerTick))
+    .map((entry) => ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }));
   const shouldPauseDispatchForPrQueue =
     prConfig.inspectBeforeDispatch &&
     prMergeQueue.length > 0;
   const queue = rankedDispatchQueue(issues, prs, dispatchConfig);
-  const maxSelected = maxRuns || dispatchConfig.maxConcurrentRuns;
   const selected = shouldPauseDispatchForPrQueue ? [] : queue.filter((entry) => entry.eligible).slice(0, maxSelected);
   const dispatches = [];
 
@@ -1528,6 +1712,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
       review_wait_policy: prConfig.reviewWaitPolicy,
       items: prMergeQueue,
       merge_results: prMergeResults,
+      review_remediations: reviewRemediations,
       dispatch_paused_for_pr_queue: shouldPauseDispatchForPrQueue,
     },
     issue_queue: queue.map(({ priority_score, ...entry }) => entry),
@@ -1535,6 +1720,12 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     dispatches,
     status: prMergeResults.some((result) => result.status === "merged")
       ? "merged_prs"
+      : reviewRemediations.some((result) => result.status === "succeeded")
+        ? "review_remediation_complete"
+      : reviewRemediations.some((result) => result.status === "failed")
+        ? "review_remediation_failed"
+      : reviewRemediations.some((result) => result.status === "blocked")
+        ? "review_remediation_blocked"
       : prMergeQueue.some((entry) => entry.status === "blocked")
         ? "pr_queue_blocked"
       : prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")
@@ -1558,6 +1749,9 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
           ...prMergeResults
             .filter((result) => result.status === "merged")
             .map((result) => `merged PR #${result.number} with ${result.merge_method}`),
+          ...reviewRemediations
+            .filter((result) => ["prepared", "succeeded", "failed"].includes(result.status))
+            .map((result) => `review remediation ${result.status} for PR #${result.number} in ${result.repo}`),
           ...dispatches
             .filter((dispatch) => ["prepared", "succeeded", "failed"].includes(dispatch.status))
             .map((dispatch) => `${dispatch.status} ${dispatch.branch} in ${dispatch.repo}`),
