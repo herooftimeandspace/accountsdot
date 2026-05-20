@@ -25,8 +25,9 @@ This keeps duplicate claims out of normal worker execution. Concurrent workers l
 
 1. The caller starts a transaction through `internal/db.WithRetry`.
 2. The function selects expired `running` jobs with `FOR UPDATE SKIP LOCKED`.
-3. It moves those rows to `recovering`, clears claim ownership, and returns evidence fields including previous owner, expired lease time, heartbeat time, provider, operation, and step key.
+3. It moves those rows to `recovering`, clears claim ownership, and returns evidence fields including previous owner, nullable expired lease time, nullable heartbeat time, provider, operation, and step key.
 4. The job is not immediately executable again. The recovery loop must reconcile first.
+5. If a previous recovery loop stopped after moving a row to `recovering` but before reconciliation, the next call returns that already-`recovering` row again with missing lease evidence preserved as null.
 
 ## Reconciliation Path
 
@@ -49,6 +50,7 @@ The focused tests are in `internal/db/jobs_test.go`:
 - claim writes the running lease fields
 - an empty queue returns `ErrNoJobAvailable`
 - expired running jobs move to `recovering`
+- interrupted `recovering` rows are returned for reconciliation on the next pass
 - recovered jobs with `external_request_log.outcome = 'succeeded'` complete without retry
 - recovered jobs without a success log return to `queued` with an attempt bump
 

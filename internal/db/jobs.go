@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -38,21 +39,20 @@ type LeasedJob struct {
 	LeaseHeartbeatAt time.Time
 }
 
-// RecoveredJob identifies a running job whose lease expired and was moved into
-// recovering. The recovery loop records these rows as runtime evidence and then
-// calls ReconcileRecoveredJob before allowing any provider operation to run
-// again.
+// RecoveredJob identifies a job that needs recovery-loop reconciliation. Fresh
+// rows come from expired running leases, while already-recovering rows can be
+// returned after a prior loop was interrupted before ReconcileRecoveredJob ran.
 type RecoveredJob struct {
 	ID             int64
 	GlobalTick     int64
 	WorkflowRunID  int64
 	PreviousOwner  string
-	ExpiredAt      time.Time
+	ExpiredAt      *time.Time
 	AttemptCount   int
 	Provider       core.ProviderKind
 	Operation      string
 	StepKey        string
-	LastHeartbeat  time.Time
+	LastHeartbeat  *time.Time
 	RecoveredAt    time.Time
 	NeedsProvider  bool
 	ReconcileState JobRecoveryState
@@ -115,39 +115,40 @@ returning id, global_tick, coalesce(workflow_run_id, 0), provider, operation,
 	return job, nil
 }
 
-// RecoverExpiredJobLeases moves expired running leases to recovering and clears
-// ownership before the job can be claimed again. It returns the affected rows so
-// the recovery loop can reconcile external effects first and prove that a worker
-// crash did not create duplicate execution.
+// RecoverExpiredJobLeases moves expired running leases to recovering and also
+// returns already-recovering rows left behind by an interrupted recovery loop.
+// The caller records the evidence rows, then calls ReconcileRecoveredJob before
+// the job can be claimed again or treated as already completed.
 func RecoverExpiredJobLeases(ctx context.Context, tx JobExecutor, now time.Time, limit int) ([]RecoveredJob, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
 	rows, err := tx.Query(ctx, `
-with expired as (
-    select id, lease_owner, lease_expires_at, lease_heartbeat_at
-    from jobs
-    where job_state = $1
-      and lease_expires_at is not null
-      and lease_expires_at <= $2
-    order by global_tick asc
-    for update skip locked
-    limit $3
+	with candidates as (
+	    select id, lease_owner, lease_expires_at, lease_heartbeat_at
+	    from jobs
+	    where (job_state = $1
+	           and lease_expires_at is not null
+	           and lease_expires_at <= $2)
+	       or job_state = $4
+	    order by global_tick asc
+	    for update skip locked
+	    limit $3
 )
 update jobs
 set job_state = $4,
     lease_owner = null,
-    lease_expires_at = null,
-    lease_heartbeat_at = null,
-    updated_at = $2
-from expired
-where jobs.id = expired.id
-returning jobs.id, jobs.global_tick, coalesce(jobs.workflow_run_id, 0),
-          coalesce(expired.lease_owner, ''), expired.lease_expires_at,
-          jobs.attempt_count,
-          jobs.provider, jobs.operation, coalesce(jobs.step_key, ''),
-          coalesce(expired.lease_heartbeat_at, $2::timestamptz)
-`, string(core.JobStateRunning), now, limit, string(core.JobStateRecovering))
+	    lease_expires_at = null,
+	    lease_heartbeat_at = null,
+	    updated_at = $2
+	from candidates
+	where jobs.id = candidates.id
+	returning jobs.id, jobs.global_tick, coalesce(jobs.workflow_run_id, 0),
+	          coalesce(candidates.lease_owner, ''), candidates.lease_expires_at,
+	          jobs.attempt_count,
+	          jobs.provider, jobs.operation, coalesce(jobs.step_key, ''),
+	          candidates.lease_heartbeat_at
+	`, string(core.JobStateRunning), now, limit, string(core.JobStateRecovering))
 	if err != nil {
 		return nil, fmt.Errorf("recover expired job leases: %w", err)
 	}
@@ -156,19 +157,27 @@ returning jobs.id, jobs.global_tick, coalesce(jobs.workflow_run_id, 0),
 	recovered := []RecoveredJob{}
 	for rows.Next() {
 		var job RecoveredJob
+		var expiredAt sql.NullTime
+		var lastHeartbeat sql.NullTime
 		if err := rows.Scan(
 			&job.ID,
 			&job.GlobalTick,
 			&job.WorkflowRunID,
 			&job.PreviousOwner,
-			&job.ExpiredAt,
+			&expiredAt,
 			&job.AttemptCount,
 			&job.Provider,
 			&job.Operation,
 			&job.StepKey,
-			&job.LastHeartbeat,
+			&lastHeartbeat,
 		); err != nil {
 			return nil, fmt.Errorf("scan recovered job: %w", err)
+		}
+		if expiredAt.Valid {
+			job.ExpiredAt = &expiredAt.Time
+		}
+		if lastHeartbeat.Valid {
+			job.LastHeartbeat = &lastHeartbeat.Time
 		}
 		job.RecoveredAt = now
 		job.NeedsProvider = job.Provider != core.ProviderKindInternal

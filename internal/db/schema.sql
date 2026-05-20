@@ -194,6 +194,9 @@ create table if not exists external_request_log (
 create unique index if not exists external_request_log_idempotency_key_unique
     on external_request_log (provider, operation, idempotency_key);
 
+create index if not exists external_request_log_job_outcome_idx
+    on external_request_log (job_id, outcome);
+
 create table if not exists provider_circuit_breakers (
     provider text not null,
     operation_class text not null,

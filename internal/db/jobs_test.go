@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -146,6 +147,12 @@ func assignFakeScanValue(dest any, value any) {
 		*d = value.(bool)
 	case *time.Time:
 		*d = value.(time.Time)
+	case *sql.NullTime:
+		if value == nil {
+			*d = sql.NullTime{}
+		} else {
+			*d = sql.NullTime{Time: value.(time.Time), Valid: true}
+		}
 	case *core.ProviderKind:
 		*d = core.ProviderKind(value.(string))
 	default:
@@ -226,12 +233,55 @@ func TestRecoverExpiredJobLeasesMovesRunningJobsToRecovering(t *testing.T) {
 	if recovered[0].PreviousOwner != "worker-a" || recovered[0].ReconcileState != JobRecoveryStateRecoveredForRetry {
 		t.Fatalf("unexpected recovered job: %#v", recovered[0])
 	}
+	if recovered[0].ExpiredAt == nil || !recovered[0].ExpiredAt.Equal(expired) {
+		t.Fatalf("expected expired lease evidence to preserve %s, got %#v", expired, recovered[0].ExpiredAt)
+	}
+	if recovered[0].LastHeartbeat == nil || !recovered[0].LastHeartbeat.Equal(heartbeat) {
+		t.Fatalf("expected heartbeat evidence to preserve %s, got %#v", heartbeat, recovered[0].LastHeartbeat)
+	}
 	query := exec.queries[0]
-	if !strings.Contains(query.sql, "job_state = $4") || query.args[3] != string(core.JobStateRecovering) {
-		t.Fatalf("recovery query did not move the row to recovering: %#v", query)
+	if !strings.Contains(query.sql, "or job_state = $4") || query.args[3] != string(core.JobStateRecovering) {
+		t.Fatalf("recovery query did not include interrupted recovering rows: %#v", query)
 	}
 	if !rows.closed {
 		t.Fatal("expected recovered rows to be closed")
+	}
+}
+
+// TestRecoverExpiredJobLeasesPreservesMissingHeartbeatEvidence covers old or
+// interrupted recovery rows where heartbeat evidence is genuinely absent. The
+// recovery loop must surface that absence instead of replacing it with now.
+func TestRecoverExpiredJobLeasesPreservesMissingHeartbeatEvidence(t *testing.T) {
+	now := time.Date(2026, 5, 20, 10, 1, 30, 0, time.UTC)
+	rows := &fakeJobRows{values: [][]any{{
+		int64(43),
+		int64(1002),
+		int64(8),
+		"",
+		nil,
+		2,
+		"internal",
+		"internal.noop",
+		"noop",
+		nil,
+	}}}
+	exec := &fakeJobExecutor{queryRows: []pgx.Rows{rows}}
+
+	recovered, err := RecoverExpiredJobLeases(context.Background(), exec, now, 10)
+	if err != nil {
+		t.Fatalf("RecoverExpiredJobLeases returned error: %v", err)
+	}
+	if len(recovered) != 1 {
+		t.Fatalf("expected one recovered job, got %d", len(recovered))
+	}
+	if recovered[0].ExpiredAt != nil {
+		t.Fatalf("expected nil expired-at evidence, got %#v", recovered[0].ExpiredAt)
+	}
+	if recovered[0].LastHeartbeat != nil {
+		t.Fatalf("expected nil heartbeat evidence, got %#v", recovered[0].LastHeartbeat)
+	}
+	if recovered[0].NeedsProvider {
+		t.Fatalf("expected internal recovery row not to need provider reconciliation: %#v", recovered[0])
 	}
 }
 
