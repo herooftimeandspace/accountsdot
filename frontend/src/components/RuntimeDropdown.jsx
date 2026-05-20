@@ -149,6 +149,7 @@ export function RuntimeCombobox({
   placeholder = "Search",
   inputId,
   className = "",
+  disabled = false,
 }) {
   const generatedId = useId();
   const rootRef = useRef(null);
@@ -218,6 +219,7 @@ export function RuntimeCombobox({
         aria-activedescendant={isOpen && activeOption ? optionId(listboxId, activeOption.value) : undefined}
         value={value}
         placeholder={placeholder}
+        disabled={disabled}
         onFocus={() => setIsOpen(true)}
         onChange={(event) => {
           onInput?.(event.target.value);

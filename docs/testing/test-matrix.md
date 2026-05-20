@@ -189,6 +189,7 @@ This document tracks the named mock scenarios and verification coverage required
   | `P1-1F-002` | IT Creates District-Wide Room-Move Draft | Verify IT can create district-wide drafts without site-scope restriction. | Confirm staging IT draft scope behaves as documented. |
   | `P1-1F-003` | Draft Validation For Add Change Removal Rows | Verify add/change/removal rows validate correctly without triggering execution. | Confirm staging draft validation logic matches dev for representative masked data. |
   | `P1-1F-004` | Directory Detail Opens Prefilled One-Person Move Draft | Verify an authorized site-scoped directory detail action opens a targeted one-person room-move draft with the selected person, current room, phone context, and site prefilled. | Confirm staging preserves the same prefilled corrective-draft behavior without execution side effects. |
+  | `P1-1F-005` | Site Visibility And Draft Author Ownership Split | Verify Site Admin and Site Secretary can view all Room Moves affecting their assigned site, including IT-authored rows, while save/apply/cancel/delete mutations are allowed only for self-authored drafts and IT Admin. | Confirm staging uses assigned-site visibility independently from author-scoped mutation authority before enabling live room-move writes. |
 
 ## Phase 2
 - Bucket-level evidence requirements for this phase:

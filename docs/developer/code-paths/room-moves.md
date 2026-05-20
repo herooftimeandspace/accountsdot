@@ -15,12 +15,12 @@ Key frontend helpers:
 
 - `loadPage` fetches the page payload and handles `401` / `403` by delegating to app-level auth handlers.
 - `createDraft` posts a `roomMoveDraftRequest` and navigates to `/room-moves/bulk-draft?draft_id={id}` for bulk flows.
-- `SingleMoveDrawer.saveDraft` posts a new single-row draft or puts an existing selected row back to `PUT /api/v1/dev/room-moves/drafts/{id}` before optionally posting `/{draft_id}/apply`.
+- `SingleMoveDrawer.saveDraft` posts a new single-row draft or puts an existing selected row back to `PUT /api/v1/dev/room-moves/drafts/{id}` before optionally posting `/{draft_id}/apply`. The drawer disables save/apply controls when the page payload marks a visible row read-only.
 - `frontend/src/pages/roomMovesModel.js` owns drawer-visible same-room validation, default destination behavior, action labels, and close-state helpers so tests can cover the runtime contract without depending on the generated `.pen` artboard.
-- `saveBulkDraft` updates an existing bulk draft through `PUT /api/v1/dev/room-moves/drafts/{id}`.
-- `transitionBulkDraft` calls `POST /api/v1/dev/room-moves/drafts/{id}/schedule` or `/apply`.
-- `deleteBulkDraft` calls `DELETE /api/v1/dev/room-moves/drafts/{id}`.
-- `cancelMove` calls `POST /api/v1/dev/room-moves/drafts/{draft_id}/cancel`.
+- `saveBulkDraft` updates an existing bulk draft through `PUT /api/v1/dev/room-moves/drafts/{id}` and disables bulk editing controls when `draft.can_edit` is false.
+- `transitionBulkDraft` calls `POST /api/v1/dev/room-moves/drafts/{id}/schedule` or `/apply`; read-only drafts keep those controls disabled in the browser and are still rejected by the API.
+- `deleteBulkDraft` calls `DELETE /api/v1/dev/room-moves/drafts/{id}` only for editable drafts.
+- `cancelMove` calls `POST /api/v1/dev/room-moves/drafts/{draft_id}/cancel`; review rows expose enabled cancel controls only when `can_cancel` is true for the current persona.
 - `BulkDraftTable.updateRow` keeps client-side row edits aligned with DEV API normalization: `add` rows clear current-room display, and `removal` rows immediately set destination room to `None` before save.
 
 The completed-job revert UI is on static implemented pages, not this primary room-move page. `frontend/src/pages/StaticPenPage.jsx` loads completed jobs and calls `POST /api/v1/dev/room-moves/completed/{id}/revert` for the admin-facing revert action.
@@ -69,8 +69,12 @@ The page payload has this shape:
     "rows": [
       {
         "person": "Bulk Move",
+        "author": "Alex Ramirez",
+        "author_id": "it_admin",
         "state": "Scheduled",
-        "scheduled_for": "2026-07-27T20:00:00-07:00"
+        "scheduled_for": "2026-07-27T20:00:00-07:00",
+        "can_edit": false,
+        "can_cancel": false
       }
     ],
     "default_bulk_roster_href": "/room-moves/bulk-draft?mode=bulk_site_roster",
@@ -113,6 +117,7 @@ Successful mutations return `roomMoveDraftResponse`:
     "effective_date": "2026-06-01",
     "scheduled_for": "2026-06-01T16:00:00Z",
     "author": "IT Admin",
+    "author_id": "it_admin",
     "warnings": [],
     "rows": [],
     "can_edit": true,
@@ -132,7 +137,7 @@ Repeated-person draft rows are normalized as one planning group after the row-le
 
 All routes require DEV mode and an authenticated DEV persona.
 
-`authenticatedRoomMovesPersona` requires `routeAllowed(config, "/room-moves")`. A persona that cannot access Room Moves receives `403`. Site-scoped personas can only see and mutate drafts for visible sites. District managers can operate across district-visible sites through `canManageDistrictRoomMoves`.
+`authenticatedRoomMovesPersona` requires `routeAllowed(config, "/room-moves")`. A persona that cannot access Room Moves receives `403`. Site-scoped personas can see every review row and draft that affects their effective Room Moves site, including IT-authored rows, but mutation authority is author-scoped. `canMutateRoomMoveDraft` and `canMutateRoomMoveReviewRow` allow Site Admin and Site Secretary users to save, apply, schedule, cancel, or delete only drafts they authored; direct API calls against IT-authored or other-authored visible rows return `403`. District managers can operate across district-visible sites through `canManageDistrictRoomMoves`.
 
 Completed-job revert is stricter. `authenticatedRoomMoveRevertPersona` requires both district room-move authority and `routeAllowed(config, "/admin")`; the current handler message says only IT Admin can revert completed room move jobs.
 
@@ -144,8 +149,8 @@ Mutation effects are DEV-only:
 
 - Create/update changes an in-memory draft.
 - Updating an existing seeded single-move row creates an in-memory draft with that same draft id, preserves the original scoped site on partial updates, and suppresses the seed row, so the review table shows one edited row rather than the original row plus a duplicate.
-- Opening the seeded bulk draft caches its rows for the bulk editor without changing the review table's scheduled seed status or scheduled timestamp.
-- Cancel marks pending drafts in `canceled` and removes them from review rows.
+- Opening the seeded bulk draft caches its rows for the bulk editor without changing the review table's scheduled seed status, scheduled timestamp, or author ownership. A site-scoped user can open an assigned-site IT-authored bulk row in read-only mode, but cannot save, apply, cancel, or discard it.
+- Cancel marks pending drafts in `canceled` and removes them from review rows only when the active persona is IT Admin or the stored author.
 - Schedule sets draft status to `scheduled`.
 - Apply records the draft as completed and creates a completed-job record.
 - Delete removes pending draft state.
@@ -157,7 +162,7 @@ Keep this aligned with `docs/planning/external-write-inventory.md`: the path mod
 
 Relevant tests live in `internal/web/dev_frontend_test.go`:
 
-- `room moves page scopes site data and admin controls by persona`
+- `room moves page scopes site data and admin controls by persona`, including the split between assigned-site visibility and author-owned mutation authority for Site Admin and Site Secretary users
 - `room moves bulk drafts support roster and manual list lifecycle`
 - `room moves cancel pending drafts and schedule IT-only completed-job reversals`
 - `frontend/src/pages/roomMovesModel.test.mjs` covers drawer-visible same-room validation, seeded-row scope preservation for draft updates, `Save and Apply` action labeling, removal of the side-drawer `Schedule` action, safe defaults, and close-state behavior.
