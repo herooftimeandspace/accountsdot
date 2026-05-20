@@ -59,6 +59,7 @@ maintenance:
       - tmp/
       - .vite/
     browser_default_url: http://localhost:5173/dashboard/it-admin
+    browser_screenshot_required: false
     health_urls:
       - http://localhost:8080/health
       - http://localhost:5173/api/v1/dev/session
@@ -131,6 +132,8 @@ When `safe_rebase` and `reconcile_pr_branches` are enabled, the monitor may auto
 Repo-local Node code does not import the Browser plugin directly. The Codex automation wrapper is responsible for executing `browser_evaluations[]` through the Browser skill bridge, then passing structured `browser_results[]` back to the runner. Missing Browser results must be reported as `needs_browser_evaluation`, not as passed verification.
 
 The Browser skill bridge is the in-app Browser access path. It uses the `node_repl` JavaScript tool to import the plugin's `scripts/browser-client.mjs`, call `setupBrowserRuntime({ globals: globalThis })`, select `agent.browsers.get("iab")`, and drive that tab with the Browser skill API. The wrapper should not look for a direct `browser` tool namespace.
+
+Browser screenshots are preferred evidence but are not required in the current monitor config because the in-app Browser bridge can load and inspect local DOM state even when CDP screenshot capture is unavailable. If a future environment supports reliable screenshot capture, set `browser_screenshot_required: true` and treat missing screenshots as a blocking Browser result again.
 
 The Codex automation wrapper should stay small:
 

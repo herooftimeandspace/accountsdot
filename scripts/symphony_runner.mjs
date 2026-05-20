@@ -20,6 +20,7 @@ const DEFAULT_MONITOR = {
   safeBranchPrefixes: ["codex/", "issue-"],
   latestCodeAllowedDirty: ["frontend/dist/", "tmp/", ".vite/"],
   browserDefaultUrl: "http://localhost:5173/dashboard/it-admin",
+  browserScreenshotRequired: false,
   healthUrls: [
     "http://localhost:8080/health",
     "http://localhost:5173/api/v1/dev/session",
@@ -357,6 +358,10 @@ function readMonitorConfig(workflowConfig) {
         : Boolean(configured.reconcile_pr_branches),
     safeBranchPrefixes: configured.safe_branch_prefixes || DEFAULT_MONITOR.safeBranchPrefixes,
     latestCodeAllowedDirty: configured.latest_code_allowed_dirty || DEFAULT_MONITOR.latestCodeAllowedDirty,
+    browserScreenshotRequired:
+      configured.browser_screenshot_required === undefined
+        ? DEFAULT_MONITOR.browserScreenshotRequired
+        : Boolean(configured.browser_screenshot_required),
     lockMaxAgeMs: Number(configured.lock_max_age_ms || DEFAULT_MONITOR.lockMaxAgeMs),
   };
 }
@@ -491,7 +496,7 @@ function browserEvaluationsFor(config, latestCode, healthChecks) {
       persona: "it_admin",
       expected_visible_behavior:
         "The IT Admin dashboard loads inside the shared shell without visible error overlays, major text overlap, or broken navigation chrome.",
-      screenshot_required: true,
+      screenshot_required: Boolean(config.browserScreenshotRequired),
       interaction_steps: ["Open or preserve the current local app URL", "Reload after server refresh", "Capture DOM notes and screenshot"],
       persona_setup: `npm run dev:persona -- it_admin --base-url ${browserUrlOrigin}`,
       acceptance_checks: [
@@ -914,6 +919,7 @@ async function selfTest() {
 
     const evals = browserEvaluationsFor(DEFAULT_MONITOR, { blocker: "" }, [{ ok: true }, { ok: true }]);
     assert.equal(evals.length, 1);
+    assert.equal(evals[0].screenshot_required, false);
     assert.equal(evals[0].persona_setup, "npm run dev:persona -- it_admin --base-url http://localhost:5173");
     assert.equal(
       browserEvaluationsFor({ ...DEFAULT_MONITOR, browserDefaultUrl: "http://127.0.0.1:6173/dashboard/it-admin" }, { blocker: "" }, [
