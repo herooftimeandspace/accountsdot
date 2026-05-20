@@ -18,7 +18,8 @@ branching:
   branch_prefix: codex/
   branch_template: codex/issue-{number}-{slug}
 workspace:
-  root: /private/tmp/accountsdot-symphony
+  root_env: ACCOUNTSDOT_WORKTREE_ROOT
+  root_default: ../
   preserve_after_success: true
 dispatch:
   poll_interval_seconds: 300
@@ -124,4 +125,3 @@ Finish each run with a concise handoff that includes:
 - follow-up issues created or recommended
 
 If you opened or updated a PR, include the PR URL. If the work is incomplete, mark the issue blocked and explain exactly what decision or access is needed.
-

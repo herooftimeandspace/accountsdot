@@ -100,16 +100,15 @@ The first local version should allow an explicit opt-in label such as `agent-rea
 
 The workspace manager creates deterministic workspaces under a runner-owned directory outside the main checkout.
 
-Recommended root:
+Recommended root selection:
 
-```text
-/private/tmp/accountsdot-symphony/
-```
+- Use `$ACCOUNTSDOT_WORKTREE_ROOT` when it is set.
+- Otherwise use sibling worktrees relative to the repository checkout, represented in `.agents/WORKFLOW.md` as `../`.
 
 Recommended per-issue layout:
 
 ```text
-/private/tmp/accountsdot-symphony/
+<workspace-root>/
   issue-238-add-repo-local-symphony-agent-orchestrator-contract/
     repo/
     logs/
@@ -282,7 +281,7 @@ The runner must not optimize only for oldest issue age. Safety and conflict risk
 For each issue:
 
 1. Fetch the latest remote refs.
-2. Create or reuse a worktree from `origin/dev` unless the issue or repo docs specify another integration branch.
+2. Create or reuse a worktree under the configured workspace root from `origin/dev` unless the issue or repo docs specify another integration branch.
 3. Create or switch to `codex/issue-<number>-<slug>` inside that workspace.
 4. Read `README.md`, `.agents/AGENTS.md`, and relevant repo docs before edits.
 5. Preserve existing user-authored changes.
@@ -447,4 +446,3 @@ This keeps the service useful while avoiding a premature always-on daemon.
 - The repository contains `.agents/WORKFLOW.md` with machine-readable front matter and a human-readable agent prompt.
 - The implementation plan references the contract as the source for future agent orchestration.
 - The contract clearly defines GitHub issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries.
-
