@@ -33,6 +33,7 @@ export const APP_ROUTES = [
   { path: "/student-data-cleanup", kind: "student-data-cleanup", artboardKey: "student-data-cleanup" },
   { path: "/reports", kind: "reports", artboardKey: "reports" },
   { path: "/reports/security-issues", kind: "security-issues-report", artboardKey: "reports" },
+  { path: "/reports/zoom-desk-phone-renames", kind: "zoom-desk-phone-renames-report", artboardKey: "reports" },
   {
     path: "/reports/sync-transparency",
     kind: "static",
@@ -62,6 +63,7 @@ export const NAV_GROUP_ORDER = [
 const NAV_CHILD_ROUTE_GROUPS = {
   reports: [
     { path: "/reports/security-issues", label: "Security Issues" },
+    { path: "/reports/zoom-desk-phone-renames", label: "Zoom Desk Phone Renames" },
     { path: "/reports/sync-transparency", label: "Sync Transparency" },
   ],
   admin: [

@@ -50,6 +50,7 @@ var (
 		"/dashboard/it-admin",
 		"/data-quality",
 		"/reports", "/reports/security-issues",
+		"/reports/zoom-desk-phone-renames",
 		"/reports/sync-transparency",
 		"/admin",
 		"/admin/feature-flags",

@@ -16,6 +16,7 @@ const ROUTE_SOURCE_NOTES = {
   "/student-data-cleanup": "Product requirements Student Data Cleanup Aeries correction contract; implementation plan runtime table, filters, and drawer behavior.",
   "/reports": "Product requirements Reports inventory and refresh drawer requirements; implementation plan Reports runtime table/search/sort behavior.",
   "/reports/security-issues": "Product requirements Security Issues report migration; implementation plan read-only IT Admin report and drawer details.",
+  "/reports/zoom-desk-phone-renames": "Product requirements Zoom Desk Phone rename report scope; implementation plan IncidentIQ asset-location correction and report behavior.",
   "/reports/sync-transparency": "Product requirements sync visibility goals; implementation plan sync transparency report and manual-action state guidance.",
   "/reports/ticketing-human-work": "Product requirements IncidentIQ human-work fallback; implementation plan ticketing report and manual owner contracts.",
   "/admin": "Product requirements IT Admin control scope; implementation plan Admin sync, exception, reversal, and emergency-control behavior.",
@@ -494,6 +495,32 @@ const HELP_CONTENT_BY_ROUTE = {
         paragraphs: [
           "Select a row to open the right drawer. The drawer shows status, email, site, end-date context, next action, asset work, reference, warning text, and review actions.",
           "Review actions name the owner, status, detail, resolution, and external-system links when a destination is known. This report is read-only; it does not edit Offboarding dates or provider records.",
+        ],
+      },
+    ],
+  },
+  "/reports/zoom-desk-phone-renames": {
+    title: "Zoom Desk Phone Renames report help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "This IT Admin report shows Zoom desk phones whose current device name does not match the expected room or location name and where the row is actionable.",
+          "Rows are limited to pending manual adjustment and error states. Healthy phones, completed renames, and phones merely waiting for a non-actionable sync are excluded from the table.",
+        ],
+      },
+      {
+        heading: "Controls, search, and table",
+        paragraphs: [
+          "Use table search and sortable headers to find a phone by serial number, MAC address, current name, new name, or IncidentIQ asset label.",
+          "Select a row to open the right drawer with the status, MAC address, current and expected names, next action, IncidentIQ domain, and asset link.",
+        ],
+      },
+      {
+        heading: "Correction path",
+        paragraphs: [
+          "IncidentIQ asset location is the action lever for this report. Update the phone asset location in IncidentIQ so the next Zoom sync has a source change that forces the desk phone rename.",
+          "The report is read-only in this dashboard. It points IT Admins to the IncidentIQ asset record and does not write to Zoom, IncidentIQ, or local provider state.",
         ],
       },
     ],

@@ -52,6 +52,7 @@ func NewAppHandler(deps HealthDependencies) http.Handler {
 	mux.Handle("/api/v1/dev/pages/phone-directory/by-person", http.HandlerFunc(handleDevPhoneDirectoryByPersonPage))
 	mux.Handle("/api/v1/dev/pages/phone-directory/by-room", http.HandlerFunc(handleDevPhoneDirectoryByRoomPage))
 	mux.Handle("/api/v1/dev/pages/phone-directory/by-department", http.HandlerFunc(handleDevPhoneDirectoryByDepartmentPage))
+	mux.Handle("/api/v1/dev/pages/reports/zoom-desk-phone-renames", http.HandlerFunc(handleDevZoomDeskPhoneRenamesReportPage))
 
 	health := NewHealthHandler(deps)
 	mux.Handle("/health", health)

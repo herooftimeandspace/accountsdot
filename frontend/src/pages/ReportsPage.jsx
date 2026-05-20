@@ -74,6 +74,19 @@ const REPORT_ROWS = [
     lastRun: "May 2, 2025 9:05 AM PT",
   },
   {
+    id: "zoom-desk-phone-renames",
+    report: "Zoom Desk Phone Renames",
+    scope: "(All Sites)",
+    sourceSystems: "Zoom, IncidentIQ",
+    openItems: 2,
+    status: "Needs Review",
+    destination: "/reports/zoom-desk-phone-renames",
+    summary: "Shows desk phones that need IncidentIQ asset-location follow-up before Zoom can receive the corrected device name.",
+    dataIncluded: "Serial number, MAC address, current Zoom name, expected new name, action state, and IncidentIQ asset link.",
+    refreshFrequency: "Every 15 minutes",
+    lastRun: "May 2, 2025 9:02 AM PT",
+  },
+  {
     id: "phone-directory-coverage",
     report: "Phone Directory Coverage Report",
     scope: "(All Sites)",
@@ -187,7 +200,9 @@ const REFRESH_COLUMNS = [
 ];
 
 /**
- * collectAllNodeIds builds derived data for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * collectAllNodeIds walks a generated Reports pane subtree and records every
+ * descendant id so the live Reports overlay can hide static review content
+ * without editing generated artboard files.
  */
 function collectAllNodeIds(node, ids) {
   ids.push(node.id);
@@ -197,7 +212,9 @@ function collectAllNodeIds(node, ids) {
 }
 
 /**
- * collectPaneNodeIds builds derived data for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * collectPaneNodeIds finds the page-content region inside the shared Reports
+ * artboard. ReportsPage keeps the shell and sidebar from the PEN source while
+ * React owns report rows, refresh rows, and the selected-row drawer.
  */
 function collectPaneNodeIds(node, ids = []) {
   const isPaneNode = (node.x ?? 0) >= 280 && (node.y ?? 0) >= 88;
@@ -212,7 +229,8 @@ function collectPaneNodeIds(node, ids = []) {
 }
 
 /**
- * reportStatusClass documents runtime data flow for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * reportStatusClass maps report freshness and review states to the shared
+ * runtime badge palette used by the Reports hub and child report rows.
  */
 function reportStatusClass(status) {
   if (status === "Healthy" || status === "Up to date") {
@@ -225,7 +243,9 @@ function reportStatusClass(status) {
 }
 
 /**
- * ReportsDrawer renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * ReportsDrawer shows detail for either a report inventory row or provider
+ * refresh row. Report rows can navigate to their implemented destination;
+ * refresh rows stay informational and expose no provider write controls.
  */
 function ReportsDrawer({ item, onClose, onNavigate }) {
   if (!item) {
@@ -270,7 +290,9 @@ function ReportsDrawer({ item, onClose, onNavigate }) {
 }
 
 /**
- * SummaryCards renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * SummaryCards renders read-only hub counters that orient IT Admins before
+ * they search or sort the report inventory. The cards do not mutate report
+ * state or replace row-level action routing.
  */
 function SummaryCards() {
   const cards = [
@@ -278,6 +300,7 @@ function SummaryCards() {
     ["Offboarding", "136", "Pending"],
     ["Security Issues", "6", "Needs Review"],
     ["Room Moves", "64", "In Progress"],
+    ["Zoom Phone Renames", "2", "Needs Review"],
     ["Phone Directory", "98%", "Coverage"],
     ["Student Data Cleanup", "12", "Active Issues"],
     ["Frequent Fliers", "142", "This Site"],
@@ -299,7 +322,9 @@ function SummaryCards() {
 }
 
 /**
- * ReportsTable renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * ReportsTable renders the searchable and sortable report inventory for the
+ * IT Admin Reports hub. Selecting a row opens the shared drawer before the
+ * operator chooses whether to navigate to the child route.
  */
 function ReportsTable({ selectedId, onSelect }) {
   const columns = useMemo(() => REPORT_COLUMNS, []);
@@ -345,7 +370,9 @@ function ReportsTable({ selectedId, onSelect }) {
 }
 
 /**
- * RefreshTable renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * RefreshTable renders provider projection freshness rows. These rows share
+ * the Reports drawer primitive with inventory rows but remain non-navigating
+ * status context for the current DEV slice.
  */
 function RefreshTable({ selectedId, onSelect }) {
   const columns = useMemo(() => REFRESH_COLUMNS, []);
@@ -385,7 +412,9 @@ function RefreshTable({ selectedId, onSelect }) {
 }
 
 /**
- * ReportsOverlay renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * ReportsOverlay positions the runtime Reports hub over the generated Reports
+ * artboard pane. The generated shell owns page geometry while React owns the
+ * searchable tables and drawer behavior.
  */
 function ReportsOverlay({ selectedItem, onSelect }) {
   return (
@@ -414,7 +443,10 @@ function ReportsOverlay({ selectedItem, onSelect }) {
 }
 
 /**
- * ReportsPage renders the UI surface for frontend/src/pages/ReportsPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * ReportsPage renders /reports with the shared Reports artboard shell, route
+ * help/search chrome, and runtime report inventory. The page has no DEV fetch
+ * because its current data is a static hub; protected child reports fetch their
+ * own IT Admin-only payloads.
  */
 export function ReportsPage({ session, onNavigate, onSearch, searchQuery }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
