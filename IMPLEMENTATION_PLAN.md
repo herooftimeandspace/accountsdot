@@ -57,6 +57,7 @@
 - `IMPLEMENTATION_PLAN.md` is the authoritative execution spec and decision log for behavior that affects implementation.
 - `PRODUCT_REQUIREMENTS.md` must capture the business-facing WHAT of the product, including goals, users, workflows, inputs, outputs, visibility rules, and out-of-scope items for technical and non-technical review.
 - `ENVIRONMENT_DATA_PLAYBOOK.md` must document the exact steps required to derive and refresh mock and staging environments from production-safe source data.
+- `docs/agent-orchestration/SPEC.md` is the authoritative local contract for Symphony-style Codex agent orchestration against GitHub Issues, including issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries. `WORKFLOW.md` is the runner-readable prompt/config contract that future orchestration tooling should load before dispatching any issue work.
 - `docs/reference-inputs/VENDORED_INVENTORY.md` must record the current repo-local reference corpus, including vendored source provenance, branch/ref selection, refresh date, and any intentional scope narrowing such as subtree-only snapshots.
 - `TEST_MATRIX.md` must track the named mock scenarios, verification coverage, and phase/workflow test expectations used for promotion decisions.
 - `README.md` must enumerate the project goals in product terms, not just local setup steps.
@@ -132,6 +133,14 @@
   - the recommendation
   - the override decision
   - the user-provided reason for overriding it
+
+## Agent Orchestration Contract
+- The repo-local version of OpenAI's Symphony pattern is spec-first. The contract lives in `docs/agent-orchestration/SPEC.md`, and the dispatch prompt/config lives in `WORKFLOW.md`.
+- GitHub Issues are the control plane for routine agent work. The first safe runner implementation should require explicit issue opt-in through an `agent-ready` label, use bounded concurrency, and start at concurrency `1`.
+- Agent workspaces must be isolated per issue, preferably under `/private/tmp/accountsdot-symphony/`, and each issue branch should use `codex/issue-<number>-<short-slug>` from `dev` unless the issue or repo docs specify another integration branch.
+- The orchestrator may schedule, prepare workspaces, render prompts, run Codex, and write local status/log files. It must not bypass human review, close issues before merge, perform production provider writes, weaken promotion gates, or expose secrets in prompts, logs, issues, PRs, or generated artifacts.
+- Routine retries are allowed only for transient tracker, network, or runner failures. Policy violations, missing credentials, ambiguous scope, product/security decisions, unsafe writes, and merge conflicts requiring judgment must stop in a human-review or blocked handoff state.
+- Future implementation work should keep orchestration policy in docs and `WORKFLOW.md`, then build the smallest useful runner around that contract: eligibility report first, explicit dispatch second, and always-on daemon behavior only after the review packet is trusted.
 
 ## Delivery Phases and Gates
 - Branch Gate Semantics:
