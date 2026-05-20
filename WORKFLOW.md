@@ -3,7 +3,8 @@ name: accountsdot-ui-improvements-symphony
 base_branch: ui-improvements
 issue_tracker: github
 default_branch_prefix: codex/
-worktree_root: /Users/lcampbell/code.internal
+worktree_root_env: ACCOUNTSDOT_WORKTREE_ROOT
+worktree_root_default: ../
 requires_external_lock: true
 ---
 
@@ -26,7 +27,7 @@ Every agent run that claims or reconciles GitHub issue work must include:
 Use one branch per clean unit of issue work.
 
 - Branch names should include the issue number and a short slug, for example `codex/issue-238-symphony-orchestrator`.
-- Worktrees should live outside the main checkout, normally under `/Users/lcampbell/code.internal/accountsdot-issue-<number>-<slug>`.
+- Worktrees should live outside the main checkout. Use `$ACCOUNTSDOT_WORKTREE_ROOT` when it is set; otherwise create sibling worktrees relative to the repository checkout, for example `../accountsdot-issue-<number>-<slug>`.
 - Start branches from `origin/ui-improvements` unless the issue documents a different base.
 - Do not edit generated build output such as `frontend/dist/`.
 - Do not reuse another issue branch unless the issue thread explicitly says the work is intentionally combined.

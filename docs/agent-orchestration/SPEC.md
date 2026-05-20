@@ -58,7 +58,7 @@ Do not create duplicate branches when a live PR already owns the issue. If a pri
 
 - Base issue branches on `origin/ui-improvements` for the current UI-improvements track.
 - Prefer branch names like `codex/issue-238-symphony-orchestrator`.
-- Use one worktree per branch, normally named `/Users/lcampbell/code.internal/accountsdot-issue-238-symphony-orchestrator`.
+- Use one worktree per branch outside the main checkout. Agents should honor `$ACCOUNTSDOT_WORKTREE_ROOT` when it is set; otherwise they should use a sibling path such as `../accountsdot-issue-238-symphony-orchestrator` relative to the repository checkout.
 - Keep unrelated issues on separate branches.
 - Do not edit the main checkout when it has unrelated local changes.
 - Do not hand-edit generated artboards or generated build output.
