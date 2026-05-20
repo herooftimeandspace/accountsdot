@@ -483,6 +483,7 @@ function browserEvaluationsFor(config, latestCode, healthChecks) {
         "The IT Admin dashboard loads inside the shared shell without visible error overlays, major text overlap, or broken navigation chrome.",
       screenshot_required: true,
       interaction_steps: ["Open or preserve the current local app URL", "Reload after server refresh", "Capture DOM notes and screenshot"],
+      persona_setup: "npm run dev:persona -- it_admin --base-url http://localhost:5173",
       acceptance_checks: [
         "HTTP route loads successfully",
         "Shared shell/sidebar/header are visible",

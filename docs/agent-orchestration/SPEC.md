@@ -190,9 +190,11 @@ The status surface should answer:
 
 ### 5.8 Browser Evaluation Bridge
 
-The repo runner cannot directly import the Codex in-app Browser plugin. Browser use is provided by the Codex automation wrapper that invokes the runner. When UI/runtime verification is needed, the runner emits `browser_evaluations[]` requests in its status JSON. The wrapper executes those requests with `@browser` and writes back `browser_results[]`.
+The repo runner cannot directly import the Codex in-app Browser plugin. Browser use is provided by the Codex automation wrapper that invokes the runner. When UI/runtime verification is needed, the runner emits `browser_evaluations[]` requests in its status JSON. The wrapper executes those requests through the Browser skill bridge and writes back `browser_results[]`.
 
-A browser evaluation request should include URL, purpose, persona, expected visible behavior, screenshot requirement, interaction steps, and acceptance checks. A browser result should include URL, status (`passed`, `failed`, or `blocked`), evidence, findings, and checked timestamp. Missing Browser results are not success; the run remains `needs_browser_evaluation`.
+A browser evaluation request should include URL, purpose, persona, expected visible behavior, screenshot requirement, interaction steps, and acceptance checks. Before navigation, the wrapper should activate the requested DEV persona with `npm run dev:persona -- <persona> --base-url http://localhost:5173` so authenticated implemented pages are evaluated as the intended operator. A browser result should include URL, status (`passed`, `failed`, or `blocked`), evidence, findings, and checked timestamp. Missing Browser results are not success; the run remains `needs_browser_evaluation`.
+
+The Browser skill bridge is the supported in-app Browser access path. The wrapper should use the `node_repl` JavaScript tool to import the Browser plugin's `scripts/browser-client.mjs`, call `setupBrowserRuntime({ globals: globalThis })`, select `agent.browsers.get("iab")`, and drive the tab with the Browser skill API. If that bridge or the `iab` browser is unavailable after this setup attempt, the wrapper records a blocked Browser result with the capability blocker instead of claiming verification. It should not treat absence of a direct `browser` tool namespace as Browser unavailability.
 
 ## 6. Domain Model
 
