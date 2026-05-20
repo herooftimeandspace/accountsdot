@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "sourceOfTruth": [
     "README.md",
-    "IMPLEMENTATION_PLAN.md",
-    "PRODUCT_REQUIREMENTS.md",
-    "TEST_MATRIX.md",
-    "AGENTS.md",
-    "docs/mocks/wireframes/implemented-page-design-contract.md"
+    "docs/planning/implementation-plan.md",
+    "docs/product/product-requirements.md",
+    "docs/testing/test-matrix.md",
+    ".agents/AGENTS.md",
+    "docs/design/mocks/wireframes/implemented-page-design-contract.md"
   ],
   "generatedBy": "scripts/sync_implemented_pages.mjs",
   "generatedFileGlobs": [
@@ -18,7 +18,7 @@
   "artboards": [
     {
       "key": "data-quality",
-      "sourcePen": "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "dataQuality",
       "loggedInShell": true,
@@ -28,7 +28,7 @@
     },
     {
       "key": "dashboard-it-admin",
-      "sourcePen": "docs/mocks/wireframes/wireframe-it-admin-overview.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-it-admin-overview.pen",
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
@@ -38,7 +38,7 @@
     },
     {
       "key": "dashboard-hr-lifecycle",
-      "sourcePen": "docs/mocks/wireframes/wireframe-hr-lifecycle-overview.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-hr-lifecycle-overview.pen",
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
@@ -48,17 +48,15 @@
     },
     {
       "key": "dashboard-site-admin",
-      "sourcePen": "docs/mocks/wireframes/wireframe-site-admin-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-site-admin-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "onboarding",
-      "sourcePen": "docs/mocks/wireframes/wireframe-onboarding-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-onboarding-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "onboarding",
       "loggedInShell": true,
@@ -68,7 +66,7 @@
     },
     {
       "key": "offboarding",
-      "sourcePen": "docs/mocks/wireframes/wireframe-offboarding-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-offboarding-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "offboarding",
       "loggedInShell": true,
@@ -78,7 +76,7 @@
     },
     {
       "key": "room-moves",
-      "sourcePen": "docs/mocks/wireframes/wireframe-room-moves.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-room-moves.pen",
       "mode": "merge-shell",
       "activeNav": "roomMoves",
       "loggedInShell": true,
@@ -88,7 +86,7 @@
     },
     {
       "key": "room-moves-bulk-draft",
-      "sourcePen": "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
       "mode": "merge-shell",
       "activeNav": null,
       "loggedInShell": true,
@@ -96,7 +94,7 @@
     },
     {
       "key": "phone-directory-by-person",
-      "sourcePen": "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-phone-directory-by-person.pen",
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
@@ -106,7 +104,7 @@
     },
     {
       "key": "phone-directory-by-room",
-      "sourcePen": "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-phone-directory-by-room.pen",
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
@@ -116,7 +114,7 @@
     },
     {
       "key": "phone-directory-by-department",
-      "sourcePen": "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-phone-directory-by-department.pen",
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
@@ -126,7 +124,7 @@
     },
     {
       "key": "frequent-fliers",
-      "sourcePen": "docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen",
       "mode": "merge-shell",
       "activeNav": "frequentFliers",
       "loggedInShell": true,
@@ -136,7 +134,7 @@
     },
     {
       "key": "student-data-cleanup",
-      "sourcePen": "docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen",
       "mode": "merge-shell",
       "activeNav": "studentDataCleanup",
       "loggedInShell": true,
@@ -146,7 +144,7 @@
     },
     {
       "key": "reports",
-      "sourcePen": "docs/mocks/wireframes/wireframe-it-admin-reports.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-it-admin-reports.pen",
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
@@ -156,7 +154,7 @@
     },
     {
       "key": "reports-sync-transparency",
-      "sourcePen": "docs/mocks/wireframes/wireframe-sync-transparency-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-sync-transparency-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
@@ -166,7 +164,7 @@
     },
     {
       "key": "reports-ticketing-human-work",
-      "sourcePen": "docs/mocks/wireframes/wireframe-ticketing-human-work.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-ticketing-human-work.pen",
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
@@ -176,17 +174,15 @@
     },
     {
       "key": "admin",
-      "sourcePen": "docs/mocks/wireframes/wireframe-it-admin-admin-controls.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-it-admin-admin-controls.pen",
       "mode": "merge-shell",
       "activeNav": "admin",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "admin-feature-flags",
-      "sourcePen": "docs/mocks/wireframes/wireframe-admin-feature-flags.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-admin-feature-flags.pen",
       "mode": "merge-shell",
       "activeNav": "admin",
       "loggedInShell": true,
@@ -194,17 +190,15 @@
     },
     {
       "key": "my-profile",
-      "sourcePen": "docs/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
       "mode": "merge-shell",
       "activeNav": null,
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "login",
-      "sourcePen": "docs/mocks/wireframes/wireframe-login.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-login.pen",
       "mode": "passthrough",
       "activeNav": null,
       "loggedInShell": false,
@@ -212,7 +206,7 @@
     },
     {
       "key": "error-logged-in",
-      "sourcePen": "docs/mocks/wireframes/wireframe-http-error.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-http-error.pen",
       "mode": "error-logged-in",
       "activeNav": null,
       "loggedInShell": true,
@@ -220,7 +214,7 @@
     },
     {
       "key": "error-logged-out",
-      "sourcePen": "docs/mocks/wireframes/wireframe-http-error.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-http-error.pen",
       "mode": "error-logged-out",
       "activeNav": null,
       "loggedInShell": false,
@@ -228,7 +222,7 @@
     }
   ],
   "sharedShell": {
-    "sourcePen": "docs/mocks/wireframes/wireframe-shared-shell.pen",
+    "sourcePen": "docs/design/mocks/wireframes/wireframe-shared-shell.pen",
     "loggedInPane": {
       "x": 264,
       "y": 76
@@ -324,7 +318,9 @@
         "p88",
         "p89",
         "t90",
-        "p91"
+        "p91",
+        "e92a",
+        "t92a"
       ]
     },
     "navLabelIds": {

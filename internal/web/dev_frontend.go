@@ -50,8 +50,8 @@ var (
 		"/dashboard/it-admin",
 		"/data-quality",
 		"/reports", "/reports/security-issues",
+		"/reports/zoom-desk-phone-renames",
 		"/reports/sync-transparency",
-		"/reports/ticketing-human-work",
 		"/admin",
 		"/admin/feature-flags",
 	}
@@ -72,6 +72,7 @@ type devSiteContext struct {
 
 type devPersonaConfig struct {
 	Persona      devPersona
+	NoAccess     bool
 	LandingPath  string
 	Allowed      []string
 	Shell        devShellPayload
@@ -81,23 +82,27 @@ type devPersonaConfig struct {
 }
 
 type devSessionPayload struct {
-	Environment     string                   `json:"environment"`
-	Authenticated   bool                     `json:"authenticated"`
-	Authorized      bool                     `json:"authorized"`
-	CurrentPersona  *devPersona              `json:"current_persona,omitempty"`
-	Personas        []devPersona             `json:"personas"`
-	LandingPath     string                   `json:"landing_path,omitempty"`
-	AllowedRoutes   []string                 `json:"allowed_routes,omitempty"`
-	FeatureFlags    []devFeatureAvailability `json:"feature_flags,omitempty"`
-	Shell           devShellPayload          `json:"shell,omitempty"`
-	DefaultSiteID   string                   `json:"default_site_id,omitempty"`
-	DefaultSiteName string                   `json:"default_site_name,omitempty"`
-	CurrentSiteID   string                   `json:"current_site_id,omitempty"`
-	CurrentSiteName string                   `json:"current_site_name,omitempty"`
+	Environment         string                   `json:"environment"`
+	Authenticated       bool                     `json:"authenticated"`
+	Authorized          bool                     `json:"authorized"`
+	AuthenticationMode  string                   `json:"authentication_mode,omitempty"`
+	BreakglassAccountID string                   `json:"breakglass_account_id,omitempty"`
+	CurrentPersona      *devPersona              `json:"current_persona,omitempty"`
+	Personas            []devPersona             `json:"personas"`
+	LandingPath         string                   `json:"landing_path,omitempty"`
+	AllowedRoutes       []string                 `json:"allowed_routes,omitempty"`
+	FeatureFlags        []devFeatureAvailability `json:"feature_flags,omitempty"`
+	Shell               devShellPayload          `json:"shell,omitempty"`
+	DefaultSiteID       string                   `json:"default_site_id,omitempty"`
+	DefaultSiteName     string                   `json:"default_site_name,omitempty"`
+	CurrentSiteID       string                   `json:"current_site_id,omitempty"`
+	CurrentSiteName     string                   `json:"current_site_name,omitempty"`
+	VisibleSites        []devSiteContext         `json:"visible_sites,omitempty"`
 }
 
 type devLoginRequest struct {
-	PersonaID string `json:"persona_id"`
+	PersonaID           string `json:"persona_id"`
+	ActivateMockSession bool   `json:"activate_mock_session"`
 }
 
 type devFeatureAvailability struct {
@@ -416,18 +421,15 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Assigned site(s)",
+			ScopeTitle:        "Assigned site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "2",
 			PlatformStatus:    "All Systems Operational",
 		},
-		DefaultSite: siteByID("clover-hs"),
-		CurrentSite: siteByID("clover-hs"),
-		VisibleSites: sitesByID(
-			"clover-hs",
-			"desert-view",
-		),
+		DefaultSite:  siteByID("clover-hs"),
+		CurrentSite:  siteByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs"),
 	},
 	"site_secretary": {
 		Persona: devPersona{
@@ -441,6 +443,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			[]string{
 				"/my-profile",
 				devGlobalSearchRoute,
+				"/onboarding",
 				"/student-data-cleanup",
 				"/room-moves",
 				"/room-moves/bulk-draft",
@@ -448,18 +451,15 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Assigned site(s)",
+			ScopeTitle:        "Assigned site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "1",
 			PlatformStatus:    "All Systems Operational",
 		},
-		DefaultSite: siteByID("clover-hs"),
-		CurrentSite: siteByID("clover-hs"),
-		VisibleSites: sitesByID(
-			"clover-hs",
-			"desert-view",
-		),
+		DefaultSite:  siteByID("clover-hs"),
+		CurrentSite:  siteByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs"),
 	},
 	"device_wrangler": {
 		Persona: devPersona{
@@ -479,18 +479,15 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Assigned site(s)",
+			ScopeTitle:        "Assigned site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "1",
 			PlatformStatus:    "All Systems Operational",
 		},
-		DefaultSite: siteByID("franklin-ms"),
-		CurrentSite: siteByID("franklin-ms"),
-		VisibleSites: sitesByID(
-			"franklin-ms",
-			"highland-es",
-		),
+		DefaultSite:  siteByID("franklin-ms"),
+		CurrentSite:  siteByID("franklin-ms"),
+		VisibleSites: sitesByID("franklin-ms"),
 	},
 	"faculty_staff": {
 		Persona: devPersona{
@@ -508,7 +505,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 			devPhoneDirectoryRoutes...,
 		),
 		Shell: devShellPayload{
-			ScopeTitle:        "Home site",
+			ScopeTitle:        "Onboarding default site",
 			ScopeSubtitle:     "Scoped Access",
 			SearchPlaceholder: "Search by name, email, phone, extension, or ID...",
 			NotificationCount: "0",
@@ -516,9 +513,40 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 		},
 		DefaultSite:  siteByID("clover-hs"),
 		CurrentSite:  siteByID("clover-hs"),
+		VisibleSites: sitesByID("clover-hs", "desert-view"),
+	},
+	"no_access": {
+		Persona: devPersona{
+			ID:          "no_access",
+			Label:       "No Access",
+			DisplayName: "Jordan Lee",
+			Initials:    "JL",
+		},
+		NoAccess:    true,
+		LandingPath: "",
+		Allowed:     []string{},
+		Shell: devShellPayload{
+			ScopeTitle:        "No authorized access",
+			ScopeSubtitle:     "Access Denied",
+			SearchPlaceholder: "Search unavailable for this account...",
+			NotificationCount: "0",
+			PlatformStatus:    "Access review required",
+		},
+		DefaultSite:  siteByID("clover-hs"),
+		CurrentSite:  siteByID("clover-hs"),
 		VisibleSites: sitesByID("clover-hs"),
 	},
 }
+
+type devSharedMockSessionSnapshot struct {
+	Active    bool
+	PersonaID string
+}
+
+var (
+	devSharedMockSessionMu    sync.RWMutex
+	devSharedMockSessionState = devSharedMockSessionSnapshot{}
+)
 
 type devFeatureFlagDefinition struct {
 	Key            string
@@ -820,18 +848,19 @@ var devPersonaOrder = []string{
 	"site_secretary",
 	"device_wrangler",
 	"faculty_staff",
+	"no_access",
 }
 
 func handleDevSession(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
 
-	config, ok := resolveAuthenticatedDevPersona(r)
+	identity, ok := resolveAuthenticatedDevSession(r)
 	if !ok {
 		writeJSON(w, http.StatusOK, devSessionPayload{
-			Environment:   "development",
+			Environment:   currentAppEnvironment(),
 			Authenticated: false,
 			Authorized:    false,
 			Personas:      orderedDevPersonas(),
@@ -839,6 +868,11 @@ func handleDevSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	config := identity.Config
+	if identity.Breakglass {
+		writeJSON(w, http.StatusOK, buildBreakglassSessionPayload(r.Context(), config, identity.BreakglassAccountID))
+		return
+	}
 	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
@@ -859,6 +893,10 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 
 	config, ok := devPersonaConfigs[strings.TrimSpace(request.PersonaID)]
 	if !ok {
+		if request.activatesSharedMockSession() {
+			setDevSharedMockSessionAnonymous()
+			clearDevSessionCookie(w, r)
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"code":    "invalid_persona",
 			"message": "Unknown DEV persona.",
@@ -866,19 +904,41 @@ func handleDevLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeDevSessionCookie(w, config.Persona.ID)
+	if request.activatesSharedMockSession() {
+		setDevSharedMockSessionPersona(config.Persona.ID)
+	}
+	writeDevSessionCookie(w, r, config.Persona.ID)
 	writeJSON(w, http.StatusOK, buildDevSessionPayload(r.Context(), config))
 }
 
 func handleDevLogout(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodPost {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPost {
 		http.NotFound(w, r)
 		return
 	}
 
-	clearDevSessionCookie(w)
+	identity, ok := resolveAuthenticatedDevSession(r)
+	if ok && identity.Breakglass {
+		if err := recordBreakglassAudit(r.Context(), breakglassAuditEvent{
+			AccountID:     identity.BreakglassAccountID,
+			Action:        "sign_out",
+			Outcome:       "allowed",
+			SourceIP:      sourceIPForBreakglass(r).String(),
+			PersonaID:     identity.Config.Persona.ID,
+			RecordedAt:    time.Now().UTC(),
+			RequestID:     strings.TrimSpace(r.Header.Get("X-Request-ID")),
+			TargetSession: "cookie:" + devSessionCookieName,
+		}); err != nil {
+			writeBreakglassAuditUnavailable(w, err)
+			return
+		}
+	}
+	if devSharedMockSessionActive() {
+		setDevSharedMockSessionAnonymous()
+	}
+	clearDevSessionCookie(w, r)
 	writeJSON(w, http.StatusOK, devSessionPayload{
-		Environment:   "development",
+		Environment:   currentAppEnvironment(),
 		Authenticated: false,
 		Authorized:    false,
 		Personas:      orderedDevPersonas(),
@@ -887,7 +947,7 @@ func handleDevLogout(w http.ResponseWriter, r *http.Request) {
 
 // handleDevFeatureFlags returns the IT Admin-only feature flag management payload.
 func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -919,7 +979,7 @@ func handleDevFeatureFlags(w http.ResponseWriter, r *http.Request) {
 
 // handleDevFeatureFlag applies IT Admin feature flag target updates for one flag key.
 func handleDevFeatureFlag(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodPut {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPut {
 		http.NotFound(w, r)
 		return
 	}
@@ -1031,10 +1091,13 @@ func decodeDevFeatureFlagUpdateRequest(w http.ResponseWriter, r *http.Request) (
 }
 
 // handleDevDataQualityPage serves the DEV Data Quality page payload. The route
-// requires development mode, a signed-in persona, and feature-flag route access;
-// successful responses contain mock queue data consumed by the React page.
+// requires development mode, a signed-in IT Admin persona, and feature-flag
+// route access; successful responses contain the awareness queue consumed by
+// the React page. The row actions intentionally point toward owner surfaces
+// rather than local correction buttons because this page escalates district-wide
+// issues but does not edit HR, site, student, or provider source records.
 func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -1073,11 +1136,11 @@ func handleDevDataQualityPage(w http.ResponseWriter, r *http.Request) {
 			},
 			Queue: dataQualityQueuePayload{
 				Rows: []dataQualityQueueRow{
-					{Issue: "Unmapped job title", Source: "Escape / SFTP", Owner: "HR + IT", Impact: "Blocks access bundle", NextAction: "Map title"},
-					{Issue: "Room mismatch", Source: "Aeries", Owner: "Site Secretary", Impact: "Blocks sync", NextAction: "Confirm room"},
-					{Issue: "Google-active / Aeries-inactive", Source: "Google + Aeries", Owner: "IT", Impact: "Security review", NextAction: "Schedule deprovision"},
-					{Issue: "Missing mandatory field", Source: "HR intake", Owner: "HR", Impact: "Blocks onboarding", NextAction: "Update record"},
-					{Issue: "Site mismatch", Source: "Escape / Aeries", Owner: "HR", Impact: "Blocks baseline site selection", NextAction: "Apply temporary override"},
+					{Issue: "Unmapped job title", Source: "Escape / SFTP", Owner: "HR + IT", Impact: "Blocks access bundle", NextAction: "Review in HR lifecycle"},
+					{Issue: "Room mismatch", Source: "Aeries", Owner: "Site Secretary", Impact: "Blocks sync", NextAction: "Route to site owner"},
+					{Issue: "Google-active / Aeries-inactive", Source: "Google + Aeries", Owner: "IT", Impact: "Security review", NextAction: "Review in Admin"},
+					{Issue: "Missing mandatory field", Source: "HR intake", Owner: "HR", Impact: "Blocks onboarding", NextAction: "Complete in Onboarding"},
+					{Issue: "Site mismatch", Source: "Escape / Aeries", Owner: "HR", Impact: "Blocks baseline site selection", NextAction: "Review in HR lifecycle"},
 				},
 			},
 		},
@@ -1103,7 +1166,7 @@ func handleDevPhoneDirectoryByDepartmentPage(w http.ResponseWriter, r *http.Requ
 }
 
 func writeDevPhoneDirectoryPage(w http.ResponseWriter, r *http.Request, mode string) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -1711,57 +1774,159 @@ func concatRoutes(groups ...[]string) []string {
 
 func buildDevSessionPayload(ctx context.Context, config devPersonaConfig) devSessionPayload {
 	persona := config.Persona
+	authorized := !config.NoAccess
+	landingPath := ""
+	allowedRoutes := []string{}
+	if authorized {
+		landingPath = featureFilteredLandingPath(ctx, config)
+		allowedRoutes = featureFilteredRoutes(ctx, config)
+	}
 	return devSessionPayload{
 		Environment:     "development",
 		Authenticated:   true,
-		Authorized:      true,
+		Authorized:      authorized,
 		CurrentPersona:  &persona,
 		Personas:        orderedDevPersonas(),
-		LandingPath:     featureFilteredLandingPath(ctx, config),
-		AllowedRoutes:   featureFilteredRoutes(ctx, config),
+		LandingPath:     landingPath,
+		AllowedRoutes:   allowedRoutes,
 		FeatureFlags:    devFeatureAvailabilities(ctx, config),
 		Shell:           config.Shell,
 		DefaultSiteID:   config.DefaultSite.ID,
 		DefaultSiteName: config.DefaultSite.Name,
 		CurrentSiteID:   config.CurrentSite.ID,
 		CurrentSiteName: config.CurrentSite.Name,
+		VisibleSites:    config.VisibleSites,
 	}
 }
 
-func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
-	cookie, err := r.Cookie(devSessionCookieName)
-	if err != nil {
-		return devPersonaConfig{}, false
+type devSessionIdentity struct {
+	Config              devPersonaConfig
+	Breakglass          bool
+	BreakglassAccountID string
+}
+
+func resolveAuthenticatedDevSession(r *http.Request) (devSessionIdentity, bool) {
+	if devModeEnabled() {
+		if personaID, active := currentDevSharedMockSession(); active {
+			if personaID == "" {
+				return devSessionIdentity{}, false
+			}
+			config, ok := devPersonaConfigs[personaID]
+			if !ok {
+				return devSessionIdentity{}, false
+			}
+			return devSessionIdentity{Config: config}, true
+		}
 	}
 
-	config, ok := devPersonaConfigs[strings.TrimSpace(cookie.Value)]
+	cookie, err := r.Cookie(devSessionCookieName)
+	if err != nil {
+		return devSessionIdentity{}, false
+	}
+	value := strings.TrimSpace(cookie.Value)
+	if strings.HasPrefix(value, breakglassSessionCookiePrefix) {
+		accountID := strings.TrimPrefix(value, breakglassSessionCookiePrefix)
+		accounts, err := configuredBreakglassAccounts()
+		if err != nil {
+			return devSessionIdentity{}, false
+		}
+		account, ok := accounts[accountID]
+		if !ok {
+			return devSessionIdentity{}, false
+		}
+		config, ok := devPersonaConfigs[account.PersonaID]
+		if !ok {
+			return devSessionIdentity{}, false
+		}
+		return devSessionIdentity{Config: config, Breakglass: true, BreakglassAccountID: account.AccountID}, true
+	}
+
+	config, ok := devPersonaConfigs[value]
+	if !ok {
+		return devSessionIdentity{}, false
+	}
+	return devSessionIdentity{Config: config}, true
+}
+
+func resolveAuthenticatedDevPersona(r *http.Request) (devPersonaConfig, bool) {
+	identity, ok := resolveAuthenticatedDevSession(r)
 	if !ok {
 		return devPersonaConfig{}, false
 	}
-	return config, true
+	return identity.Config, true
 }
 
 func routeAllowed(ctx context.Context, config devPersonaConfig, path string) bool {
 	return slices.Contains(config.Allowed, path) && routeFeatureEnabled(ctx, config, path)
 }
 
-func writeDevSessionCookie(w http.ResponseWriter, personaID string) {
+func writeDevSessionCookie(w http.ResponseWriter, r *http.Request, personaID string) {
+	writeDevSessionCookieValue(w, r, personaID)
+}
+
+func (request devLoginRequest) activatesSharedMockSession() bool {
+	return request.ActivateMockSession
+}
+
+// setDevSharedMockSessionPersona records the development-only persona selected by
+// terminal tooling. /api/v1/dev/session checks this in-memory override before the
+// browser cookie so a Codex curl or npm helper can refresh the active Browser tab
+// into the same mock persona without needing to click the DEV persona switcher.
+func setDevSharedMockSessionPersona(personaID string) {
+	devSharedMockSessionMu.Lock()
+	defer devSharedMockSessionMu.Unlock()
+	devSharedMockSessionState = devSharedMockSessionSnapshot{Active: true, PersonaID: personaID}
+}
+
+// setDevSharedMockSessionAnonymous stores a development-only signed-out override
+// after invalid tooling input or logout. Keeping the override active prevents a
+// stale Browser cookie from silently restoring a previously authorized persona.
+func setDevSharedMockSessionAnonymous() {
+	devSharedMockSessionMu.Lock()
+	defer devSharedMockSessionMu.Unlock()
+	devSharedMockSessionState = devSharedMockSessionSnapshot{Active: true}
+}
+
+func devSharedMockSessionActive() bool {
+	devSharedMockSessionMu.RLock()
+	defer devSharedMockSessionMu.RUnlock()
+	return devSharedMockSessionState.Active
+}
+
+func currentDevSharedMockSession() (string, bool) {
+	devSharedMockSessionMu.RLock()
+	defer devSharedMockSessionMu.RUnlock()
+	return devSharedMockSessionState.PersonaID, devSharedMockSessionState.Active
+}
+
+// ResetDevSharedMockSessionForTest clears the terminal-tooling persona override
+// between handler tests. Production code never calls this because the override is
+// intentionally process-local and development-only.
+func ResetDevSharedMockSessionForTest() {
+	devSharedMockSessionMu.Lock()
+	defer devSharedMockSessionMu.Unlock()
+	devSharedMockSessionState = devSharedMockSessionSnapshot{}
+}
+
+func writeDevSessionCookieValue(w http.ResponseWriter, r *http.Request, value string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     devSessionCookieName,
-		Value:    personaID,
+		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secureDevSessionCookie(r),
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(12 * time.Hour),
 	})
 }
 
-func clearDevSessionCookie(w http.ResponseWriter) {
+func clearDevSessionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     devSessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secureDevSessionCookie(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
@@ -1769,8 +1934,29 @@ func clearDevSessionCookie(w http.ResponseWriter) {
 }
 
 func devModeEnabled() bool {
-	mode := strings.TrimSpace(os.Getenv("APP_ENV"))
-	return strings.EqualFold(mode, "development")
+	return currentAppEnvironment() == "development"
+}
+
+func currentAppEnvironment() string {
+	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+}
+
+func devSessionConsumerEnabled(r *http.Request) bool {
+	if devModeEnabled() {
+		return true
+	}
+	if !breakglassModeEnabled() {
+		return false
+	}
+	identity, ok := resolveAuthenticatedDevSession(r)
+	return ok && identity.Breakglass
+}
+
+func secureDevSessionCookie(r *http.Request) bool {
+	if r != nil && r.TLS != nil {
+		return true
+	}
+	return currentAppEnvironment() == "staging"
 }
 
 func siteByID(id string) devSiteContext {

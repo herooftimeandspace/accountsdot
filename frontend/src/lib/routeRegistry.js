@@ -33,15 +33,11 @@ export const APP_ROUTES = [
   { path: "/student-data-cleanup", kind: "student-data-cleanup", artboardKey: "student-data-cleanup" },
   { path: "/reports", kind: "reports", artboardKey: "reports" },
   { path: "/reports/security-issues", kind: "security-issues-report", artboardKey: "reports" },
+  { path: "/reports/zoom-desk-phone-renames", kind: "zoom-desk-phone-renames-report", artboardKey: "reports" },
   {
     path: "/reports/sync-transparency",
     kind: "static",
     artboardKey: "reports-sync-transparency",
-  },
-  {
-    path: "/reports/ticketing-human-work",
-    kind: "static",
-    artboardKey: "reports-ticketing-human-work",
   },
   { path: "/admin", kind: "static", artboardKey: "admin" },
   { path: "/admin/feature-flags", kind: "feature-flags", artboardKey: "admin-feature-flags" },
@@ -63,6 +59,17 @@ export const NAV_GROUP_ORDER = [
   "reports",
   "admin",
 ];
+
+const NAV_CHILD_ROUTE_GROUPS = {
+  reports: [
+    { path: "/reports/security-issues", label: "Security Issues" },
+    { path: "/reports/zoom-desk-phone-renames", label: "Zoom Desk Phone Renames" },
+    { path: "/reports/sync-transparency", label: "Sync Transparency" },
+  ],
+  admin: [
+    { path: "/admin/feature-flags", label: "Feature Flags" },
+  ],
+};
 
 export function normalizePath(pathname) {
   if (!pathname || pathname === "/") {
@@ -178,4 +185,18 @@ export function navGroupVisible(navKey, session) {
 
 export function buildVisibleNavGroups(session) {
   return NAV_GROUP_ORDER.filter((navKey) => navGroupVisible(navKey, session));
+}
+
+/**
+ * visibleNavChildrenForKey returns documented child route buttons for a visible
+ * sidebar parent. Some route-backed modes, such as Phone Directory's person,
+ * room, and department routes, intentionally stay in-page controls rather than
+ * sidebar children. The shared shell calls this with the same
+ * session.allowed_routes list used for direct-route authorization, so
+ * role-filtered nested buttons cannot advertise routes that would resolve to
+ * the app-level 403 page.
+ */
+export function visibleNavChildrenForKey(navKey, session) {
+  const allowedRoutes = new Set(session?.allowed_routes ?? []);
+  return (NAV_CHILD_ROUTE_GROUPS[navKey] ?? []).filter((child) => allowedRoutes.has(child.path));
 }

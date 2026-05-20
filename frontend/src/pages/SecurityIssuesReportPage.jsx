@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -19,7 +20,6 @@ const SECURITY_ISSUES_HEADING_ID = "security-issues-heading";
 const PANE_LEFT = 306;
 const PANE_TOP = 118;
 const PANE_WIDTH = 1260;
-const DRAWER_BOUNDS = { left: 1278, top: 92, width: 390, height: 802 };
 const SECURITY_ISSUE_COLUMNS = [
   { key: "status", label: "Status", value: (row) => row.status },
   { key: "person", label: "Person / Account", value: (row) => row.person },
@@ -146,7 +146,7 @@ function SecurityIssueTable({ rows, selectedId, onSelect }) {
             }`}
             aria-label={`Open security issue row for ${row.person}`}
             aria-pressed={selectedId === row.id}
-            onClick={() => onSelect(row)}
+            onClick={() => onSelect(nextRuntimeDrawerSelectionForId(selectedId, row))}
           >
             <div><span className={statusClass(row.status)}>{row.status}</span></div>
             <div>{row.person}</div>
@@ -172,7 +172,7 @@ function SecurityIssueDrawer({ row, onClose }) {
     return null;
   }
   return (
-    <RuntimeDrawer title={row.person} bounds={DRAWER_BOUNDS} onClose={onClose}>
+    <RuntimeDrawer title={row.person} onClose={onClose} className="security-issues-runtime__drawer">
       {row.warning ? (
         <div className="security-issues-runtime__warning">
           <strong>Security issue</strong>
@@ -313,6 +313,7 @@ export function SecurityIssuesReportPage({ session, onNavigate, onSearch, search
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "reports",
+    activeRoutePath: "/reports/security-issues",
     refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
   const semanticSummary = artboard

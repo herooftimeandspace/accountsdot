@@ -1,7 +1,9 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
+
+import { sharedShellSpec } from "../generated/artboards.generated.js";
 
 /**
- * DevPersonaSwitcher renders the UI surface for frontend/src/components/DevPersonaSwitcher.jsx. Page components call this shared component/helper to keep repeated runtime UI behavior consistent; debug it through props, callbacks, and rendered DOM state. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * DevPersonaSwitcher renders the DEV-only mock-session control inside the shared sidebar bounds. App owns the persona-switch side effect and routing fallback, while this component owns the collapsed/expanded control state, current-persona labeling, and polite status announcements used during demos.
  */
 export function DevPersonaSwitcher({
   session,
@@ -22,6 +24,72 @@ export function DevPersonaSwitcher({
   const activePersonaLabel =
     personas.find((persona) => persona.id === personaId)?.label || personaId || "Unknown";
   const [expanded, setExpanded] = useState(false);
+
+  const platformStatusValueSelector = useMemo(() => {
+    const nodeId = sharedShellSpec?.sharedShellIds?.platformStatusValue;
+    return nodeId ? `[data-node-id="${nodeId}"]` : null;
+  }, []);
+
+  const [anchorStyle, setAnchorStyle] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!platformStatusValueSelector) {
+      return undefined;
+    }
+
+    function updateAnchor() {
+      const sidebarNodes = Array.from(document.querySelectorAll('[data-shared-shell-sticky="sidebar"]'));
+      const sidebarBounds = sidebarNodes.reduce(
+        (bounds, node) => {
+          const rect = node.getBoundingClientRect();
+          if (!rect || rect.width <= 0 || rect.height <= 0) {
+            return bounds;
+          }
+          return {
+            left: Math.min(bounds.left, rect.left),
+            right: Math.max(bounds.right, rect.right),
+          };
+        },
+        { left: Number.POSITIVE_INFINITY, right: Number.NEGATIVE_INFINITY },
+      );
+      const platformStatusNode = document.querySelector(platformStatusValueSelector);
+      if (!platformStatusNode || !Number.isFinite(sidebarBounds.left) || !Number.isFinite(sidebarBounds.right)) {
+        setAnchorStyle(null);
+        return;
+      }
+      const rect = platformStatusNode.getBoundingClientRect();
+      if (!rect || Number.isNaN(rect.bottom)) {
+        setAnchorStyle(null);
+        return;
+      }
+      const sidebarWidth = Math.max(0, sidebarBounds.right - sidebarBounds.left);
+      const horizontalPadding = sidebarWidth >= 180 ? 16 : 8;
+      const nextStyle = {
+        left: `${Math.round(sidebarBounds.left + horizontalPadding)}px`,
+        top: `${Math.max(0, Math.round(rect.bottom + 8))}px`,
+        width: `${Math.max(0, Math.round(sidebarWidth - horizontalPadding * 2))}px`,
+      };
+      setAnchorStyle((current) => {
+        if (current?.left === nextStyle.left && current?.top === nextStyle.top && current?.width === nextStyle.width) {
+          return current;
+        }
+        return nextStyle;
+      });
+    }
+
+    updateAnchor();
+    window.addEventListener("resize", updateAnchor);
+
+    const observer = new MutationObserver(() => {
+      updateAnchor();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      window.removeEventListener("resize", updateAnchor);
+      observer.disconnect();
+    };
+  }, [platformStatusValueSelector]);
 
   useEffect(() => {
     if (pendingPersonaId) {
@@ -47,7 +115,11 @@ export function DevPersonaSwitcher({
   }
 
   return (
-    <aside className="dev-toolbar" aria-label="Development persona controls">
+    <aside
+      className="dev-toolbar"
+      style={anchorStyle ?? undefined}
+      aria-label="Development persona controls"
+    >
       <button
         type="button"
         className="dev-toolbar__toggle"

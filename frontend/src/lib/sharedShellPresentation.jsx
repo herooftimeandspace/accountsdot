@@ -1,17 +1,28 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { RuntimeDrawer } from "../components/RuntimeDrawer";
+import { RuntimeSelectDropdown } from "../components/RuntimeDropdown";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
-import { buildVisibleNavGroups, navDestinationForKey } from "./routeRegistry";
+import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey } from "./routeRegistry";
+import { helpContentForRoute } from "./routeHelpContent";
 
 const SIDEBAR_TEMPLATE = {
-  firstLabelY: 128,
+  firstLabelY: 140,
   rowStep: 49,
+  nestedRowFirstOffset: 30,
+  nestedRowStep: 28,
+  afterNestedGap: 14,
   iconX: 21,
+  disclosureX: 224,
   labelX: 58,
+  nestedDotX: 62,
+  nestedLabelX: 82,
   highlightX: 12,
   highlightWidth: 236,
   highlightHeight: 42,
+  nestedHighlightX: 38,
+  nestedHighlightWidth: 210,
+  nestedHighlightHeight: 28,
 };
 
 const NAV_ICON_MARKUP = {
@@ -46,7 +57,6 @@ const DEFAULT_STATIC_REFRESH_METADATA = "Last refreshed\nMay 3, 2026 9:00 AM PT"
 const STATIC_PAGE_REFRESH_METADATA = {
   "dashboard-it-admin": DEFAULT_STATIC_REFRESH_METADATA,
   "dashboard-hr-lifecycle": DEFAULT_STATIC_REFRESH_METADATA,
-  "dashboard-site-admin": DEFAULT_STATIC_REFRESH_METADATA,
   onboarding: DEFAULT_STATIC_REFRESH_METADATA,
   offboarding: DEFAULT_STATIC_REFRESH_METADATA,
   "room-moves": DEFAULT_STATIC_REFRESH_METADATA,
@@ -54,9 +64,6 @@ const STATIC_PAGE_REFRESH_METADATA = {
   "student-data-cleanup": DEFAULT_STATIC_REFRESH_METADATA,
   reports: DEFAULT_STATIC_REFRESH_METADATA,
   "reports-sync-transparency": DEFAULT_STATIC_REFRESH_METADATA,
-  "reports-ticketing-human-work": DEFAULT_STATIC_REFRESH_METADATA,
-  admin: DEFAULT_STATIC_REFRESH_METADATA,
-  "my-profile": DEFAULT_STATIC_REFRESH_METADATA,
 };
 
 const SCOPE_STATIC_NODE_IDS = [
@@ -72,218 +79,6 @@ const SCOPE_STATIC_NODE_IDS = [
   "p20",
   "p21",
 ];
-
-const DEFAULT_HELP_BY_NAV_KEY = {
-  dashboard: {
-    title: "Dashboard help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This dashboard gives a quick view of current account, access, data quality, and workflow health.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review the cards and tables for anything that needs attention. Select rows or use page actions when a page offers more detail.",
-        ],
-      },
-    ],
-  },
-  onboarding: {
-    title: "Onboarding help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page shows upcoming staff onboarding work. Each row is a person who needs accounts, access, rooms, or follow-up before they are fully ready.",
-          "The status badge tells you whether the work is ready, running, waiting, missing information, or blocked.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Select a row to open details in the right drawer. The drawer explains what is happening and lists any action needed from HR, IT, or another system.",
-          "Use Add Non-Escape Record when a contractor or other manual record needs onboarding before the person appears from Escape.",
-        ],
-      },
-      {
-        heading: "Warnings",
-        paragraphs: [
-          "A warning icon beside the start date means the start date is very close to the date the record was added. Some systems may not be ready by that date.",
-          "Incomplete or blocked records need attention before normal onboarding can continue.",
-        ],
-      },
-    ],
-  },
-  offboarding: {
-    title: "Offboarding help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page tracks upcoming account retirement work, including accounts, licenses, devices, and security follow-up.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review rows with blocked, manual action, or security risk statuses first. Select any row to open the right drawer, then follow the listed owner and resolution steps.",
-          "Escape-backed end dates are read-only and must be corrected in Escape. Non-Escape and orphan account rows may show an end-date picker for HR and IT.",
-        ],
-      },
-    ],
-  },
-  departingSeniors: {
-    title: "Departing Seniors help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page lists current senior class account retirement and outstanding IncidentIQ device review work.",
-          "It shows each student, school-year context, student ID, district email, planned end date, and any outstanding devices from IncidentIQ.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Use the school-year dropdown to review the current senior year or one of the four retained previous senior years.",
-          "Use the table search to find a student by name, email, school year, student ID, assigned asset serial, or assigned asset ID.",
-          "Select a row to open the right drawer for detailed student, account-retirement, and device-return information.",
-          "IT and Device Wranglers can adjust a local end-date override, then deprovision the account when it is ready. A student stays on the list until the account is deprovisioned and all assigned devices are cleared.",
-        ],
-      },
-    ],
-  },
-  roomMoves: {
-    title: "Room Moves help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page helps review room moves and phone changes before scheduled cutover work runs.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review warnings in the right drawer before scheduling a cutover. Rows marked for review need a person to resolve the warning before automation can safely continue.",
-          "Use Move Person for one-person corrections, Site Rollover for summer room updates across a site, and Batch Move when you only need to add selected people.",
-          "Batch Move and Site Rollover drafts update destination rooms for a site roster or a manually built room-move list.",
-          "Five or fewer reviewed moves may run immediately after final review. More than five moves use a batch cutover. Non-IT cutovers run off-hours between 8:00 PM and 4:00 AM Pacific; IT may schedule broader multi-site windows when needed.",
-          "If a person is moving sites, the destination room should be set to none until the destination site confirms the room.",
-          "IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.",
-        ],
-      },
-    ],
-  },
-  phoneDirectory: {
-    title: "Phone Directory help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page shows phone directory information by person, room, or department.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Use the mode buttons and filters to find the directory view you need. Select a result to see more detail when the page provides it.",
-        ],
-      },
-    ],
-  },
-  dataQuality: {
-    title: "Data Quality help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page lists data issues that can block or delay account and access work.",
-          "Source-system conflicts and missing-data queues route to the teams that can correct upstream records instead of being silently patched on this page.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Start with high-severity issues and follow the next action listed for each row. Refresh when you need the latest DEV mock queue.",
-          "HR queues cover sensitive lifecycle or title issues. Site queues cover room and student data corrections. IT queues cover provider conflicts and security mismatches.",
-          "This page keeps the Data Quality queue inline. Mapping and policy changes belong in documented IT Admin configuration surfaces, so unsupported mapping-dashboard shortcuts are not shown here.",
-        ],
-      },
-    ],
-  },
-  frequentFliers: {
-    title: "Frequent Fliers help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page highlights people or devices that repeatedly need support attention.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Use the repeated patterns to decide where follow-up, cleanup, or prevention work may be needed.",
-        ],
-      },
-    ],
-  },
-  studentDataCleanup: {
-    title: "Student Data Cleanup help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page shows student name values from Aeries that need correction before account creation or matching can continue.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review the current Aeries value and the suggested value, open Aeries, search by Student ID, and make the correction in Aeries. This dashboard does not edit student records.",
-        ],
-      },
-    ],
-  },
-  reports: {
-    title: "Reports help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page collects operational reports for account, access, onboarding, offboarding, and sync work.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Choose the report that matches the question you need to answer. Use row details when available for follow-up context.",
-        ],
-      },
-    ],
-  },
-  admin: {
-    title: "Admin help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page shows administrator controls and health information for the DEV dashboard.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Use admin controls carefully and review warnings before changing shared settings or workflow behavior.",
-        ],
-      },
-    ],
-  },
-};
 
 function estimateTextHeight(node, textOverrides) {
   const content = String(textOverrides?.[node.id] ?? node.content ?? "");
@@ -648,63 +443,104 @@ function navIconMarkup(navKey) {
     .replace(/height="[^"]+"/, 'height="18"');
 }
 
-function sidebarRowMetrics(index) {
-  const labelY = SIDEBAR_TEMPLATE.firstLabelY + index * SIDEBAR_TEMPLATE.rowStep;
+function sidebarRowMetrics(index, row = {}) {
+  // `npm run pen:lint` checks that sidebarRowMetrics(index) remains the shared source for compact sidebar row geometry.
+  const depth = row.depth ?? 0;
+  const labelY = row.labelY ?? SIDEBAR_TEMPLATE.firstLabelY + index * SIDEBAR_TEMPLATE.rowStep;
+  const highlightHeight = depth > 0 ? SIDEBAR_TEMPLATE.nestedHighlightHeight : SIDEBAR_TEMPLATE.highlightHeight;
+  const rowCenter = labelY + (depth > 0 ? 7 : 9);
   return {
     labelY,
-    iconTop: labelY - 2,
-    highlightTop: labelY - 10,
+    rowCenter,
+    iconTop: rowCenter - 9,
+    disclosureTop: rowCenter - 4,
+    dotTop: rowCenter - 3,
+    highlightTop: rowCenter - highlightHeight / 2,
+    highlightX: depth > 0 ? SIDEBAR_TEMPLATE.nestedHighlightX : SIDEBAR_TEMPLATE.highlightX,
+    highlightWidth: depth > 0 ? SIDEBAR_TEMPLATE.nestedHighlightWidth : SIDEBAR_TEMPLATE.highlightWidth,
+    highlightHeight,
+    labelX: depth > 0 ? SIDEBAR_TEMPLATE.nestedLabelX : SIDEBAR_TEMPLATE.labelX,
+    dotX: SIDEBAR_TEMPLATE.nestedDotX,
   };
 }
 
 function SharedShellSidebarRow({
   index,
+  rowKey,
+  depth = 0,
   navKey,
   destination,
   label,
   isActive,
+  hasChildren = false,
+  labelY,
   onNavigate,
 }) {
-  const metrics = sidebarRowMetrics(index);
+  const metrics = sidebarRowMetrics(index, { depth, labelY });
   return (
-    <React.Fragment key={navKey}>
+    <React.Fragment key={rowKey}>
       {isActive ? (
         <div
           aria-hidden="true"
           className="shared-shell-nav__highlight"
           style={{
             position: "absolute",
-            left: SIDEBAR_TEMPLATE.highlightX,
+            left: metrics.highlightX,
             top: metrics.highlightTop,
-            width: SIDEBAR_TEMPLATE.highlightWidth,
-            height: SIDEBAR_TEMPLATE.highlightHeight,
-            zIndex: 0,
+            width: metrics.highlightWidth,
+            height: metrics.highlightHeight,
+            zIndex: 66,
           }}
         />
       ) : null}
+      {depth > 0 ? (
+        <span
+          aria-hidden="true"
+          className={`shared-shell-nav__dot${isActive ? " shared-shell-nav__dot--active" : ""}`}
+          style={{
+            position: "absolute",
+            left: metrics.dotX,
+            top: metrics.dotTop,
+            zIndex: 2,
+          }}
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="shared-shell-nav__icon"
+          style={{
+            position: "absolute",
+            left: SIDEBAR_TEMPLATE.iconX,
+            top: metrics.iconTop,
+            zIndex: 2,
+          }}
+          dangerouslySetInnerHTML={{ __html: navIconMarkup(navKey) }}
+        />
+      )}
       <div
         aria-hidden="true"
-        className="shared-shell-nav__icon"
+        className={`shared-shell-nav__label${depth > 0 ? " shared-shell-nav__label--nested" : ""}`}
         style={{
           position: "absolute",
-          left: SIDEBAR_TEMPLATE.iconX,
-          top: metrics.iconTop,
-          zIndex: 2,
-        }}
-        dangerouslySetInnerHTML={{ __html: navIconMarkup(navKey) }}
-      />
-      <div
-        aria-hidden="true"
-        className="shared-shell-nav__label"
-        style={{
-          position: "absolute",
-          left: SIDEBAR_TEMPLATE.labelX,
+          left: metrics.labelX,
           top: metrics.labelY,
           zIndex: 2,
         }}
       >
         {label}
       </div>
+      {hasChildren ? (
+        <span
+          aria-hidden="true"
+          className="shared-shell-nav__disclosure"
+          style={{
+            position: "absolute",
+            left: SIDEBAR_TEMPLATE.disclosureX,
+            top: metrics.disclosureTop,
+            zIndex: 2,
+          }}
+        />
+      ) : null}
       <button
         type="button"
         className="pen-hotspot pen-hotspot--nav"
@@ -713,10 +549,10 @@ function SharedShellSidebarRow({
         onClick={() => onNavigate(destination)}
         style={{
           position: "absolute",
-          left: SIDEBAR_TEMPLATE.highlightX,
+          left: metrics.highlightX,
           top: metrics.highlightTop,
-          width: SIDEBAR_TEMPLATE.highlightWidth,
-          height: SIDEBAR_TEMPLATE.highlightHeight,
+          width: metrics.highlightWidth,
+          height: metrics.highlightHeight,
           border: 0,
           background: "transparent",
           padding: 0,
@@ -727,6 +563,106 @@ function SharedShellSidebarRow({
       {/* WCAG 2.4.4/4.1.2: visual sidebar labels are aria-hidden; this native button carries the name and role. */}
     </React.Fragment>
   );
+}
+
+/**
+ * buildVisibleSidebarRows flattens role-authorized sidebar parents and
+ * documented nested route buttons into one visual list. Route-backed page modes
+ * can remain top-level-only when their page owns in-page mode controls, so the y
+ * positions are calculated after route filtering instead of assuming every child
+ * route renders in the sidebar.
+ */
+function buildVisibleSidebarRows(session) {
+  const rows = [];
+  let labelY = SIDEBAR_TEMPLATE.firstLabelY;
+  buildVisibleNavGroups(session).forEach((navKey) => {
+    const children = visibleNavChildrenForKey(navKey, session);
+    const destination = navDestinationForKey(navKey, session);
+    rows.push({
+      key: navKey,
+      navKey,
+      depth: 0,
+      labelY,
+      destination,
+      hasChildren: children.length > 0,
+      hasChildWithSameDestination: children.some((child) => child.path === destination),
+    });
+    if (children.length === 0) {
+      labelY += SIDEBAR_TEMPLATE.rowStep;
+      return;
+    }
+    children.forEach((child, childIndex) => {
+      rows.push({
+        key: `${navKey}:${child.path}`,
+        navKey,
+        depth: 1,
+        labelY: labelY + SIDEBAR_TEMPLATE.nestedRowFirstOffset + childIndex * SIDEBAR_TEMPLATE.nestedRowStep,
+        destination: child.path,
+        label: child.label,
+      });
+    });
+    labelY +=
+      SIDEBAR_TEMPLATE.nestedRowFirstOffset +
+      children.length * SIDEBAR_TEMPLATE.nestedRowStep +
+      SIDEBAR_TEMPLATE.afterNestedGap;
+  });
+  return rows.filter((row) => row.destination);
+}
+
+function sidebarRowActive(row, activeNavKey, activeRoutePath) {
+  if (activeRoutePath) {
+    // When a parent defaults to a documented child route, the child owns the selected visual state.
+    if (row.depth === 0 && row.hasChildWithSameDestination) {
+      return false;
+    }
+    if (row.destination === activeRoutePath) {
+      return true;
+    }
+    return row.depth === 0 && !row.hasChildren && row.navKey === activeNavKey;
+  }
+  return row.depth === 0 && row.navKey === activeNavKey;
+}
+
+export function defaultScopeDropdownForSession(session) {
+  const visibleSites = Array.isArray(session?.visible_sites) ? session.visible_sites : [];
+  const isDistrictWide = String(session?.shell?.scope_title ?? "").toLowerCase().includes("district");
+  const options = [
+    ...(isDistrictWide ? [{ id: "district-wide", label: "District-wide" }] : []),
+    ...visibleSites.map((site) => ({
+      id: site.id,
+      label: site.name,
+    })),
+  ];
+  const fallbackSite = session?.current_site_id || session?.default_site_id || options[0]?.id || "current";
+  const urlScope = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("site_id");
+  const value = options.some((option) => option.id === urlScope)
+    ? urlScope
+    : isDistrictWide
+      ? "district-wide"
+      : fallbackSite;
+
+  return {
+    label: "Header scope",
+    value,
+    options: options.length
+      ? options
+      : [{ id: session?.shell?.scope_title ?? "current", label: session?.shell?.scope_title ?? "Current scope" }],
+    onChange: (nextScope) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const nextUrl = new URL(window.location.href);
+      if (nextScope && nextScope !== "district-wide") {
+        nextUrl.searchParams.set("site_id", nextScope);
+      } else {
+        nextUrl.searchParams.delete("site_id");
+      }
+      window.history.pushState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
+      const navigationEvent =
+        typeof PopStateEvent === "function" ? new PopStateEvent("popstate") : new Event("popstate");
+      window.dispatchEvent(navigationEvent);
+    },
+  };
 }
 
 function SharedShellSearchOverlay({ bounds, iconBounds, initialQuery, placeholder, onSearch }) {
@@ -796,8 +732,8 @@ export function SharedShellScopeDropdown({
     normalizedOptions.some((option) => option.id === value) ? value : normalizedOptions[0]?.id ?? "";
 
   return (
-    // WCAG 1.3.1/3.3.2/4.1.2: the shared scope selector is a native named form control.
-    <label
+    // WCAG 1.3.1/3.3.2/4.1.2: the shared scope selector exposes a named button/listbox control.
+    <div
       className="shared-shell-scope-dropdown"
       style={{
         position: "absolute",
@@ -808,25 +744,21 @@ export function SharedShellScopeDropdown({
         zIndex: 3,
       }}
     >
-      <span className="sr-only">{label}</span>
-      <select
-        className="shared-shell-scope-dropdown__select"
-        aria-label={label}
+      <RuntimeSelectDropdown
+        label={label}
         value={selectedValue}
-        onChange={(event) => {
-          onChange?.(event.target.value);
-        }}
-      >
-        {normalizedOptions.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        options={normalizedOptions.map((option) => ({ value: option.id, label: option.label }))}
+        onChange={(nextValue) => onChange?.(nextValue)}
+        className="shared-shell-scope-dropdown__runtime"
+        buttonClassName="shared-shell-scope-dropdown__select"
+      />
+    </div>
   );
 }
 
+/**
+ * SharedShellHelpOverlay places the transparent shell help hotspot over the generated help icon and opens the same bounded right drawer used by runtime row-detail surfaces. It is called from createSharedShellRenderOverlay for every implemented page with a shared shell, so the page-specific operator help copy stays attached to the canonical shell primitive instead of each page inventing drawer placement.
+ */
 function SharedShellHelpOverlay({ bounds, helpContent }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -858,7 +790,11 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
         }}
       />
       {isOpen ? (
-        <RuntimeDrawer title={helpContent.title} onClose={() => setIsOpen(false)}>
+        <RuntimeDrawer
+          title={helpContent.title}
+          onClose={() => setIsOpen(false)}
+          className="shared-shell-help-runtime-drawer"
+        >
           <div className="shared-shell-help-drawer">
             {sections.map((section) => (
               <section key={section.heading}>
@@ -875,39 +811,108 @@ function SharedShellHelpOverlay({ bounds, helpContent }) {
   );
 }
 
-function defaultHelpContent(activeNavKey) {
-  if (activeNavKey && DEFAULT_HELP_BY_NAV_KEY[activeNavKey]) {
-    return DEFAULT_HELP_BY_NAV_KEY[activeNavKey];
+async function runDefaultDevLogout() {
+  await fetch("/api/v1/dev/logout", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  window.location.assign("/login");
+}
+
+function SharedShellAccountMenu({ bounds, onNavigate, onLogout }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuId = useId();
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    function handlePointerDown(event) {
+      if (!rootRef.current?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
+  if (!bounds) {
+    return null;
   }
-  return {
-    title: "Page help",
-    sections: [
-      {
-        heading: "What this page shows",
-        paragraphs: [
-          "This page is part of The WIZARD staff dashboard and shows operational information for the current workflow.",
-        ],
-      },
-      {
-        heading: "How to use it",
-        paragraphs: [
-          "Review the visible rows, badges, and actions. If a row opens a drawer, use the drawer to see more detail and next steps.",
-        ],
-      },
-    ],
-  };
+
+  function closeAndNavigate(path) {
+    setIsOpen(false);
+    onNavigate?.(path);
+  }
+
+  async function closeAndLogout() {
+    setIsOpen(false);
+    if (typeof onLogout === "function") {
+      await onLogout();
+      return;
+    }
+    await runDefaultDevLogout();
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className="shared-shell-account-menu"
+      style={{
+        position: "absolute",
+        left: bounds.left,
+        top: bounds.top,
+        width: Math.max(0, bounds.right - bounds.left),
+        height: Math.max(0, bounds.bottom - bounds.top),
+        zIndex: 73,
+      }}
+    >
+      <button
+        type="button"
+        className="shared-shell-account-menu__button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        aria-label="Open account menu"
+        onClick={() => setIsOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setIsOpen(false);
+          }
+        }}
+      />
+      {isOpen ? (
+        <div id={menuId} className="shared-shell-account-menu__panel" role="menu" aria-label="Account menu">
+          <button type="button" role="menuitem" onClick={() => closeAndNavigate("/my-profile")}>
+            My Profile
+          </button>
+          <button type="button" role="menuitem" onClick={() => void closeAndLogout()}>
+            Sign Out
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function defaultHelpContent(activeNavKey, activeRoutePath) {
+  return helpContentForRoute(activeRoutePath, activeNavKey);
 }
 
 export function createSharedShellRenderOverlay({
   session,
   onNavigate,
   activeNavKey = null,
+  activeRoutePath = null,
   onSearch = null,
   searchQuery = "",
   refreshMetadata = null,
   pageSyncControl = null,
   helpContent = null,
   scopeDropdown = null,
+  onLogout = null,
 }) {
   if (
     !session?.authenticated ||
@@ -917,7 +922,7 @@ export function createSharedShellRenderOverlay({
     return null;
   }
 
-  const visibleNavGroups = buildVisibleNavGroups(session);
+  const visibleSidebarRows = buildVisibleSidebarRows(session);
 
   return ({ nodeIndex, textOverrides = {} }) => {
     const searchBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.searchField), textOverrides);
@@ -929,17 +934,9 @@ export function createSharedShellRenderOverlay({
     const refreshButtonBounds = findTopRightRefreshButtonBounds(nodeIndex, textOverrides);
     const resolvedPageSyncControl = normalizePageSyncControl(pageSyncControl, refreshMetadata);
     const helpIconBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.helpIcon), textOverrides);
-    const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey);
-    const resolvedScopeDropdown = scopeDropdown ?? {
-      label: "Header scope",
-      value: session?.shell?.scope_title ?? "",
-      options: [
-        {
-          id: session?.shell?.scope_title ?? "current",
-          label: session?.shell?.scope_title ?? "Current scope",
-        },
-      ],
-    };
+    const accountBoxBounds = nodeBounds(nodeIndex.get(sharedShellSpec.sharedShellIds.accountBox), textOverrides);
+    const resolvedHelpContent = helpContent ?? defaultHelpContent(activeNavKey, activeRoutePath);
+    const resolvedScopeDropdown = scopeDropdown ?? defaultScopeDropdownForSession(session);
 
     return [
       <SharedShellPageSyncControl
@@ -968,19 +965,25 @@ export function createSharedShellRenderOverlay({
         bounds={helpIconBounds}
         helpContent={resolvedHelpContent}
       />,
-      ...visibleNavGroups.map((navKey, index) => {
-        const destination = navDestinationForKey(navKey, session);
-        if (!destination) {
-          return null;
-        }
+      <SharedShellAccountMenu
+        key="shared-shell-account-menu"
+        bounds={accountBoxBounds}
+        onNavigate={onNavigate}
+        onLogout={onLogout}
+      />,
+      ...visibleSidebarRows.map((row, index) => {
         return (
           <SharedShellSidebarRow
-            key={navKey}
+            key={row.key}
+            rowKey={row.key}
             index={index}
-            navKey={navKey}
-            destination={destination}
-            label={navLabelContent(navKey, nodeIndex, textOverrides)}
-            isActive={activeNavKey === navKey}
+            depth={row.depth}
+            labelY={row.labelY}
+            navKey={row.navKey}
+            destination={row.destination}
+            label={row.label ?? navLabelContent(row.navKey, nodeIndex, textOverrides)}
+            isActive={sidebarRowActive(row, activeNavKey, activeRoutePath)}
+            hasChildren={row.hasChildren}
             onNavigate={onNavigate}
           />
         );

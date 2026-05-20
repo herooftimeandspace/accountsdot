@@ -81,11 +81,11 @@ def _validate_docs() -> None:
         "External promotion runbook",
         "semver",
     )
-    _require_contains("docs/promotion-pipeline.md", *required_doc_text)
-    _require_contains("README.md", "scripts/run_local_ci.py --target dev", "docs/promotion-pipeline.md")
-    _require_contains("IMPLEMENTATION_PLAN.md", "Branch Gate Semantics", "docs/promotion-pipeline.md")
-    _require_contains("TEST_MATRIX.md", "promotion-pipeline", "P0-0E-003")
-    _require_contains("ENVIRONMENT_DATA_PLAYBOOK.md", "GitHub Branch Gates", "PROMOTION_PR_TOKEN")
+    _require_contains("docs/operations/promotion-pipeline.md", *required_doc_text)
+    _require_contains("README.md", "scripts/run_local_ci.py --target dev", "docs/operations/promotion-pipeline.md")
+    _require_contains("docs/planning/implementation-plan.md", "Branch Gate Semantics", "docs/operations/promotion-pipeline.md")
+    _require_contains("docs/testing/test-matrix.md", "promotion-pipeline", "P0-0E-003")
+    _require_contains("docs/operations/environment-data-playbook.md", "GitHub Branch Gates", "PROMOTION_PR_TOKEN")
 
 
 def _validate_local_runner() -> None:

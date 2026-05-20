@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
+import { RuntimeCombobox } from "../components/RuntimeDropdown";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import { PenArtboard } from "../lib/PenArtboard";
 import {
+  defaultDestinationRoom,
+  roomMoveSingleDraftRequest,
+  roomMoveDrawerClosedState,
+  roomMoveMatchesCurrentRoom,
+  roomMoveSameRoomMessage,
+} from "./roomMovesModel";
+import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ROOM_MOVES_ENDPOINT = "/api/v1/dev/pages/room-moves";
@@ -20,9 +28,15 @@ const ROOM_MOVES_TABLE_COLUMNS = [
   { key: "person", label: "Name", value: (row) => row.person },
   { key: "current_room", label: "Current", value: (row) => row.current_room },
   { key: "destination_room", label: "Target", value: (row) => row.destination_room },
-  { key: "phone", label: "Phone", value: (row) => row.phone || "No phone" },
+  { key: "phone", label: "Action(s)", value: (row) => row.phone || "No phone" },
   { key: "author", label: "Author", value: (row) => row.author || "DEV mock" },
   { key: "state", label: "State", value: (row) => row.state },
+  {
+    key: "scheduled_for",
+    label: "Scheduled",
+    value: (row) => scheduledDisplay(row.scheduled_for),
+    sortValue: (row) => row.scheduled_for || "",
+  },
 ];
 const BULK_COLUMNS = [
   { key: "person", label: "Person", value: (row) => [row.person, row.email, row.phone].join(" ") },
@@ -32,6 +46,7 @@ const BULK_COLUMNS = [
   { key: "action", label: "Action", value: (row) => row.action },
 ];
 const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
+  "f74", "t75",
   "f92", "t93", "t94", "t95", "t96", "t97",
   "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
   "t109", "t110", "t111", "t112", "t113", "f114", "t115", "l116",
@@ -81,6 +96,22 @@ function nodeBox(node, fallback) {
   };
 }
 
+/**
+ * expandedTableBounds reuses the retired Refresh button's right edge as the
+ * Room Moves table edge. RoomMovesPage calls this when layering the live table
+ * over the generated artboard so removing the old shared refresh primitive also
+ * reclaims its reserved right-side gutter instead of leaving unused canvas.
+ */
+function expandedTableBounds(tableNode, retiredRefreshNode, fallback) {
+  const table = nodeBox(tableNode, fallback);
+  const refresh = nodeBox(retiredRefreshNode, null);
+  if (!refresh) {
+    return table;
+  }
+  const reclaimedWidth = refresh.left + refresh.width - table.left;
+  return { ...table, width: Math.max(table.width, reclaimedWidth) };
+}
+
 function statusClass(status) {
   if (["Ready", "Complete", "Allowed"].includes(status)) {
     return "room-moves-runtime__status room-moves-runtime__status--ready";
@@ -92,6 +123,18 @@ function statusClass(status) {
     return "room-moves-runtime__status room-moves-runtime__status--waiting";
   }
   return "room-moves-runtime__status room-moves-runtime__status--neutral";
+}
+
+function safeExternalHref(href) {
+  if (typeof href !== "string" || href.trim() === "") {
+    return "";
+  }
+  try {
+    const parsed = new URL(href, window.location.origin);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : "";
+  } catch {
+    return "";
+  }
 }
 
 function roomOptionsForSite(rooms, siteId) {
@@ -157,13 +200,6 @@ function findPersonFromAutocompleteValue(people, value) {
   }) || null;
 }
 
-function defaultDestinationRoom(person, destinationSiteId) {
-  if (!person) {
-    return "none";
-  }
-  return destinationSiteId === person.site_id ? person.current_room_id || "none" : "none";
-}
-
 /**
  * detailLines formats structured API detail fields for the shared drawer detail
  * list. Room Moves uses it for issue #54 primary-room conflict explanations so
@@ -175,6 +211,26 @@ function detailLines(values) {
     return "";
   }
   return values.join("\n");
+}
+
+function scheduledDisplay(value) {
+  if (!value) {
+    return "None";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Los_Angeles",
+    timeZoneName: "short",
+  }).format(date);
+  return formatted.replace(",", "");
 }
 
 function RoomMovesStatusBadge({ status }) {
@@ -196,7 +252,6 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
       style={{ left: bounds.left, top: bounds.top, width: bounds.width, minHeight: bounds.height }}
       aria-labelledby={ROOM_MOVES_HEADING_ID}
     >
-      <div className="room-moves-runtime__table-title">Move Set Review</div>
       <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
       <div className="room-moves-runtime__table-header">
         {ROOM_MOVES_TABLE_COLUMNS.map((column) => (
@@ -218,7 +273,7 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
               type="button"
               className="room-moves-runtime__row-open"
               aria-label={`Open room move row for ${row.person}`}
-              onClick={() => onSelectRow(row)}
+              onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
             >
               <div>{row.person}</div>
               <div>{row.current_room}</div>
@@ -226,15 +281,20 @@ function RoomMovesTable({ bounds, rows, selectedRowId, onSelectRow, onCancelRow,
               <div>{row.phone}</div>
               <div>{row.author || "DEV mock"}</div>
               <div><RoomMovesStatusBadge status={row.state} /></div>
+              <div>{scheduledDisplay(row.scheduled_for)}</div>
             </button>
-            <button
-              type="button"
-              className="room-moves-runtime__delete room-moves-runtime__cancel-row"
-              onClick={() => onCancelRow(row)}
-              disabled={cancelingDraftId === row.draft_id}
-            >
-              Cancel Move
-            </button>
+            {row.can_cancel ? (
+              <button
+                type="button"
+                className="room-moves-runtime__delete room-moves-runtime__cancel-row"
+                onClick={() => onCancelRow(row)}
+                disabled={cancelingDraftId === row.draft_id}
+              >
+                Cancel Move
+              </button>
+            ) : (
+              <span className="room-moves-runtime__readonly">Read-only</span>
+            )}
           </div>
         ))}
       </div>
@@ -261,6 +321,7 @@ function RoomMovesActions({ bounds, onMovePerson, onBatchMove, onSiteRollover, b
 }
 
 function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClose, onSaved }) {
+  const canEdit = !row || row.can_edit !== false;
   const initialPerson = people.find((person) => person.email === row?.email) || null;
   const [query, setQuery] = useState(initialPerson?.email || "");
   const [selectedPersonId, setSelectedPersonId] = useState(initialPerson?.id || "");
@@ -290,6 +351,13 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
 
   const autocompleteOptions = people.filter((person) => personMatchesQuery(person, query));
   const availableRooms = roomOptionsForSite(rooms, destinationSiteId);
+  const showsManualAction = Boolean(row?.manual_action_owner || row?.manual_action_reason);
+
+  function updatePersonQuery(value) {
+    setQuery(value);
+    const person = findPersonFromAutocompleteValue(people, value);
+    setSelectedPersonId(person?.id || "");
+  }
 
   function applyPersonValue(value) {
     setQuery(value);
@@ -308,31 +376,28 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
       setError("Select a person before saving the draft.");
       return;
     }
+    if (roomMoveMatchesCurrentRoom(selectedPerson, destinationSiteId, destinationRoomId)) {
+      setError(roomMoveSameRoomMessage(selectedPerson));
+      return;
+    }
     setSaving(true);
     setError("");
     try {
+      const draftEndpoint = row?.draft_id
+        ? `${ROOM_MOVES_DRAFTS_ENDPOINT}/${row.draft_id}`
+        : ROOM_MOVES_DRAFTS_ENDPOINT;
       const response = await readJSON(
-        await fetch(ROOM_MOVES_DRAFTS_ENDPOINT, {
-          method: "POST",
+        await fetch(draftEndpoint, {
+          method: row?.draft_id ? "PUT" : "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({
-            mode: "mid_year_targeted_move",
-            person_id: selectedPerson.id,
-            rows: [
-              {
-                person_id: selectedPerson.id,
-                destination_site_id: destinationSiteId,
-                destination_room_id: destinationRoomId,
-              },
-            ],
-          }),
+          body: JSON.stringify(roomMoveSingleDraftRequest(row, selectedPerson, destinationSiteId, destinationRoomId)),
         })
       );
       setCreatedDraftId(response.draft.id);
-      if (action === "schedule" || action === "apply") {
+      if (action === "apply") {
         const transition = await readJSON(
-          await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${response.draft.id}/${action}`, {
+          await fetch(`${ROOM_MOVES_DRAFTS_ENDPOINT}/${response.draft.id}/apply`, {
             method: "POST",
             credentials: "same-origin",
             headers: { Accept: "application/json" },
@@ -364,8 +429,10 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
     onClose();
   }
 
+  const fallbackTicketHref = safeExternalHref(row?.fallback_ticket_href);
+
   return (
-    <RuntimeDrawer title={row ? row.person : "Move Person"} onClose={onClose}>
+    <RuntimeDrawer title={row ? row.person : "Move Person"} onClose={onClose} variant="modal" isDirty>
       {row?.warning ? (
         <div className="room-moves-runtime__warning-bar">
           <strong>Warning</strong>
@@ -387,28 +454,37 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
           { label: "Manual owner", value: row?.manual_action_owner },
           { label: "Manual reason", value: row?.manual_action_reason },
           { label: "Resolution steps", value: detailLines(row?.resolution_steps) },
-          { label: "External systems", value: detailLines(row?.external_systems) },
+          { label: "External systems", value: showsManualAction ? detailLines(row?.external_systems) : "" },
+          {
+            label: "Fallback ticket",
+            value: row?.fallback_ticket && fallbackTicketHref ? (
+              <a href={fallbackTicketHref} target="_blank" rel="noreferrer">
+                {row.fallback_ticket}
+              </a>
+            ) : row?.fallback_ticket || "",
+          },
+          { label: "Ticket status", value: row?.fallback_status },
+          { label: "Technical outcome", value: row?.technical_outcome },
         ]}
       />
       <div className="runtime-drawer__section">
         <label className="room-moves-runtime__field" htmlFor="room-move-person-search">
           <span>Employee ID, email, or name</span>
-          <input
-            id="room-move-person-search"
-            list="room-move-person-options"
-            type="search"
+          <RuntimeCombobox
+            inputId="room-move-person-search"
+            label="Employee ID, email, or name"
             value={query}
-            onChange={(event) => applyPersonValue(event.target.value)}
-            onBlur={(event) => applyPersonValue(event.target.value)}
-            placeholder="Search scoped people..."
+            options={autocompleteOptions.map((person) => ({
+              value: personAutocompleteLabel(person),
+              label: personAutocompleteLabel(person),
+            }))}
+            onInput={updatePersonQuery}
+            onCommit={applyPersonValue}
+            placeholder="Search"
+            disabled={!canEdit}
           />
-          <datalist id="room-move-person-options">
-            {autocompleteOptions.map((person) => (
-              <option key={person.id} value={personAutocompleteLabel(person)} />
-            ))}
-          </datalist>
         </label>
-        {canManageDistrict ? (
+        {canManageDistrict && canEdit ? (
           <label className="room-moves-runtime__field" htmlFor="room-move-destination-site">
             <span>Destination site</span>
             <select
@@ -428,18 +504,30 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
             id="room-move-destination-room"
             value={destinationRoomId}
             onChange={(event) => setDestinationRoomId(event.target.value)}
+            disabled={!canEdit}
           >
             {availableRooms.map((room) => (
-              <option key={`${room.site_id}-${room.id}`} value={room.id}>{room.label}</option>
+              <option
+                key={`${room.site_id}-${room.id}`}
+                value={room.id}
+                disabled={roomMoveMatchesCurrentRoom(selectedPerson, destinationSiteId, room.id)}
+              >
+                {room.label}
+              </option>
             ))}
           </select>
         </label>
         {error ? <p className="room-moves-runtime__error">{error}</p> : null}
         <div className="room-moves-runtime__drawer-actions">
-          <button type="button" onClick={() => saveDraft("save")} disabled={saving}>Save Draft</button>
-          <button type="button" onClick={() => saveDraft("schedule")} disabled={saving}>Schedule</button>
-          <button type="button" onClick={() => saveDraft("apply")} disabled={saving}>Apply</button>
-          <button type="button" className="room-moves-runtime__delete" onClick={cancelDraft} disabled={saving}>Cancel</button>
+          {canEdit ? (
+            <>
+              <button type="button" onClick={() => saveDraft("save")} disabled={saving}>Save Draft</button>
+              <button type="button" onClick={() => saveDraft("apply")} disabled={saving}>Save and Apply</button>
+            </>
+          ) : null}
+          <button type="button" className="room-moves-runtime__delete" onClick={cancelDraft} disabled={saving}>
+            {canEdit ? "Cancel" : "Close"}
+          </button>
         </div>
       </div>
     </RuntimeDrawer>
@@ -448,6 +536,7 @@ function SingleMoveDrawer({ row, people, rooms, sites, canManageDistrict, onClos
 
 function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
   const draft = page.draft;
+  const canEdit = draft.can_edit !== false;
   const [rows, setRows] = useState(draft.rows || []);
   const [effectiveDate, setEffectiveDate] = useState(draft.effective_date || "2026-07-27");
   const [dirty, setDirty] = useState(false);
@@ -577,6 +666,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
               id="room-move-effective-date"
               type="date"
               value={effectiveDate}
+              disabled={!canEdit}
               onChange={(event) => {
                 setEffectiveDate(event.target.value);
                 setDirty(true);
@@ -584,10 +674,10 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
               onBlur={() => save(rows, effectiveDate)}
             />
           </label>
-          <button type="button" onClick={() => save()} disabled={saving}>Save Draft</button>
-          <button type="button" onClick={() => onTransition("schedule")}>Schedule</button>
-          <button type="button" onClick={() => onTransition("apply")}>Apply</button>
-          <button type="button" className="room-moves-runtime__delete" onClick={onDelete}>Discard</button>
+          <button type="button" onClick={() => save()} disabled={!canEdit || saving}>Save Draft</button>
+          <button type="button" onClick={() => onTransition("schedule")} disabled={!canEdit}>Schedule</button>
+          <button type="button" onClick={() => onTransition("apply")} disabled={!canEdit}>Apply</button>
+          <button type="button" className="room-moves-runtime__delete" onClick={onDelete} disabled={!canEdit}>Discard</button>
         </div>
       </div>
       {draft.warnings?.length ? (
@@ -600,7 +690,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
       ) : null}
       <div className="room-moves-runtime__table-tools">
         <RuntimeTableSearch value={table.searchQuery} onChange={table.setSearchQuery} />
-        <button type="button" onClick={addRow}>Add</button>
+        <button type="button" onClick={addRow} disabled={!canEdit}>Add</button>
       </div>
       <div className="room-moves-runtime__bulk-header">
         {BULK_COLUMNS.map((column) => (
@@ -619,7 +709,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
         ) : null}
         {table.visibleRows.map((row) => (
           <div key={row.id} className="room-moves-runtime__bulk-row">
-            <select value={row.person_id} onChange={(event) => updateRow(row.id, { person_id: event.target.value })}>
+            <select value={row.person_id} onChange={(event) => updateRow(row.id, { person_id: event.target.value })} disabled={!canEdit}>
               <option value="">Select person...</option>
               {page.people.map((person) => (
                 <option key={person.id} value={person.id}>{bulkPersonLabel(person)}</option>
@@ -629,6 +719,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
             {page.can_manage_district ? (
               <select
                 value={row.destination_site_id}
+                disabled={!canEdit}
                 onChange={(event) => updateRow(row.id, {
                   destination_site_id: event.target.value,
                   destination_room_id: event.target.value === row.current_site_id ? row.current_room_id : "none",
@@ -642,12 +733,13 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
             <select
               value={row.destination_room_id}
               onChange={(event) => updateRow(row.id, { destination_room_id: event.target.value })}
+              disabled={!canEdit}
             >
               {roomOptionsForSite(page.rooms, row.destination_site_id).map((room) => (
                 <option key={`${row.id}-${room.site_id}-${room.id}`} value={room.id}>{room.label}</option>
               ))}
             </select>
-            <select value={row.action} onChange={(event) => updateRow(row.id, { action: event.target.value })}>
+            <select value={row.action} onChange={(event) => updateRow(row.id, { action: event.target.value })} disabled={!canEdit}>
               <option value="add">add</option>
               <option value="change">change</option>
               <option value="removal">removal</option>
@@ -655,6 +747,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
             <button
               type="button"
               className="room-moves-runtime__delete"
+              disabled={!canEdit}
               onClick={() => {
                 void cancelRow(row.id);
               }}
@@ -844,11 +937,10 @@ export function RoomMovesPage({
         onSearch,
         searchQuery,
         activeNavKey: "roomMoves",
-        refreshMetadata: isBulk
-          ? null
-          : payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(meta),
+        activeRoutePath: isBulk ? "/room-moves/bulk-draft" : "/room-moves",
+        refreshMetadata: null,
       }),
-    [isBulk, meta, onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
+    [isBulk, onNavigate, onSearch, searchQuery, session]
   );
 
   const fullOverlay = useCallback(
@@ -861,7 +953,11 @@ export function RoomMovesPage({
       const page = payload.page;
       const tableBounds = isBulk
         ? { left: 288, top: 96, width: 1268, height: 820 }
-        : { ...nodeBox(nodeIndex.get("room-moves__f100"), { left: 288, top: 348, width: 1268, height: 480 }), width: 1268 };
+        : expandedTableBounds(
+            nodeIndex.get("room-moves__f100"),
+            nodeIndex.get("room-moves__f74"),
+            { left: 288, top: 348, width: 1268, height: 480 }
+          );
       const batchBounds = nodeBox(nodeIndex.get("room-moves__f88"), { left: 996, top: 182, width: 220, height: 148 });
 
       return (
@@ -883,6 +979,10 @@ export function RoomMovesPage({
                 cancelingDraftId={cancelingDraftId}
                 onCancelRow={cancelMove}
                 onSelectRow={(row) => {
+                  if (!row) {
+                    setSelectedRow(null);
+                    return;
+                  }
                   if (row.move_type === "mid_year_targeted_move") {
                     setSelectedRow(row);
                     setShowCreateDrawer(false);
@@ -954,12 +1054,14 @@ export function RoomMovesPage({
           sites={payload.page.sites}
           canManageDistrict={payload.page.can_manage_district}
           onClose={() => {
-            setSelectedRow(null);
-            setShowCreateDrawer(false);
+            const next = roomMoveDrawerClosedState();
+            setSelectedRow(next.selectedRow);
+            setShowCreateDrawer(next.showCreateDrawer);
           }}
           onSaved={() => {
-            setSelectedRow(null);
-            setShowCreateDrawer(false);
+            const next = roomMoveDrawerClosedState();
+            setSelectedRow(next.selectedRow);
+            setShowCreateDrawer(next.showCreateDrawer);
             refresh();
           }}
         />

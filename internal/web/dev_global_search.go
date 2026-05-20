@@ -51,9 +51,9 @@ type rankedGlobalSearchResult struct {
 	NormalizedKey string
 }
 
-// handleDevGlobalSearch handles the request path for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/external-write-inventory.md.
+// handleDevGlobalSearch handles the request path for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers. Pay special attention to side effects: this path may mutate response state, DEV mock state, cookies, database transactions, or planned provider work and must stay aligned with docs/planning/external-write-inventory.md.
 func handleDevGlobalSearch(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -104,7 +104,7 @@ func buildDevGlobalSearchGroups(ctx context.Context, config devPersonaConfig, qu
 		ranked = append(ranked, globalSearchPhoneDirectoryResults(config, normalizedQuery)...)
 	}
 	if routeAllowed(ctx, config, "/onboarding") {
-		ranked = append(ranked, globalSearchOnboardingResults(normalizedQuery, now)...)
+		ranked = append(ranked, globalSearchOnboardingResults(config, normalizedQuery, now)...)
 	}
 	if routeAllowed(ctx, config, "/offboarding") {
 		ranked = append(ranked, globalSearchOffboardingResults(config, normalizedQuery)...)
@@ -215,8 +215,8 @@ func globalSearchDirectoryTarget(entry devPhoneDirectoryEntry) (string, string, 
 }
 
 // globalSearchOnboardingResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
-func globalSearchOnboardingResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
-	rows := devOnboardingStore.rows(now)
+func globalSearchOnboardingResults(config devPersonaConfig, normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
+	rows := devOnboardingStore.rows(now, config)
 	results := make([]rankedGlobalSearchResult, 0, len(rows))
 	for _, row := range rows {
 		values := []string{row.Person, row.Site, row.AssignedEmail, row.EmployeeNumber, row.WorkflowStatus, row.CurrentStep, row.IssueAction, row.AeriesTicket, row.VerkadaTicket}
@@ -282,7 +282,7 @@ func globalSearchOffboardingResults(config devPersonaConfig, normalizedQuery str
 func globalSearchWorkflowActionResults(ctx context.Context, config devPersonaConfig, normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
 	results := []rankedGlobalSearchResult{}
 	if routeAllowed(ctx, config, "/onboarding") {
-		for _, row := range devOnboardingStore.rows(now) {
+		for _, row := range devOnboardingStore.rows(now, config) {
 			for _, step := range row.WorkflowSteps {
 				for _, action := range step.Actions {
 					values := []string{row.Person, row.Site, row.AssignedEmail, step.Name, step.Status, step.Detail, action.Label, action.Resolution, action.System, action.Href}
@@ -340,7 +340,7 @@ func globalSearchWorkflowActionResults(ctx context.Context, config devPersonaCon
 
 // globalSearchDepartingSeniorResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchDepartingSeniorResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
-	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now))
+	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now), now)
 	results := make([]rankedGlobalSearchResult, 0, len(rows))
 	for _, row := range rows {
 		values := []string{row.DisplayName, row.FirstName, row.LastName, row.Email, row.StudentID, row.Site, row.GraduationYear, row.Status}
@@ -378,7 +378,7 @@ func globalSearchDepartingSeniorResults(normalizedQuery string, now time.Time) [
 
 // globalSearchDeviceResults documents the data flow for internal/web/dev_global_search.go. HTTP routes, DEV frontend APIs, or web tests reach this function; debug it by following the registered route, request method, persona checks, and JSON response. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
 func globalSearchDeviceResults(normalizedQuery string, now time.Time) []rankedGlobalSearchResult {
-	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now))
+	rows := devDepartingSeniorsStore.rows(currentSeniorGraduationYear(now), now)
 	results := []rankedGlobalSearchResult{}
 	for _, row := range rows {
 		for _, device := range row.OutstandingDevices {

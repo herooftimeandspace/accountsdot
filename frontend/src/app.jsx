@@ -1,9 +1,11 @@
-import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DevPersonaSwitcher } from "./components/DevPersonaSwitcher";
 import { devMark, devMeasureAsync } from "./lib/devPerformance";
 import { errorStatusCodeFor } from "./lib/errorStatus.mjs";
 import { prefetchArtboards } from "./lib/generatedArtboards";
-import { artboardKeysForAllowedRoutes, isRouteAllowed, normalizePath, resolveRoute } from "./lib/routeRegistry";
+import { redirectTargetForRoute } from "./lib/routeAccess.mjs";
+import { artboardKeysForAllowedRoutes, normalizePath, resolveRoute } from "./lib/routeRegistry";
+import { LoginPage } from "./pages/LoginPage";
 
 function lazyNamed(importer, exportName) {
   return lazy(() => importer().then((module) => ({ default: module[exportName] })));
@@ -11,12 +13,12 @@ function lazyNamed(importer, exportName) {
 
 const ErrorPage = lazyNamed(() => import("./pages/ErrorPage"), "ErrorPage");
 const FeatureFlagsPage = lazyNamed(() => import("./pages/FeatureFlagsPage"), "FeatureFlagsPage");
-const LoginPage = lazyNamed(() => import("./pages/LoginPage"), "LoginPage");
 const DataQualityPage = lazyNamed(() => import("./pages/DataQualityPage"), "DataQualityPage");
 const DepartingSeniorsPage = lazyNamed(() => import("./pages/DepartingSeniorsPage"), "DepartingSeniorsPage");
 const FrequentFliersPage = lazyNamed(() => import("./pages/FrequentFliersPage"), "FrequentFliersPage");
 const OffboardingPage = lazyNamed(() => import("./pages/OffboardingPage"), "OffboardingPage");
 const OnboardingPage = lazyNamed(() => import("./pages/OnboardingPage"), "OnboardingPage");
+const MyProfilePage = lazyNamed(() => import("./pages/MyProfilePage"), "MyProfilePage");
 const PhoneDirectoryPage = lazyNamed(() => import("./pages/PhoneDirectoryPage"), "PhoneDirectoryPage");
 const ReportsPage = lazyNamed(() => import("./pages/ReportsPage"), "ReportsPage");
 const RoomMovesPage = lazyNamed(() => import("./pages/RoomMovesPage"), "RoomMovesPage");
@@ -29,6 +31,10 @@ const StaticPenPage = lazyNamed(() => import("./pages/StaticPenPage"), "StaticPe
 const StudentDataCleanupPage = lazyNamed(
   () => import("./pages/StudentDataCleanupPage"),
   "StudentDataCleanupPage"
+);
+const ZoomDeskPhoneRenamesReportPage = lazyNamed(
+  () => import("./pages/ZoomDeskPhoneRenamesReportPage"),
+  "ZoomDeskPhoneRenamesReportPage"
 );
 
 const DEV_API_BASE = "/api/v1/dev";
@@ -47,7 +53,6 @@ const STATIC_ROUTE_TITLES = {
   "student-data-cleanup": "Student Data Cleanup",
   reports: "Reports",
   "reports-sync-transparency": "Sync Transparency",
-  "reports-ticketing-human-work": "Ticketing Human Work",
   admin: "Admin",
   "admin-feature-flags": "Feature Flags",
   "my-profile": "My Profile",
@@ -86,6 +91,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Reports";
     case "security-issues-report":
       return "Security Issues";
+    case "zoom-desk-phone-renames-report":
+      return "Zoom Desk Phone Renames";
     case "feature-flags":
       return "Feature Flags";
     case "room-moves":
@@ -189,6 +196,7 @@ export function App() {
   const [sessionError, setSessionError] = useState(null);
   const [preferredPersonaId, setPreferredPersonaId] = useState(readStoredPersona);
   const [personaSwitchState, setPersonaSwitchState] = useState(null);
+  const sessionRequestIdRef = useRef(0);
 
   const currentPath = currentLocation.pathname;
   const currentSearch = currentLocation.search;
@@ -212,6 +220,8 @@ export function App() {
   }, []);
 
   const loadSession = useCallback(async () => {
+    const requestId = sessionRequestIdRef.current + 1;
+    sessionRequestIdRef.current = requestId;
     setSessionState("loading");
     setSessionError(null);
     try {
@@ -223,6 +233,9 @@ export function App() {
           })
         )
       );
+      if (requestId !== sessionRequestIdRef.current) {
+        return;
+      }
       setSession(payload);
       if (payload?.current_persona?.id) {
         setPreferredPersonaId(payload.current_persona.id);
@@ -230,6 +243,9 @@ export function App() {
       }
       setSessionState("ready");
     } catch (error) {
+      if (requestId !== sessionRequestIdRef.current) {
+        return;
+      }
       setSession(null);
       setSessionError(error);
       setSessionState("error");
@@ -261,6 +277,7 @@ export function App() {
       } else {
         setSessionState("updating");
       }
+      sessionRequestIdRef.current += 1;
       setSessionError(null);
       try {
         const payload = await readJSON(
@@ -320,6 +337,7 @@ export function App() {
   );
 
   const logout = useCallback(async () => {
+    sessionRequestIdRef.current += 1;
     setSessionState("updating");
     setSessionError(null);
     try {
@@ -414,39 +432,7 @@ export function App() {
   );
 
   const redirectTarget = useMemo(() => {
-    if (sessionState !== "ready") {
-      return null;
-    }
-
-    if (currentPath === "/") {
-      return authenticated ? "/dashboard" : "/login";
-    }
-
-    if (currentRoute?.kind === "login") {
-      return authenticated ? "/dashboard" : null;
-    }
-
-    if (!authenticated) {
-      return currentPath === "/error/401" ? null : "/error/401";
-    }
-
-    if (!currentRoute) {
-      return "/error/404";
-    }
-
-    if (currentRoute.kind === "dashboard-redirect") {
-      return session?.landing_path || "/error/403";
-    }
-
-    if (currentRoute.kind === "error") {
-      return null;
-    }
-
-    if (!isRouteAllowed(session, currentRoute.path)) {
-      return "/error/403";
-    }
-
-    return null;
+    return redirectTargetForRoute({ sessionState, authenticated, currentPath, currentRoute, session });
   }, [authenticated, currentPath, currentRoute, session, sessionState]);
 
   useEffect(() => {
@@ -469,7 +455,7 @@ export function App() {
   const visiblePersonaId = personaSwitchState?.targetPersonaId || activePersonaId;
 
   let page = null;
-  if (sessionState === "loading") {
+  if (sessionState === "loading" && currentRoute?.kind !== "login") {
     page = <PageStatus title="Loading" message="Preparing the DEV session." />;
   } else if (sessionState === "error") {
     page = (
@@ -609,6 +595,17 @@ export function App() {
         onForbidden={handleForbidden}
       />
     );
+  } else if (currentRoute?.kind === "zoom-desk-phone-renames-report") {
+    page = (
+      <ZoomDeskPhoneRenamesReportPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
   } else if (currentRoute?.kind === "feature-flags") {
     page = (
       <FeatureFlagsPage
@@ -627,6 +624,17 @@ export function App() {
         routeKind={currentRoute.kind}
         artboardKey={currentRoute.artboardKey}
         currentSearch={currentSearch}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
+  } else if (currentRoute?.kind === "static" && currentRoute.artboardKey === "my-profile") {
+    page = (
+      <MyProfilePage
+        session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}

@@ -1,0 +1,24 @@
+{
+  "issue": 102,
+  "route": "/onboarding",
+  "baseUrl": "http://localhost:5174",
+  "apiPreflight": {
+    "url": "http://localhost:8080/api/v1/dev/session",
+    "status": 200,
+    "environment": "development"
+  },
+  "checks": {
+    "addButtonCount": 1,
+    "manualDrawerCount": 1,
+    "requiredFieldsVisibleBeforeSave": 0,
+    "fieldErrorCountBeforeSave": 0,
+    "personalPhoneInputCount": 1,
+    "personalPhonePlaceholder": "(707) 555-0134",
+    "personalPhoneValueAfterTyping7075550134": "(707) 555-0134",
+    "requiredFieldsVisibleAfterSave": 1,
+    "problemFieldCountAfterSave": 10,
+    "drawerRightEdgePx": 1241,
+    "viewportWidthPx": 1280
+  },
+  "screenshot": "artifacts/issues/issue-102/onboarding-manual-intake.png"
+}

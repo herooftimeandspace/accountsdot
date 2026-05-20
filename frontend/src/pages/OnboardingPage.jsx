@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as lucideIcons from "lucide-static";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -16,35 +17,10 @@ import {
 
 const ONBOARDING_ENDPOINT = "/api/v1/dev/pages/onboarding";
 const MANUAL_DRAFTS_ENDPOINT = "/api/v1/dev/onboarding/manual-drafts";
+const ONBOARDING_ROWS_ENDPOINT = "/api/v1/dev/onboarding/rows";
 const ONBOARDING_HEADING_ID = "onboarding-heading";
 const LEAD_TIME_WARNING =
   "The start date is ≤ 3 days from the current date. Access to some systems may be delayed beyond the start date.";
-const ONBOARDING_HELP_CONTENT = {
-  title: "Onboarding help",
-  sections: [
-    {
-      heading: "What this page shows",
-      paragraphs: [
-        "This page shows upcoming staff onboarding work. Each row is a person who needs accounts, access, rooms, or follow-up before they are fully ready.",
-        "The status badge tells you whether the work is ready, running, waiting, missing information, or blocked.",
-      ],
-    },
-    {
-      heading: "How to use it",
-      paragraphs: [
-        "Select a row to open details in the right drawer. The drawer explains what is happening and lists any action needed from HR, IT, or another system.",
-        "Use Add Non-Escape Record when a contractor or other manual record needs onboarding before the person appears from Escape.",
-      ],
-    },
-    {
-      heading: "Warnings",
-      paragraphs: [
-        "A warning icon beside the start date means the start date is very close to the date the record was added. Some systems may not be ready by that date.",
-        "Incomplete or blocked records need attention before normal onboarding can continue.",
-      ],
-    },
-  ],
-};
 const EMPTY_DRAFT_FORM = {
   start_date: "",
   ssn_last4: "",
@@ -127,9 +103,6 @@ const ONBOARDING_TABLE_COLUMNS = [
   { key: "workflow_status", label: "Workflow Status", value: (row) => row.workflow_status },
 ];
 
-/**
- * nodeBox documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function nodeBox(node) {
   if (!node) {
     return null;
@@ -142,9 +115,6 @@ function nodeBox(node) {
   };
 }
 
-/**
- * readJSON loads or decodes data for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -156,9 +126,6 @@ async function readJSON(response) {
   return payload;
 }
 
-/**
- * draftToForm documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function draftToForm(draft) {
   return {
     start_date: draft?.start_date ?? "",
@@ -180,7 +147,12 @@ function draftToForm(draft) {
 }
 
 /**
- * formatPersonalPhoneInput keeps the manual Non-Escape drawer display aligned with the backend contract. The drawer and DEV mock API both accept operator-entered punctuation, but the API stores only the canonical ten digits needed for the planned Aeries upload path, so every render and keystroke is converted back to the familiar `(NNN) NNN-NNNN` shape without exposing raw phone text elsewhere.
+ * formatPersonalPhoneInput keeps the manual Non-Escape drawer display aligned
+ * with the backend contract. The drawer and DEV mock API both accept
+ * operator-entered punctuation, but the API stores only the canonical ten
+ * digits needed for the planned Aeries upload path, so every render and
+ * keystroke is converted back to the familiar `(NNN) NNN-NNNN` shape without
+ * exposing raw phone text elsewhere.
  */
 function formatPersonalPhoneInput(value) {
   const digits = String(value ?? "").replace(/\D/g, "").slice(0, 10);
@@ -193,9 +165,6 @@ function formatPersonalPhoneInput(value) {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
-/**
- * daysBetween documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function daysBetween(startDate, currentDate) {
   if (!startDate || !currentDate) {
     return null;
@@ -208,9 +177,6 @@ function daysBetween(startDate, currentDate) {
   return Math.ceil((start.getTime() - current.getTime()) / 86400000);
 }
 
-/**
- * formatOnboardingDate formats display data for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function formatOnboardingDate(value) {
   if (!value) {
     return "";
@@ -227,9 +193,6 @@ function formatOnboardingDate(value) {
   });
 }
 
-/**
- * LeadTimeWarning renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function LeadTimeWarning({ id, placement = "center" }) {
   return (
     <span
@@ -253,9 +216,6 @@ function LeadTimeWarning({ id, placement = "center" }) {
   );
 }
 
-/**
- * changeReasonLabel documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function changeReasonLabel(reason) {
   const labels = {
     assignment_add: "Secondary / tertiary assignment",
@@ -270,9 +230,6 @@ function changeReasonLabel(reason) {
   return labels[reason] ?? reason ?? "";
 }
 
-/**
- * statusClass formats display data for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function statusClass(status) {
   if (["Ready", "Ready to Provision", "Healthy", "Complete", "Allowed"].includes(status)) {
     return "onboarding-runtime__status onboarding-runtime__status--ready";
@@ -292,9 +249,6 @@ function statusClass(status) {
   return "onboarding-runtime__status onboarding-runtime__status--neutral";
 }
 
-/**
- * missingFieldLabel documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function missingFieldLabel(field) {
   const labels = {
     start_date: "Start date",
@@ -313,16 +267,10 @@ function missingFieldLabel(field) {
   return labels[field] ?? field;
 }
 
-/**
- * fieldHasProblem documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function fieldHasProblem(field, draft, errors, showValidationFeedback) {
   return Boolean(showValidationFeedback && (errors?.[field] || draft?.missing_fields?.includes(field)));
 }
 
-/**
- * fieldClassName documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function fieldClassName(field, draft, errors, showValidationFeedback, extraClass = "") {
   return [
     "onboarding-runtime__field",
@@ -333,9 +281,6 @@ function fieldClassName(field, draft, errors, showValidationFeedback, extraClass
     .join(" ");
 }
 
-/**
- * OnboardingTableOverlay renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
   const table = useRuntimeTableData(rows, ONBOARDING_TABLE_COLUMNS, {
     defaultSort: { key: "date_added", direction: "asc" },
@@ -379,7 +324,7 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
             }`}
             aria-label={`Open onboarding row for ${row.person}`}
             aria-pressed={selectedRowId === row.id}
-            onClick={() => onSelectRow(row)}
+            onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
           >
             <div title={row.date_added_reason}>{row.date_added || "Unknown"}</div>
             <div className="onboarding-runtime__start-cell">
@@ -403,9 +348,6 @@ function OnboardingTableOverlay({ bounds, rows, selectedRowId, onSelectRow }) {
   );
 }
 
-/**
- * AddManualOverlay renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function AddManualOverlay({ bounds, canManageManual, onAdd }) {
   if (!bounds || !canManageManual) {
     return null;
@@ -431,9 +373,6 @@ function AddManualOverlay({ bounds, canManageManual, onAdd }) {
   );
 }
 
-/**
- * workflowMissingFields documents runtime data flow for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function workflowMissingFields(row, step) {
   if (row?.id === "evan-ruiz" && step?.name === "HR intake") {
     return ["Employment type"];
@@ -444,70 +383,98 @@ function workflowMissingFields(row, step) {
   return [];
 }
 
-/**
- * RoomOverrideForm renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
-function RoomOverrideForm({ formOptions }) {
-  const [site, setSite] = useState("");
-  const [room, setRoom] = useState("");
+function linkedTicketStatus(ticketText) {
+  const trimmed = String(ticketText || "").trim();
+  if (!trimmed) {
+    return { number: "", status: "" };
+  }
+  const [number, ...statusParts] = trimmed.split(/\s+/);
+  return {
+    number,
+    status: statusParts.join(" "),
+  };
+}
+
+function TicketStatusLine({ label, ticketText }) {
+  const ticket = linkedTicketStatus(ticketText);
+  return (
+    <p>
+      <strong>{label}</strong>
+      {ticket.number ? (
+        <span>
+          <a href={`https://mock.wusd.local/incidentiq/tickets/${ticket.number}`} target="_blank" rel="noreferrer">
+            {ticket.number}
+          </a>
+          {ticket.status ? ` ${ticket.status}` : ""}
+        </span>
+      ) : (
+        <span>Not linked</span>
+      )}
+    </p>
+  );
+}
+
+function RoomOverrideForm({ row, formOptions, onSaved }) {
+  const [room, setRoom] = useState(row?.room_id ?? "");
   const [message, setMessage] = useState("");
-  const siteOptions = formOptions?.sites ?? [];
-  const roomOptions = formOptions?.rooms ?? [];
+  const [saving, setSaving] = useState(false);
+  const roomOptions = (formOptions?.rooms ?? []).filter((option) => !row?.site_id || option.site_id === row.site_id);
+
+  async function submitRoomOverride(event) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const saved = await readJSON(
+        await fetch(`${ONBOARDING_ROWS_ENDPOINT}/${row.id}/room`, {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ room_id: room }),
+        })
+      );
+      setMessage(`Saved DEV room override for ${saved.row?.room_name || "the selected room"}.`);
+      onSaved?.(saved);
+    } catch (error) {
+      setMessage(error.payload?.errors?.room_id || error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <form className="onboarding-runtime__room-override" onSubmit={(event) => {
-      event.preventDefault();
-      const siteLabel = site || "selected site";
-      const roomLabel = room || "selected room";
-      setMessage(`Saved DEV override for ${siteLabel} / ${roomLabel}.`);
-    }}>
+    <form className="onboarding-runtime__room-override" onSubmit={submitRoomOverride}>
       <h4>Override room from IncidentIQ</h4>
-      <label htmlFor="room-override-site">
-        <span>Site</span>
-        <input
-          id="room-override-site"
-          list="room-override-sites"
-          value={site}
-          onChange={(event) => setSite(event.target.value)}
-          placeholder="Filter sites..."
-        />
-      </label>
-      <datalist id="room-override-sites">
-        {siteOptions.map((option) => (
-          <option key={option.id} value={option.name} />
-        ))}
-      </datalist>
       <label htmlFor="room-override-room">
         <span>Room</span>
-        <input
+        <select
           id="room-override-room"
-          list="room-override-rooms"
           value={room}
           onChange={(event) => setRoom(event.target.value)}
-          placeholder="Filter rooms..."
-        />
+        >
+          <option value="">None</option>
+          {roomOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.name}
+            </option>
+          ))}
+        </select>
       </label>
-      <datalist id="room-override-rooms">
-        {roomOptions.map((option) => (
-          <option key={option.id} value={option.name} />
-        ))}
-      </datalist>
-      <button type="submit">Save Override</button>
+      <button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Room"}</button>
       {message ? <p role="status">{message}</p> : null}
     </form>
   );
 }
 
-/**
- * WorkflowDrawer renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
-function WorkflowDrawer({ row, formOptions, onClose }) {
+function WorkflowDrawer({ row, formOptions, onClose, onRoomSaved }) {
   if (!row) {
     return null;
   }
-  const hasRoomMappingAction = row.workflow_steps?.some((step) => step.name === "Room mapping");
   return (
-    <RuntimeDrawer title={row.person} onClose={onClose}>
+    <RuntimeDrawer title={row.person} onClose={onClose} variant={row.can_update_room ? "modal" : "inspector"}>
       {row.late_start ? (
         <div className="onboarding-runtime__late-start">
           <strong>Late-start warning</strong>
@@ -548,14 +515,8 @@ function WorkflowDrawer({ row, formOptions, onClose }) {
         </div>
       ) : null}
       <div className="runtime-drawer__section">
-        <p>
-          <strong>Earliest matching Aeries ticket:</strong>
-          <span>{row.aeries_ticket || "Not linked"}</span>
-        </p>
-        <p>
-          <strong>Earliest matching Verkada ticket:</strong>
-          <span>{row.verkada_ticket || "Not linked"}</span>
-        </p>
+        <TicketStatusLine label="Earliest matching Aeries ticket:" ticketText={row.aeries_ticket} />
+        <TicketStatusLine label="Earliest matching Verkada ticket:" ticketText={row.verkada_ticket} />
       </div>
       {row.workflow_steps?.length ? (
         <div className="onboarding-runtime__workflow-steps">
@@ -592,16 +553,16 @@ function WorkflowDrawer({ row, formOptions, onClose }) {
               ) : null}
             </section>
           ))}
-          {hasRoomMappingAction ? <RoomOverrideForm formOptions={formOptions} /> : null}
+          {row.can_update_room ? <RoomOverrideForm row={row} formOptions={formOptions} onSaved={onRoomSaved} /> : null}
         </div>
+      ) : null}
+      {!row.workflow_steps?.length && row.can_update_room ? (
+        <RoomOverrideForm row={row} formOptions={formOptions} onSaved={onRoomSaved} />
       ) : null}
     </RuntimeDrawer>
   );
 }
 
-/**
- * AddManualErrorDrawer renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function AddManualErrorDrawer({ message, onClose }) {
   if (!message) {
     return null;
@@ -618,9 +579,6 @@ function AddManualErrorDrawer({ message, onClose }) {
   );
 }
 
-/**
- * FieldError renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function FieldError({ value }) {
   if (!value) {
     return null;
@@ -628,9 +586,6 @@ function FieldError({ value }) {
   return <span className="onboarding-runtime__field-error">{value}</span>;
 }
 
-/**
- * SelectField renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 function SelectField({ id, label, value, options, onChange, required = false, className = "" }) {
   return (
     <label className={className || "onboarding-runtime__field"} htmlFor={id}>
@@ -652,8 +607,52 @@ function SelectField({ id, label, value, options, onChange, required = false, cl
 }
 
 /**
- * ManualDraftDrawer renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * ReadOnlyManualDraftDrawer renders manual Non-Escape records for site-scoped
+ * personas. OnboardingPage uses it when Site Admins or Site Secretaries open a
+ * visible manual row: the draft data remains inspectable, but the only mutable
+ * control is the room override that writes through the room-only DEV endpoint.
  */
+function ReadOnlyManualDraftDrawer({ draft, row, formOptions, onClose, onRoomSaved }) {
+  if (!draft) {
+    return null;
+  }
+  const person = [draft.first_name, draft.last_name].filter(Boolean).join(" ") || row?.person || "Manual Non-Escape Record";
+  return (
+    <RuntimeDrawer title={person} onClose={onClose} variant={row?.can_update_room ? "modal" : "inspector"}>
+      {draft.late_start ? (
+        <div className="onboarding-runtime__late-start">
+          <strong>Late-start warning</strong>
+          <p>{LEAD_TIME_WARNING}</p>
+        </div>
+      ) : null}
+      <RuntimeDetailList
+        items={[
+          { label: "Status", value: draft.status },
+          { label: "Start date", value: formatOnboardingDate(draft.start_date) },
+          { label: "Effective date", value: formatOnboardingDate(draft.effective_date) },
+          { label: "Employee type", value: draft.employee_type },
+          { label: "Classification", value: draft.classification },
+          { label: "Name", value: person },
+          { label: "Job title", value: draft.job_title },
+          { label: "Site", value: draft.site_name || row?.site },
+          { label: "Replacing", value: draft.replacing_employee_name },
+          { label: "Room / classroom", value: row?.room_name || draft.room_name || "None" },
+          { label: "Personal email", value: draft.personal_email },
+          { label: "Personal phone number", value: formatPersonalPhoneInput(draft.personal_phone) },
+          { label: "Preferred device", value: draft.preferred_device },
+          { label: "Requested Aeries access", value: draft.requested_aeries_access },
+          { label: "Generated email", value: draft.generated_email },
+          { label: "Generated ID", value: draft.generated_employee_id },
+          { label: "Notes", value: draft.notes },
+        ]}
+      />
+      {row?.can_update_room ? (
+        <RoomOverrideForm row={row} formOptions={formOptions} onSaved={onRoomSaved} />
+      ) : null}
+    </RuntimeDrawer>
+  );
+}
+
 function ManualDraftDrawer({
   draft,
   form,
@@ -668,7 +667,7 @@ function ManualDraftDrawer({
   onDelete,
 }) {
   const leadTimeDays = daysBetween(form.start_date, currentDate);
-  const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays <= 3;
+  const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays >= 0 && leadTimeDays <= 3;
   const replacingEmployee = formOptions.replacing_employees.find((employee) => employee.id === form.replacing_employee_id);
   const missingSummary = showValidationFeedback && draft.missing_fields?.length
     ? `Missing required fields: ${draft.missing_fields.map(missingFieldLabel).join(", ")}`
@@ -679,7 +678,7 @@ function ManualDraftDrawer({
 
   if (isCollision) {
     return (
-      <RuntimeDrawer title="Invalid Manual Entry" onClose={onClose}>
+      <RuntimeDrawer title="Invalid Manual Entry" onClose={onClose} variant="modal">
         <div className="onboarding-runtime__collision">
           <span className="onboarding-runtime__collision-badge">Invalid contractor collision</span>
           <p className="onboarding-runtime__collision-copy">
@@ -718,7 +717,7 @@ function ManualDraftDrawer({
   }
 
   return (
-    <RuntimeDrawer title="Add Non-Escape Record" onClose={onClose}>
+    <RuntimeDrawer title="Add Non-Escape Record" onClose={onClose} variant="modal" isDirty>
       <form className="onboarding-runtime__form" onSubmit={(event) => event.preventDefault()}>
         <div className="onboarding-runtime__generated">
           <span>Status</span>
@@ -840,9 +839,6 @@ function ManualDraftDrawer({
   );
 }
 
-/**
- * OnboardingPage renders the UI surface for frontend/src/pages/OnboardingPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
- */
 export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = "", onUnauthorized, onForbidden }) {
   const [payload, setPayload] = useState(null);
   const [pageState, setPageState] = useState("loading");
@@ -864,8 +860,9 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   const loadPage = useCallback(async () => {
     setPageState("loading");
     try {
+      const endpoint = `${ONBOARDING_ENDPOINT}${window.location.search || ""}`;
       const nextPayload = await readJSON(
-        await fetch(ONBOARDING_ENDPOINT, {
+        await fetch(endpoint, {
           credentials: "same-origin",
           headers: { Accept: "application/json" },
         })
@@ -964,6 +961,12 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
   }, [loadPage]);
 
   const handleSelectRow = useCallback((row) => {
+    if (!row) {
+      setSelectedRow(null);
+      setActiveDraft(null);
+      setManualSaveAttempted(false);
+      return;
+    }
     setSelectedRow(row);
     setAddManualError("");
     if (row.kind === "manual") {
@@ -1051,6 +1054,13 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     }
   }, [activeDraft?.id, loadPage]);
 
+  const handleRoomSaved = useCallback((saved) => {
+    setPayload((current) => current ? { ...current, page: { ...current.page, rows: saved.rows ?? current.page.rows } } : current);
+    if (saved.row) {
+      setSelectedRow(saved.row);
+    }
+  }, []);
+
   const textOverrides = buildSharedShellTextOverrides(session);
   const hiddenNodeIds = buildSharedShellHiddenNodeIds(session, {
     hideNavHighlight: true,
@@ -1066,8 +1076,8 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
+    activeRoutePath: "/onboarding",
     refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard("onboarding"),
-    helpContent: ONBOARDING_HELP_CONTENT,
   });
   const semanticSummary = artboard
     ? buildArtboardSemanticSummary(artboard, {
@@ -1106,23 +1116,41 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
           onAdd={handleAddManual}
         />
         {activeDraft ? (
-          <ManualDraftDrawer
-            draft={activeDraft}
-            form={draftForm}
-            formOptions={formOptions}
-            currentDate={payload?.page?.current_date}
-            errors={draftErrors}
-            showValidationFeedback={manualSaveAttempted}
-            saving={saving}
-            onChange={handleDraftChange}
-            onClose={handleCloseDraft}
-            onSave={handleSaveDraft}
-            onDelete={handleDeleteDraft}
-          />
+          payload?.page?.can_manage_manual ? (
+            <ManualDraftDrawer
+              draft={activeDraft}
+              form={draftForm}
+              formOptions={formOptions}
+              currentDate={payload?.page?.current_date}
+              errors={draftErrors}
+              showValidationFeedback={manualSaveAttempted}
+              saving={saving}
+              onChange={handleDraftChange}
+              onClose={handleCloseDraft}
+              onSave={handleSaveDraft}
+              onDelete={handleDeleteDraft}
+            />
+          ) : (
+            <ReadOnlyManualDraftDrawer
+              draft={activeDraft}
+              row={selectedRow}
+              formOptions={formOptions}
+              onClose={() => {
+                setActiveDraft(null);
+                setSelectedRow(null);
+              }}
+              onRoomSaved={handleRoomSaved}
+            />
+          )
         ) : addManualError ? (
           <AddManualErrorDrawer message={addManualError} onClose={() => setAddManualError("")} />
         ) : (
-          <WorkflowDrawer row={selectedRow} formOptions={formOptions} onClose={() => setSelectedRow(null)} />
+          <WorkflowDrawer
+            row={selectedRow}
+            formOptions={formOptions}
+            onClose={() => setSelectedRow(null)}
+            onRoomSaved={handleRoomSaved}
+          />
         )}
       </>
     );
@@ -1137,6 +1165,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     handleDraftChange,
     handleSaveDraft,
     handleSelectRow,
+    handleRoomSaved,
     payload,
     manualSaveAttempted,
     rows,

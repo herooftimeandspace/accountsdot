@@ -15,7 +15,9 @@ const FEATURE_FLAGS_ENDPOINT = "/api/v1/dev/feature-flags";
 const FEATURE_FLAGS_HEADING_ID = "feature-flags-heading";
 const PANE_LEFT = 306;
 const PANE_TOP = 118;
-const PANE_WIDTH = 1260;
+const ARTBOARD_WIDTH = 1672;
+const PANE_RIGHT_GUTTER = 48;
+const PANE_WIDTH = ARTBOARD_WIDTH - PANE_LEFT - PANE_RIGHT_GUTTER;
 
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
@@ -109,6 +111,9 @@ function FeatureFlagCard({ flag, busyTargetKey, onToggle }) {
   );
 }
 
+/**
+ * FeatureFlagsOverlay renders the native controls layered over the Feature Flags `.pen` shell. `PenArtboard` owns long-content measurement for every route, so this page only supplies its page-local pane geometry and feature-flag interaction state.
+ */
 function FeatureFlagsOverlay({ payload, state, message, busyTargetKey, onToggle }) {
   return (
     <section
@@ -162,6 +167,7 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? "admin",
+    activeRoutePath: "/admin/feature-flags",
     refreshMetadata: null,
   });
   const semanticSummary = artboard
@@ -248,7 +254,13 @@ export function FeatureFlagsPage({ session, onNavigate, onSearch, searchQuery, o
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (
     <>
       {sharedShellRenderOverlay?.({ nodeIndex, textOverrides: overlayTextOverrides })}
-      <FeatureFlagsOverlay payload={payload} state={state} message={message} busyTargetKey={busyTargetKey} onToggle={handleToggle} />
+      <FeatureFlagsOverlay
+        payload={payload}
+        state={state}
+        message={message}
+        busyTargetKey={busyTargetKey}
+        onToggle={handleToggle}
+      />
     </>
   ), [busyTargetKey, handleToggle, message, payload, sharedShellRenderOverlay, state]);
 

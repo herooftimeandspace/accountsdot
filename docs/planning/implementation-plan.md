@@ -1,0 +1,2812 @@
+# The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard v1 Implementation Plan
+
+## Summary
+- Build a self-hosted Go service with server-rendered HTML, SSE live status, `/metrics`, and a JSON-only API in front of PostgreSQL.
+- Treat the service as mission-critical and TDD-first: keep this file authoritative, write tests before code, confirm expected outputs before client logic, and never change tests to mask broken behavior.
+- Treat documentation as a first-class deliverable: the implementation plan defines execution, the README enumerates project goals, and code must capture business decisions where they alter behavior or constrain future changes.
+- The primary application codebase must be Go; rebuild bespoke legacy logic in Go unless a narrowly scoped Python component materially improves correctness, clarity, or implementation speed for a specific task.
+- If an additional dependency would materially reduce risk or complexity, surface it for explicit approval rather than reimplementing commodity behavior from scratch.
+- Use Escape CSV/SFTP plus direct Aeries API integration as upstream systems, with manual intake only for contractor/external records absent from upstream.
+- Keep dependencies minimal: standard library first; approved runtime dependencies are `pgx/v5`, `google/uuid`, `x/oauth2`, `x/oauth2/google`, `x/crypto/ssh`, `pkg/sftp`, and local `zoom-sdk-golang`.
+
+## Product Direction
+- The system must be designed to integrate at least 8 separate data sources.
+- The system must support multiple user types with different access scopes, visibility rules, and levels of technical skill.
+- The system should surface bad, missing, or conflicting data as early as possible to the parties outside IT who can correct it upstream.
+- The system should automate as much routine IT work as possible while avoiding unnecessary manual policy handling by IT.
+- Policy decisions and data-point mappings should be changed through dashboard levers, not code edits, whenever feasible.
+- Feature-spec expansion is iterative; when a decision changes product behavior, data ownership, workflow shape, or UI access, that decision must be recorded in this file before or alongside implementation.
+
+## Reference Inputs
+- The current repository plan is authoritative.
+- External plans and legacy implementations may inform architecture, migration strategy, and edge-case handling, but do not override this document.
+- Any non-repo reference input relied on by this plan must be copied into `docs/reference-inputs/` so the spec is not brittle or tied to one workstation.
+- `docs/reference-inputs/VENDORED_INVENTORY.md` is the authoritative provenance and refresh ledger for the repo-local reference corpus and must be updated in the same pass as any vendored snapshot refresh.
+- Required vendored reference inputs currently called out for implementation:
+  - `docs/reference-inputs/VENDORED_INVENTORY.md`
+  - `docs/reference-inputs/pipeline/CODEX_GIST_DEV_STAGING_MAIN_PIPELINE.md`
+  - `docs/reference-inputs/vendor-code/aeries_ad_sync/Students/`
+  - `docs/reference-inputs/vendor-code/aeries-sis-sdk-golang/`
+  - `docs/reference-inputs/vendor-code/aeries-sis-sdk-python/`
+  - `docs/reference-inputs/vendor-code/desk-phone-reporter/`
+  - `docs/reference-inputs/vendor-code/incidentiq/app/`
+  - `docs/reference-inputs/vendor-code/zoom-sdk-python/`
+  - `docs/reference-inputs/vendor-code/scripts/`
+  - `docs/reference-inputs/data/Catchall Spreadsheet - Sheet83.csv`
+  - `docs/reference-inputs/data/Catchall Spreadsheet - Zoom Classifications.csv`
+  - `docs/reference-inputs/data/Employee Categories Access and Assignments - Staff Categories and On_Off Boarding tasks.csv`
+  - `docs/reference-inputs/data/Copy of People Tracker (New Employees Email_Aeries_ON_Offboarding) - Informacast.csv`
+  - `docs/reference-inputs/data/Copy of People Tracker (New Employees Email_Aeries_ON_Offboarding) - OFFboarding.csv`
+  - `docs/reference-inputs/data/Copy of People Tracker (New Employees Email_Aeries_ON_Offboarding) - Onboarding.csv`
+  - `docs/reference-inputs/data/Employee Categories Access and Assignments - People_Position_Title (Auto-updated).csv`
+  - `docs/reference-inputs/data/☎️ Staff Phone Directory (Read Only) ☎️.zip`
+  - `docs/reference-inputs/zoom/Zoom Phone System Design.pdf`
+  - `docs/reference-inputs/zoom/Zoom Workflow.png`
+  - `docs/reference-inputs/zoom/Zoom Workflow (1).png`
+  - `docs/reference-inputs/zoom/zoomus_sharedlinegroup_2026-04-20.csv`
+  - `docs/reference-inputs/zoom/zoomus_callqueue_2026-04-20.csv`
+  - `docs/reference-inputs/zoom/zoomus_ca_template_2026-04-20.csv`
+  - `docs/reference-inputs/zoom/zoomus_user_template_2026-04-20.csv`
+  - `docs/reference-inputs/branding/WUSD21 Mascot Style Guide.pdf`
+- Official branding assets for dashboard use should come from:
+  - `docs/reference-inputs/branding/`
+  - note: the shared folder snapshot is organized largely by site, and `CLA` is currently not present there
+  - interim fallback: use Windsor Middle School visuals without text for CLA-specific pages until CLA assets exist
+
+## Documentation Requirements
+- `docs/planning/implementation-plan.md` is the authoritative execution spec and decision log for behavior that affects implementation.
+- `docs/product/product-requirements.md` must capture the business-facing WHAT of the product, including goals, users, workflows, inputs, outputs, visibility rules, and out-of-scope items for technical and non-technical review.
+- `docs/operations/environment-data-playbook.md` must document the exact steps required to derive and refresh mock and staging environments from production-safe source data.
+- `docs/agent-orchestration/SPEC.md` is the authoritative local contract for Symphony-style Codex agent orchestration against GitHub Issues, including issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries. `.agents/WORKFLOW.md` is the runner-readable prompt/config contract that future orchestration tooling should load before dispatching any issue work.
+- `docs/reference-inputs/VENDORED_INVENTORY.md` must record the current repo-local reference corpus, including vendored source provenance, branch/ref selection, refresh date, and any intentional scope narrowing such as subtree-only snapshots.
+- `docs/testing/test-matrix.md` must track the named mock scenarios, verification coverage, and phase/workflow test expectations used for promotion decisions.
+- `README.md` must enumerate the project goals in product terms, not just local setup steps.
+- Code comments and documentation must record business rules, precedence rules, and other non-obvious decisions where they affect code paths.
+- Business-critical code paths should include plain-language comments that explain intent and side effects clearly enough for a new engineer to follow without reverse-engineering every provider interaction.
+- Tests must reflect documented behavior and decision history; test updates are allowed only when the documented intended behavior changes.
+- UI mocks and design previews must stay grounded in the documented product surface. Sample user data and realistic example content are allowed, but mocks must not introduce speculative feature-level controls, workflows, queues, or dashboard affordances that are not cleanly supported by `docs/product/product-requirements.md` and this implementation plan.
+- Generated SVG, PNG, and PEN mocks must exclude test-matrix, mock-policy, validation-process, runbook, evidence, and other governance-oriented language unless that language is itself a documented operator-facing product feature.
+- For legacy mock screens that have not yet been implemented in application code, the shared generator remains the canonical source of truth. Visual or copy changes must be backported into the shared generator before regeneration rather than being left as one-off PEN-only edits.
+- For implemented pages, the page's `.pen` file becomes the authoritative design source. Generated presentational UI code, frontend artboard assets, and any optional review exports must flow from that `.pen` file rather than being hand-edited directly.
+- Every newly implemented page must ship with an associated authoritative `.pen` file in the wireframe corpus.
+- For implemented pages, the UI boundary must stay split between:
+  - a generated presentational layout component derived from `.pen`
+  - a hand-written container/page layer responsible for routing, data loading, access rules, and interactions
+- `.pen`-to-code synchronization for implemented pages should use an explicit repo command plus CI drift enforcement rather than silent build-time overwrites.
+- For implemented pages, the normal design-refresh path should update only the code and artboard assets required by the real frontend. SVG wireframes, wireframe PNGs, and approved mock PNG mirrors should be exported through explicit ad-hoc commands when human review, signoff, or archival comparison actually needs them.
+- For all future implemented-page recovery cycles, the standing defaults are:
+  - recovery is `layout first` by default
+  - undefined behavior is `docs first` by default
+  - SVG/PNG review artifacts remain `ad hoc` outputs rather than part of the normal sync path
+- For all future implemented-page recovery cycles, the authority split is:
+  - the authoritative `.pen` owns geometry, spacing, text blocks, and static shell/page layout
+  - the React runtime owns only interactive behavior that already exists
+  - no new shell/page behavior may be implemented until `docs/product/product-requirements.md` and this implementation plan define it explicitly
+- For implemented pages, shared shell controls must be fixed at the shared pattern level rather than patched one page at a time. This includes branding blocks, top search fields, notification/help clusters, user dropdown sizing, platform-status alignment, and the shared right-drawer primitive used by row details, page help, and drawer-owned edit/apply workflows.
+- Shared right drawers intentionally use a fixed-height internal-scroll primitive. The drawer anchors to the right edge of the interior page pane below the shared header, overlays all page content, remains viewport-fixed while the main page scrolls, and clamps its panel to roughly 60% of the shared sidebar's visible height with a usable min/max height. Read-only row/detail/help drawers are non-modal inspectors; edit/apply drawers are modal workflows with focus containment, dirty-close protection, explicit save/cancel actions, close-on-success behavior, and a scoped refresh of the originating row or read model.
+- Live implemented pages must not surface non-feature shortcut pills, mock-governance labels, or other shell adornments that are not documented operator-facing product behavior.
+- When a rail or card is expressing one logical paragraph of helper text, the authoritative `.pen` should use one wrapping text node rather than multiple stacked fragments.
+- Implemented table layouts must preserve at least a `5px` visual gap between row text and horizontal dividers while keeping the previously documented shared top-baseline rule.
+- When SVG, PNG, or PEN UI assets are materially changed, this implementation plan must be updated in the same pass whenever the visual change clarifies, constrains, or changes implementation-relevant behavior, layout rules, access scope, field visibility, interaction affordances, or other operator-facing expectations.
+- When design revisions, annotation resolutions, or manual `.pen` adjustments materially affect current or future implementation behavior, phase scope, shared shell patterns, component contracts, visibility rules, interaction rules, or other operator-facing expectations, update both `docs/product/product-requirements.md` and this implementation plan in the same pass.
+- For implemented-page annotation review, the default feedback loop is:
+  - compare the live UI against the authoritative `.pen`
+  - freeze the active annotation set into one page-specific recovery ledger before layout work starts
+  - update the `.pen` first
+  - generalize shared-shell and shared-component fixes rather than patching one page locally
+  - regenerate derived code and artboard outputs
+  - run the generated design manifest and `npm run pen:lint` contract checks before review
+  - refresh the DEV page for the next review pass
+  - export SVG/PNG review artifacts only on demand
+- Implemented-page recovery work must proceed in this order:
+  - pipeline/workflow contract
+  - `.pen` layout
+  - docs for new behavior
+  - runtime behavior
+  - optional ad-hoc export
+- Only one recovery layer may change at a time, and the live DEV page must be validated after each layer before the next layer starts.
+- If a layout issue remains after a pass, reopen only the `.pen` layer rather than mixing layout, docs, and runtime changes together.
+- If a recovery issue is discovered to require new behavior, stop the active layout/runtime pass and update `docs/product/product-requirements.md` plus this implementation plan before any runtime work begins.
+- A recovery loop is considered detected when the same slice output is produced more than twice without a material state change. In this repo, `same output` includes:
+  - the same slice-status or progress narrative repeated three times with no new resolved annotation, no reclassification, and no new blocking fact
+  - the same annotation set being reprocessed three times with no change in the frozen ledger state
+  - the same derived result being regenerated three times for the same target without a meaningful change in the live DEV page or slice classification
+- When a recovery loop is detected:
+  - terminate the active recovery slice immediately
+  - stop assistant-started processes associated with that slice, including sync/check/build/export jobs and any page-specific helper or temporary verification processes started for that slice
+  - do not restart those slice-specific processes in the same pass
+  - do not continue exploratory narration for that slice
+  - report back the current state instead of continuing to churn
+- Shared long-running environment processes that predate the active slice may remain running if they are not part of the loop, but any process started specifically for the looping slice must be stopped.
+- After loop termination, the required report-back format is:
+  - active slice name
+  - frozen annotation or recovery ledger
+  - each item marked exactly one of `closed`, `reclassified as behavior`, or `still failing`
+  - last material successful change
+  - currently blocked layer: `pipeline`, `.pen`, `docs`, or `runtime`
+  - assistant-started processes that were stopped
+  - the one next action needed to resume safely
+- No new feature work may begin after a hard loop termination until that state report has been delivered.
+- Generated SVG, PNG, and PEN dashboard assets must preserve clean structural spacing: borders may not visually collide or double-stack unintentionally, icons must stay aligned to their intended row or control centerline, and text must wrap or truncate inside its container rather than overflowing into adjacent content or off the canvas.
+- Bordered cards, rails, tables, notices, and controls should keep a `5px` buffer from neighboring bordered elements by default. When two elements intentionally share one visual edge, such as a table header-to-body transition or row-to-row divider, collapse that join to one border with no gap and no double-width rather than leaving a double-stroked seam.
+- Generated dashboard controls must reserve explicit space for disclosure icons, search icons, and close icons so control text never collides with iconography; dense rail and card headers must stack or truncate rather than overlapping title, badge, and action areas.
+- When the user rejects a suggested design or process change, the repository documentation must record:
+  - the recommendation
+  - the override decision
+  - the user-provided reason for overriding it
+
+## Agent Orchestration Contract
+- The repo-local version of OpenAI's Symphony pattern is spec-first. The contract lives in `docs/agent-orchestration/SPEC.md`, and the dispatch prompt/config lives in `.agents/WORKFLOW.md`.
+- The first checked-in runner lives at `scripts/symphony_runner.mjs`. It supports `npm run symphony:report`, `npm run symphony:ui-monitor`, and `npm run symphony:test`; its first production use case is the `ui-improvements` monitor that replaces the long heartbeat prompt with runner-owned queue reporting, lock handling, latest-code inspection, conservative PR-branch rebase reconciliation, thread-aware Codex Review cleanup, repo-skill routing, and Browser-evaluation handoff.
+- GitHub Issues are the control plane for routine agent work. The first safe runner implementation should require explicit issue opt-in through an `agent-ready` label, use bounded concurrency, and start at concurrency `1`.
+- Agent workspaces must be isolated per issue, preferably under `/private/tmp/accountsdot-symphony/`, and each issue branch should use `codex/issue-<number>-<short-slug>` from `dev` unless the issue or repo docs specify another integration branch.
+- The orchestrator may schedule, prepare workspaces, render prompts, run Codex, and write local status/log files. It must not bypass human review, close issues before merge, perform production provider writes, weaken promotion gates, or expose secrets in prompts, logs, issues, PRs, or generated artifacts.
+- Repo-local skill guidance is part of the runtime. The runner must discover `.agents/skills/*/SKILL.md`, prefer those checked-in skills over global memory when both apply, and mark a run `agent-blocked` when an expected skill file is missing or unreadable.
+- Browser validation is delegated to the Codex automation wrapper. The runner emits `browser_evaluations[]`; the wrapper activates the requested DEV persona with `npm run dev:persona`, executes those requests through the Browser skill bridge, and records `browser_results[]`. Missing Browser results leave the run in `needs_browser_evaluation`, and a missing direct `browser` tool namespace is not itself a Browser blocker because the in-app Browser is reached through the Browser skill's `node_repl` bridge.
+- Codex Review feedback must use thread-aware review data. The monitor may automatically resolve only outdated unresolved Codex Review threads from configured Codex Review authors, where the comment is obsolete because the reviewed diff line changed. Current unresolved Codex Review feedback remains blocking review-remediation work until a branch contains the corresponding code or documentation fix plus verification evidence.
+- Routine retries are allowed only for transient tracker, network, or runner failures. Policy violations, missing credentials, ambiguous scope, product/security decisions, unsafe writes, and merge conflicts requiring judgment must stop in a human-review or blocked handoff state.
+- Future implementation work should keep orchestration policy in docs and `.agents/WORKFLOW.md`, then build the smallest useful runner around that contract: eligibility report first, explicit dispatch second, and always-on daemon behavior only after the review packet is trusted.
+
+## Delivery Phases and Gates
+- Branch Gate Semantics:
+  - checked-in CI/CD promotion details live in `docs/operations/promotion-pipeline.md`
+  - `dev` is the developer integration branch and must pass the `dev gate` before automated promotion to `staging` is opened or refreshed
+  - `staging` is the realistic proving ground and must pass the `staging gate`, which includes the `dev gate` checks plus security and frontend accessibility validation, before automated promotion to `main` is opened or refreshed
+  - `main` is production and must pass the `main gate`, which includes the `staging gate` checks plus release-prep static validation and the PR-level `release-prep-check`
+  - promotion PRs must be created or refreshed with the dedicated `PROMOTION_PR_TOKEN` secret rather than `github.token` so required `pull_request` checks are created normally
+  - `staging` to `main` promotion uses the disposable `promote/staging-to-main` branch so production branch protection does not require direct bot pushes to `main`
+  - this repository does not yet define package version files, semver labels, release notes, or deployment manifests for The WIZARD; until those product decisions are documented, promotion PR release metadata is captured in the PR body and checked for external runbook, IncidentIQ testing-ticket, and release/deployment references before merge
+  - branch protection, required reviews, required status checks, GitHub environments, deployment secrets, badge publishing, and the `PROMOTION_PR_TOKEN` secret are manual repository-administration prerequisites documented in `docs/operations/promotion-pipeline.md`
+- Pre-phase rule:
+  - before the promotable engineering phases begin, the project uses a `Pre-Phase 0` frontend-design and DEV-implementation track to establish the UI shell, design authority model, and mock-backed page pattern
+  - `Pre-Phase 0` is preparatory only and does not replace or bypass the existing `Phase 0 → Phase 5` promotion model
+- Every phase must be independently shippable through the required `dev → staging → main` promotion pipeline.
+- Later phases must extend the schemas, workflows, and control surfaces established by earlier phases rather than substantially rewriting them. If a later phase would require a foundational rewrite, this plan must be amended explicitly before implementation proceeds.
+- Within each phase, features should be delivered and validated individually rather than held for one large all-at-once release inside that phase.
+- Entry rule for each phase:
+  - prior phase success gates are met
+  - open failure gates from the prior phase are resolved
+  - required non-production safety scaffolding for the phase’s write paths exists first
+- Non-production integration rule:
+  - validate new workflows in `dev` with mocks before attempting real third-party integrations or enabling downstream writes in higher environments
+- Promotion rule for each phase:
+  - pass dev verification
+  - pass staging verification
+  - provide test evidence plus implementation signoff for each workflow bucket in the phase
+  - for each workflow introduced in the phase, named mock scenarios must exist and pass in `dev` before any real integration attempt
+  - for now, one passing named scenario per workflow is sufficient minimum scenario evidence unless a later section raises the bar for a specific phase or bucket
+  - required proof artifacts should be defined at the workflow-bucket level rather than repeated on every scenario
+  - runtime evidence is sufficient unless a later phase or bucket explicitly requires a retained repository artifact
+  - every named scenario in the phase must be clean/passing before promotion; written acceptance is not a substitute for an unresolved scenario
+  - any rollback trigger that fires for a workflow bucket blocks promotion for that bucket until the trigger condition is resolved and the bucket is clean again
+  - if a rollback trigger fires for a workflow bucket in `dev`, `staging` verification for that same bucket is prohibited until the `dev` trigger condition is resolved and `dev` is clean again
+  - the named scenario list must be captured in this implementation plan and kept in sync with `docs/testing/test-matrix.md`
+  - document any newly introduced manual fallback paths and operator ownership
+- Implementation signoff definition:
+  - implementation signoff is recorded per workflow bucket in the external promotion runbook/process, not in the application UI and not in the repository artifacts
+  - implementation signoff is the responsible implementer’s explicit confirmation that code, configuration, schema, docs, and scenario definitions are aligned with the current implementation plan
+  - implementation signoff also confirms that required bucket evidence has been reviewed, every named scenario in the phase is clean/passing, and the documented fallback ownership still matches the shipped behavior
+  - implementation signoff is a promotion-control statement, not a substitute for scenario evidence
+- Runtime evidence definition:
+  - runtime evidence must come from actual `dev` or `staging` execution of the workflow under test rather than from hypothetical reasoning or code inspection alone
+  - acceptable runtime evidence may include timestamped logs, API request/response traces, database state snapshots, UI screenshots, ticket outputs, or provider-side state reads, as long as the evidence is attributable to a specific workflow bucket and scenario
+  - for UI-heavy workflow buckets, runtime evidence must include at least one UI artifact in addition to any supporting logs, database checks, ticket output, or provider-state reads
+  - when a UI artifact is required, a qualifying screenshot from either `dev` or `staging` is sufficient by default as long as both environments still meet their runtime-evidence requirements
+  - when UI artifacts are filed under environment-specific evidence sections, the screenshot itself does not need a separate explicit environment label
+  - runtime evidence must be sufficient to show both the expected positive outcome and the absence of the forbidden side effect or failure condition the scenario is meant to guard against
+  - runtime evidence must identify the environment, the workflow bucket, and the scenario or scenario set it supports
+  - live execution tracking, evidence collection, and signoff capture live outside this repo in an external IncidentIQ testing ticket
+  - that external IncidentIQ testing ticket must use one parent ticket per release and organize evidence in `phase → bucket → dev/staging → scenario` order while still allowing promotion review by either bucket or scenario
+  - within each bucket section of that external IncidentIQ testing ticket, the `dev` subsection must appear before the `staging` subsection
+  - promotion evidence should be retained for 90 days after the relevant phase promotion
+- UI-heavy bucket definition:
+  - a workflow bucket is UI-heavy when its acceptance criteria depend on user-visible rendering or interaction rather than on backend state alone
+  - treat a bucket as UI-heavy when one or more scenarios depend on rendered content, access-denied behavior, scoping in visible tables, search/filter/grouping behavior, breadcrumb or drill-in behavior, final-review screens, or any other operator-facing workflow state that cannot be adequately proven from logs and database state alone
+  - when a bucket is UI-heavy, at least one artifact in the external evidence set must show the relevant UI state directly
+- External promotion runbook/process requirements:
+  - the promotion runbook/process lives outside this repository and is the authoritative place to capture live promotion execution, implementation signoff, and evidence review
+  - the external runbook/process must include an implementation-signoff entry for each workflow bucket being promoted; if an older attempt is superseded, retain it as history and open a replacement current entry for that bucket
+  - required metadata fields for each bucket entry are:
+    - release identifier
+    - parent IncidentIQ testing ticket id or link
+    - phase id or name
+    - bucket id and bucket name
+    - target environment
+    - application revision or commit being promoted
+    - config/schema revision identifier being promoted
+    - runbook entry created timestamp
+    - runbook entry last-updated timestamp
+    - signoff actor
+    - signoff timestamp
+    - dev evidence subsection link or reference
+    - staging evidence subsection link or reference
+    - rollback-section reference in this implementation plan when the bucket is write-capable
+    - rollback-closure-note reference when applicable
+  - each bucket entry must include a final promotion disposition field with one of: `ready`, `blocked`, `rolled back`, or `superseded`
+  - a bucket entry that was previously marked `rolled back` may later be updated to `ready` after a new clean verification pass for that same bucket
+  - `superseded` means the recorded attempt is no longer the active promotion candidate because a newer verification attempt or revision replaced it under the same release
+  - when a bucket entry is superseded, the replacement current entry must explicitly link back to the superseded entry
+  - each bucket entry must reference the external IncidentIQ testing ticket evidence organized by both bucket and named scenario
+  - each bucket entry must contain explicit yes/no attestations for:
+    - named scenarios clean/passing
+    - required runtime evidence reviewed
+    - required UI artifact reviewed when the bucket is UI-heavy
+    - rollback path reviewed when the bucket is write-capable
+    - rollback trigger conditions reviewed when the bucket is write-capable
+    - fallback ownership confirmed when the bucket is write-capable
+  - a `no` attestation does not require a separate explanation field beyond the bucket disposition and any required rollback closure note
+  - each bucket entry must explicitly confirm that every named scenario in the phase is clean/passing
+  - each bucket entry must summarize which runtime evidence artifacts were reviewed, including the required UI artifact when the bucket is UI-heavy; screenshots are sufficient by default for UI artifacts
+  - each write-capable bucket entry must confirm the documented fallback ownership and the applicable pause/rollback path were reviewed during promotion; a named rollback owner is not required
+  - each write-capable bucket must document its concrete rollback path in a dedicated per-phase rollback subsection of this implementation plan as well as in the external promotion runbook/process
+  - the external IncidentIQ testing evidence should be maintained under one parent ticket per release, with internal organization in `phase → bucket → dev/staging → scenario` order
+  - each bucket's external evidence section must list `dev` before `staging`
+  - if a rollback trigger blocks a bucket in `dev`, the external runbook/process must capture an explicit closure note describing how the trigger condition was resolved and linking to the replacement evidence that proved the bucket was clean again before `staging` verification may begin for that bucket
+  - repository artifacts may define the rules, scenarios, and evidence expectations, but they must not become the live promotion status ledger
+
+## Provider Access Modes and Freshness Policy
+- This application should use a hybrid source-first data-access model rather than building a full mirror of every upstream system.
+- The local database is authoritative for:
+  - workflow state
+  - queue and dashboard projections
+  - normalized cross-system join facts
+  - idempotency and replay safety
+  - operator audit history
+- The local database is not intended to replace provider-owned system state for Zoom, Google, IncidentIQ, LDAP, or other live operational systems.
+- Every provider-backed read surface should be classified as one of:
+  - `batch-only source`
+  - `projection-backed list/search`
+  - `live detail read`
+  - `live write-path verification`
+- `batch-only source` means source data is available only through scheduled import or file ingest, not live operator reads.
+- `projection-backed list/search` means operator tables, queues, and search surfaces read from local normalized projections rather than issuing provider queries on every page load.
+- `live detail read` means selected-record drawers, detail panes, or explicit refresh actions may query the upstream provider directly for fresher single-record state.
+- `live write-path verification` means write-capable workflows must query the provider immediately before and after mutation to confirm safe intended state.
+- Every provider integration should document:
+  - `authoritative source mode`
+  - `projection freshness target`
+  - `supports live detail read`
+  - `requires live write-path verification`
+  - `supports events/webhooks`
+- Every persisted provider-backed entity must justify its local presence by at least one of:
+  - workflow planning
+  - cross-system join
+  - operator search/list projection
+  - idempotency
+  - audit/history
+- Persist only the minimal provider-backed fields needed for those purposes. Do not create full-object provider mirrors as a default runtime pattern.
+- Raw provider payloads must not be persisted by default. Persist raw or near-raw payload fragments only when a specific retry, audit, or reconciliation case requires them and only under the documented sensitive-data rules.
+- Projection-backed records should conceptually carry freshness metadata sufficient for future implementation, including:
+  - `source_observed_at`
+  - `ingested_at`
+  - `stale_after`
+  - `provider_cursor_or_version` where applicable
+  - `last_live_verified_at` where live verification occurred
+- UI/runtime guidance for the future implementation:
+  - tables, queues, and global search should read from local projections
+  - selected-row drawers and equivalent detail surfaces may refresh live
+  - explicit `Refresh` actions may perform targeted live reads rather than full-table provider fan-out
+  - all write-capable workflows must do live read-before-write and live read-after-write
+  - if live provider truth disagrees with the projection during an action path, the live provider result wins for that action and the local projection must be refreshed
+- Provider recommendations for the current product:
+  - `Escape / SFTP`
+    - authoritative mode: `batch-only source`
+    - local use: normalized employment and assignment facts plus import metadata
+    - live UI dependency: none
+    - preferred cadence: `24h`
+  - `Aeries`
+    - authoritative mode: `projection-backed list/search`
+    - local use: minimal read-only student, staff, school, scheduling, and room-context facts needed for joins and workflows
+    - live UI dependency: no normal live list UI dependency
+    - preferred cadence: `1h` delta and `24h` full reconciliation
+  - `Active Directory / LDAP`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live write-path verification`
+    - local use: minimal identity and account facts required for joins, orphan detection, naming, and workflow planning
+    - live reads required for: username collision checks, rename verification, deprovision verification, and other write-sensitive operations
+  - `Google`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
+    - local use: minimal identity, alias, login-activity, and group-membership facts needed for workflows and audit
+    - preferred cadence: `15m` delta, `24h` full reconciliation, and immediate post-write refresh
+  - `Zoom`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
+    - local use: minimal user, phone, extension, license, SLG, CAP, and queue facts needed for directory, transfer, and cleanup behavior
+    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
+  - `IncidentIQ`
+    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read`
+    - local use: minimal user linkage, ticket linkage, and ticket status facts needed for workflow visibility and operator queues
+    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
+  - `InformedK12`
+    - authoritative mode: normalized trigger and event facts only
+    - local use: workflow-triggering and preparatory facts, not broad operator-search duplication
+    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
+  - `Google Sheets`
+    - authoritative mode: compatibility export only
+    - local use: none as a runtime source of truth
+    - live UI dependency: none
+    - preferred cadence: export on demand or through compatibility workflows only
+
+### Pre-Phase 0: Frontend Design and DEV UI Iteration
+- Purpose:
+  - establish a PEN-authoritative UI workflow, a real DEV frontend shell, and a repeatable design-to-code pattern before trusted operational phases begin
+- Nature of this track:
+  - `Pre-Phase 0` is a design and DEV implementation track only
+  - it is not a promotable production-readiness phase
+  - it does not authorize real provider integrations or downstream writes
+  - it does not alter the existing `Phase 0 → Phase 5` gate sequence
+- In scope:
+  - React + Vite as the frontend implementation target for DEV
+  - the existing Go app remains the DEV mock/backend service
+  - a DEV-only persona switcher for role-scoped navigation and mock-data preview
+  - implemented pages become `.pen`-authoritative
+  - generated presentational UI code and frontend artboard assets are regenerated from the authoritative `.pen`
+  - SVG/PNG wireframes and approved mock mirrors are derived review artifacts exported on demand from the authoritative `.pen`
+  - explicit sync command and CI drift enforcement for `.pen`-derived code/artboard outputs
+  - first pilot slice is the branded shell plus the `Data Quality` page
+  - page-shaped mock JSON from the Go backend for implemented DEV pages
+- Out of scope:
+  - production/staging promotion changes
+  - real provider integration trust
+  - immediate migration of the entire legacy mock inventory to `.pen` authority
+  - replacement of Phase 0 safety rails
+- Readiness outcomes:
+  - the project can implement at least one real page from an authoritative `.pen` source without hand-editing derived visual artifacts
+  - generated layout code and hand-written behavioral code are separated cleanly
+  - the DEV frontend can render persona-scoped screens against mock data
+  - the `Data Quality` page establishes the migration pattern for later implemented screens
+- 2026-05-12 end-of-day handoff:
+  - active feature-flag implementation work is on `codex/issue-2-feature-flags`; the branch currently carries the DEV route-level feature-flag slice for issue `#2` plus the independent toggle/API-denial follow-up for issue `#4`
+  - active code-documentation work is in the separate worktree `/private/tmp/accountsdot-issue-3` on `issue-3-code-path-documentation` for issue `#3`
+  - `dev` and `main` both point at the merged sync-transparency baseline `da3ad40`; `codex/sync-transparency-dashboard` is already merged and should not be reopened for this handoff
+  - feature-flag docs currently define the IT Admin-only `/admin/feature-flags` page, IT Admin read-only override, persona/site target controls, sidebar/direct-route filtering, and matching DEV page/API denial for non-IT users
+  - issue `#4` already records the completed independent-toggle correction, forced onboarding mutation denial while disabled, and verification evidence
+  - open follow-up issue queue from the 2026-05-12 diagnostic pass:
+    - `#5` persist and audit feature flag state
+    - `#6` harden feature flag update validation
+    - `#7` isolate feature flag state in tests
+    - `#8` add registry-to-backend coverage checks for flagged routes
+    - `#9` triage DEV route performance timeouts and Browser pipe resume point
+    - `#10` define generated artifact policy for performance evidence and frontend builds
+    - `#11` reduce runtime hidden generated-node debt
+    - `#12` remove duplicated shell-region nodes from merge-shell PEN sources
+    - `#13` add a documentation quality gate for placeholder comments
+    - `#14` triage remaining design lint warnings into page and primitive fixes
+    - `#15` add workflow walkthrough docs for high-risk debug paths
+    - `#16` add a route-to-write inventory drift check
+  - the latest performance evidence is resumable rather than clean: `artifacts/performance/dev-route-performance-merged-2026-05-12T19-55-41-810Z.md` reports full directed-transition coverage up to Browser pipe failure at transition `372`, with refresh timeouts still observed for `/dashboard/site-admin` and `/reports/ticketing-human-work`
+  - `frontend/dist/` remains generated build output and should not be committed unless issue `#10` deliberately changes the artifact policy
+  - tomorrow's recommended resume order is: finish/publish issue `#2` and issue `#4` branch state, then publish issue `#3` documentation branch, then pick from the new follow-up queue by risk and file ownership
+- Current pilot implementation status:
+  - `Data Quality` is the first migrated implemented page in the pre-phase 0 track
+  - the authoritative design source for that page is `docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen`
+  - the canonical logged-in sidebar/header source is `docs/design/mocks/wireframes/wireframe-shared-shell.pen`
+  - `npm run pen:sync` regenerates only the page's derived frontend artboard/code artifacts
+  - `npm run pen:check` is the drift-check command for the implemented-page authority path
+  - `npm run pen:export -- docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen` is the ad-hoc single-page SVG/PNG export path when review artifacts are needed
+  - the legacy wireframe generator must not overwrite `wireframe-data-quality-dashboard.pen` or its derived implemented-page artifacts
+  - the DEV implementation target for this pilot is a React + Vite frontend consuming page-shaped mock JSON from the Go backend
+  - the `Data Quality` queue remains inline on the implemented page rather than linking to a separate full-queue screen, and the queue card is expected to expand or contract with the current row count
+  - the `Data Quality` page must not expose an `Open Mapping Dashboard` shortcut unless `docs/product/product-requirements.md` and this plan define the destination and operator workflow; current routing guidance belongs in the shared help drawer because the legacy `/sync-dashboard/mappings` stub is not a supported implemented-page destination
+  - the `Data Quality` queue headers are expected to support `ASC / DESC / NONE` sorting directly on the page rather than routing the user to a separate list surface
+  - runtime-backed implemented tables should use the shared table-control primitive for local search/filter and three-way header sorting; each page provides its own default sort column and hidden data remains excluded from search when the role cannot see it
+  - summary/stat cards and metric boxes should use a shared summary info box primitive that centers its text, renders very large numeric values, color-codes the numeric value with a metric-appropriate good-to-bad scale, and always leads to a clear operator action (navigation, filter, drawer, or decision); passive non-actionable decoration should be removed or redesigned rather than persisting as a status tile
+  - implemented shell user avatars should prefer a Google profile photo when one is present in the user object and fall back to generated initials when one is not
+  - the implemented shell account menu must expose `My Profile` and `Sign Out`; `My Profile` routes to the user's profile page for preferred-name and pronoun updates, while `Sign Out` triggers the configured SAML/SSO sign-out flow
+  - during the pre-phase 0 DEV pilot, `My Profile` should land on an internal mock-backed profile route implemented from its authoritative `.pen` and should allow preferred-name and pronoun edits against DEV-local mock state until real profile integration exists
+  - during the pre-phase 0 DEV pilot, `Sign Out` should use a dedicated DEV sign-out flow that returns the browser to a signed-out DEV state representing the configured SAML/SSO exit path rather than just flipping the persona selector or clearing only local component state
+  - the implemented header scope selector must become a real site-list dropdown and stay wide enough to keep the current selected site label on one line
+  - the implemented header scope selector is a shared runtime primitive rendered above the `.pen` shell source; page-specific controls such as Phone Directory's DEV-only directory focus dropdown must reuse the primitive while preserving their documented query behavior
+  - implemented pages should not duplicate page-scope badges beside the title when the shell scope selector already communicates the same scope context
+  - implemented pages using the current shared shell should render a white page background inside the app frame rather than the neutral canvas gray
+  - logged-in implemented pages should keep the generated page pane flush with the fixed shared sidebar edge; the renderer/CSS must not independently center the page artboard while sidebar/header nodes are viewport-fixed
+  - row-level detail and context surfaces should use the shared right-hand runtime drawer primitive rather than fixed right-side static panels; the drawer is closed by default, opens after a row selection, updates when another row is selected, and closes from the drawer `X`
+  - the shared help icon should use that same right-hand runtime drawer primitive for page-specific end-user help wherever the help icon is visible; page help is non-technical operator documentation and must be refreshed whenever PRD or implementation behavior changes the page
+  - fields such as `Last refreshed` may stack onto multiple lines when that avoids collisions with neighboring controls while preserving clear label/date/time grouping
+  - when a page exposes the shared-header `Refresh` control, the `Last refreshed` cluster should sit immediately to the left of the button, preserve a `5px` blank gap, and stay no taller than the button by collapsing to two lines when needed
+  - the `Data Quality` refresh control should remain a real re-fetch action, render as a Vegas Gold primary action, and re-collect the current queue payload rather than applying a cosmetic-only reload
+  - the top-right shared-header `Refresh` control should use the same Vegas Gold primary-action treatment with readable black text across every implemented page that carries that shared shell pattern, even when a static page is not yet wired to page-specific runtime refresh behavior
+  - shared-header `Refresh` styling drift should be corrected in the authoritative `.pen` sources for the repeated header pattern rather than through page-specific CSS or runtime overrides
+  - the shared page sync/refresh primitive must keep the refresh button and any freshness metadata inside the intended header/action bounds; it must not push the page canvas to the right, create horizontal overflow, or leave a tall blank vertical strip beside the main content
+  - shared right-drawer footer actions should be implemented as one drawer action-row primitive that uses the available drawer content width intentionally, keeps labels readable, and avoids left-clustered buttons with a large unused footer region
+  - shared summary/info boxes should become one documented primitive across implemented pages. The primitive must center text, render numeric values prominently, color-code those values on a documented good-to-bad scale, and lead to a concrete action, filter, navigation target, drawer, or operator decision; boxes that cannot satisfy that actionability rule should be removed or redesigned instead of preserved as passive decoration
+  - `Next Action` cells in the `Data Quality` queue should deep link to an in-app corrective page when one exists, otherwise render as `{Action} in {system}` with a top-level external system link only when that destination is defined
+  - the implemented `Support` affordance should treat the help icon and `Support` label as one IncidentIQ ticket-creation entrypoint once that destination contract is wired
+  - the shared-shell auth and route foundation for the current implemented `.pen` inventory now includes `/login`, logged-in/logged-out error pages, a shared route registry, and role-based sidebar filtering/direct-link authorization; deferred shell behaviors such as account-menu actions, live site-selector behavior, and richer sidebar interaction remain separate later slices
+  - the login authority for this slice is `docs/design/mocks/wireframes/wireframe-login.pen`; it renders only the centered `Firefly.png` logo at `25%` opacity, the centered `the wizard` title in Vegas Gold Varsity with black stroke outline, and a centered `Log in with Google` button using the Google mark, with no sidebar or header before login succeeds
+  - the reusable error-page authority for this slice is `docs/design/mocks/wireframes/wireframe-http-error.pen`; logged-out errors render without shell, while logged-in errors merge that page pane into the shared shell from `wireframe-shared-shell.pen`
+  - HTTP error pages must include one recovery CTA; authenticated users return through `/dashboard` so the router resolves their role-based landing path, while signed-out users return to `/login`
+  - the login page display title must use a fixed `1px` outer stroke
+  - stroked display text on HTTP error pages must use a fixed `1px` outer stroke
+  - DEV-only mock auth, session, and page routes must require `APP_ENV=development` explicitly so missing `APP_ENV` fails closed outside development
+  - the DEV login flow is mock-only in this slice: clicking `Log in with Google` establishes a signed-in DEV session and redirects to `/dashboard`, while a user who is already authenticated and authorized skips `/login` and goes directly to `/dashboard`
+  - logout must return the browser to `/login`
+  - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
+  - the three Phone Directory mode routes stay directly addressable and role-authorized, but they are not shared-sidebar child buttons; the shared sidebar renders one top-level `Phone Directory` row for all three mode routes, and the Phone Directory page's in-page mode control owns switching among `By Person`, `By Room`, and `By Department`
+  - the former `/reports/ticketing-human-work` route is retired rather than hidden or repurposed; direct navigation follows normal `404` handling, while Onboarding and Room Moves own their contextual ticket/human-work status
+  - the user-facing `Invalid Student Names` page is renamed to `Student Data Cleanup` in title, route, sidebar label, and operator-facing queue/report references; technical invalid-name detection terminology may remain in source-data logic where needed
+  - role-based landing defaults for this slice are: `IT Admin` → `/dashboard/it-admin`, `Human Resources` → `/dashboard/hr-lifecycle`, `Site Admin` → `/dashboard/site-admin`, `Site Secretary` → `/phone-directory/by-room`, `Device Wrangler` → `/frequent-fliers`, and `Faculty and Staff` → `/phone-directory/by-person`
+  - the DEV persona switcher is a live mock-session switch for demos rather than a static label preview; it renders inside the shared sidebar bounds below the Platform Status area so right-edge drawers and overlays can anchor to the app frame without accounting for an out-of-bounds top-right toolbar; on switch, `/dashboard` re-resolves through the new persona's landing route, allowed routes stay in place and rerender, and disallowed current routes route to the new persona's landing route so demos do not strand users on `403`
+  - local Codex evidence workflows may also switch the same active DEV mock persona without Browser clicks by posting `activate_mock_session=true` to `/api/v1/dev/login` through `npm run dev:persona`; this development-only path updates the shared in-process mock session read by `/api/v1/dev/session`, returns structured persona/display/site/route/auth confirmation, supports all current DEV personas including `no_access`, and forces anonymous readback when an invalid persona id is submitted
+  - direct-link enforcement remains strict: pages excluded from the active persona's allowed route set must still return `403` when visited directly
+  - role-based route visibility for this slice is:
+    - `IT Admin`: all routes
+    - `Human Resources`: `/dashboard/hr-lifecycle`, `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/offboarding`
+    - `Site Admin`: `/dashboard/site-admin`, `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`
+    - `Site Secretary`: `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/student-data-cleanup`, `/room-moves`
+    - `Device Wrangler`: `/search`, all three phone-directory routes, `/my-profile`, `/frequent-fliers`
+    - `Faculty and Staff`: `/search`, all three phone-directory routes, `/my-profile`
+  - scope rules for this slice are:
+    - `IT Admin` sees all sites on all allowed pages
+    - `Human Resources` sees district-wide data on all allowed pages
+    - `Site Admin`, `Site Secretary`, and `Device Wrangler` each have exactly one assigned site and see only that site on site-scoped pages; multi-site mapping input for those roles must fail closed rather than creating cross-site operational access
+    - `Faculty and Staff` may have multiple associated sites, default to the onboarding/current-assignment-derived site context on allowed pages, and never gain operational site-scoped roles from those associations
+    - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
+  - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
+  - unauthenticated access to any route other than `/login` must return `401`
+  - the routes currently reserved to `IT Admin` only are `/dashboard/it-admin`, `/data-quality`, `/reports`, `/reports/security-issues`, `/reports/zoom-desk-phone-renames`, `/reports/sync-transparency`, `/admin`, and `/admin/feature-flags`
+  - the shared header search is implemented as a real global-search entrypoint; submitting from any logged-in page routes into `/search?q=...`
+  - shared header search accepts name, email, phone, extension, employee ID, student ID, asset ID, serial number, and workflow/action text input across the DEV projections the current persona can access
+  - shared header search groups results by source/type, including people, rooms/extensions, departments/lines, onboarding, offboarding, departing seniors, devices/assets, and workflow/action records where mock data exists
+  - global search must respect persona route access and field visibility; employee IDs are included only for `IT Admin` and `Human Resources`
+  - within each grouped result bucket, exact matches outrank prefix matches, prefix matches outrank substring matches, and remaining ties sort deterministically
+  - the `/reports` route is a runtime-owned Reports hub over the shared `.pen` shell; the live page hides the fixed artboard detail card and renders report inventory plus recent refresh rows with shared table search/sort primitives
+  - selecting any report or refresh row on `/reports` opens the shared right-hand drawer with row-specific scope, source, data-included, open-item, last-run or refresh, cadence, status, and explanation details
+  - report rows may expose an `Open Report` drawer action that routes to the owning implemented page or report route; refresh rows remain informational and do not navigate
+  - `/reports/security-issues` is a runtime-owned IT Admin report nested under Reports; it uses the Reports shell/artboard pattern plus runtime table search/sort and shared drawer details for account-security rows moved out of Offboarding
+  - `/reports/zoom-desk-phone-renames` is a runtime-owned IT Admin report nested under Reports; it uses the Reports shell/artboard pattern plus a DEV payload at `/api/v1/dev/pages/reports/zoom-desk-phone-renames`
+  - the Zoom Desk Phone Renames DEV payload includes only pending manual adjustment and error rows; rows with healthy, completed, or non-actionable waiting states are filtered out before the API response
+  - Zoom Desk Phone Renames table columns are serial number, MAC address, current Zoom name, expected new name, and IncidentIQ asset link; the help text instructs IT Admins to update the IncidentIQ asset location so the next Zoom sync can force the rename
+  - `/reports/ticketing-human-work` is not a plan-backed runtime route in this slice; do not list it in the Reports nested navigation or report inventory because ticket linkage belongs on the owning workflow detail surfaces
+  - Offboarding excludes `Security risk` orphan-account rows from its summary cards, table payload, and HR/IT end-date mutation route; those rows remain visible in the Security Issues report with their existing details, owner/action context, and deterministic DEV external links
+  - each `devFeatureFlagRegistry` route must be covered by a Go regression test that proves the matching DEV page/API handler is registered, unless the route is explicitly documented as frontend/static-only for the current foundation slice
+  - Flagged route backend coverage exception: /dashboard/site-admin is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+  - Flagged route backend coverage exception: /student-data-cleanup is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+  - Flagged route backend coverage exception: /frequent-fliers is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+
+### Phase 0: Platform Foundation and Safety Rails
+- Purpose:
+  - establish the application shell, data model, control plane, auth gate, provider clients, environment safety, and durable orchestration primitives before operational writes are trusted
+- Dependency note:
+  - Phase 0 may build on shell and frontend iteration work established in `Pre-Phase 0`, but it still owns the first promotable safety-rail baseline
+- Phase-specific data-access note:
+  - Phase 0 must codify provider capability classification, freshness policy, and projection-versus-live-read boundaries before implementation locks in an accidental full-mirror design
+- Recommended delivery buckets:
+  - `0A` repo-local safety artifacts and environment playbooks
+  - `0B` core database schema, migrations, workflow engine, outbox, and recovery primitives
+  - `0C` auth gate, breakglass, global pause, and IT Admin emergency controls
+  - `0D` provider configuration, read-only connectivity, and dev mock scaffolding
+  - `0E` health checks, metrics, readiness gates, and promotion plumbing
+- In scope:
+  - PostgreSQL schema and migrations
+  - durable workflow/job engine, leases, recovery loop, outbox, health endpoints, metrics, global pause
+  - staff-only access gate, role-aware authorization skeleton, breakglass support
+  - provider credential/config plumbing and read-only connectivity checks
+  - IT Admin settings for timezone and sync cadence
+  - IT Admin emergency cutoff controls, including immediate global pause before downstream writes can continue
+  - masked staging and environment-refresh playbook
+  - repo-local reference inputs and authoritative docs
+- Success gates:
+  - `dev`, `staging`, and `main` are treated as separate datasets with documented refresh procedures
+  - `/health/live` and `/health/ready` validate required dependencies without manual DB repair
+  - job overlap protection, recovery, and audit trails exist before automation writes are enabled
+  - staff-only domain gate and breakglass logic are working in non-production
+  - IT Admin can stop the system quickly through global pause/cadence controls before bad data propagates to downstream systems
+  - new write-capable workflows are proven in `dev` with mocks before any real provider integration is attempted
+  - Aeries masked previous-year staging access is proven without touching live production writes
+- Failure gates:
+  - any write path depends on unmasked production-only testing
+  - real provider integrations are attempted before mock validation in `dev`
+  - orchestration cannot recover safely from worker crash or overlapping cadence windows
+  - auth/breakglass behavior is not testable or auditable
+- Promotion evidence requirements for this phase:
+  - `0A` repo-local safety artifacts and environment playbooks
+    - evidence that required reference inputs and linked documents resolve from repo-local paths
+    - evidence that missing required snapshots fail clearly
+    - environment-role evidence for `dev`, `staging`, and `main` separation
+  - `0B` core database schema, workflow engine, outbox, and recovery primitives
+    - worker-crash recovery trace
+    - ordering evidence showing `global_tick` drives sequencing
+    - overlap-prevention evidence for duplicate job-family suppression
+  - `0C` auth gate, breakglass, global pause, and IT Admin emergency controls
+    - allow/deny auth-gate evidence for staff and student domains
+    - breakglass access evidence for configured named local accounts, denied source addresses, unknown accounts, and sanitized audit records
+    - global-pause runtime evidence showing new claims stop without bringing down diagnostics
+  - `0D` provider configuration, read-only connectivity, and dev mock scaffolding
+    - provider readiness success evidence against mocks
+    - provider readiness failure evidence for missing or bad credentials/config
+    - safe Aeries previous-year staging configuration evidence
+    - evidence that each provider is documented with the intended batch, projection-backed, live-detail, and live-write-verification behavior before implementation begins
+  - `0E` health checks, metrics, readiness gates, and promotion plumbing
+    - `/health/live` and `/health/ready` evidence under healthy and degraded conditions
+    - observability evidence for pause/dependency state
+    - promotion-gate evidence showing required scenario checks are enforced
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
+  - `0A` repo-local safety artifacts and environment playbooks
+    - `P0-0A-001` Reference Input Snapshot Integrity
+    - `P0-0A-002` Environment Role Separation
+  - `0B` core database schema, workflow engine, and recovery primitives
+    - `P0-0B-001` Worker Crash Lease Recovery
+    - `P0-0B-002` Global Tick Ordering Integrity
+    - `P0-0B-003` Overlap Protection Prevents Duplicate Job Family Runs
+  - `0C` auth gate, breakglass, global pause, and emergency controls
+    - `P0-0C-001` Staff Domain Allowlist Gate
+    - `P0-0C-002` Student Domain Deny Gate
+    - `P0-0C-003` Google Group And Attribute Role Mapping
+    - `P0-0C-004` Site Scope Recalculation
+    - `P0-0C-005` Breakglass Access Bypass
+    - `P0-0C-006` Global Pause Stops New Claims
+  - `0D` provider configuration, read-only connectivity, and mock scaffolding
+    - `P0-0D-001` Provider Readiness Mock Success Path
+    - `P0-0D-002` Provider Readiness Failure Surfacing
+    - `P0-0D-003` Aeries Previous-Year Staging Configuration
+    - `P0-0D-004` Provider Access Modes Classified Before Implementation
+  - `0E` health checks, metrics, and promotion plumbing
+    - `P0-0E-001` Readiness Fails Closed on Missing Dependency
+    - `P0-0E-002` Health Endpoints Reflect Pause and Dependency State
+    - `P0-0E-003` Promotion Gate Requires Named Scenario Passes
+
+- Rollback triggers for this phase:
+  - `0A`: trigger rollback if required repo-local reference inputs are missing, linked docs resolve outside the repo, or environment-role separation is incorrect.
+  - `0B`: trigger rollback if worker recovery cannot reclaim safely, duplicate job-family execution occurs, or `global_tick` ordering is violated.
+  - `0C`: trigger rollback if unauthorized identities gain access, breakglass fails when needed, or global pause does not stop new claims safely.
+  - `0D`: trigger rollback if provider readiness gives false-safe results, unsafe non-production provider config is used, or Aeries previous-year staging reads are misconfigured.
+  - `0E`: trigger rollback if health endpoints report false readiness, observability hides degraded state, or promotion-gate enforcement can be bypassed.
+- Rollback references for this phase:
+  - `0A`: restore the last known-good repo-local reference snapshot and environment configuration set, then redeploy the prior safe revision before resuming promotion work.
+  - `0B`: hold workers under global pause, revert the app/worker revision, and reconcile schema or job-state changes with documented migrations or forward-fix recovery before unpausing claims.
+  - `0C`: use breakglass if needed, restore the prior auth, cadence, and emergency-control configuration, and then clear emergency-only changes after verification.
+  - `0D`: restore the prior provider credential/config bundle, disable the failing readiness path, and keep real downstream writes disabled while connectivity is revalidated.
+  - `0E`: revert health/metrics/promotion-plumbing changes to the prior stable revision and keep the system paused until readiness returns to the documented safe state.
+
+### Phase 1: Read-Side Visibility and Data-Quality Surfacing
+- Purpose:
+  - replace spreadsheet-driven visibility first, surface upstream data problems early, and let operators trust the dashboard before write automation expands
+- Phase-boundary note:
+  - student invalid-name handling remains fully in Phase 1 as a visibility and upstream-correction surface, not a later automation feature
+- Phase-specific data-access note:
+  - read-side dashboards in this phase remain projection-backed surfaces with freshness context rather than live provider fan-out on every page load
+- Recommended delivery buckets:
+  - `1A` canonical read model ingestion and dashboard projections
+  - `1B` onboarding/offboarding visibility plus HR/IT mismatch queues in review-only mode
+  - `1C` phone directory visibility surfaces
+  - `1D` student invalid-name visibility
+  - `1E` Frequent Fliers visibility
+  - `1F` room-move draft planning and validation surface without execution
+- In scope:
+  - canonical person/workflow read model from Escape, Aeries, AD, Google, Zoom, IncidentIQ, and InformedK12 inputs
+  - onboarding and offboarding dashboards in visibility-first mode
+  - student invalid-name queue
+  - Frequent Fliers live dashboard
+  - read-side phone directory with person-centric, room-centric, and department-centric views
+  - room-move drafts as saved planning/validation artifacts only, without execution
+  - HR and IT mismatch queues, including orphaned-account and Google-active/Aeries-inactive review surfaces
+  - title-mapping blockers, hidden-whitespace surfacing, and other upstream data-quality exceptions
+- Success gates:
+  - HR, site staff, Device Wranglers, and IT can answer current-state lifecycle questions from the dashboard without relying on hand-maintained sheets
+  - source conflicts and missing data surface to the right non-IT owner with correct scope controls
+  - phone directory data is API-driven without CSV upload dependence and is available to every logged-in authorized role with correct scope
+  - Frequent Fliers is usable as a live dashboard surface in place of its legacy emailed/sheet-based visibility workflow
+  - room-move drafts can be created and validated ahead of execution without requiring the transfer engine to be live yet, with IT able to create district-wide drafts at the same time site-scoped users create site drafts
+  - the Room Moves DEV runtime must support one-person correction drafts, whole-site roster drafts, and manually built bulk move lists against deterministic mock people and IncidentIQ room inventory data
+  - non-IT Room Moves users can create drafts for their own site, view every Room Move affecting their assigned site including IT-authored rows, and manage only drafts they authored; IT Admin can create and manage district-wide or inter-site drafts through an additional destination-site control
+  - pending Room Moves rows can be canceled until the job actually runs; once a draft is applied, cancellation is blocked and IT must use the completed-job reversal flow
+  - the Admin dashboard exposes an IT Admin-only Room Move Reversal section that lists completed room-move jobs and schedules a new reversal draft after explicit confirmation
+  - the reversal flow is full-job only; partial reversal is intentionally modeled as a new Room Move draft for the affected employees
+  - review-only security and mismatch queues operate with correct ownership and no unauthorized data exposure
+- Failure gates:
+  - operators still need legacy sheets to understand current state for in-scope workflows
+  - upstream data defects are hidden or silently normalized instead of surfaced
+  - role scoping leaks sensitive data across sites or personas
+- Promotion evidence requirements for this phase:
+  - `1A` canonical read model ingestion and dashboard projections
+    - ingest/projection runtime evidence from masked or mock source inputs
+    - conflict-surfacing evidence showing no silent normalization
+    - projection-refresh evidence after successful import
+    - evidence that projection-backed read surfaces expose freshness context without requiring live provider calls for list rendering
+  - `1B` onboarding/offboarding visibility plus HR/IT mismatch queues in review-only mode
+    - scope evidence for HR, Site Admin, and IT review surfaces
+    - queue ownership evidence for review-only operational handling
+    - review-only evidence showing no write controls are available in this phase
+  - `1C` phone directory visibility surfaces
+    - runtime evidence for person-centric, room-centric, and department-centric synced views
+    - evidence that site default and cross-site lookup behavior matches scope rules
+    - evidence that the view is provider-synced rather than CSV-driven
+    - evidence that all logged-in user types can reach their authorized directory surface
+    - evidence that directory state labels use explicit documented values rather than undefined abbreviations
+    - evidence that department-view classification labels and call-queue retrieval behave as documented
+    - evidence that selected-record directory detail may refresh targeted provider state without turning the full directory table into a live provider view
+    - evidence that multi-line dashboard tables use a shared top baseline across all cells and do not vertically center sparse cells
+  - `1D` student invalid-name visibility
+    - site-secretary scope evidence
+    - invalid-name detail evidence including secretary-friendly current/suggested first-name and last-name labels, source-value preservation, suggested correction, and Aeries base-site link behavior
+    - student-denial evidence for this dashboard surface
+  - `1E` Frequent Fliers visibility
+    - runtime evidence of threshold/lookback behavior, including immediate table refresh when threshold, metric, or lookback dropdowns change
+    - evidence that the filter bar has no `Apply` button, renders the fixed operator as plain inline `≥`, and does not box the operator like an interactive control
+    - DEV/mock evidence that representative threshold, metric, and lookback combinations produce visibly different table data
+    - site-scope evidence for Device Wranglers and Site Admins
+    - aggregation evidence for student, device, and ticket context
+  - `1F` room-move draft planning and validation surface without execution
+    - site-scoped draft-create evidence
+    - district-wide IT draft-create evidence
+    - draft-validation evidence proving no execution side effects occur in this phase
+    - evidence that directory detail actions can open a one-person targeted draft with current context prefilled
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
+  - `1A` canonical read model ingestion and dashboard projections
+    - `P1-1A-001` Escape Ingest Creates Canonical Person Projection
+    - `P1-1A-002` Source Conflict Surfaces Without Silent Normalization
+    - `P1-1A-003` Projection Refresh After Successful Import
+    - `P1-1A-004` Projection Backed Lists Expose Freshness Context
+  - `1B` onboarding/offboarding visibility and review-only mismatch queues
+    - `P1-1B-001` HR District-Wide Onboarding Visibility
+    - `P1-1B-002` Site-Scoped Administrative Visibility
+    - `P1-1B-003` Review-Only Google Active Aeries Inactive Queue
+  - `1C` phone directory visibility surfaces
+    - `P1-1C-001` Phone Directory Person View Uses Synced Provider Data
+    - `P1-1C-002` Phone Directory Room View Uses Synced Provider Data
+    - `P1-1C-003` Site Default With Cross-Site Lookup
+    - `P1-1C-004` Directory Toggle Alternates Single Primary View
+    - `P1-1C-005` Directory State Labels Use Explicit Documented Values
+    - `P1-1C-006` Department View Uses Department Extensions And Call Queues
+    - `P1-1C-007` Phone Directory Available To All Logged-In User Types
+    - `P1-1C-008` Dashboard Tables Preserve Shared Top Baseline
+    - `P1-1C-009` DEV Directory Seeds Preserve Reference Extension Patterns
+    - `P1-1C-010` Directory Detail Live Refresh Stays Scoped To Selected Record
+  - `1D` student invalid-name visibility
+    - `P1-1D-001` Secretary Sees Site-Scoped Active Invalid Names Only
+    - `P1-1D-002` Suggested Corrected Name And Aeries Link
+    - `P1-1D-003` Student Login Denied For Invalid-Name Dashboard
+    - `P1-1D-004` Invalid-Name Review Stays On Dedicated Screen
+  - `1E` Frequent Fliers visibility
+    - `P1-1E-001` Frequent Fliers Threshold And Lookback Default
+    - `P1-1E-002` Device Wrangler Site Scope
+    - `P1-1E-003` Student Device Ticket Aggregation
+    - `P1-1E-004` Frequent Fliers Stays On Dedicated Screen
+    - `P1-1E-005` Frequent Fliers Filters Auto-Apply Without Apply Button
+    - `P1-1E-006` Frequent Fliers Mock Views Differ Across Supported Dropdown Combinations
+  - `1F` room-move draft planning and validation without execution
+    - `P1-1F-001` Site User Saves Room-Move Draft
+    - `P1-1F-002` IT Creates District-Wide Room-Move Draft
+    - `P1-1F-003` Draft Validation For Add Change Removal Rows
+    - `P1-1F-004` Directory Detail Opens Prefilled One-Person Move Draft
+
+- Rollback triggers for this phase:
+  - `1A`: trigger rollback if canonical projections are materially wrong, source conflicts are silently normalized, or projection refresh leaves stale read state.
+  - `1B`: trigger rollback if scope leaks occur, required review-only queue rows are missing, or write controls appear in a Phase 1 review-only surface.
+  - `1C`: trigger rollback if the phone directory stops reflecting synced provider data, cross-site scope is wrong, or CSV/manual behavior reappears as the effective source.
+  - `1D`: trigger rollback if invalid-name rows are scoped incorrectly, suggested correction or Aeries-link behavior is wrong, or students can reach the surface.
+  - `1E`: trigger rollback if Frequent Fliers threshold/lookback behavior is wrong, filter changes require a stale manual Apply path, site scope leaks, or student/device/ticket aggregation is materially inaccurate.
+  - `1F`: trigger rollback if room-move draft validation causes execution side effects, district/site draft scope is wrong, or saved draft behavior is unreliable.
+- Rollback references for this phase:
+  - `1A`: disable the current ingest/projection revision, rebuild the canonical read model from the last known-good source snapshot, and republish projections before reopening operator use.
+  - `1B`: revert the queue/projection revision for onboarding, offboarding, and mismatch surfaces, then rebuild those views from canonical source data without enabling any write actions.
+  - `1C`: restore the prior phone-directory projection logic and regenerate person and room views from the last known-good synced provider state.
+  - `1D`: revert invalid-name queue rendering or projection changes and rebuild the queue from canonical student inputs so no stale or transformed values remain.
+  - `1E`: restore the prior Frequent Fliers aggregation revision and rerun the aggregation from canonical student, device, and IncidentIQ ticket data.
+  - `1F`: remove or ignore drafts created by the failed revision as needed, restore the prior draft-validation rules, and confirm no room-move execution side effects occurred in this phase.
+
+### Phase 2: Baseline Staff Lifecycle Automation
+- Purpose:
+  - automate the common-path onboarding, reactivation, and offboarding lifecycle for staff while preserving blocking rules, approvals, idempotency, and manual fallback
+- Phase-boundary note:
+  - `Aeries` access and `Verkada` ticket automation are external `IncidentIQ` configuration TODOs rather than app-owned `Phase 2` workflow buckets
+- Phase-specific data-access note:
+  - lifecycle planning may consume local normalized projections, but all provider mutations in this phase require live read-before-write and live post-write verification
+- Phase 2+ live-write pilot gate:
+  - Phase 2 is the first phase where real upstream provider writeback may be implemented, but every live mutation must remain behind a tightly scoped pilot gate until the project owner approves broader writeback through a specific merged PR
+  - every write-capable workflow must expose a what-if validation mode that resolves the exact provider target, operation name, before/after intent, idempotency key, safety checks, rollback reference, and expected post-write verification without changing upstream state
+  - what-if validation is a dry-run contract: it may read providers and local projections, but it must not enqueue, persist, or send an upstream mutation
+  - live upstream writeback is allowlisted to exactly these pilot accounts:
+    - `bsisko@wusd.org`
+    - `test-lcampbell-stu@stu.wusd.org`
+  - the allowlist applies to every provider-owned identity or side effect reached by the workflow, including primary accounts, aliases, group memberships, licenses, phone assignments, room memberships, generated tickets, ticket requestors, deprovisioning actions, rename targets, and any other upstream mutation
+  - account resolution must fail closed if the target identity cannot be resolved unambiguously to one of the allowlisted addresses before mutation
+  - no feature flag, environment variable, local branch, unmerged PR, draft workflow, manual database edit, or operator action may expand live-write eligibility beyond the current merged-code allowlist
+  - expansion beyond the two pilot accounts requires an explicit project-owner approval tied to a specific PR code change, and the expansion is inactive until that PR is merged into the active environment branch
+  - what-if output for non-allowlisted accounts may be used for validation and review, but the live mutation step must block and record only sanitized diagnostics
+  - tests for write-capable code must include allowlisted-account success coverage, non-allowlisted-account denial coverage, ambiguous-resolution denial coverage, missing-target denial coverage, unmerged-or-unapproved-expansion denial coverage, and post-write verification behavior for the allowlisted pilot path
+  - promotion evidence for write-capable buckets must include the what-if evidence, the explicit approval reference, the merged PR reference, the target account evidence, and the post-write provider-state readback for each pilot write
+- Recommended delivery buckets:
+  - `2A` provisioning-profile and baseline bundle foundation
+  - `2B` common-path onboarding and baseline update/deprovision lifecycle
+  - `2C` reactivation and AD → Entra propagation warning handling
+  - `2D` preferred-name self-service and downstream sync
+  - `2E` actionable Google-active / Aeries-inactive queue controls, including bulk actions
+- In scope:
+  - manual intake for non-Escape people
+  - provisioning profile editor and snapshot behavior
+  - job-title bundle enforcement and unmapped-title blocking
+  - preferred-name self-service for employee and contractor accounts plus downstream write path
+  - baseline account creation/update/deprovision flows across the in-scope identity and access systems
+  - first-pass provider sequencing for baseline staff onboarding:
+    - `AD` first
+    - then `Google`
+    - then `Zoom`
+    - `IncidentIQ` is not directly sequenced as a write step here because it is expected to sync automatically from `Google` and `Aeries` on its normal `24h` cadence
+    - any `Aeries` access or `Verkada` follow-up ticketing is external `IncidentIQ` configuration rather than app-owned behavior in this phase
+  - `IncidentIQ` workflow-status polling for externally created follow-up tickets:
+    - poll for the user in `IncidentIQ` by email address at most once per hour
+    - once the user is found, look for and link only the earliest created matching `Aeries` ticket and the earliest created matching `Verkada` ticket in the dashboard
+    - surface those linked Aeries and Verkada ticket results inside the selected Onboarding person drawer rather than in a standalone ticketing report
+    - treat a ticket as matching only when both the requestor email and the ticket category match the expected follow-up type
+    - the matching `Aeries` category is `Aeries (Asset Tag: AERIES) → User Rights → Add User`
+    - the matching `Verkada` category is `Security Systems → Alarm Codes → Add Alarm Code`
+    - continue to link only the earliest matching ticket even if that ticket is already closed and a later matching ticket remains open
+    - if the earliest matching ticket is later deleted or becomes inaccessible, show no linked ticket rather than falling forward to a newer match, and do so silently without warning text
+    - show the linked ticket number as a clickable link plus the current ticket status value as secondary workflow information rather than as the primary workflow driver
+    - do not truncate the linked ticket number; always show the full raw ticket number
+  - AD → Entra warning path and baseline reactivation/deprovision logic
+  - actionable admin controls for the Google-active / Aeries-inactive queue, moving beyond the review-only Phase 1 surface
+- Pre-phase 0 DEV manual Non-Escape intake is implemented as a mock-only slice:
+  - `/onboarding` renders a Vegas Gold `Add Non-Escape Record` action for HR and IT only
+  - the onboarding table renders `Date Added` first; it is the first Escape import date, the inactive-to-active Escape reactivation date, or the manual Non-Escape creation date
+  - DEV onboarding payloads, table rows, table counts, page-local search, global search onboarding results, row drawers, and room options must use the active site scope for Site Admin and Site Secretary; `Clover High School` site-scoped sessions must not receive District Office, Franklin MS, Desert View, or other non-Clover rows or drawer details
+  - Site Admin and Site Secretary onboarding drawer mutations are limited to `Room`; the DEV API accepts only room update payloads for those personas and rejects any non-Room field attempts server-side while HR and IT retain documented broader manual onboarding behavior
+  - row drawers show workflow steps; user-action steps include status, resolution instructions, and deterministic mock links for this DEV slice
+  - the action opens the shared right-hand drawer with required fields for start date, last 4 SSN, employee type, classification, first name, last name, job title, site, personal email, preferred device, and requested Aeries access
+  - manual drawer fields use compact two-column desktop rows, with missing required fields summarized in the status bubble and controls highlighted with `var(--color-accent-red)` / `#D73533` only after the operator explicitly clicks Save; first-open draft creation and autosave keep validation feedback quiet
+  - optional fields are limited to replacing employee, room/classroom, and notes
+  - excluded People Tracker columns are district email guess, Google groups, other platforms, trainings, keys/building access, alarm codes, and ID card
+  - incomplete DEV drafts appear in the onboarding table as `Incomplete Data`, autosave every 60 seconds while dirty, and reopen in the drawer for continued editing
+  - complete DEV saves generate a mock employee number, generated district email, and mock onboarding workflow state without triggering real provider provisioning
+  - DEV drafts older than 30 days are removed from the in-memory mock store; the production DB-backed implementation must preserve this retention rule
+  - generated district email collision fallback order is `[f][lastname]@wusd.org`, `[firstname].[lastname]@wusd.org`, `[f].[lastname]@wusd.org`, then `[f][lastname][nn]@wusd.org` with a zero-padded numeric suffix until unique
+  - start dates within 3 calendar days of the current date show the exact warning tooltip: `The start date is ≤ 3 days from the current date. Access to some systems may be delayed beyond the start date.`
+- Success gates:
+  - the system can onboard a new staff member or sideloaded contractor end-to-end on the common path with auditable state transitions
+  - offboarding and reactivation are deterministic, idempotent, and recoverable from partial failure
+  - paused workflows can resume via cancel-and-replan without corrupting lifecycle state
+  - provisioning-profile changes affect future/in-flight-not-started work exactly as documented
+  - provider sequencing follows the documented first-pass order through `Zoom`, with any `Aeries`/`Verkada` follow-up ticketing handled as external `IncidentIQ` configuration rather than app behavior
+  - the dashboard can surface linked `IncidentIQ` user, `Aeries`, and `Verkada` follow-up ticket status after the `IncidentIQ` user appears, without taking ownership of ticket creation
+  - preferred-name self-service for employee and contractor accounts writes through directly and reaches the documented downstream targets without a review gate in this phase
+  - unmapped titles block only affected people and route resolution to HR/IT correctly
+  - IT Admin can safely execute documented queue actions for Google-active / Aeries-inactive cases instead of using review-only observation
+- Failure gates:
+  - duplicate account creation, non-idempotent retries, or ambiguous reactivation behavior
+  - manual work is required because the baseline automation path is missing rather than because a documented blocker fired
+  - profile edits or workflow resume paths can silently change already-started provider steps
+- Promotion evidence requirements for this phase:
+  - `2A` provisioning-profile and baseline bundle foundation
+    - profile-edit audit evidence
+    - workflow snapshot/log evidence proving started work does not reread live profile edits
+    - database state check proving only affected unmapped-title records are blocked
+  - `2B` common-path onboarding and baseline update/deprovision lifecycle
+    - end-to-end workflow timeline or log excerpt
+    - database state check before and after lifecycle execution
+    - mock or staging output summary for downstream baseline actions taken
+    - `IncidentIQ` workflow-status evidence showing hourly-bounded user/ticket polling and dashboard linking behavior
+    - evidence that live provider disagreement on a write path refreshes projections and prevents unsafe mutation
+    - what-if validation evidence before every live pilot writeback attempt
+    - allowlisted target evidence proving any live writeback touched only `bsisko@wusd.org` or `test-lcampbell-stu@stu.wusd.org`
+    - denial evidence proving non-allowlisted resolved targets and ambiguous targets block before mutation
+  - `2C` reactivation and AD → Entra propagation warning handling
+    - warning visibility evidence for workflow viewers and IT Admin
+    - resume/cancel/replan execution trace
+    - database state check confirming baseline-first restoration behavior
+    - what-if validation and allowlist-denial evidence before any live provider mutation
+  - `2D` preferred-name self-service and downstream sync
+    - request audit record
+    - downstream sync log or state-change evidence
+    - evidence that both Zoom user naming surfaces were updated
+    - authorization evidence that students cannot submit preferred-name edits through the dashboard
+    - what-if validation evidence and post-write provider readback for any allowlisted pilot preferred-name write
+    - denial evidence proving preferred-name writes for non-allowlisted users block before downstream mutation
+  - `2E` actionable Google-active / Aeries-inactive queue controls
+    - queue action audit evidence for individual and bulk actions
+    - resulting queue-state database check
+    - downstream workflow summary for the selected action path
+    - what-if validation evidence for individual and bulk actions before live mutation
+    - denial evidence proving bulk actions skip or block non-allowlisted users before any upstream mutation
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
+  - `2A` provisioning-profile and baseline bundle foundation
+    - `P2-2A-001` Profile Save Applies To Not-Yet-Started Work
+    - `P2-2A-002` Workflow Snapshot Freezes At Start
+    - `P2-2A-003` Unmapped Title Blocks Only Affected Person
+  - `2B` common-path onboarding and baseline update/deprovision lifecycle
+    - `P2-2B-001` New Staff Common Path Onboarding
+    - `P2-2B-002` Staff Offboarding Baseline Deprovision
+    - `P2-2B-003` Highest Category Re-Evaluation After Assignment Change
+    - `P2-2B-004` IncidentIQ User Poll And External Ticket Status Linkage
+    - `P2-2B-005` Live Provider Disagreement Refreshes Projection Before Write
+  - `2C` reactivation and AD → Entra propagation warning handling
+    - `P2-2C-001` Reactivation Restores Baseline Not Extras
+    - `P2-2C-002` Entra Propagation Warning After One Hour
+    - `P2-2C-003` Resume Cancels And Replans With Latest Profile
+  - `2D` preferred-name self-service and downstream sync
+    - `P2-2D-001` Preferred Name Submission For Employee Or Contractor Applies Without Review
+    - `P2-2D-002` Preferred Name Sync Updates Zoom User And Phone Profiles
+    - `P2-2D-003` Students Cannot Submit Preferred Name Through Dashboard
+  - `2E` actionable Google-active / Aeries-inactive queue controls
+    - `P2-2E-001` Individual Queue Action Changes Outcome
+    - `P2-2E-002` Bulk Queue Actions On Day One
+    - `P2-2E-003` Graduated Senior Suppression And Override
+
+- Rollback triggers for this phase:
+  - `2A`: trigger rollback if started workflows reread live profile edits, profile snapshots are not stable, or unmapped-title blocking affects the wrong people.
+  - `2B`: trigger rollback if baseline onboarding or deprovisioning is non-idempotent, duplicate account effects occur, the common-path end-state is materially wrong, what-if output does not match live intent, or any live write attempts to touch a non-allowlisted account.
+  - `2C`: trigger rollback if reactivation restores extras, resume/cancel/replan corrupts workflow state, Entra warning handling violates the documented baseline-first rule, or live reactivation writes are attempted outside the pilot allowlist.
+  - `2D`: trigger rollback if preferred-name edits write the wrong downstream values, fail to update one of the required Zoom naming surfaces, allow student-originated preferred-name edits through the dashboard, or live preferred-name writes are attempted outside the pilot allowlist.
+  - `2E`: trigger rollback if individual or bulk queue actions move the wrong records, corrupt queue state, mishandle graduated-senior suppression and override behavior, or attempt upstream mutation for any non-allowlisted account.
+- Rollback references for this phase:
+  - `2A`: restore the last approved provisioning-profile and title-bundle configuration, cancel or replan not-yet-started workflows that referenced the superseded config, and preserve already-started workflows on their captured snapshot.
+  - `2B`: place lifecycle writes under global pause, revert the lifecycle revision, reconcile created or changed baseline state against provider truth, and rerun only the documented recovery or deprovision steps needed to reach the intended baseline.
+  - `2C`: revert the reactivation and resume/replan revision, clear or rebuild queued replans created by the faulty logic, and regenerate affected workflows from the latest canonical state.
+  - `2D`: disable new preferred-name submissions temporarily, revert the approval/write-path revision, and reconcile downstream preferred-name state back to the last approved source of truth.
+  - `2E`: disable queue actions temporarily, revert the action-handler revision, reconcile affected rows against Google and Aeries truth, and re-enqueue only the still-unresolved cases.
+
+### Phase 3: Room, Phone, and Transfer Orchestration
+- Purpose:
+  - automate the district’s room, desk-phone, SLG, extension, and transfer workflows without clobbering active assignments, after the read-side phone directory is already in place from Phase 1
+- Phase-specific data-access note:
+  - Zoom, Google, and AD-sensitive transfer and phone workflows must use live action-path reads and post-write verification even though the surrounding queues and list views remain projection-backed
+- Recommended delivery buckets:
+  - `3A` room-move execution path built on earlier drafts, including final review
+  - `3B` same-site room and IncidentIQ assignment changes
+  - `3C` Zoom phone, SLG, extension, and CAP orchestration
+  - `3D` inter-site transfer handling and extension/site cutover behavior
+  - `3E` bulk summer rollover, recovery queues, and IT fallback ticketing
+- In scope:
+  - same-site and inter-site transfer workflows
+  - room-move execution building on the earlier draft/planning surface
+  - final review, scheduled commit, and recovery handling
+  - IIQ room updates, Zoom phone assignment changes, SLG changes, CAP creation/maintenance, extension logic
+  - room overrides that unblock teaching workflows when course data is incomplete
+  - summer rollover behavior and effective-date execution
+  - execution-threshold rule for reviewed moves:
+    - `5` or fewer moves may execute immediately once final review is passed
+    - more than `5` moves must execute through a batch cutover window
+  - runtime draft modes:
+- one-person corrections open from `Move Person` or a single-move row into the shared right-hand drawer
+- `Batch Move` opens an empty bulk draft where `Add` appends searchable rows to the bottom of the table
+- `Site Rollover` opens a bulk draft preloaded with every eligible employee and contractor at the scoped site
+  - destination-site and destination-room controls:
+    - IT Admin sees a destination-site dropdown so inter-site moves can be planned
+    - non-IT users do not see destination-site controls and can choose only rooms from their own site
+    - destination room options are filtered to the selected destination site
+    - `None` appears first in every destination-room dropdown
+    - room dropdowns must deduplicate provider or DEV mock room options by selectable room value, with duplicate `None` entries collapsed into the single first option
+    - same-site moves default destination room to the person’s current room when available
+    - site-rollover roster drafts are the exception to the same-site current-room default: preloaded roster rows persist destination room as `None` until the operator selects the actual destination room, so the initial draft never stores a no-op same-room move
+    - manually submitted or edited draft rows must reject no-op same-room moves by stable current-room and destination-room id before draft persistence, scheduling, or apply
+    - inter-site moves default destination room to `None`
+    - if a person is moving sites, the destination room should be set to none
+    - bulk-draft `add` rows represent adding a person to the selected destination without a prior room association, so current-room state must be blank/none after save and reload
+    - bulk-draft `removal` rows represent removing the person from all room phones, shared line groups, and call queues at the site, so destination room must save and reload as `None`
+  - user-facing guidance placement:
+    - Execution Rules and Cutover Controls copy belongs in the Room Moves help drawer
+    - single-move warnings belong in right-drawer details
+    - primary-room conflicts in the right drawer must identify the destination room, the active primary room owner, the reason the primary phone assignment is left unchanged, and the expected automation outcome of adding the moving user to the destination room shared line group
+    - if a primary-room conflict cannot be planned or verified as shared-line-group automation, the drawer must show the manual owner, failure reason, resolution steps, and linked external systems instead of a terse `Primary conflict` or `Manual ticket` label
+    - right-drawer footer action buttons should use the drawer content width intentionally; multiple actions should distribute or size as a coherent shared drawer footer primitive rather than leaving a large blank region to the right
+    - Room Moves summary/info boxes must follow the shared actionable info-box primitive. `Draft Moves`, `Warnings`, `Immediate`, and `Batch Cutovers` should each lead to a clear action, filter, navigation target, drawer, or operator decision; if any box cannot support that outcome, reassess whether it belongs on the page
+    - bulk-draft warnings belong in a top warning bar above the bulk table, and row-level warnings should render as person-specific bullets so the affected employee is visible before the operator scans the table
+    - the main Move Set Review table shows both persona-visible single moves and persona-visible scheduled bulk moves; bulk rows use `Bulk Move` as the name value, include an Author column immediately before State, and include a read-only Scheduled column immediately after State showing the scheduled cutover timestamp or `None`
+    - IT Admin can open any Room Moves draft that is visible in the review table, even when another operator authored the draft
+    - Site Admin and Site Secretary can open assigned-site Room Moves authored by IT or another operator in read-only mode, but `PUT`, `schedule`, `apply`, `cancel`, and `DELETE` DEV mutation routes must reject those other-authored drafts with the established forbidden response
+    - Room Moves help text must include: `IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.`
+  - cancellation and reversal rules:
+    - every pending Room Moves table row exposes `Cancel Move`
+    - cancellation is allowed only before the job runs
+    - completed jobs appear in an IT Admin-only Admin dashboard reversal section
+    - confirming `Revert` schedules a new reversal job that reverses all changes from the completed job
+    - partial reversal is performed by creating a new Room Move draft, not by editing the completed-job reversal
+  - author-scope rule for batch move sets:
+    - if the batch is authored by `IT`, it may span multiple sites
+    - if the batch is authored by any non-IT role, it is limited to the author's own site scope
+  - non-IT batch-execution timing rule:
+    - any non-IT authored batch move set using the `more than 5` path must have an explicit scheduled cutover time
+    - that cutover must not run during the school day
+    - `off hours` are `20:00` to `04:00` Pacific time
+  - IT batch-execution timing rule:
+    - `IT` may choose broader cutover windows for multi-site batches and is not restricted to the non-IT `20:00` to `04:00` window
+    - no extra confirmation or warning is required if `IT` schedules such a cutover during the school day
+- Success gates:
+  - same-site and site-to-site moves execute according to the documented Zoom/IIQ/CAP rules
+  - bulk end-of-year moves can be drafted, reviewed, scheduled, and executed without overwriting non-moving users
+  - reviewed move sets respect the immediate-vs-batch threshold rule without ambiguous operator behavior
+  - multi-site batch execution is available only to `IT`, while non-IT authored batches remain site-scoped
+  - non-IT authored batches of more than `5` moves execute only through explicit off-hours cutovers
+  - unresolved phone conflicts route cleanly into recovery queues or tickets with enough detail for manual completion
+  - room/phone changes refresh dashboard projections immediately after successful writes
+- Failure gates:
+  - phone or SLG automation can overwrite active users without a conflict gate
+  - scheduled room moves cannot execute safely at the intended effective date
+  - recovery queue or fallback ticketing is insufficient for manual completion
+- Promotion evidence requirements for this phase:
+  - current evidence bar for this phase uses ordinary runtime evidence only; no separate manual-fallback drill is required unless a later revision raises that requirement
+  - `3A` room-move execution path built on earlier drafts, including final review
+    - runtime evidence of draft-to-final-review progression
+    - scheduled execution timeline or log excerpt at the effective date
+    - runtime evidence that a one-person targeted corrective move can execute from the directory-initiated workflow path once final review exists
+    - recovery trace proving duplicate move commit is prevented
+  - `3B` same-site room and IncidentIQ assignment changes
+    - runtime evidence of same-site room update behavior
+    - authorization/scope evidence for room overrides
+    - downstream IncidentIQ state check
+  - `3C` Zoom phone, SLG, extension, and CAP orchestration
+    - runtime evidence of phone baseline outcome
+    - runtime evidence of attendance-driven CAP assignment behavior
+    - the default attendance-driven CAP path is sufficient at the current evidence bar; a separate manual-exception CAP proof case is not yet required
+    - conflict/recovery evidence showing no silent overwrite
+  - `3D` inter-site transfer handling and extension/site cutover behavior
+    - runtime evidence of unchanged-category transfer preservation
+    - runtime evidence of downgrade/reset behavior
+    - cutover evidence showing destination-site scope was applied
+  - `3E` bulk summer rollover, recovery queues, and IT fallback ticketing
+    - runtime evidence of bulk path exercised successfully
+    - state check confirming non-moving users were untouched
+    - fallback-ticket evidence for unresolved conflicts
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
+  - `3A` room-move execution path built on earlier drafts, including final review
+    - `P3-3A-001` Final Review Promotes Draft To Scheduled Move
+    - `P3-3A-002` Scheduled Move Executes On Effective Date
+    - `P3-3A-003` Recovery Prevents Duplicate Move Commit
+    - `P3-3A-004` Directory-Initiated One-Person Correction Executes
+  - `3B` same-site room and IncidentIQ assignment changes
+    - `P3-3B-001` Same-Site Room Move Updates IncidentIQ Assignment
+    - `P3-3B-002` Manual Room Override Unblocks Teaching Workflow
+    - `P3-3B-003` Same-Site Move Avoids Cross-Site Leakage
+  - `3C` Zoom phone, SLG, extension, and CAP orchestration
+    - `P3-3C-001` Eligible Staff Receives Zoom Phone Baseline
+    - `P3-3C-002` Attendance Queue Drives Customer Engagement Pack
+    - `P3-3C-003` Phone Conflict Falls Into Recovery Instead Of Overwrite
+  - `3D` inter-site transfer handling and extension/site cutover behavior
+    - `P3-3D-001` Same Category Site Transfer Preserves Baseline Access
+    - `P3-3D-002` Category Downgrade Transfer Resets Baseline Access
+    - `P3-3D-003` Inter-Site Phone Cutover Uses New Site Scope
+  - `3E` bulk summer rollover, recovery queues, and IT fallback ticketing
+    - `P3-3E-001` Bulk Summer Move Draft To Commit
+    - `P3-3E-002` Non-Moving Users Are Not Clobbered During Rollover
+    - `P3-3E-003` Fallback Ticket Raised For Unresolved Move Conflict
+
+- Rollback triggers for this phase:
+  - `3A`: trigger rollback if final review is bypassed, scheduled moves execute at the wrong time, or duplicate move commits become possible.
+  - `3B`: trigger rollback if same-site room changes update the wrong room/site state, room overrides are accepted from the wrong roles, or IncidentIQ updates drift from the intended room state.
+  - `3C`: trigger rollback if Zoom phone, SLG, extension, or CAP changes overwrite active assignments, produce the wrong baseline outcome, or fail conflict recovery safely.
+  - `3D`: trigger rollback if inter-site transfer handling applies the wrong site scope, preserves access incorrectly, or resets baseline state when it should not.
+  - `3E`: trigger rollback if bulk rollover touches non-moving users, scheduled bulk execution becomes unreliable, or unresolved conflicts fail to route into fallback handling.
+- Rollback references for this phase:
+  - `3A`: stop scheduled room-move claims, revert the move-execution revision, reconcile draft, review, and scheduled rows, and requeue only moves that have not yet been safely committed.
+  - `3B`: pause same-site room writes, revert the room-assignment revision, and reconcile IncidentIQ and room state from the authoritative source before retrying any changes.
+  - `3C`: pause Zoom phone writes, revert the phone-orchestration revision, and reconcile user, site, extension, SLG, and CAP state from Zoom before any further write attempt.
+  - `3D`: pause inter-site transfer cutovers, revert the transfer-handling revision, and rebuild origin and destination state from canonical assignment data plus provider reads before re-execution.
+  - `3E`: halt bulk rollover execution, preserve drafts, revert the rollover revision, and rerun only rows that were not yet safely committed after conflict review.
+
+### Phase 4: Operational Hardening and Legacy Cutover
+- Purpose:
+  - harden the security, cleanup, and operational reliability surfaces so the dashboard can become the trusted primary system
+- Phase-boundary note:
+  - orphaned Zoom cleanup remains in this later hardening phase rather than appearing as an earlier read-only queue
+- Phase-specific data-access note:
+  - cleanup queues remain projection-backed, but resolution and auto-resolution decisions must continue to depend on live technical end-state verification and reconciliation backstops
+- Recommended delivery buckets:
+  - `4A` orphaned Zoom cleanup queue and verification surface
+  - `4B` orphaned cleanup ticket automation, auto-resolution, and ticket-sync warnings
+  - `4C` sync-overlap/cadence hardening and operational ticketing
+  - `4D` legacy Google Sheets retirement and cutover runbooks
+- In scope:
+  - orphaned Zoom cleanup queue with ticket automation and auto-resolution
+  - sync-overlap escalation, cadence-adjustment ticketing, and operator tuning
+  - sensitive repeated-failure ticket handling
+  - legacy Google Sheets compatibility retirement and deprecation runbooks
+- Success gates:
+  - security and cleanup queues are actionable, owned, and do not require spreadsheet sidecars
+  - orphaned Zoom cleanup verifies technical end-state and ticket state as documented
+  - repeated overlap/cadence issues surface predictably and can be tuned without code changes
+  - the 90-day legacy-sheet retirement clock starts only after workflow parity is achieved and an `IT Admin` runbook entry signoff confirms that the dashboard replaced daily use for the in-scope workflow
+  - after that parity-and-signoff threshold is met, legacy sheets show no end-user modification activity for 90+ days before retirement
+- Failure gates:
+  - security cleanup still relies on unmanaged side channels
+  - overlap/race problems remain common after cadence tuning
+  - legacy sheet retirement happens before dashboard parity and operator adoption are proven
+- Promotion evidence requirements for this phase:
+  - current evidence bar for this phase uses ordinary runtime evidence only; no retained repository artifact is required
+  - `4A` orphaned Zoom cleanup queue and verification surface
+    - runtime evidence of unresolved-to-resolved queue behavior
+    - runtime evidence that generic queue rows do not expose lingering entitlement detail inline
+    - verification evidence showing technical end-state polling drives resolution
+  - `4B` orphaned cleanup ticket automation, auto-resolution, and ticket-sync warnings
+    - runtime evidence of ticket creation after threshold
+    - runtime evidence of automation close attempt with the standard comment body
+    - runtime evidence of ticket-sync warning behavior when close fails
+  - `4C` sync-overlap/cadence hardening and operational ticketing
+    - runtime overlap-count evidence across the defined 7-day window
+    - ticket evidence for create/update behavior and material-cadence-change notes
+    - runtime evidence that no-op saves do not reset overlap state
+    - evidence that missed provider events are repaired by the documented delta and full reconciliation backstops
+  - `4D` legacy Google Sheets retirement and cutover runbooks
+    - runtime or audit evidence of the 90-day no-end-user-edit gate
+    - evidence distinguishing automation writes from end-user edits
+    - observed parity plus the 90-day gate is sufficient at the current evidence bar; a separate staging dry-run retirement rehearsal is not yet required
+    - cutover evidence showing the dashboard is the primary control surface before retirement
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
+  - `4A` orphaned Zoom cleanup queue and verification surface
+    - `P4-4A-001` Zoom Cleanup Stays Unresolved Until Full End-State
+    - `P4-4A-002` Generic Queue Row With Zoom Cleanup Subtype
+    - `P4-4A-003` Auto-Resolve After Verified Zoom End-State
+  - `4B` orphaned cleanup ticket automation, auto-resolution, and ticket-sync warnings
+    - `P4-4B-001` Ticket Created After Thirty Days Unresolved
+    - `P4-4B-002` Automation Closes Ticket After Verified Cleanup
+    - `P4-4B-003` Ticket Close Failure Becomes Informational Warning
+  - `4C` sync-overlap/cadence hardening and operational ticketing
+    - `P4-4C-001` Five Overlaps In Seven Days Opens Or Updates Ticket
+    - `P4-4C-002` Material Cadence Change Adds Old And New Values To Ticket
+    - `P4-4C-003` Overlap Counter Persists Until Material Change
+    - `P4-4C-004` Missed Provider Event Repaired By Reconciliation
+  - `4D` legacy Google Sheets retirement and cutover runbooks
+    - `P4-4D-001` Ninety Day No End-User Edit Retirement Gate
+    - `P4-4D-002` Automation Writes Do Not Block Retirement Gate
+    - `P4-4D-003` Cutover Runbook Leaves Dashboard As Primary Control Surface
+
+- Rollback triggers for this phase:
+  - `4A`: trigger rollback if orphaned-Zoom rows resolve before the full technical end-state is verified, generic rows expose lingering entitlement detail inline, or queue state is materially wrong.
+  - `4B`: trigger rollback if ticket creation starts before the 30-day threshold, auto-close behavior is wrong, or ticket-sync warnings do not behave as documented.
+  - `4C`: trigger rollback if overlap counting is wrong, cadence-adjustment ticketing misfires, or no-op saves incorrectly reset overlap state.
+  - `4D`: trigger rollback if legacy sheet retirement proceeds before the 90-day gate or before dashboard parity is operationally proven.
+- Rollback references for this phase:
+  - `4A`: disable orphaned-Zoom cleanup execution, revert the queue or projection revision, and rebuild cleanup rows from the latest Zoom and canonical identity state.
+  - `4B`: disable orphaned-cleanup ticket automation, revert ticket-create or ticket-close logic, leave existing tickets in place, and re-poll the technical end-state before further automation.
+  - `4C`: restore the prior stable cadence values or scheduler revision, preserve overlap history, and continue under pause if collision risk remains until the stable cadence is confirmed.
+  - `4D`: stop legacy-sheet retirement steps, restore the prior compatibility-export or runbook revision, and resume legacy outputs until parity and adoption are re-established.
+
+### Phase 5: Future Extensions
+- Purpose:
+  - extend the established foundation into deferred domains without rewriting the earlier lifecycle engine
+- Phase-specific data-access note:
+  - student lifecycle and later deferred modules should follow the same pattern: projection-backed list and queue surfaces plus targeted live verification on write-sensitive or destructive action paths
+- Recommended delivery buckets:
+  - `5A` student lifecycle and student-access automation
+  - `5B` multi-application orphaned-permission cleanup
+  - `5C` GitHub lifecycle automation
+  - `5D` deferred app-specific entitlements such as Meraki and other later integrations
+- Current deferred candidates:
+  - student onboarding and broader student lifecycle automation
+  - student course-driven extended-access automation
+  - GitHub lifecycle automation
+  - Meraki SAML attribute automation
+  - multi-application orphaned-permission cleanup
+  - additional service-account-owned operational ticketing beyond cadence adjustment
+- Success gates:
+  - new features reuse the existing canonical identity model, workflow engine, and admin lever surfaces
+  - deferred domains come online as additive modules rather than new parallel control planes
+- Failure gates:
+  - a future feature requires replacing earlier phase foundations instead of extending them
+  - a deferred module introduces a second source of truth for lifecycle state or policy mapping
+- Promotion evidence requirements for this phase:
+  - `5A` student lifecycle and student-access automation
+    - runtime evidence of base student profile creation from school and grade
+    - runtime evidence of end-of-day recalculation after enrollment, schedule, or course change
+    - state evidence showing highest-privilege resolution with same-tier app union behavior
+    - evidence that student lifecycle surfaces remain projection-backed while targeted live verification is used only where safety requires it
+  - `5B` multi-application orphaned-permission cleanup
+    - runtime evidence of person-row badge aggregation and subtype drill-in behavior
+    - runtime evidence that bulk actions remain constrained to a single subtype
+    - session-state evidence for the documented view, sort, filter, and breadcrumb behavior
+  - `5C` GitHub lifecycle automation
+    - runtime evidence of school-specific STEM course mapping outcomes
+    - runtime evidence of teacher-profile persistent access behavior independent of active course membership
+    - runtime evidence of graduation-grace-period timing and reminder behavior before removal
+    - runtime evidence that the offboarding reminder is delivered before GitHub removal
+  - `5D` deferred app-specific entitlements such as Meraki and other later integrations
+    - runtime evidence of default mapping behavior for explicitly defined deferred-app rules
+    - runtime evidence that users without matching rules receive no deferred-app entitlement
+    - runtime evidence that IT Admin mapping changes take effect without redeploy
+- Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
+  - `5A` student lifecycle and student-access automation
+    - `P5-5A-001` Student Base Profile Created From School And Grade
+    - `P5-5A-002` Course Change Triggers End-Of-Day Access Recalculation
+    - `P5-5A-003` Highest Privilege Profile Wins With Same-Tier Union
+    - `P5-5A-004` Student Lifecycle Lists Stay Projection Backed With Targeted Verification
+    - `P5-5A-005` Aeries Student Legal-Name Change Creates Rename Job Only After Provisioning Exists
+    - `P5-5A-006` Pre-Provisioning Student Name Correction Does Not Trigger Rename
+  - `5B` multi-application orphaned-permission cleanup
+    - `P5-5B-001` Person View Shows Multiple Cleanup Badges
+    - `P5-5B-002` Mixed-App Bulk Action Restricted To Single Subtype
+    - `P5-5B-003` Subtype Drill-In Preserves Session View State
+  - `5C` GitHub lifecycle automation
+    - `P5-5C-001` School-Specific STEM Course Mapping Grants Student GitHub Access
+    - `P5-5C-002` Teacher Profile Grants Persistent GitHub Access
+    - `P5-5C-003` Graduated Senior Grace Period And Reminder Before GitHub Removal
+    - `P5-5C-004` Student Offboarding Reminder Delivered Before GitHub Removal
+  - `5D` deferred app-specific entitlements such as Meraki and other later integrations
+    - `P5-5D-001` SASI Default Meraki OrgAdmin Mapping
+    - `P5-5D-002` No Deferred App Attribute Without Matching Rule
+    - `P5-5D-003` IT Admin Changes Deferred App Mapping Without Redeploy
+
+- Rollback triggers for this phase:
+  - `5A`: trigger rollback if student lifecycle recalculation applies the wrong school/grade/course-derived access, misorders highest privilege, or removes access outside the documented timing rules.
+  - `5B`: trigger rollback if mixed-app cleanup allows bulk actions across subtypes, drill-in/session behavior is materially wrong, or person/badge aggregation is inaccurate.
+  - `5C`: trigger rollback if GitHub eligibility mapping is wrong, teacher persistent access is not preserved as documented, or offboarding reminder/grace-period behavior fails.
+  - `5D`: trigger rollback if deferred-app mappings grant entitlements to the wrong people, omit required mappings, or fail to update without redeploy as documented.
+- Rollback references for this phase:
+  - `5A`: pause student-access writes, revert the student-lifecycle revision, and recalculate affected students from canonical enrollment, school, and course state before re-enabling automation.
+  - `5B`: disable multi-application cleanup execution, revert subtype aggregation or action logic, and re-poll each affected provider before attempting any further cleanup action.
+  - `5C`: disable GitHub lifecycle writes, invites, and removals, revert the GitHub mapping revision, and reconcile organization membership plus reminder state before retry.
+  - `5D`: disable deferred-app entitlement writes, revert the app-mapping revision, and reconcile downstream attribute state before re-enabling those entitlements.
+
+## Decision Log
+- 2026-04-23: Documentation is a first-class citizen. The implementation plan remains the source of truth for execution details, the README must enumerate project goals, and code must document business decisions where they affect behavior.
+- 2026-04-23: Product scope now includes support for at least 8 distinct data sources.
+- 2026-04-23: Product scope now includes multiple user types with varying access, visibility, and technical skill needs.
+- 2026-04-23: In-scope systems currently identified are Aeries, Incident IQ, Zoom, Escape/SFTP, Active Directory, Google Workspace, and InformedK12. In the current pass, student scope is limited to the explicitly documented exception, audit, and reporting workflows rather than general student lifecycle provisioning. Entra remains part of the identity propagation chain; Intune is acknowledged but may be out of scope for v1.
+- 2026-04-23: The app is for a single organization only; multitenancy is not required.
+- 2026-04-23: The application must normalize incomplete data across source systems and keep systems synchronized rather than assuming any single source contains all required data.
+- 2026-04-23: The `dev → staging → main` GitHub promotion pipeline defined in `docs/reference-inputs/pipeline/CODEX_GIST_DEV_STAGING_MAIN_PIPELINE.md` is a hard requirement for this project.
+- 2026-04-23: Student-account exception handling is a first-class v1 requirement, with invalid-name handling as the most urgent case because non-alphanumeric characters break CalPADS reporting and email normalization.
+- 2026-04-23: Baseline onboarding and reactivation must derive from the normalized job category first; permission deltas are surfaced for review but not automatically restored.
+- 2026-04-23: The current job-title/category mapping spreadsheets are authoritative seed inputs for baseline role design even though the access matrix remains incomplete and requires normalization.
+- 2026-04-23: When baseline role inputs disagree, `Catchall Spreadsheet - Sheet83.csv` wins over the incomplete employee-category access matrix.
+- 2026-04-23: New or unmapped job-title normalization is proposed by HR and approved by IT.
+- 2026-04-24: Zoom physical phone names use one naming scheme across all phone contexts, and department shared line groups use the format `[Site Abbreviation] - [Job Function]`.
+- 2026-04-24: First-pass department shared line group handling is advisory only: the dashboard suggests same-site active department SLGs, but fulfillment remains a manual IT ticket rather than an automatic Zoom write.
+- 2026-04-24: V1 baseline entitlement normalization should use the core entitlement families already identified from the job-category inputs, with hardware reduced to `Computer: Mac`, `Computer: Windows`, or `Computer: Chromebook`, and only for categories `BCS` or higher.
+- 2026-04-24: Staff category precedence from least to most privileged is `BS`, `BCS`, `TS`, `AS`, `SAS`, `SASI`.
+- 2026-04-24: V1 baseline bundle fields are limited to hardware bundle, monitor yes/no, base Google memberships, and Aeries access request. Zoom license requests are governed by global policy rather than title-bundle configuration.
+- 2026-04-24: The standard Zoom `US/CA Unlimited Calling Plan` applies to all staff except `BS`. `Zoom Phone Customer Engagement Pack` is reserved for users assigned to a site `Attendance` line by default, may be assigned manually by IT as an exception, and must be reclaimed during account deactivation or offboarding.
+- 2026-04-24: Student onboarding is out of scope for the current implementation pass. The only student-facing dashboard function in scope is invalid-name normalization and review. Do not implement student onboarding logic in this pass.
+- 2026-04-24: The existing People Tracker Google Sheet and sheet-derived phone directory are diagnostic references, not hard requirements. The product must replace those manual spreadsheet workflows with staff-facing dashboards driven by authoritative imports and automation state.
+- 2026-04-24: The entire dashboard is staff-only. Access must be explicitly allowed only for `@wusd.org`, `@it.wusd.org`, and `@staff.wusd.org` accounts, must explicitly deny `@stu.wusd.org`, and must still permit local breakglass accounts.
+- 2026-04-24: The phone directory dashboard must read from direct provider synchronization and retain only fields the application actively uses. Legacy CSV export and Google Sheet steps are migration inputs, not the long-term runtime path.
+- 2026-04-24: Each source system needs both push-triggered refresh behavior after local automation writes and configurable periodic reconciliation for upstream manual changes; per-source cadence is managed by IT Admin.
+- 2026-04-24: IncidentIQ is the primary human-workflow bridge for IT and Facilities. Tickets must be verbose, created on behalf of the affected user only after that user exists in Incident IQ, and should use subtickets or subtasks whenever the SDK supports them.
+- 2026-04-24: Verkada account creation is expected to occur through SCIM. Any campus alarm-code follow-up ticketing should be handled as external `IncidentIQ` configuration rather than app-owned workflow behavior.
+- 2026-04-24: Delta detection should rely on hashed normalized data to make synchronization and reconciliation efficient at scale.
+- 2026-04-24: The legacy scripts directory is a diagnostic design input. Existing mismatch reports, manual override patterns, safety locks, and propagation waits should inform both dashboard design and migration planning.
+- 2026-04-24: Dashboard visual design must follow the district brand guide in `WUSD21 Mascot Style Guide.pdf` and the provided district wordmark assets. Current confirmed palette guidance is Vegas Gold `#CEB770` with black and white logo variants; web usage should prefer transparent PNG assets from the shared drive.
+- 2026-05-01: The product display name is `The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard`. UI shells, mocks, and operator-facing branding should use the exact vendored mascot logo at `docs/reference-inputs/branding/Firefly.png`, keep that branding inside the sidebar bounds, and use the tagline `Have you checked with The WIZARD?`.
+- 2026-05-07: User override for the shared shell branding tagline: `Have you checked with The WIZARD?` must render in Vegas Gold `#CEB770` on the white sidebar background. The project records this as a deliberate brand exception to normal automated text-contrast enforcement for that exact tagline only, because the user explicitly rejected reverting the tagline to dark text and stated that Vegas Gold on white is an acceptable district brand combination.
+- 2026-04-30: Frontend implementation should begin through a `Pre-Phase 0` DEV-only track. For implemented pages, the associated `.pen` file is the authoritative design source; generated presentational UI code and frontend artboard assets must be regenerated from that `.pen` rather than hand-edited. SVG/PNG mock assets remain derived review artifacts and should be exported on demand rather than on every design refresh. The first pilot slice is the branded shell plus the `Data Quality` page using a React + Vite frontend against mock/page-shaped JSON from the existing Go backend, with a DEV-only persona switcher and an explicit sync command plus CI drift enforcement.
+- 2026-04-30: The first migrated implemented page is `Data Quality`. `docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen` is now the authority for that page, `npm run pen:sync` / `npm run pen:check` are the authoritative code/artboard sync and drift commands, `npm run pen:export -- docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen` is the ad-hoc SVG/PNG export path when review artifacts are needed, and the legacy wireframe generator must no longer overwrite that page's `.pen` or derived implemented-page artifacts.
+- 2026-04-30: Implemented-page annotation feedback should update the authoritative `.pen` first, then regenerate derived code/artboard outputs, refresh the DEV page, and export SVG/PNG review artifacts only when needed. Shared-shell and shared-component fixes should be generalized rather than patched one page at a time.
+- 2026-04-30: Implemented-page bordered elements use a `5px` default buffer between independent cards, rails, tables, notices, and controls. Intentional shared edges such as table header/body joins and row dividers should collapse to a single border with no gap and no double-width.
+- 2026-05-01: The Data Quality annotation recovery cycle now uses a frozen page-specific ledger at `docs/design/mocks/wireframes/data-quality-annotation-ledger.md`. Layout-only issues must be resolved in the authoritative `.pen` first, existing behavior must be verified separately, and new behavior requests must update the PRD and implementation plan before runtime work begins.
+- 2026-05-01: The current Data Quality recovery ledger locks future behavior contracts before runtime work begins. The shell account menu must eventually expose `My Profile` and `Sign Out`, the header scope field must become a real site-list dropdown, the help icon and `Support` label must converge on one IncidentIQ ticket-creation action, `Next Action` cells must deep link to corrective destinations when defined, and the Data Quality refresh action must remain a real Vegas Gold re-fetch control.
+- 2026-05-13: Issue #57 product validation found no PRD or implementation-plan support for a Data Quality `Open Mapping Dashboard` shortcut to `/sync-dashboard/mappings`. The live `/data-quality` page should therefore remove that unsupported button/hotspot and keep HR/Site/IT queue-routing guidance in the shared help drawer until a future documented IT Admin mapping workflow defines a supported destination.
+- 2026-05-01: The first account-menu behavior cycle should keep the shared shell menu narrow in scope: `My Profile` lands on an internal mock-backed profile page sourced from its authoritative `.pen`, and `Sign Out` uses a dedicated DEV sign-out flow that returns the browser to a signed-out DEV state rather than silently toggling the persona selector.
+- 2026-05-01: The implemented-page recovery protocol is now a permanent operating rule. Recovery is layout-first by default, undefined behavior is docs-first by default, `.pen` owns geometry/spacing/text/static layout, runtime owns only already-defined interaction, and normal sync remains code/artboard-only with review SVG/PNG export kept ad hoc.
+- 2026-05-01: If the same implemented-page slice output repeats more than twice without a material state change, that is a hard loop condition. The active slice must terminate immediately, assistant-started slice-specific processes must be stopped, no new feature work may continue in that pass, and the required report-back format must capture the frozen ledger state, stopped processes, blocked layer, last material change, and the one safe next action.
+- 2026-05-01: The shared implemented-page foundation now standardizes auth and route gating around authoritative `.pen` pages. `/login` is the only pre-auth visible route, logged-in pages share the `wireframe-shared-shell.pen` shell, the reusable error surface comes from `wireframe-http-error.pen`, `Student Data Cleanup` is the canonical user-facing rename for the former invalid-name cleanup page, and role-based sidebar filtering plus direct-link `403` enforcement follow the explicit route map and landing rules recorded in this plan and the PRD.
+- 2026-05-20: Logged-in implemented pages use one shared fixed-height right-drawer primitive for row details, page help, and drawer-owned edit/apply workflows. Drawers anchor to the right edge of the interior page pane below the shared header, overlay page content, remain viewport-fixed during page scroll, and scroll long drawer content inside the drawer body. Read-only drawers are non-modal inspectors; edit/apply drawers are modal workflows with focus containment, dirty-close protection, close-on-success behavior, and scoped row/read-model refresh.
+- 2026-05-04: The implemented phone-directory slice promotes `By Person`, `By Room`, and `By Department` to live runtime-backed routes. Mode switching preserves only `q`, resets mode-local filters, keeps shared-header search routed to `By Person`, and uses a shared dynamic sidebar overlay that compacts visible rows upward with no gaps while rendering the active label and icon above the selected highlight.
+- 2026-05-07: The DEV phone-directory slice now uses strict mode-separated result sets rather than one mixed ranked pool. `By Person` is limited to people plus common area phones, `By Room` is limited to common area phones plus classroom shared line groups in the `[sitecode]+30000` range, and `By Department` is limited to department shared line groups in the `[sitecode]+50000` range plus Zoom call queues. DEV seed data should reuse real extension values and type families from the read-only directory HTML while replacing real names and emails with deterministic synthetic values.
+- 2026-04-24: The entire site must be WCAG-compliant. District accent fonts are `Reset.ttf` and `varsity_regular.ttf`, but they should be used only as accent/display fonts. `Atkinson Hyperlegible` is the primary UI/body font for readability and accessibility.
+- 2026-04-24: The entire application should use Pacific time by default for date/time display and computation. The effective application timezone must be configurable from the IT Admin UI, and date math, schedule boundaries, audit windows, and displayed timestamps should all use the configured app timezone rather than host-local time. When the configured timezone changes, existing scheduled jobs and saved effective dates must be reinterpreted into the new timezone; if the resulting scheduled time is already in the past, move it to the next configured cadence window. Store timestamps internally in UTC and render them in the configured app timezone. End users do not get per-user local timezone preferences.
+- 2026-04-24: Add the Frequent Fliers logic from `docs/reference-inputs/vendor-code/incidentiq/app/frequent_fliers.py` as a first-class dashboard page for student device-accountability reporting. The current product requirement is a live dashboard showing students with 2 or more device assignments within the selected rolling lookback window, with student, device, and all related student-device ticket context in one view for site admins and Device Wranglers. The 90-day default is a librarian-driven feature request intended to surface longer patterns of device abuse that were not visible at 45 days.
+- 2026-04-24: Source sync timing must use bounded, configurable settings in an IT-admin settings dashboard. Current first-pass presets are `Escape CSV flat file = every 24h`, `Aeries direct API = hourly delta plus daily full reconciliation with a 1-week lookback`, and for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12`: immediate post-write refresh, daily full reconciliation with a 1-week lookback, and delta reconciliation on a scheduled cadence that may begin hourly but should target `15m` where provider limits and environment safety allow.
+- 2026-04-24: Legacy Google Sheets flows may be retired only after end users have not modified them for 90+ days. System automation writes do not count against the retirement gate.
+- 2026-04-24: Any non-repo file or legacy-code artifact cited by the plan must be snapshotted under `docs/reference-inputs/` and referenced from there so the planning corpus is portable and not tied to one laptop or cloud-drive mount.
+- 2026-04-24: Until CLA-specific brand assets exist in the shared branding corpus, CLA pages should use the Windsor Middle School visuals without text.
+- 2026-04-24: Delivery should be broken into iterative phases with explicit gates that define success or failure for each phase. Later phases should build on the foundations of earlier phases rather than substantially rewriting them.
+- 2026-04-29: UI mock generation must not invent feature-level product behavior beyond the documented PRD and implementation plan. Example data is acceptable, but speculative controls, queues, status concepts, or admin/reporting affordances that are not cleanly grounded in the written product surface should be treated as invalid mock output and regenerated.
+- 2026-04-29: Visual-asset changes are part of the implementation record. When SVG, PNG, or PEN dashboard assets are revised in a way that clarifies or alters implementation-relevant UI behavior, the same change pass must update this implementation plan so the written execution spec stays synchronized with the approved visuals.
+- 2026-04-24: AD to Entra synchronization is handled outside this application. For workflow timing inside this app, AD-originating changes should be treated as complete in Entra within 1 hour maximum.
+- 2026-04-24: For API-backed systems, v1 should prefer inbound webhooks or event subscriptions where the provider supports them, while still retaining scheduled delta and daily full reconciliation loops as safety backstops. The preferred target for API-backed projection freshness is `15m` deltas where provider limits, operational cost, and environment safety allow.
+- 2026-04-24: Baseline bundles are keyed directly by raw job title in v1 rather than introducing a smaller canonical-title abstraction layer first.
+- 2026-04-24: Trivial raw job-title formatting differences must not be normalized away in v1. A recommendation to collapse whitespace, casing, or punctuation differences was explicitly rejected because the application should surface poor HR data quality and force correction upstream rather than silently masking it.
+- 2026-04-24: Zoom is the only provider currently known to deliver usable inbound webhooks in this environment. Other API-backed systems should stay on scheduled delta/full reconciliation until their event capabilities are proven in-tenant.
+- 2026-04-24: The Aeries Go and Python SDK repos are formal planning inputs and must be snapshotted into `docs/reference-inputs/vendor-code/` when they inform architecture or implementation behavior.
+- 2026-04-24: AD → Entra propagation completion should be considered satisfied when the user exists in Entra and the following fields match expected state: `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled`. `proxyAddresses` is explicitly excluded because this environment does not use it for gating.
+- 2026-04-24: Exact-match raw job-title blocker UX must expose invisible whitespace and control characters so HR can see why visually similar titles do not match.
+- 2026-04-24: Mandatory Aeries endpoint families for v1 are `staff`, `students`, `schools`, `teachers`, and `scheduling`.
+- 2026-04-24: Aeries access in all environments uses a read-only `base URL + certificate` credential model.
+- 2026-04-24: No dedicated Aeries sandbox or staging tenant is available. Non-production Aeries integration must use masked production-backed data, preferably by querying previous school years through the API `DatabaseYear=YYYY` parameter so test data is valid but stale.
+- 2026-04-24: If AD → Entra propagation has not converged after 1 hour, the workflow should continue with warning rather than blocking outright.
+- 2026-04-24: Staging should derive the current school year from Aeries School Info and default `DatabaseYear` to `current school year - 1`. Example: if Aeries School Info reports `2025-2026`, staging should default to `2024`.
+- 2026-04-24: Slow AD → Entra convergence warnings are visible to everyone who can view that workflow status. IT Admin must also get a separate slow-convergence warning entry on the admin surface.
+- 2026-04-24: Aeries teacher data must use the distinct teacher-related API paths rather than being inferred only from staff data. The dashboard should converge `staff`, `teacher`, and schedule-derived context into a single internal person/entity view.
+- 2026-04-24: The join key between Aeries staff and teacher-related records is `StaffID`.
+- 2026-04-24: When Aeries `staff`, `teacher`, and `scheduling` disagree on a teacher's school or room before local overrides apply, the `staff` record wins.
+- 2026-04-24: The staging Aeries `DatabaseYear` default must be derived from Aeries School Info rather than a local calendar assumption.
+- 2026-04-24: V1 may launch with a partial job-title matrix. Records with mapped titles may proceed normally, while unmapped titles remain blockers for the affected people only.
+- 2026-04-24: When Aeries School Info disagrees across schools about the active school year, derive the current school year from the earliest start date and latest end date across all schools so the staging `DatabaseYear` encompasses the full district year.
+- 2026-04-24: Teacher classification must not rely on teacher records alone. A person is teaching staff when they have courses assigned to their Aeries staff record or when the job-title mapping classifies them as `TS`. A person with no courses and no `TS`-mapped teaching title should be treated as non-teaching staff.
+- 2026-04-24: Every business-decision mapping between data points must have IT Admin levers in the dashboard for add/change/remove operations so business-rule changes do not require recompiling or redeploying the app.
+- 2026-05-12: Feature flags are IT Admin-owned dashboard levers for route-level functionality in the current DEV frontend track. The first implementation gates sidebar visibility, direct route access, and matching DEV page/API access by persona and site, while IT Admin remains a hard-coded effective override that always sees every feature. IT Admin override must be represented as read-only state in the feature-flag UI rather than an editable stored target. The Admin feature-flag subpage lives at `/admin/feature-flags` and is itself IT Admin only.
+- 2026-04-24: If a person is mapped as `TS` but has no course assignments yet, teaching-room-dependent workflows should wait until course data appears. Site Admin, Site Secretary, HR, and IT must have a manual inline room override that can unblock room-dependent workflows such as Incident IQ room assignment and Zoom phone assignment. Device Wranglers / Librarians must not be able to set this override.
+- 2026-04-24: Additional first-class title-mapping fields for v1 are device requirement and gets-monitor. Device mapping rules are `Basic Device → Chromebook`, `Full OS Computer → Windows or Mac`, and `No Device → none`.
+- 2026-04-24: `Gets monitor` is a room-dependent workflow trigger, not a direct person-to-monitor assignment. If `Gets monitor = yes` and room is known, check whether the room already has a monitor; if not, create an IT ticket. If room is unknown, wait until room is known before evaluating monitor action.
+- 2026-04-24: Unmapped-title resolution is HR-primary but IT can always resolve. For Escape-backed users, the preferred path is correcting the title upstream in Escape and waiting for sync. For manual inputs such as contractors, job title selection must use a dropdown of known titles. Creating a brand-new title requires mapping permissions at the same time, with an option to copy an existing permission set as a starting point.
+- 2026-04-24: When a title-mapping row says `Full OS Computer`, HR must choose `Windows` or `Mac` during onboarding after asking the new hire.
+- 2026-04-24: Offboarding must track assets assigned directly to humans and create retrieval tasks for site admins. Room equipment such as phones, TVs, and clock speakers remains assigned to the room and is not part of person-level asset accountability.
+- 2026-04-24: Escape multiple job assignments must be evaluated together. Effective staff category, permissions, and equipment are based on the highest applicable category across all active assignments.
+- 2026-04-24: Escape active-assignment evaluation for category calculation must use `FTEUsed`, `PrimaryPos`, `PayDtlAssignmentDateFrom`, and `PayDtlAssignmentDateThru`, informed by the vendored `PrioritizeEscapeRecords` diagnostic scripts. The payroll assignment date window determines whether an assignment is current enough to participate, while `FTEUsed` and `PrimaryPos` are weighting signals when multiple assignments overlap.
+- 2026-04-24: Position transfers must trigger re-evaluation of all active assignments. If the highest resulting staff category does not change, permissions and equipment remain unchanged. If the highest category changes, permissions reset to the new baseline and person-assigned equipment is reclaimed or re-evaluated.
+- 2026-04-24: InformedK12 position-change forms are early-warning inputs only. The app should derive likely category changes, surface them early, validate them against Escape, and execute only after the change is confirmed. HR is the preferred reviewer/approver for these changes.
+- 2026-04-24: When two active assignments share the same highest staff category but disagree on site, use `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet` as the site-resolution heuristic. Initial alias defaults are `CCLA → CLA`, `NCC → DO`, `MAIL → ignore`, `TRAN → MOT`, `DW → DO` by default with manual reassignment allowed, `MNT → MOT`, `NBMA → BPL`, and `WTCH → MOT`. If those fields disagree, raise an HR data-quality issue instead of silently choosing a winner. HR may set a temporary manual site override while the upstream Escape data is being corrected, and that override persists until HR fixes the source data or the person's job assignment changes. That override may also include room/location details, but room/location override is not required to continue when HR does not know it. Early rollout runs should favor dry-run issue surfacing until HR corrects the upstream Escape data.
+- 2026-04-24: HR needs a dedicated orphan-account view for people who are active in AD but have no associated Escape, Aeries, or local override employee record. HR must be able to set an end date, terminate immediately, and rely on a default scheduled end date derived from Aeries `systeminfo.DatabaseYear` plus `/api/v5/schools/{SchoolCode}/terms`, using the earliest `StartDate` and latest `EndDate` across schools to define the district year when no explicit date exists. Configured service-account OUs and username patterns must be excluded from this queue, and accounts with no Google activity for 30+ days should be eligible for deprovisioning. If an orphaned account has recent Google activity, treat it as a security risk, deprovision it across all systems, and flag it to IT as a potential breach. The automated deprovisioning exception list is IT Admin only, and each exception entry must require a reason, owner, and expiration or review date.
+- 2026-04-24: The product also needs a dedicated audit queue for students and staff who are active in Google but inactive in Aeries, because missed lifecycle actions are often discovered through that mismatch. This queue must remain distinct from orphaned AD-account handling so operators can see the exact reconciliation failure mode. IT owns this queue as a security control. V1 default behavior is review-only, but the IT Admin console must allow separate student and staff default flows to be switched to scheduled deprovision or immediate deprovision without code changes. For this queue, Google-active means the account is enabled and `lastLoginTime` from the Google Admin Directory API `GET /admin/directory/v1/users/{userKey}` shows a successful login within the last 30 days, using the `admin.directory.user.readonly` scope. The runtime should cache that 30-day lookback boundary for the whole day so multiple runs on the same day do not recompute it, using midnight in the configured app timezone as the day boundary. For staff, Aeries-inactive means `InactiveStatusCode` (`STF.TG`) is any non-blank value. For students, Aeries-inactive means `InactiveStatusCode` (`STU.TG`) from `/api/v5/schools/{SchoolCode}/students/{StudentID}` is any non-blank value. Graduated senior identification should use `SchoolCompletionDate` (`STU.DG`) from `/api/v5/schools/{SchoolCode}/students/{StudentID}/extended`, scoped to the current Aeries school year, and should ignore `SchoolCompletionStatusCode` (`STU.HSG`). `GraduationCohort` (`STU.CHT`) is irrelevant to this workflow and should not be surfaced for review. The graduated-senior exception exists only to preserve the identity path required for Google Takeout and Google login, so AD, Entra, and Google remain active until the end of the configured cutoff day while Zoom may still be deprovisioned. IncidentIQ access is not a student entitlement in this flow.
+- 2026-04-27: When an IT Admin edits the Zoom SAML mapping, the application must reconcile existing Zoom users to the new mapping on the next Zoom sync/reconcile cycle rather than waiting for future SAML logins only. That reconciliation should be best effort, with per-user failures logged rather than all-or-nothing failure for the changed mapping set, and when a mapping change affects many users the next Zoom sync should process the affected population in one batch. Failed rows retry automatically on the next Zoom sync, and the vendored Zoom SDK snapshot should be preferred for retry/backoff behavior because its documented client policy already retries transport errors, `429`, and `500/502/503/504` with exponential backoff, jitter, and `Retry-After` support. App-native retry logic should only be added where the SDK path does not cover the workflow. After 5 consecutive failed syncs for the same user the app must automatically create an IncidentIQ ticket on behalf of the failing user, or update the existing open auto-created ticket if one already exists for the same repeated-failure thread. That ticket must include the relevant user details, SAML configuration change details, endpoint, request intent, HTTP status, Zoom error code, Zoom message, user identifier, mapping diff, and a redacted JSON response either appended at the bottom of the ticket body or attached as a troubleshooting artifact when attachment support is available. Troubleshooting artifacts must never persist raw auth headers, bearer tokens, refresh tokens, client secrets, private keys, passwords, or other reusable credentials. To identify the credential set used, include non-secret identifiers such as provider account id, service-account owner, configured credential label, key id, token issuer/audience where non-sensitive, and a one-way fingerprint of the credential material. If IncidentIQ supports sensitive visibility on the ticket, set that sensitive attribute for these Zoom diagnostics because they can still contain sensitive user, configuration, and provider-error details after credential redaction. Zoom service-account ownership for these operational tickets should use `svc-zoom@it.wusd.org`. TODO: transfer the IncidentIQ app ownership to the Zoom service account so ticket ownership and automation identity are aligned. Use Asset Tag `ZOOMCONFERENCING`, Issue Category `Account settings`, and Issue Type `Account settings`. The consecutive-failure counter resets on successful Zoom reconciliation and also when an admin changes the user or mapping in a way that materially changes the next retry. Reconciliation attempts should occur only when the relevant Zoom SAML configuration has changed. The IT-admin editing model is current-state only in v1; no version-history or rollback UX is required in the first pass.
+- 2026-04-27: If a repeated Zoom sync failure thread already had an auto-created ticket that was later closed, and the same user begins failing again later, the next 5-consecutive-failure threshold should create a new ticket rather than trying to reopen or reuse the closed one. A closed ticket represents a completed prior incident, not a continuing failure thread.
+- 2026-04-27: Long-running sync jobs must continue until their current work is complete even if the next scheduled cadence window arrives while they are still running, but the sync engine must prevent conflicting overlapping runs for the same provider/job family. This anti-clobber rule applies to the entire sync engine, not just Zoom. The scheduler must be aware of previously started jobs that have not yet finished, avoid launching conflicting duplicate runs, and carry deferred work forward cleanly without race conditions. If schedule overlap for a given job happens 5 times within 7 days, the application must generate or update an operational IncidentIQ ticket on behalf of the affected service account recommending cadence adjustment using `Other Tech Requests → Project → Integrations`. The overlap counter should keep counting until a material cadence change is made, rather than resetting on ticket creation alone. If overlaps continue after that material cadence change, keep updating the same open ticket rather than creating a new one. The per-job schedule must be exposed and editable in the IT Admin UI.
+- 2026-04-27: For cadence-adjustment overlap handling, only a material cadence change should count as resolution for counter reset. In this context, a material cadence change means a change to the job interval or lookback window. Mere saves with no effective schedule change must not reset the overlap counter or auto-close the open overlap ticket. If a material cadence change is made but overlaps still continue afterward, keep the same open ticket and continue updating it rather than creating a new one.
+- 2026-04-27: When a material cadence change is made, the application should automatically add a note to the existing overlap ticket that records the old and new interval values and the old and new lookback-window values.
+- 2026-04-27: If a Zoom diagnostics ticket was manually downgraded or edited in IncidentIQ, the next app update must not force the `sensitive` flag back on. Sensitive marking is applied on creation/update by default, but manual IncidentIQ changes remain authoritative afterward. Credential redaction remains mandatory regardless of the ticket's current sensitive marking.
+- 2026-04-30: Security review superseded the earlier secret-bearing diagnostics override. Persistent app logs, tickets, attachments, audit rows, and troubleshooting artifacts must not contain reusable credential material in plaintext. Diagnostic workflows that need to prove which credential set was used must rely on non-secret labels, service-account ownership, key ids, token metadata that is not itself sensitive, and one-way fingerprints instead of raw secrets.
+- 2026-04-27: Provider service-account ownership locked so far:
+  - `Zoom` → `svc-zoom@it.wusd.org`
+  - `Aeries` → `ad-aeriessync@wusd.org`
+  - `Google` → `svc-google-gam@it.wusd.org`
+  - `IncidentIQ` → `svc-incidentiq@it.wusd.org`
+  - `InformedK12` → `svc-incidentiq@it.wusd.org`
+  - `Verkada` → `svc-verkada@it.wusd.org`
+- 2026-04-27: For `Aeries`, `Google`, `InformedK12`, and `Verkada`, v1 service-account ownership is only required for cadence-adjustment tickets. Any broader service-account-owned operational ticketing for those providers is deferred as TODO for v2/v3.
+- 2026-04-27: Remove app-owned `Phase 2` downstream `Aeries` access and `Verkada` follow-up ticket buckets. Archive those follow-ups as external `IncidentIQ` configuration TODOs rather than in-app workflow steps.
+- 2026-04-29: Restore a read-side `Phase 2` dependency surface for `IncidentIQ` propagation. The app does not create `Aeries` or `Verkada` follow-up tickets, but it should poll `IncidentIQ` by email at most once per hour and link the earliest created matching externally created `Aeries` and `Verkada` tickets in dashboard workflow status once that `IncidentIQ` user exists. Matching is defined by requestor email plus ticket category, using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code` respectively. The app should continue to prefer the earliest match even if a later matching ticket is still open, and if that earliest ticket later disappears or becomes inaccessible the dashboard should show no linked ticket rather than falling forward, silently with no warning text. When linked, the dashboard should show the full raw ticket number as a clickable link plus the current status value.
+- 2026-04-27: For providers without a locked owner yet, default operational ticket ownership should fall back to IncidentIQ service-account ownership using `svc-incidentiq@it.wusd.org`. Partial inventory currently captured from the user should remain implementation data only for now and does not need a v1 IT Admin UI surface:
+  - `GAM Project - gam-project-rt229 (4-2-2026)` → `svc-google-gam@it.wusd.org`
+  - `Meraki` → `svc-meraki@it.wusd.org`
+  - `Mosyle` → `svc-mosyle@it.wusd.org`
+  - `Qualtrics Data import` → `svc-qualtrics-import@wusd.org`
+  - `Quickbooks Online` → `svc-quickbooks@wusd.org`
+  - `Informed K12 API access` → `svc-incidentiq@it.wusd.org`
+  - `Verkada` → `svc-verkada@it.wusd.org`
+  - `XMedius Fax Solution` → `svc-xmedius@it.wusd.org`
+  - `Zoom` → `svc-zoom@it.wusd.org`
+  - `Google Drive` → `filemanager@wusd.org`
+  - `Sonoma County Library Student Data upload` → `svc-sonomalibraryupload@wusd.org`
+  - `Google Drive review` → `svc-gdrivereview@wusd.org`
+  - `Clever ↔ Active Directory` → `svc-clever@it.wusd.org`
+  - `Incident IQ` → `svc-incidentiq@it.wusd.org`
+  - `Github Education (Enterprise)` → `svc-github@it.wusd.org`
+  - `Certificate alert emails` → `svc-cert-alerts@wusd.org`
+  - `Communicates account onboarding/offboarding` → `accountservices@wusd.org`
+- 2026-04-27: `Google Drive`, `Meraki`, `Mosyle`, and `Qualtrics` are out of scope for v1. Retain their service-account mappings as future-implementation inputs for v2 or later.
+- 2026-04-27: TODO for future implementation: Google user SAML attribute update for Meraki. Google SAML `extended_attributes.meraki_role` must be configurable from the IT Admin UI. The initial default is `SASI → OrgAdmin`; all other users get no Meraki attribute / no Meraki access unless later rules are configured.
+- 2026-04-27: TODO for v3 future implementation: GitHub account lifecycle automation. GitHub is behind Google SSO today and is not currently provisioned by this system. Future support should use GitHub organization invitation and organization membership APIs to invite or manage teachers and students in selected organizations, deactivate WUSD-organization access during offboarding, and remind students to attach personal email addresses before district account loss. Current target organizations captured from the user:
+  - `wusd-org` → IT Department only
+  - `wusd-org-bpl` → Teachers and students at BPL
+  - `wusd-org-cla` → Teachers and students at CLA / CCLA
+  - `wusd-org-whs` → Teachers and students at WHS
+  - `wusd-org-wms` → Teachers and students at WMS
+- 2026-04-27: Future GitHub lifecycle scope should initially focus on students enrolled in STEM courses and the teachers of those STEM courses. Students continue to rely on `@stu.wusd.org` for WUSD org access, so offboarding must include a reminder to attach a personal email address before district account shutdown to preserve access to their Git history outside district ownership.
+- 2026-04-27: Future GitHub STEM-course eligibility should be driven by specific Aeries course numbers. The district does not currently have a master STEM-course list, and course-number conventions are internally consistent within a site but not consistent across sites. The future design should therefore support school-specific course-number mapping rather than assuming one district-wide numeric pattern.
+- 2026-04-27: School-specific STEM course-number lists are managed by IT Admin only. Site teachers may view their courses and see any extended permissions attached to those courses, but they do not directly edit the mapping. Instead, they need a submit-request action to request app assignment for a course, creating an IncidentIQ ticket routed to `Other Tech Requests → Procurement → Software`.
+- 2026-04-27: That site-teacher course app-assignment request flow applies only to apps already known in the provisioning inventory. Requests for brand-new or unknown apps should follow a separate future intake/procurement path rather than silently entering the provisioning map.
+- 2026-04-27: Future course-number mappings must support expiration by school year so reused course numbers can take on different meanings in later years without mutating historical mapping intent.
+- 2026-04-27: If a school-year-specific course-number mapping expires and nobody has refreshed it yet for the new school year, the system should temporarily inherit the prior year's mapping until an IT Admin reviews it. IT Admin must have a bulk-review workflow to accept or deny inherited mappings for the new school year rather than handling each course one by one.
+- 2026-04-27: Future GitHub student access should remain active after a STEM course ends. Access should stay open until the student graduates or otherwise leaves the district, at which point the lifecycle flow should remind the student to attach a personal email address before district-account shutdown.
+- 2026-04-27: Future GitHub student access should follow the same graduated-senior grace-period concept as broader student identity access rather than cutting off immediately at graduation. The offboarding reminder to add a personal email address should occur before that grace period ends.
+- 2026-04-27: Future GitHub profile assignment should apply only to teachers and should be independent of course-number mapping. Staff GitHub access should not expire merely because a course ends; once granted, it remains until the staff member leaves the district or is reclassified into a different employee type. Student profiles remain out of scope for v1 and should be treated as a later-version TODO.
+- 2026-04-27: If a teacher is reclassified into a different employee type and should lose GitHub access, removal should queue for an end-of-day cutoff window rather than happening immediately. If IT manually reinstates that access outside this dashboard, automated GitHub deprovisioning should not run again until the user is terminated at the end of district tenure.
+- 2026-04-27: For staff only, permissions that remain manually reinstated or otherwise orphaned after district tenure should surface first in an IT-Admin-only manual-cleanup dashboard queue. V1 scope for that queue is limited to lingering Zoom account and Zoom license state only; GitHub, Google Groups, and other orphaned permissions are later-iteration TODO items. The desired resolved Zoom end-state is: `Zoom Workplace` unassigned, `Zoom Phone Basic` unassigned, `Zoom Phone Customer Engagement Pack` unassigned, `Zoom Large Meeting` unassigned, and `Zoom Webinars` unassigned, with the Zoom user either `Deactivated` or `Removed`. For Zoom API modeling, `Deactivated` should be recognized as `/users/{userId}` returning a user object with `status = "inactive"` and `/phone/users/{userId}` returning `code = 1001` with a `User does not exist` message. `Removed` should be recognized as the user no longer being returned from Zoom user lookup at all. If a row in that queue remains unresolved for 30 days, the system should automatically create an IncidentIQ ticket routed to `Account & Login Problems → Employee User Accounts → Deactivate employee user account`. Student orphaned-permission cleanup should not use this ticket flow.
+- 2026-04-27: The orphaned-permissions queue is informational only. IT Admin should do manual work in IncidentIQ tickets or the affected systems, not by maintaining parallel notes in this dashboard. The unresolved timer should close only on actual resolution, not on note entry or an in-progress marker.
+- 2026-04-27: Resolution of an orphaned-permissions row should be verified by polling the affected system data and checking for the desired deprovisioned end-state. The row remains unresolved until both the Zoom user state and all targeted Zoom entitlements match the desired end-state; `status = "inactive"` alone is not sufficient if any targeted license remains assigned. If the user data reaches the full end-state within the 30-day window, the dashboard should auto-resolve the warning. If a ticket has already been created, the dashboard should monitor both ticket resolution and the technical deprovisioned end-state together rather than assuming the ticket alone means the issue is fixed. If the technical end-state is later verified before the ticket is manually closed, the dashboard should auto-resolve the row and try to close the IncidentIQ ticket with this standard automation comment template: `Automation closing ticket: verified Zoom deprovisioned end-state for {user_email}. Confirmed removed/unassigned: Zoom user account={state}, Zoom Workplace={state}, Zoom Phone Basic={state}, Zoom Phone Customer Engagement Pack={state}, Zoom Large Meeting={state}, Zoom Webinars={state}.` State labels may render as `unassigned`, `deactivated`, `removed`, or `deprovisioned`, whichever is clearest for the specific field. If ticket close fails, the row should remain resolved and surface a separate ticket-sync warning with a link to the ticket rather than reopening the cleanup issue.
+- 2026-04-27: Auto-created orphaned-Zoom cleanup tickets must be created on behalf of the affected user, not a service account. The ticket description should enumerate which Zoom entitlements or account states are still provisioned and should include a direct link to the general Zoom admin user-management page for that user when that link can be constructed reliably, using the affected person's first name, last name, and the final stored district email from the local canonical user record as the preferred lookup/display context. If no reliable direct link can be built, the ticket should still include first name, last name, that final stored district email, the current Zoom email when present, and Zoom `userId` when known.
+- 2026-04-27: Ticket-sync warnings related to failed IncidentIQ close attempts on orphaned-Zoom cleanup are IT-Admin-only visibility and are informational only in v1; they do not trigger additional automatic escalation.
+- 2026-04-27: The orphaned-Zoom cleanup dashboard queue should show a generic unresolved state at the top level plus a subtype badge such as `Zoom Cleanup`. Detailed lingering entitlements or account-state blockers should appear only in the linked ticket/details view. The queue must support sorting/grouping by subtype so operators can work application by application. Any user-set sort, group, or filter state on that page should persist if the user navigates away and returns during the same login session, should be shared across browser tabs in that same login session, should update other open tabs live when changed, and should reset between login sessions. That live cross-tab sync applies only to view-state controls like sorts, filters, and grouping, not to unsaved per-row UI state such as checkbox selections.
+- 2026-04-27: In future phases where a person can have orphaned cleanup work across multiple applications, the dashboard must support both display modes: one row per app subtype and one person-centric row with multiple subtype badges. The end user should be able to choose between those views. The default should be the person-centric row-with-badges view. If the user switches view modes, that preference should persist for the current login session. Bulk actions in that future person-centric mixed-app view must be constrained to a single subtype at a time rather than spanning mixed application subtypes in one operation. In that mixed-app view, subtype badges should be ordered alphabetically using the raw subtype labels rendered consistently in Title Case rather than a normalized admin-managed display set. Clicking a subtype badge should drill into that subtype for that person while staying in the same table context rather than navigating away, and the drill-in state should expose a visible breadcrumb-style back control such as `Orphaned Cleanup / {Preferred Display Name} / Zoom Cleanup`. If preferred/display name is blank, the breadcrumb should fall back first to legal/canonical name, then to email, and finally to `Unknown`, but should never render as blank or `<empty>`. The system should treat that final `Unknown` fallback as a defensive last resort and should already have flagged the underlying import/data-quality problem before deprovisioning workflows reach this point. That breadcrumb label should stay pinned to the name at drill-in time until page refresh or navigation. The breadcrumb return should restore the exact prior scroll position from the full person-row view while preserving any filter changes made during drill-in, but should clear the drill-in subtype context when returning to the full view. If a person has multiple orphaned rows under the same subtype, the badge should display a count such as `Zoom Cleanup (2)`. If a person has many subtype badges, the row should collapse overflow behind a `+N more` control that expands the hidden badges inline rather than opening a popover. That inline expansion state should reset when the table rerenders or the user navigates away rather than persisting for the session.
+- 2026-04-27: Localization is permanently out of scope for this product. UI literals like the breadcrumb fallback value `Unknown` should remain fixed in English rather than becoming user-configurable or localized.
+- 2026-04-27: When person-identifying UI must render despite missing name/email data, the product should use the fixed English fallback `Unknown` anywhere valid data cannot be found. This should be treated as a defensive last resort and should already have been surfaced as an upstream data-quality issue before operators reach the affected workflow. Outside explicit breadcrumb text, `Unknown` should render using muted/system placeholder styling rather than as a normal value.
+- 2026-04-27: The English-only constraint applies to operator-facing labels, workflow text, controls, and configurable UI text. Imported source-system values should still display exactly as stored, even when those source values contain other languages.
+- 2026-04-27: Title Case rendering for future subtype badges must preserve acronym capitalization, for example `IIQ Cleanup` rather than `Iiq Cleanup`.
+- 2026-04-27: If the current Zoom email conflicts with the final stored district email, that mismatch should be included silently as context in the ticket/details view rather than being surfaced as a separate warning. Where both appear, label them exactly as `District Email` and `Zoom Email`, always rendering `District Email` first. If the district email is blank or missing, render the value as `<empty>` using muted/system placeholder styling so it is visibly distinct from a literal email value.
+- 2026-04-27: In the orphaned-Zoom details view, lingering state and entitlement items should appear in this fixed order: `Zoom user account`, `Zoom Workplace`, `Zoom Phone Basic`, `Zoom Phone Customer Engagement Pack`, `Zoom Large Meeting`, `Zoom Webinars`. Each item should show the current state only, not a side-by-side current-vs-target comparison, and those state values should render as plain text only rather than using success/warning/status styling. Any empty current-state value should render as the same muted/system `<empty>` placeholder used for blank email fields. Plain-text current-state values should remain copyable as raw text with no extra adornments or formatting characters; copying an `<empty>` value should place an actual empty string on the clipboard rather than the literal text `<empty>`. For non-empty values, non-linebreak whitespace should be normalized before copying, while line breaks, including consecutive blank lines, should be preserved exactly.
+- 2026-04-27: Future student profiles should be owned through IT Admin dashboard levers the same way staff profiles are. The expected long-term model is mostly dynamic profile generation from school, grade level, and OU structure, with rare profile-based manual overrides for exceptional student permissions.
+- 2026-04-27: Future student course-to-profile and course-to-app mapping should be seeded from Aeries fields first, then overrideable through IT Admin levers. Course mapping refresh should stay aligned to the same school-year and semester/quarter Aeries boundaries used by the broader student-access module.
+- 2026-04-27: Student onboarding/provisioning and student permission refresh are distinct future modules. Provisioning creates the account when a student enters the district and applies a default profile for school and grade. Separately, a student-access module should periodically evaluate enrollment and grant or remove extended access to systems while keeping the base student account active for the duration of the student’s district tenure.
+- 2026-04-27: Future student permission refresh should be pinned to Aeries-defined semester or quarter boundaries first, rather than an arbitrary internal calendar. The system should use the term set that applies to the student’s actual school of attendance rather than forcing one district-wide student-access calendar. For multi-school students, course participation should drive extended-access applicability rather than a single school-level shortcut. This is supported by the vendored Aeries API contract snapshots, which expose class/gradebook-linked `StartDate` and `EndDate` fields for student participation. Between those boundary refreshes, off-cycle reevaluation should be triggered by enrollment changes, schedule changes, and course add/drop changes discovered from Aeries-linked student data.
+- 2026-04-27: For future student-access evaluation, if multiple active courses imply conflicting extended-access profiles, the highest-privilege profile should win. If multiple active courses imply the same privilege level but different app sets, take the union of app access within that privilege tier. When a student drops a course that granted extended access, end-of-day cutoff should remove only the access justified by that course while preserving any still-valid access derived from other active courses.
+- 2026-04-27: Future student-access removals triggered by off-cycle changes should queue for an end-of-day cutoff window rather than cutting access immediately. IT Admin must have a manual override lever for that timing. Permissions mismatches that appear to come from explicit external/manual grants should surface as warnings for manual intervention instead of being auto-removed by default.
+- 2026-04-27: If a student transfers mid-year, recalculation from the new active course set should still wait until the end-of-day cutoff window rather than cutting over immediately.
+- 2026-04-27: Documented student OU structure for future profile design:
+  - standard pattern: `\\Users\\Students\\{site code}\\Grade {PK,TK,0-12}`
+  - additional buckets: `Test Users`, `Unknown`
+  - CLA exception: `\\Users\\Students\\CLA\\CLA K-4\\Grade {K,PK,TK,1-4}` and `\\Users\\Students\\CLA\\CLA 5-8\\Grade {5-8}`
+- 2026-04-27: Graduated seniors shown in the Google-active / Aeries-inactive queue must appear in a `suppressed by senior exception` state until their cutoff day, with an in-UI override that supports bulk action. Bulk override should remove the suppression and enqueue the row for deprovision during the next cycle. The UI status after override should be `Pending Deprovision`, visible to IT, HR, and any Site Admin who can already see the person. At the end of the configured cutoff day, deprovisioning should happen automatically without review.
+- 2026-04-27: The optional exception-list `ticket/reference` field uses v1 format validation: `IT-` or `MOT-` followed by 1 to 7 digits, with no zero padding requirement. Matching is case-insensitive even though IncidentIQ normally represents tickets in uppercase, and accepted values should be normalized to uppercase on save. Validation against IncidentIQ tickets is deferred to v2, and a `create ticket if not validated` flow is deferred to v3.
+- 2026-04-24: Zoom account creation and ongoing license/group outcomes must account for Google-originated SAML attributes that do not exist in AD or Entra. Google is the authority for those Zoom-facing extended attributes.
+- 2026-04-24: One of the primary goals of this project is to surface bad data early to non-IT parties and automate as much routine IT work as possible. The product should avoid hardcoding policy decisions into code when those decisions can be expressed as dashboard-managed business rules.
+- 2026-04-27: General implementation directive: follow DRY principles. Prefer linking to established database entries and shared canonical records over recreating or duplicating the same data in multiple places.
+
+## Scope Snapshot
+- Subject types in scope:
+  - employees
+  - contractors
+  - volunteers
+  - SSU student practicum workers
+  - students, but only for invalid-name exception visibility in the current pass
+- Core system roles in scope:
+  - account provisioning and deprovisioning
+  - room and campus change management
+  - identity synchronization
+  - phone and shared-line-group assignment
+  - directory publishing
+  - manual review and exception handling
+- Explicit out-of-scope boundary for the current pass:
+  - student onboarding, student provisioning, and broader student lifecycle automation
+  - TODO: revisit student onboarding as a future enhancement only after the staff lifecycle, sync, and exception-management flows are stable
+
+## Persona Model
+- `no_access`: authenticated but denied application access.
+- `faculty`: self-service visibility for their own records only; read-only except explicitly allowed minor updates to self-service fields.
+- `staff`: self-service visibility for their own records only; read-only except explicitly allowed minor updates to self-service fields.
+- `administrative_staff`: site-scoped visibility into records for their site; read-only except explicitly allowed minor updates.
+- `device_wrangler`: distinct site-scoped authorization role for student device-accountability reporting. Librarians are one class of users in this role.
+- `human_resources`: visibility into onboarding, offboarding, provisioning status, manual intake, lifecycle overrides, and activation state management.
+- `it_admin`: full visibility and full operational control.
+- Additional persona requirement: site secretaries need a student-facing operational view showing student accounts that were not created because Aeries data was invalid; the existing email-driven notification flow is insufficient.
+- Additional persona requirement: Device Wranglers need site-scoped visibility into student device-accountability reporting so they and site admins can identify repeated equipment damage patterns.
+- Site admins must be able to see everything a Device Wrangler can see for their site.
+- Site-secretary student-exception view rules:
+  - view-only
+  - scoped to the secretary's own site only
+  - no writeback to Aeries from this application
+
+## Identity and Authority Decisions
+- Internal canonical identity key is local `UUIDv7`.
+- Email is a secondary identifier and email collisions are expected to be prohibited.
+- Active Directory is the origin point for account identity, with downstream propagation to Entra and Google Workspace.
+- Employment status primarily comes from Escape/SFTP, but the application must maintain local CRUD-managed records for non-Escape employees, contractors, volunteers, and similar exceptions.
+- Student identity and lifecycle are Aeries-first; AD and Google are supplementary for student records.
+- Mandatory Aeries endpoint families for the current pass are:
+  - `staff`
+  - `students`
+  - `schools`
+  - `teachers`
+  - `scheduling`
+- Aeries teacher handling rule:
+  - query both staff-related and teacher-related API paths
+  - converge staff identity, teacher identity, and scheduling context into one internal dashboard entity
+  - join staff and teacher-related records on `StaffID`
+  - do not treat the mere presence of a teacher-related record as sufficient proof that the person is teaching staff
+  - use assigned courses on the staff record and `TS` job-title classification as the positive teaching-staff signals
+- Room and location authority rules are currently:
+  - teachers: Aeries first
+  - when Aeries `staff`, `teacher`, and `scheduling` disagree before local overrides, the `staff` record wins
+  - if Aeries lacks room data: local override first, then Incident IQ
+  - Zoom phone data is supplementary evidence, not primary authority
+- The application must eventually support review and approval of synchronization in multiple directions rather than permanent one-way authority from every source.
+- The first domains that need review-and-approve sync in multiple directions are:
+  - room assignment
+  - phone extension and phone number
+  - title
+  - location
+
+## Baseline Access Inputs
+- Baseline access must be determined from the stored job category and raw job-title bundle before any additive or exceptional permissions are considered.
+- Reactivation and rehire flows must restore the baseline category-defined access first; previous extra permissions are shown as deltas but not automatically reapplied.
+- Current seed inputs for category and entitlement design:
+  - Aeries category query reference: `LIST STF ID FN LN U1? U2? IF ( U1 = AS OR U1 = SA OR U1 = SI )`
+  - proposed AD custom schema fields:
+    - `staffCategoryCode` as a single-valued unicode string
+    - `employeeTypeCode` as a single-valued unicode string
+  - these fields should also be mapped into Google custom fields via GCDS
+- Current observed staff category codes in the catchall mapping input include:
+  - `BS`
+  - `BCS`
+  - `TS`
+  - `AS`
+  - `SAS`
+  - `SASI`
+  - `Undefined`
+- Staff category privilege ordering for bundle decisions is:
+  - `BS`
+  - `BCS`
+  - `TS`
+  - `AS`
+  - `SAS`
+  - `SASI`
+- Current observed catchall job-title mapping input characteristics:
+  - 124 unique job titles in the current export
+  - maps job title to staff category, position category, device type, and monitor assignment
+  - baseline bundle design is one bundle per job title
+  - bundle keys use raw job titles in v1
+  - trivial formatting differences in raw titles are intentional blockers in v1 and must surface as distinct upstream data-quality problems rather than being normalized away
+- Current observed employee-category access matrix characteristics:
+  - 114 title-to-persona mappings in the current export
+  - intended to drive service, hardware, training, and licensing expectations by persona/category
+  - incomplete and needs normalization before it can become a strict rules engine
+  - ignore GoFMX-related rows because GoFMX is deprecated
+- Source-precedence rule for baseline role design:
+  - `Catchall Spreadsheet - Sheet83.csv` is the winning source when the CSV inputs disagree
+- Baseline role normalization storage:
+  - local database table seeded from `Sheet83`
+- Every mapping decision that affects automation behavior must be editable through IT Admin levers in the dashboard:
+  - add
+  - change
+  - remove
+  - audit
+  - no application recompile or redeploy required
+- First-pass normalized entitlement families for baseline bundles should include:
+  - device requirement
+  - gets-monitor workflow trigger
+  - Google group baseline memberships
+  - Aeries access request category
+- Provisioning profiles are the long-term entitlement model:
+  - provisioning profiles must be editable without code changes
+  - HR has read visibility to provisioning profiles in v1
+  - IT Admin has read/write visibility to provisioning profiles in v1
+  - admins must be able to add or remove an app or permission through a profile editor
+  - profile entries may describe direct entitlements or app-specific actions rather than only static groups
+  - editing a provisioning profile does not automatically rectify previously assigned users of that profile
+  - profile edits apply only to new accounts and future provisioning events by default
+  - profile saves are effective immediately
+  - imported users who have not yet started provisioning remain in scope for the latest profile state
+  - once a workflow starts, that workflow must use a frozen snapshot of the profile state for all of its queued provider steps rather than rereading live edits mid-execution
+  - if a workflow pauses for manual review and is later resumed, the resume path should cancel and replan the workflow against the latest profile state rather than continuing with the stale snapshot
+  - that cancel-and-replan-on-resume path is expected behavior and must not be treated as an error or failure
+  - when a paused workflow is canceled and replanned on resume, carry forward prior manual-review inputs, notes, and attachments into the new workflow context and flag them as carried-forward notes for the replanned job
+  - carried-forward manual-review notes should render inline with normal notes, preserving original author attribution and a carried-forward label, but omitting the original timestamp from the primary note display
+  - carried-forward attachments should appear as linked attachments referenced from the carried-forward note rather than being inlined into the note body
+  - every profile edit must create an audit log entry containing actor, timestamp, and before/after diff
+  - that provisioning-profile audit history is visible to IT Admin only
+  - direct restore/rollback from audit history is a later-phase feature, not v1
+  - the model must remain flexible enough to add future context-specific roles and permission sets without redesign
+- V1 profile nuance boundary:
+  - niche cases such as department-specific intern access may be handled manually in v1
+  - the profile system must still be designed so those distinctions can be modeled later
+- Hardware bundle normalization rules:
+  - `Basic Device` → `Computer: Chromebook`
+  - `Full OS Computer` → `Computer: Windows` or `Computer: Mac`
+  - `No Device` → `none`
+  - only emit a hardware bundle when the resolved staff category is `BCS` or higher
+  - when the row says `Full OS Computer`, HR chooses `Windows` or `Mac` during onboarding
+- Monitor workflow rules:
+  - if `Gets monitor = yes` and room is known:
+    - check whether the room already has a monitor
+    - if yes, no action
+    - if no, create an IT ticket to set up a monitor for the user in that room
+  - if `Gets monitor = yes` and room is not known:
+    - wait until room is known
+    - then perform the room monitor check and ticket logic
+- Zoom licensing rules are global policy, not title-bundle data:
+  - all staff except `BS` should receive `US/CA Unlimited Calling Plan`
+  - membership in a site `Attendance` line is the trigger for `Zoom Phone Customer Engagement Pack`
+  - `Zoom Phone Customer Engagement Pack` licenses are scarce and must not be treated as baseline-title entitlements
+  - IT may assign `Zoom Phone Customer Engagement Pack` manually outside of the attendance-queue rule when operationally required
+  - Google is the authority for Zoom-facing SAML extended attributes that do not exist in AD or Entra
+  - Google `Department` values `IT`, `DO`, `Cabinet`, `Admin`, `Certificated`, `Office Classified`, `Counselor`, `Para-zoom`, and `Site Substitute` map to `Zoom Workplace for Education Enterprise Essentials`
+  - Google `Department` values `Classified`, `Student`, and `Student - YYYY` cohort values map to `Unassigned with Zoom Meetings Basic`
+  - default SAML mapping does not assign Zoom Webinar / Large Meeting add-ons
+  - default SAML mapping does not assign a Zoom user role
+  - cohort-driven Zoom group mapping is:
+    - `Student - 2020` through `Student - 2025` → `High School Students`
+    - `Student - 2026` through `Student - 2028` → `Middle School Students`
+    - `Student - 2029` through `Student - 2040` → `Elementary Students`
+    - `Student` → `Students`
+  - Zoom SAML department/license and cohort/group mappings must be fully editable from the IT Admin UI
+  - editing the Zoom SAML mapping must trigger reconciliation of existing Zoom users to the new mapping on the next Zoom sync/reconcile cycle, not just future SAML logins
+  - that reconciliation is best effort and must log per-user failures rather than aborting the full changed mapping set
+  - when a mapping change affects many users, the next Zoom sync should process the affected users in one batch
+  - reconciliation attempts should occur only when the relevant Zoom SAML configuration has changed
+  - failed rows retry automatically on the next Zoom sync
+  - prefer the vendored Zoom SDK retry/backoff behavior for transport errors, `429`, and `500/502/503/504`; only add app-native retry logic for workflows the SDK path does not cover
+  - create or update a repeated-failure ticket after 5 consecutive failed syncs for the same user, always on behalf of the failing user
+  - if an open auto-created repeated-failure ticket already exists for that user and mapping change, update that ticket instead of creating a new one
+  - if the previous auto-created repeated-failure ticket was closed and the same user begins failing again later, create a new ticket after the next 5-consecutive-failure threshold
+  - the auto-created ticket must include relevant user details, SAML configuration change details, endpoint, request intent, HTTP status, Zoom error code, Zoom message, user identifier, mapping diff, and a redacted JSON response appended or attached for troubleshooting
+  - troubleshooting artifacts must never persist raw auth headers, bearer tokens, refresh tokens, client secrets, private keys, passwords, or other reusable credentials
+  - include non-secret credential-set evidence such as provider account id, service-account owner, configured credential label, key id, token issuer/audience where non-sensitive, and a one-way fingerprint of the credential material
+  - if IncidentIQ supports a sensitive-ticket attribute, mark these Zoom failure tickets as sensitive by default because they can still contain sensitive user, configuration, and provider-error details after credential redaction
+  - if an operator later downgrades that sensitive marking in IncidentIQ, do not force it back on during later app updates, but continue redacting credential material from appended or attached diagnostics
+  - use `svc-zoom@it.wusd.org` as the Zoom service-account owner for these operational tickets
+  - external operational follow-up: align IncidentIQ app ownership to the Zoom service account so ownership and automation identity are aligned
+  - the auto-created ticket must use Asset Tag `ZOOMCONFERENCING`, Issue Category `Account settings`, and Issue Type `Account settings`
+  - the consecutive-failure counter resets on successful reconciliation and also on admin changes that materially alter the next retry
+  - v1 supports current-state editing only; version history and rollback are out of scope for the first pass
+  - Zoom SAML mapping must support exclusions for specific users and groups so they do not follow the default mapping rules
+  - future Meraki SAML mapping must be configurable from the IT Admin UI rather than hardcoded
+  - the initial Meraki default is `SASI → OrgAdmin`
+  - all other users default to no Meraki SAML attribute / no Meraki access unless later rules are added
+- Baseline normalization should use as much reliable data as possible from the employee-category matrix and catchall inputs while excluding deprecated GoFMX-related assignments.
+- Baseline bundle rule:
+  - one bundle per job title only
+  - site-specific bundle variants are unsupported in v1
+  - raw job-title strings are matched exactly in v1
+  - mapped titles may run even while other titles remain unresolved blockers
+  - effective baseline for a person is determined from the highest applicable staff category across all active Escape job assignments
+  - when a title spans multiple real-world access patterns, the normalized bundle must be reduced to the least-permissive set of controls
+  - anything beyond the least-permissive baseline requires an IT ticket
+  - the application should surface that a manual IT ticket may be required, with details about the potentially required permission, rather than auto-create the ticket
+- IT Admin must be able to modify bundles as job requirements change and add new bundles as new job titles are introduced.
+- Unmapped or newly invented job titles discovered from HR/InformedK12 must raise a manual-action blocker for HR and IT:
+  - show the title as a likely provisioning breaker
+  - expose invisible whitespace and control characters when hidden formatting differences are the cause
+  - offer a pre-existing job title as an alternate when one is a plausible match
+  - or allow association of the new title with a defined permission bundle before automation continues
+  - HR is the primary resolver, but IT can always resolve directly
+  - for Escape-backed users, prefer correcting the title upstream and waiting for sync
+  - manual-entry flows must use a dropdown of known job titles
+  - creating a new title in the product requires mapping permissions at the same time
+  - creating a new title may copy an existing permission set as a starting point
+  - onboarding remains blocked until the mapping is resolved
+
+## Manual Intake and Replacement Rules
+- HR must be able to sideload non-Escape people into the onboarding pipeline and trigger the same downstream provisioning flow as standard hires.
+- Required minimum fields for manual intake currently include:
+  - hire date
+  - start date, which must be at least 3 business days after the date added
+  - last 4 of SSN
+  - employee type
+  - employee classification
+  - first name
+  - last name
+  - job title
+  - location
+  - personal email address
+  - personal phone number for the manual Non-Escape Aeries upload path only; store and serialize the canonical `10`-digit value, redact diagnostics and summaries, and never use this field to overwrite ESCAPE-sourced phone data
+  - preferred device
+  - requested Aeries access role set
+- Start-date lead-time rule:
+  - full onboarding readiness requires at least 3 business days between record entry and start date
+  - requests inside that window are still accepted and scheduled
+  - the UI must warn HR that the account will not be fully ready within 3 days
+  - the requested start date remains visible as an at-risk date rather than being silently shifted
+- Past-date rule:
+  - requests with a start date already in the past are still accepted
+  - the original source/requested date remains visible exactly as stored
+  - the same warning text used for short-lead contractor intake is shown automatically
+  - the workflow is scheduled for the next available workflow-planner cycle instead of silently shifting the source date forward
+- Manual identifier rule:
+  - sideloaded people need a non-colliding generated identifier
+  - contractor IDs currently use prefix `66` plus a zero-padded five-digit number
+- Requested Aeries access should be captured as workflow data in the application. Any resulting IncidentIQ ticket creation is an external `IncidentIQ` configuration TODO rather than an app-owned workflow step in this phase, but the dashboard should poll IncidentIQ by email at most once per hour and link the resulting earliest created matching ticket status once the user exists there. Matching is defined by requestor email plus ticket category, specifically `Aeries (Asset Tag: AERIES) → User Rights → Add User`.
+- If a sideloaded contractor later appears in Escape:
+  - the Escape record becomes the active replacement record
+  - the manual contractor record becomes inactive and remains in the database
+  - existing AD/Entra/Google identity is copied to the new Escape-backed record
+  - if the contractor assignment is still active during overlap, the end-user account must remain active and be reprovisioned with the appropriate baseline access instead of being deactivated
+- Manual contractor reactivation and collision rules:
+  - a former Escape-backed person who is now inactive in Escape and later returns as a manual Non-Escape contractor must reuse the existing identity
+  - that manual reactivation path uses the contractor/manual baseline and is exposed as `reactivate_non_escape`
+  - an active Escape employee plus a manual Non-Escape contractor entry is not supported
+  - when that unsupported overlap is detected, the manual record is saved for audit but is immediately marked invalid
+  - the invalid manual record is linked to the active Escape-backed record in the drawer payload
+  - the UI copy must state that Escape always takes precedence and that an active employee cannot be hired as a contractor
+  - the remediation action is `Delete Manual Entry`
+  - `Delete Manual Entry` is a soft delete only: the database record remains, preserves the collision metadata, and is removed from actionable queue/history surfaces
+  - the collision case must not enqueue onboarding work, provider writes, or fallback ticket creation
+- Manual-intake and workflow payloads must expose:
+  - `change_reason`
+  - `late_start`
+  - `effective_date`
+  - `scheduled_for`
+  - `validity_state`
+  - `invalid_reason`
+  - `linked_escape_record`
+  - `can_delete_manual_entry`
+
+## Onboarding and Offboarding Dashboard Requirements
+- The People Tracker onboarding, offboarding, and Informacast sheets are diagnostic inputs only. They describe current human process and task coverage, but they do not define the future UI or data model.
+- The application must replace the People Tracker spreadsheet model with dashboard-driven workflows backed by imported source data, local workflow state, and targeted manual exceptions.
+- The product must include dedicated onboarding and offboarding views or sections focused on the person being brought into or leaving the district.
+- Onboarding and offboarding dashboard behavior:
+  - show upcoming onboarding processes
+  - show upcoming offboarding processes
+  - focus status on the person rather than on a spreadsheet row
+  - expose where each person currently is in the lifecycle and what steps remain
+  - for the implemented pre-phase 0 Onboarding page, show selected person workflow details in a right-hand drawer that opens only after a row click, updates when another row is clicked, and closes from the drawer `X`
+  - for the implemented pre-phase 0 Offboarding page, use the same shared right-hand drawer primitive for selected offboarding rows; fixed side-panel Queue Actions content moves into per-row drawer actions
+  - the onboarding table's first column is `Date Added`, defined as first Escape import, Escape inactive-to-active reactivation, or manual Non-Escape creation
+  - if a selected workflow requires user action, the drawer lists each action step with status, resolution instructions, and the relevant external-system link when available
+  - Offboarding rows show status first, then person/account, email, site, end date, next action, and asset work; employee ID is visible only to HR and IT Admin
+  - Escape-backed offboarding end dates are source-owned and read-only in the dashboard; non-Escape, orphan, or local override rows may expose an HR/IT-only date picker in the drawer
+  - the implemented pre-phase 0 Offboarding page exposes HR/IT-only `Emergency Offboarding` and `Offboard Contractor` actions as runtime-owned buttons that open the shared right-hand drawer; Site Admin, Site Secretary, Device Wrangler, Faculty and Staff, No Access, and logged-out sessions must not see or use these controls
+  - the two top-level Offboarding manual-action buttons render as one vertical action group placed immediately to the right of the summary info boxes, not side by side or detached at the far right, so the related HR/IT workflows stay connected to the dashboard header/action area without excess horizontal whitespace
+  - the DEV Emergency Offboarding drawer searches active employees and contractors by name, email, and employee ID, shows selected employment data, requires an explicit selected person in the submitted payload, and records an immediate in-memory `emergency_deprovision` mock action with actor, target, timestamp, and `dev_mock_only` mode
+  - the DEV Offboard Contractor drawer searches active contractors only by name, email, and employee ID, shows selected contractor data, lets HR/IT edit the termination date locally, and records a dated in-memory `contractor_scheduled_deprovision` mock action only when `Schedule Offboarding` is submitted
+  - candidate search and scheduling endpoints must enforce the HR/IT manual-offboarding permission server-side before exposing employee IDs, contractor data, or mutation results; direct payload construction by other personas returns the same denied behavior as other protected APIs
+  - these offboarding actions are mock workflow scheduling boundaries in this slice and must not call Escape, Google, Zoom, IncidentIQ, Aeries, Active Directory, Entra, or a production database; future provider-backed execution must add what-if validation, idempotency, audit persistence, rollback references, post-write verification, and the Phase 2 live-write pilot allowlist check before any upstream mutation
+- Visibility rules for onboarding and offboarding status:
+  - HR can see all sensitive lifecycle data
+  - site admin staff can only see, for their own site:
+    - first name
+    - last name
+    - email address, if assigned
+    - where the person is in the system
+- The current spreadsheet columns around facilities, device pickup, keys, alarm codes, Aeries access, Informacast, and similar tasks should be treated as process-discovery inputs so those work items are either automated, ticketed, or clearly surfaced in the new dashboard rather than silently dropped.
+- Offboarding asset-return rules:
+  - track assets assigned directly to humans
+  - create tasks for site admins to retrieve those person-assigned assets
+  - room equipment such as phones, TVs, and clock speakers remains assigned to the room and does not require person-level retrieval tracking
+- Departing Seniors page behavior:
+  - expose a bare-bones `/departing-seniors` runtime page for IT Admin and Device Wrangler personas only
+  - list the current school year's senior class using Aeries school-year data to select the current graduation year by default
+  - retain the current senior year plus the four previous senior years for selectable historical review; older senior-year rows should not be returned by the DEV API or future retained projection
+  - show student name, district email, student ID, end date, status, and outstanding IncidentIQ devices with serial and asset ID; graduation year remains available in the selected school-year context and row detail but is not a default visible table column
+  - render each outstanding IncidentIQ device serial as a link to `https://{incidentiq_domain}/agent/assets/{asset_id}` when an asset id and domain are available; `No outstanding devices` is plain text
+  - keep device-return warning details in the row drawer rather than persistent table-cell helper copy
+  - provide a per-row local end-date override date picker in DEV mock state
+  - provide a per-row deprovision action; remove a row only after the account is deprovisioned and IncidentIQ reports no outstanding devices
+  - keep deprovisioned rows visible when devices remain assigned, because the remaining work is device recovery rather than account removal
+  - use the shared runtime table search/sort primitive, with the search covering first name, last name, email address, selected school year, assigned asset serial, assigned asset ID, and student ID
+  - selecting a row opens the shared right-hand drawer with the student's school-year context, account-retirement state, device-return details, and available IncidentIQ asset links
+- Departing Seniors retained-year test cases:
+  - retained-year tests must use a deterministic test clock and configured senior cutoff day so fixture behavior does not drift with the calendar
+  - past retained school year with clean completion: a previous-year senior whose account has already been deprovisioned and whose IncidentIQ devices have all been returned must not appear in the retained-year table. Noah Kim's 2023-2024 fixture should represent this case rather than remaining visible as `Ready`.
+  - past retained school year with device return still open: a previous-year senior whose account has already been deprovisioned but who still has one or more assigned IncidentIQ devices must remain visible. The row status should communicate device-return work rather than ordinary `Ready`.
+  - past retained school year with a future end-date override still valid today: a previous-year senior whose local override keeps the account intentionally active through a future date must remain visible, must show the override source, and must not be auto-deprovisioned while the override is still valid.
+  - past retained school year with an expired end-date override: a previous-year senior whose local override date is now in the past must no longer appear unless there are still outstanding assigned devices.
+  - current senior year before the configured cutoff day: current-year graduated seniors should show the senior grace-period or suppressed-by-senior-exception state rather than a generic `Ready` status while access is intentionally retained.
+  - current senior year after the configured cutoff day: seniors should be automatically deprovisioned; rows with no outstanding devices should leave the table, while rows with devices remain visible as device-return work.
+  - IncidentIQ device link behavior: retained-year rows with real IncidentIQ asset IDs and domains link to the corresponding asset record, while rows without real asset IDs render plain text and never invent fake links.
+  - retained-window bounds: the API and UI expose only the current senior year plus four previous senior years; requests for older years must fall back to the current year or otherwise fail closed without leaking stale cohorts.
+  - retained-year search behavior: search filters only within the selected school year and matches retained rows by name, email, student ID, selected school year, asset serial, and asset ID.
+  - Departing Seniors access control: IT Admin and Device Wrangler personas can load and manage the page; HR, Site Admin, other logged-in personas, and logged-out users must be denied for both page-load and mutation API calls.
+
+## Lifecycle Decisions
+- Most workflows should run automatically.
+- Human review is required when there are errors or cross-system data conflicts.
+- HR must be able to:
+  - view pending onboarding and offboarding records
+  - set or override contractor end dates
+  - do not set or override Escape-backed end dates in the dashboard; Escape remains authoritative for those rows
+  - immediately terminate a person from the dashboard
+  - immediately reactivate a person from the dashboard
+- Contractor lifecycle rules:
+  - non-Escape contractors should be deactivated after 30+ days without Google login activity
+  - they should be fully terminated at the end of the school year unless HR overrides that date
+- Orphan-account lifecycle rules:
+  - show HR any AD-active account that has no linked Escape, Aeries, or local override employee record
+  - allow HR to set a scheduled end date or terminate immediately from the dashboard
+  - auto-populate the scheduled end date from Aeries `systeminfo.DatabaseYear` plus `/api/v5/schools/{SchoolCode}/terms`, using the earliest `StartDate` and latest `EndDate` across schools when no date is already set
+  - if there has been no Google activity for 30+ days, mark the account eligible for deprovisioning review
+  - if the orphaned account has recent Google activity, treat it as a security risk, deprovision it across all systems, and flag it to IT as a potential breach
+  - ignore configured service-account OUs so non-human accounts do not appear in the queue
+  - initial excluded OUs are `OU=Communications Accounts,OU=Users,OU=WUSD,DC=internal,DC=wusd,DC=org`, `OU=Service Accounts,OU=Users,OU=WUSD,DC=internal,DC=wusd,DC=org`, and `OU=Test Users,OU=IT,OU=District,OU=Staff,OU=Users,OU=WUSD,DC=internal,DC=wusd,DC=org` including all descendants
+  - ignore any user account whose username starts with `svc-` or `test-`
+  - IT Admin only may create, edit, or remove entries in the exception list for specific user accounts and OUs that bypass automated deprovisioning
+  - each exception-list entry must require a reason, owner, and expiration or review date
+- Google-active / Aeries-inactive audit rules:
+  - maintain a dedicated reconciliation queue for students and staff who are active in Google but inactive in Aeries
+  - use this queue to surface missed lifecycle actions that were not caught through the primary onboarding or offboarding flows
+  - keep this queue operationally separate from orphaned AD-account handling so the exact mismatch type remains visible
+  - IT owns the queue operationally because this mismatch is a security hole
+  - v1 default action is review only
+  - IT Admin console controls must allow separate student and staff default flows to be changed from review only to scheduled deprovision or immediate deprovision
+  - `Google-active` means the account is enabled and `lastLoginTime` from the Google Admin Directory API `GET /admin/directory/v1/users/{userKey}` shows a successful login within the last 30 days
+  - Google login lookup for this rule uses the `admin.directory.user.readonly` scope
+  - cache the computed 30-day lookback boundary for the whole runtime day so multiple runs on the same day reuse the same cutoff
+  - use midnight in the configured app timezone as the day boundary for that cached lookback date
+  - for staff, `Aeries-inactive` means `InactiveStatusCode` (`STF.TG`) is any non-blank value
+  - for students, `Aeries-inactive` means `InactiveStatusCode` (`STU.TG`) from `/api/v5/schools/{SchoolCode}/students/{StudentID}` is any non-blank value
+  - identify graduated seniors using `SchoolCompletionDate` (`STU.DG`) from `/api/v5/schools/{SchoolCode}/students/{StudentID}/extended`, scoped to the current Aeries school year, and ignore `SchoolCompletionStatusCode` (`STU.HSG`)
+  - `GraduationCohort` (`STU.CHT`) is irrelevant to this workflow and should not be surfaced for review
+  - graduated seniors must retain student-account access through the end of a configurable cutoff day that defaults to August 31
+  - graduated seniors should appear in a `suppressed by senior exception` state until that cutoff day
+  - IT must be able to override that suppression individually or in bulk, with bulk override preferred
+  - bulk override removes the suppression and enqueues the row for deprovision during the next cycle
+  - rows enqueued through this override should show status `Pending Deprovision`
+  - `Pending Deprovision` should be visible to IT, HR, and any Site Admin who can already see the person
+  - at the end of the cutoff day, deprovision automatically without review
+  - the graduated-senior exception preserves only the identity path needed for Google login and Google Takeout, so AD, Entra, and Google remain active until cutoff while Zoom may still be deprovisioned
+  - provide row-level actions to add the user to the exception list with reason and review date, optional ticket/reference field matching `IT-` or `MOT-` followed by 1 to 7 digits, schedule the user for the next deprovision run, or deprovision immediately
+  - normalize accepted ticket/reference values to uppercase on save
+  - provide the same actions in bulk with select-all support and partial selection support
+  - TODO V2: validate the optional ticket/reference field against IncidentIQ ticket identifiers
+  - TODO V3: add a button to create a ticket when the reference is not already validated
+- Position-transfer evaluation rules:
+  - consider all active Escape job assignments together
+  - use the highest resulting staff category to determine effective baseline permissions and equipment
+  - determine current assignment participation from `PayDtlAssignmentDateFrom` and `PayDtlAssignmentDateThru`
+  - use `FTEUsed` and `PrimaryPos` as weighting signals when multiple assignments overlap
+  - if the highest category does not change, do not reset permissions or equipment
+  - if the highest category changes, reset permissions to the new baseline and reclaim or re-evaluate person-assigned equipment
+  - if two same-category top assignments disagree on site, resolve using `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet`, with initial alias defaults of `CCLA → CLA`, `NCC → DO`, `MAIL → ignore`, `TRAN → MOT`, `DW → DO`, `MNT → MOT`, `NBMA → BPL`, and `WTCH → MOT`
+  - when site fields disagree, surface an HR data-quality issue rather than silently choosing a site
+  - HR may apply a temporary manual site override while the upstream data is being corrected
+  - HR may include room/location details in that temporary override, but room/location is optional and should not block continuation if unknown
+  - temporary HR site and room/location overrides do not require reason, owner, or expiration metadata
+  - that override persists until the upstream data is corrected or the job assignment changes
+- Reactivation rules:
+  - reuse the same end-user identity
+  - remove accumulated ad hoc access first
+  - reprovision the person as if brand new
+  - show the delta between baseline access and previously accumulated permissions
+  - offer an option to create a ticket on behalf of the user to restore selected extra permissions
+  - permission delta is informational by default and must not be automatically restored
+  - when a restore ticket is created, include the full delta set
+- The planner and UI must carry an explicit change-reason decision field for lifecycle interpretation. Supported values are:
+  - `assignment_add`
+  - `role_change`
+  - `same_site_transfer`
+  - `site_transfer`
+  - `reactivate_same_role`
+  - `reactivate_role_change`
+  - `reactivate_non_escape`
+  - `active_escape_contractor_collision`
+- Escape-backed past-date reactivation rules:
+  - the Escape date remains authoritative and must be shown exactly as listed upstream
+  - the UI shows the same late-start warning text used by manual contractor intake
+  - the resulting workflow is scheduled for the next available workflow-planner cycle and marked late rather than changing the effective date
+- Automatic permission-reset scope for v1 baseline restoration includes:
+  - AD groups
+  - Google Groups
+  - Zoom licenses
+  - Aeries access requests
+- Offboarding must explicitly reclaim scarce licenses and access:
+  - remove `Zoom Phone Customer Engagement Pack` where assigned
+  - remove room, phone, and shared-line-group assignments
+  - remove or suspend baseline access according to lifecycle state
+
+## InformedK12 Pre-Flight Rules
+- InformedK12 submissions that indicate a potential new hire, role change, or similar staffing change should create tentative pre-flight workflows immediately on form submission.
+- Tentative workflows must appear in the dashboard with explicit `Tentative` status and clear warnings when fields conflict with known-good state, especially job titles that do not map cleanly into baseline access categories.
+- Tentative workflows are informational and preparatory; they are canceled if the underlying form is not approved.
+- Unapproved or conflicting tentative workflows should still raise visibility for HR and IT so likely blockers are discovered before the official change date.
+- Position-transfer and role-change forms should:
+  - derive the likely category impact from the proposed assignments
+  - validate that derived impact against confirmed Escape data
+  - avoid executing permission or equipment changes until the change is confirmed
+  - prefer HR as the reviewing and approving authority
+- InformedK12 ingestion should use slow polling through the API rather than aggressive near-real-time reads.
+- Default polling target is roughly 4 times per day, subject to rate-limit safety.
+
+## Scheduling and Effective Dates
+- The system must support scheduled effective-date changes for room moves, site transfers, role changes, and similar lifecycle changes.
+- The application should suggest an effective date but allow manual override.
+- The last week of July is generally considered the safe default rollover period for school-year changes.
+- If a room move is known in advance but must wait until after the school year, the application must queue both operational changes and related ticket creation until the effective date.
+
+## Room, Site, and Phone Rules
+- A person may have multiple rooms and multiple campuses.
+- Physical phone topology rules:
+  - every classroom has exactly one phone
+  - office locations may have multiple phones in the same room, such as desk positions `.1`, `.2`, `.3`
+- Desk-selection rule for multi-phone office spaces:
+  - the system must not automatically choose among `.1`, `.2`, `.3` style desk phones
+  - instead it creates an IT ticket for manual review
+  - the automation task is considered complete once that ticket is generated and linked
+- For teachers with multiple room associations, primary room is determined by the room and school with the greatest number of courses where the teacher is primary.
+- If a person is categorized as `TS` but has no course assignments yet:
+  - wait on teaching-room-dependent workflows until course data appears
+  - allow Site Admin, Site Secretary, HR, or IT to set an inline manual room override from the dashboard
+  - do not allow Device Wranglers / Librarians to set that override
+  - that override may unblock room-dependent workflows such as Incident IQ room assignment and Zoom phone assignment
+- Secondary locations still matter operationally:
+  - no desk phone assignment for secondary locations
+  - add the person to the shared line group for the secondary room
+  - maintain Incident IQ association for the secondary room when appropriate
+- Simultaneous role and campus changes must:
+  - update location and phone data
+  - remove permissions tied to the old role
+  - add permissions tied to the new role
+  - capture any Aeries access change as workflow data for external `IncidentIQ` configuration handling
+- When a user has two rooms:
+  - determine primary from Aeries when possible
+  - assign the Zoom phone to the primary room
+  - configure Zoom SLG and Incident IQ with the secondary room as well
+- The application must deterministically assign or update the user's Zoom phone, extension, and shared line groups based on resolved location data, informed by the existing `desk-phone-reporter` logic.
+- Physical phone naming must follow the `desk-phone-reporter` logic:
+  - display name format is `[site_abbreviation]-[room_number]-PH[nn]`
+  - `PH` suffixes are zero-padded (`PH01`, `PH02`, etc.)
+  - assign the lowest available `PHnn` suffix for the room based on current Zoom inventory
+  - the authoritative formatter/parser snapshot lives in `docs/reference-inputs/vendor-code/desk-phone-reporter/src/desk_phone_reporter/matching.py`
+- Department shared line group naming must use:
+  - `[Site Abbreviation] - [Job Function]`
+- District phone names use operational site abbreviations, which are distinct from the numeric extension site code:
+  - examples include `DO`, `BES`, `CLA`, `WMS`, `WHS`, `MWE`, `BPL`, `MOT`, `WCR`, `WOA`, `SOCOVA`
+- Current operational-alias mapping into the numeric site-code model is:
+  - `MOT` → site code `1`
+  - `WELL` → site code `1`
+  - `WOA` → site code `5`
+  - `SOCOVA` → site code `7`
+  - `WCR` → defunct campus with no active site code; keep only for historical reference and do not use for new assignments or active authorization scopes
+- Destination-room conflict rules:
+  - for bulk end-of-year changes, affected phones should be unassigned first and then reassigned so the cutover is effectively simultaneous
+  - if the destination room has a common-area phone, assign the moving user without special conflict handling
+  - if the destination room already has a primary teacher and that teacher is inactive, overwrite the assignment
+  - otherwise add the moving user to the room shared line group and do not reassign the primary phone
+- Bulk phone-move failure handling:
+  - execute best effort with a recovery queue
+  - if automated recovery is not possible, create an IT ticket
+  - the IT ticket must include the full failure details in a cleanly formatted table suitable for manual completion
+- Incident IQ ticket routing requirements:
+  - Aeries access request:
+    - model: `Aeries`
+    - category path: `Update User information > Update User Information`
+  - phone move or add-user review:
+    - model path: `Asset Serial Number (Poly VVX250/450)`
+    - category path: `Move user(s) or Add a user/phone`
+  - permission restoration or group changes:
+    - category path: `Account & Login Problems → [Employee User Accounts, Student User Accounts, Contractor Access] → Group Membership Changes`
+- Secretarial bulk room-move entry is a first-class workflow:
+  - Incident IQ is the source of truth for location and room names
+  - the page should include a campus-map reference link where available
+  - campus maps are per-site PDF documents stored in Google Drive
+  - campus-map PDFs should open in a new browser tab
+  - the page must show current employees at the selected site with:
+    - first name
+    - last name
+    - email address
+    - current extension
+    - current shared line groups
+    - current room
+    - editable new-room input using a dropdown or data-validated text box
+    - easy affordance to copy current room into new room
+  - the room-move editor must support adding new people at the bottom of the move list for expected arrivals not yet fully present in HR or IT systems
+  - each row must support an explicit move action indicator:
+    - `add`
+    - `change`
+    - `removal`
+  - people on the bulk list who are not returning to the site should be removable from all room assignments
+  - downstream room-move semantics are:
+    - `add`
+    - Incident IQ:
+      - do not require a previous room entry
+      - assign only the new room
+      - warn if the new room conflicts with another assignment
+    - Zoom phone:
+      - do not require a previous room
+      - assign the phone in the new room to the user
+      - warn on conflict
+      - if the phone is already assigned and the currently assigned user is not moving, skip phone assignment and continue to SLG handling
+    - Zoom SLG:
+      - do not require a previous room
+      - add the user to the new room shared line group
+    - `change`
+    - Incident IQ:
+      - remove the previous room entry
+      - update the user to the new room
+    - Zoom phone:
+      - unassign the user from the previous room phone
+      - warn on conflict
+      - assign the phone in the new room to the user
+      - if the phone is already assigned and the currently assigned user is not moving, skip phone assignment and continue to SLG handling
+    - Zoom SLG:
+      - remove the user from the previous room SLG
+      - add the user to the new room SLG
+    - `removal`
+    - Incident IQ:
+      - remove all room assignments
+    - Zoom phone:
+      - unassign the user from the previous room phone
+      - if no other user is moving into that room, convert the room phone to a common area phone
+      - if another user is moving into that room, follow that user's assignment process instead
+    - Zoom SLG:
+      - remove the user from all shared line groups
+    - the null-room `removal` path is considered a normal automation path when those planned writes can be verified; it should not be sent to manual review merely because the user ends with no room
+  - inter-site transfer rules:
+    - changing sites requires the user's personal extension to change according to the Zoom phone design
+    - remove all SLGs on inter-site moves before reapplying the correct state for the destination
+  - same-site transfer rules:
+    - only modify classroom SLGs in the `[sitecode]+30000` range
+    - preserve `[sitecode]+50000` range SLGs unchanged
+  - room-move workflow types:
+    - `end_of_year_site_move` for whole-site rollover planning
+    - `mid_year_targeted_move` for one-off or small staffing-change moves
+    - `manual_move_list` for a manually built bulk draft that starts empty and grows as the user adds rows
+  - users must be able to choose the room-move type so targeted mid-year changes do not require loading the full site roster
+  - allowed submitters:
+    - site secretaries
+    - administrative staff
+    - IT
+  - effective date defaults to the first Monday of the last week of July
+  - effective date must be overrideable with a calendar picker
+  - the page needs two actions:
+    - `Save Draft` for local save without scheduling
+    - `Schedule Changes and Commit` to queue the changes for execution
+  - room-copy affordances:
+    - per-row copy current-room to new-room action
+    - bulk copy-all current-room to new-room action
+  - the Room Moves bulk draft page must show scoped site context, bulk mode label, effective date, warning bar, inline `Save Draft` button, sortable/searchable table, and schedule/apply/discard actions
+  - manually built bulk drafts must support person lookup by email, name, or employee ID in each new row and must auto-populate the selected person’s current site, current room, destination site, and default destination room
+  - when a bulk-draft row action is changed to `add`, the row must clear current-room state because the planned action has no prior room association
+  - when a bulk-draft row action is changed to `removal`, the row must clear destination room to `None` because the planned action removes room phone, shared-line-group, and call-queue membership at the site
+  - row-level `Remove` controls in bulk drafts must use the supported brand-red destructive styling
+  - repeated-person batch planning rules:
+    - the planner must group all rows for the same person before building phone, SLG, IIQ, CAP, and warning operations; it must not treat same-person rows as duplicates or let a later row overwrite an earlier row
+    - each repeated-person group may resolve at most one primary desk-phone destination; all other destination rows are secondary, tertiary, or later-order room memberships that receive Zoom room shared-line-group membership and IncidentIQ room association only
+    - primary resolution order is documented source data first, explicit operator primary selection second, and safe review warning third; row order alone is not enough to choose a primary room for live writes
+    - if exactly one row is resolved as primary, assign or update that room’s desk phone for the person, add the person to that room SLG, and plan secondary/tertiary/later rows as SLG-only without changing those rooms’ primary phone owners
+    - if no row can be resolved as primary, hold primary phone assignment and warn that the operator must select the primary row before execution; retain the candidate rows so the user does not need to recreate the batch
+    - if more than one row is resolved as primary, hold primary phone assignment and warn with the conflicting rooms so the operator can reduce the group to exactly one primary destination
+    - when a secondary, tertiary, or later-order destination room currently has a common-area phone or CAP, keep that common-area/CAP coverage active and add the person to the room SLG; do not retire CAP coverage unless that row is the resolved primary room and human coverage is verified
+    - when the person’s source relationship is SLG-only, remove only the source classroom SLG membership required by the move and leave the source desk phone and source CAP/common-area state unchanged
+    - when the person is the last primary source in the previous room, convert to or retain common-area/CAP coverage unless a different row in the same approved batch places a replacement primary into that source room
+    - ambiguous live data where the same person appears as primary for multiple current rooms must surface `primary_conflict` review output with the person, candidate rooms, source systems, and resolution steps instead of selecting one silently
+  - the phone-directory person-detail and room-detail surfaces must expose an authorized one-person corrective room-move entry point for site-scoped users when the current assignment is wrong
+  - that corrective entry point must prefill the selected person, current room, current phone context, and site so the user can create a targeted correction without starting from the bulk editor
+  - in Phase 1 this entry point creates or opens a targeted room-move draft only
+  - once Phase 3 execution is live, the same entry point must flow into the one-person targeted move review and execution path
+  - draft-editing rules:
+    - only the creator may edit a draft
+    - only the creator may delete a draft
+    - IT can view all uncommitted drafts
+    - drafts expire after 90 days if not committed
+  - `Schedule Changes and Commit` must present a final review screen before changes are queued
+  - no separate approval is required after the final review screen
+  - creator feedback rules:
+    - `Save Draft` produces an in-app confirmation to the creator
+    - review warnings are shown to the creator in-app during final review
+    - successful commit produces an in-app confirmation to the creator
+    - no additional notifications are required for later workflow stages
+  - if multiple people are entered into the same destination room:
+    - allow save with warning
+    - allow explicit primary-teacher selection
+    - add both users to the shared line group
+    - use ticket-based recovery if downstream assignment issues occur
+    - commit is blocked until a primary teacher is selected
+  - users with no room assigned can remain with no room assigned
+  - when bulk-copying current room values, rows with no current room must still support an explicit null room outcome rather than inheriting a placeholder
+  - setting `new room = null` for someone who currently has a room is allowed but must warn before commit
+  - any validation or provisioning errors discovered from the submitted bulk move must be added to the related IT ticket
+- New-person draft-row validation rules:
+  - required fields are:
+    - first name
+    - last name
+    - valid district email address
+    - new room
+    - effective date
+  - site is inferred from the secretary/site context
+  - old room or prior location may be unknown
+  - rows with invalid or incomplete required fields must be rejected
+  - pasted email is the lookup mechanism for `mid_year_targeted_move`
+  - valid email domains are:
+    - `@wusd.org`
+    - `@staff.wusd.org`
+    - `@it.wusd.org`
+  - invalid email addresses are rejected without suggested corrections
+  - if the pasted email belongs to a person currently assigned to a different site, allow the inter-site move and load their current state automatically
+  - current-state fields shown before commit for targeted/inter-site moves include:
+    - current site
+    - current room
+    - current extension
+    - current shared line groups
+    - current phone assignment
+  - if the referenced user cannot yet be found in system records, reject the row with a user-facing message equivalent to:
+    - `User could not be found, please try again later or start a new form when they are onboarded.`
+- Recovery-ticket minimum table columns include:
+  - user
+  - old room
+  - new room
+  - phone
+  - extension
+  - shared line group
+  - site
+  - error
+  - effective date
+- Display-name updates and room/location overrides affect deterministic downstream state and must be written once in the application, then synchronized to the appropriate downstream systems rather than maintained separately in each provider
+- If a destination-phone conflict is detected but the final review still has another valid resolution path, do not create an IT recovery ticket.
+- Create an IT recovery ticket only when final review determines there is no valid automated resolution path.
+
+## Ticketing and Cross-Team Workflows
+- IncidentIQ tickets are the standard mechanism for interacting with IT and Facilities when automation cannot complete work directly or when human action is still required.
+- Ticketing rules:
+  - offer or automatically create tickets when an automation fails or is not possible
+  - descriptions must be verbose enough that the assignee can complete the task without reopening the parent workflow for context
+  - prefer IncidentIQ subtickets or subtasks whenever the SDK and provider flow support them so related work stays attached to the originating onboarding, transfer, or offboarding flow
+  - TODO: this project is not complete until the IncidentIQ SDK has a reliable golden-path or silver-path implementation for subticket and subtask creation
+- Ticket actor rules:
+  - create tickets on behalf of the affected user, not the service account and not the operator who triggered the workflow
+  - do not create tickets on behalf of a user until that user exists in Incident IQ
+  - the safe ticket-creation point is after account propagation reaches Incident IQ from the AD → Entra → Google → Incident IQ chain
+  - for externally configured `Aeries` and `Verkada` follow-up work, the dashboard should poll for the user's `IncidentIQ` presence by email at most once per hour and link only the earliest created matching ticket for each follow-up type into workflow status once found
+  - match those tickets by requestor email plus ticket category using `Aeries (Asset Tag: AERIES) → User Rights → Add User` and `Security Systems → Alarm Codes → Add Alarm Code`, continue to prefer the earliest match even if a later matching ticket remains open, show no linked ticket if that earliest match later disappears or becomes inaccessible, and present linked results as full raw ticket number link plus current status
+- Owner-surface placement rules:
+  - do not create or preserve a standalone `/reports/ticketing-human-work` route for generic human-work queues in the current foundation slice
+  - Onboarding owns Aeries and Verkada/alarm-code linked-ticket status in its selected person drawer
+  - Room Moves owns manual fallback ticket status in its review drawer with manual owner, reason, resolution steps, linked external systems, full raw ticket number link, current ticket status, and technical-verification outcome
+  - Room Moves manual fallback rows auto-resolve only when the linked IncidentIQ ticket is closed and the room/phone technical outcome is verified; ticket closure alone must not clear the row
+- Verkada integration rules:
+  - user accounts in Verkada are expected to arrive through SCIM rather than bespoke provisioning in this application
+  - Facilities may still need a ticket to create campus alarm codes for a new employee
+  - any Verkada-related ticket automation is an external `IncidentIQ` configuration TODO rather than an app-owned workflow step in this phase
+
+## Student Operations
+- Students are in scope only for:
+  - invalid-name exception handling
+  - Frequent Fliers device-accountability reporting
+- Student onboarding and broader student lifecycle automation are explicitly out of scope in this pass and must not be implemented.
+- There must be a dedicated operational view for site secretaries showing when student accounts were not created because of invalid or incomplete Aeries data.
+- The legacy student workflow in `docs/reference-inputs/vendor-code/aeries_ad_sync/Students/` currently relies on email notifications for invalid names, account creation, reactivation, moves, and deactivation; the new application should replace that unfriendly reporting pattern with an authenticated dashboard experience.
+- Highest-priority student exception class:
+  - invalid student names containing characters outside the configured person-name allowlist
+  - these errors break CalPADS reporting and email normalization
+- V1 student-exception scope:
+  - invalid names only
+  - TODO: revisit whether additional student-data defects such as duplicate IDs or other intake failures should join the queue in a later iteration
+- Invalid-name policy must be configurable because CalPADS allowed-character rules may change over time.
+- The configurable invalid-name allowlist and transliteration table are IT-managed settings.
+- Student exception UX requirements:
+  - use separate Aeries `FirstName` and `LastName` fields as the validation inputs
+  - do not parse or validate a combined comma-delimited full-name string
+  - missing commas are not a valid student-name failure mode
+  - show the student in human-readable form as `FirstName LastName`
+  - sort invalid-name rows ascending by `Student ID`
+  - show separate columns for `Student ID`, `FirstName`, and `LastName`
+  - suggest corrected first-name and last-name values independently using a simple configurable allowlist plus transliteration table
+  - provide field-level copy affordances so a secretary can copy the normalized first-name or last-name correction directly to the clipboard for pasting into Aeries
+  - example normalization patterns include:
+    - `José` → `Jose`
+    - `Nuño` → `Nuno`
+    - `O'Neil` → `ONeil`
+    - `Smith-Jones` → `SmithJones`
+    - leading or trailing spaces in either `FirstName` or `LastName` → trimmed field value
+  - spaces remain allowed in suggested corrected names
+  - digits in student first and last names are treated as invalid in v1
+  - DEV mock data should cover the legacy `Student_Aeries_AD_Sync.ps1` invalid-name gate: diacritics, ASCII apostrophes, smart punctuation, hyphens, digits, other non-letter symbols, leading first-name spaces, trailing first-name spaces, leading last-name spaces, and trailing last-name spaces
+  - corrected-name suggestions are limited to letters and spaces only
+  - numeric suffixes are reserved for generated email-address uniqueness, not human-readable corrected names
+  - provide a link to Aeries so the issue can be corrected at the source
+  - Aeries links are generic entry points rather than deeplinks
+  - current v1 link target is the staff/admin entry point:
+    - `https://windsorusd.aeries.net/admin/Default.aspx`
+  - TODO: revisit whether teacher-facing Aeries links should be exposed in a later iteration
+- Student exception queues should remain informational for secretaries and drive correction in Aeries rather than local overrides in this app.
+- If a student's source name is corrected in Aeries before the student account exists in Active Directory and downstream systems, the correction must not create a downstream rename job. The later initial student-provisioning flow must use the corrected Aeries name directly.
+- Only active unresolved student failures should be visible to site secretaries.
+- IT needs a separate audit view of past student-failure resolutions.
+- Students must not be allowed to log into this dashboard.
+- Student invalid-name handling must live on its own dedicated screen.
+- Student invalid-name handling must not share a single screen with Frequent Fliers.
+- Frequent Fliers requirements:
+  - incorporate the logic from `docs/reference-inputs/vendor-code/incidentiq/app/frequent_fliers.py` into the dashboard as an application page rather than a separate emailed Google Sheet report
+  - primary audience is site admins and Device Wranglers
+  - librarians are one class of Device Wrangler users
+  - the page should behave as a live dashboard queue rather than a monthly snapshot
+  - the initial threshold must be IT-configurable, defaulting to:
+    - `2` qualifying assignments
+    - `90` day lookback
+  - each result row or detail view must tie together:
+    - student identity
+    - device identity
+    - all related student-device Incident IQ ticket context
+  - the page exists to help end users identify students who may be repeatedly damaging district equipment
+  - site-scoped views should exist for non-IT users
+  - IT should retain broader visibility for audit and support
+  - the current legacy code's `> threshold` behavior and `ModifiedDate` filter are implementation artifacts, not product requirements
+  - the product requirement is `>= 2` qualifying assignments within the configured lookback window
+  - the comparison operator is fixed at `>=`; the runtime control changes the threshold value, not the operator
+  - the first DEV runtime pass exposes a threshold dropdown from `1` through `10`, defaulting to `2`, plus a selector for whether the threshold applies to device assignments or linked IncidentIQ tickets
+  - the first DEV runtime pass exposes a rolling lookback selector with `30 days`, `60 days`, `90 days`, `6 months`, and `1 year`, defaulting to `90 days`
+  - changing the threshold/type/lookback dropdowns immediately refreshes the table, so the filter bar must not render a separate `Apply` action
+  - row-specific student, device, and ticket context belongs in the shared right-hand drawer; fixed page-local detail panels are layout artifacts and should be hidden in live runtime pages
+  - device history links should present serial number first, then device type, and route to deterministic DEV IncidentIQ asset URLs
+  - recent ticket rows should route to deterministic DEV IncidentIQ ticket URLs
+  - trend cells should render actual color-coded graph marks, not static placeholder glyphs
+  - the explanatory helper copy belongs in the shared help drawer so the help button stays the single end-user documentation entrypoint
+  - the 90-day default exists because librarians requested a longer view to identify abuse patterns that 45 days did not surface reliably
+  - Frequent Fliers must live on its own dedicated screen
+  - Frequent Fliers must not share a single screen with student invalid-name review
+
+## Student Data Cleanup Runtime Notes
+- The live `/student-data-cleanup` page uses runtime table primitives over the shared `.pen` shell for page-local search, issue-type filtering, grade filtering, and three-way sortable column headers.
+- Static explanatory helper blocks from the artboard are hidden in the live page; the same end-user guidance belongs in the shared help drawer so the help icon remains the single documentation entry point.
+- The table height should be driven by the visible row count, including empty filtered states, rather than fixed artboard whitespace.
+- The page-level sync action is a runtime-owned Vegas Gold button. It is a DEV mock action in this slice and does not write student records.
+- Row selection opens the shared right-hand drawer with current Aeries values, visible markers for leading or trailing whitespace, suggested values only when the displayed suggestion differs from the displayed current value, and the base `Open Aeries` link. The drawer remains informational; corrections must happen upstream in Aeries.
+
+## Reports Runtime Notes
+- The live `/reports` page uses runtime table primitives over the shared `.pen` shell for page-local report search, three-way sortable column headers, and selected-row drawer details.
+- Fixed right-side report detail cards from the source artboard are hidden in the live runtime page. Row details belong in the shared right-hand drawer so Reports follows the same row-open, row-update, and close behavior as other implemented pages.
+- Report rows open a drawer with report-specific scope, source systems, included data, open-item count, last run, refresh frequency, status, and a concise explanation. The drawer `Open Report` action routes to the owning implemented page or report route.
+- Provider refresh rows open the same drawer primitive with source, last refresh, health status, and refresh details. Refresh rows are informational and do not provide navigation actions in this DEV slice.
+
+## Non-Deterministic Overrides
+- Certain fields are explicitly non-deterministic and may be updated by authorized users even when they are not authoritative in upstream systems.
+- Current examples include:
+  - room assignment override by a site secretary
+  - preferred name
+- Legal name and preferred/display name are separate data concepts and must be modeled separately.
+- Legal-name update rules:
+  - legal name is immutable except for HR and IT initiated changes
+  - legal-name changes such as marriage, divorce, or gender transition require a dedicated rename workflow
+  - the dedicated rename workflow applies to both staff and students, but only after the person's account already exists in Active Directory and the downstream services managed by this application
+  - for regular employees, the legal-name source of truth is Escape
+  - for manual contractors, volunteers, and other Non-Escape records, the legal-name source of truth is the local HR-managed record
+  - for students, the legal-name source of truth is Aeries student data
+  - if the source name is corrected before the initial account is provisioned, do not create a rename workflow; the later initial provisioning run must use the corrected source data directly
+  - after source sync detects a legal-name change on an already-provisioned identity, create a dedicated downstream account-rename job rather than mutating the account inline during source ingestion
+  - HR initiates or approves staff legal-name rename work; student legal-name rename is source-driven from Aeries once the student account already exists
+  - IT must have visibility into the workflow because manual intervention may be required when automation fails
+  - the workflow must rename the AD object, the AD username, and the primary district email address to match the district's current username scheme for the new legal name
+  - the workflow must detect and prevent collisions with existing unrelated accounts before committing the rename
+  - collision fallback order for new primary email should be:
+    - `[f][lastname]@wusd.org`
+    - `[firstname].[lastname]@wusd.org`
+    - `[f].[lastname]@wusd.org`
+    - `[f][lastname][nn]@wusd.org` where `[nn]` is a zero-padded incremental number
+    - if all prior candidates collide, continue incrementing `[nn]` until a unique address is found
+  - collision checks must evaluate both active district usernames and preserved receive-only Google aliases so the rename job does not create ambiguous address ownership
+  - the old email/name should be preserved as an alias after successful rename when technically possible
+  - old aliases should remain indefinitely by default
+  - alias preservation requirement is limited to Gmail
+  - old aliases are receive-only aliases, not send-as identities
+  - after successful rename, the system must send an email notification to the affected person confirming that the rename completed
+- Preferred-name update rules:
+  - preferred/display name may be updated directly by employee and contractor end users
+  - employee and contractor preferred/display updates do not require HR or IT review before downstream application
+  - students must not be able to submit preferred/display updates through the dashboard
+  - if a student somehow reaches an authenticated dashboard state, the preferred-name controls must stay hidden or disabled and any attempted write must be rejected server-side
+  - preferred/display updates do not imply legal-name changes
+- Room-move `removal` is not deprovisioning:
+  - it removes room-linked assignments only
+  - the rest of the account remains intact
+- Offboarding remains a separate lifecycle:
+  - remove the person from all rooms
+  - remove phone assignments
+  - remove security groups
+  - remove Zoom licenses
+- Display name is a cross-provider managed field:
+  - edit once in this application
+  - canonical editable source is AD first
+  - synchronize to Google, Entra, and Active Directory display-name fields
+  - synchronize preferred/display name to Zoom user naming through both `/users/{userId}` and `/phone/users/{userId}` because the phone-facing name must not rely on the regular Zoom user update alone
+- AD field mapping requirements:
+  - legal first name → `GivenName`
+  - legal last name → `Surname`
+  - legal full name → `Name` as `FirstName LastName`
+  - preferred/display name → `DisplayName` as `PreferredFirstName PreferredLastName`
+  - seeded staff category → `staffCategoryCode`
+  - seeded employee type → `employeeTypeCode`
+- Aeries is currently read-only from this application.
+- For writable identity storage of overrideable fields, AD and Google location/profile fields may be viable intermediate persistence targets and need explicit design.
+- Authorized override changes should propagate to downstream systems such as Incident IQ, Zoom, and identity providers where appropriate.
+
+## Access and Hosting
+- Authentication should use Google SAML with Google Workspace.
+- Authorization should derive from Google user attributes and/or group membership.
+- Google is the authority for SAML attributes that drive Zoom-specific license and group outcomes when those fields are not available in AD or Entra.
+- The entire dashboard is staff-only and must explicitly deny student access.
+- An additional application-level email gate must apply before normal authorization:
+  - allow `@wusd.org`
+  - allow `@it.wusd.org`
+  - allow `@staff.wusd.org`
+  - explicitly deny `@stu.wusd.org`
+  - local breakglass accounts are exempt from the domain rule
+- Users hitting the same URL should see access-denied responses when they do not have permission rather than soft-reduced content.
+- The permissions model and associated Google groups are part of the project deliverable and should remain the canonical authorization model once rolled out.
+- The editable in-app permissions model is defined in `docs/product/permissions-model.md`; that document distinguishes proposed IT Admin edits, stored manual grants/revocations, and effective access used by future server-side authorization.
+- Site Admin, Site Secretary, and Device Wrangler access is exactly one site. Google group membership, SAML attributes, manual mappings, and future in-app grants must not create multi-site operational access for those roles.
+- IT Admin or Human Resources roles cover legitimate district-wide operational needs; any attempted multi-site operational persona mapping should fail closed and be routed to IT Admin cleanup.
+- Until Google-group authorization is fully built, site scope is maintained through manual mapping managed by IT Admin.
+- Initial production-auth implementation boundary:
+  - `internal/auth` owns the checked-in Google identity evaluation contract for verified SAML identities.
+  - Startup config parses `AUTH_ALLOWED_EMAIL_DOMAINS`, `AUTH_DENIED_EMAIL_DOMAINS`, `GOOGLE_SAML_*`, `GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON`, `GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON`, and `GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON`.
+  - The evaluator applies domain checks before any role or site-scope mapping, explicitly denies `@stu.wusd.org`, authorizes only identities with at least one mapped role, and recalculates site scope from current group/attribute inputs each request.
+  - Group and attribute mappings are case-insensitive for matching. Role ids and site ids should use the same stable application ids documented in the permissions matrix and route behavior.
+  - DEV persona switching remains isolated to development endpoints and must not become a production authorization source.
+  - This boundary does not yet validate SAML assertions, create a production session cookie, persist manual site-scope mappings in the database, or implement the local breakglass runtime. Those are follow-up implementation steps after Google Workspace SAML metadata, group names, attribute names, and manual site-scope administration decisions are approved.
+- Site staff should be able to audit current access granted to their site only.
+- Site-access audit fields are limited to:
+  - user
+  - role/scope
+  - grant source
+  - current status
+- Changes to manual site-scope mapping are audited for IT visibility only.
+- The system must support a local breakglass admin user so administration remains possible when third-party authentication is unavailable.
+- Breakglass access rules:
+  - local authentication
+  - named local emergency accounts per IT admin rather than one shared account
+  - incoming source address restricted to `10.23.x.x` or `10.19.100.x` by default
+  - network restriction overrides must be explicitly configurable so entries can be added or removed without code changes
+- Current local breakglass implementation:
+  - `POST /api/v1/breakglass/login` is enabled only when `APP_ENV` is `development` or `staging`; production must continue to use the documented SAML/Google authorization model. In staging, normal DEV persona login remains disabled, and only a valid breakglass cookie can consume the local DEV session/page routes needed for emergency IT Admin access.
+  - The route is separate from `/api/v1/dev/login`, so DEV persona switching cannot act as a breakglass flow.
+  - `BREAKGLASS_ACCOUNTS` lists named local emergency account ids. Each account requires a per-account SHA-256 token hash environment variable named `BREAKGLASS_TOKEN_SHA256_<SANITIZED_ACCOUNT_ID>`. Account ids that would collide after env-name sanitization are rejected so separate named accounts cannot share one credential by accident. Raw breakglass tokens must not be committed, logged, copied into tickets, or stored in docs.
+  - Every configured breakglass account maps to the local IT Admin persona for this non-production slice. Editable role/permission mapping remains out of scope for this issue and belongs with the permissions-model work.
+  - `BREAKGLASS_ALLOWED_CIDRS` can override the default `10.23.0.0/16,10.19.100.0/24` source restriction. Direct requests use `RemoteAddr` for CIDR checks. `X-Forwarded-For` is trusted only when the immediate peer address matches `BREAKGLASS_TRUSTED_PROXY_CIDRS`, so staging reverse proxies must be explicitly configured before forwarded client addresses affect access decisions.
+  - Breakglass session cookies are marked `Secure` for staging and for HTTPS requests.
+  - When `DATABASE_URL` is configured, breakglass audit records are written to `audit_log` with actor type `breakglass_local_account` and sanitized account/source/outcome metadata only. Login and breakglass sign-out fail closed if audit storage cannot initialize or write the required event. Database-free DEV uses an in-memory audit store for focused tests.
+  - Observed audit events cover login attempts, successful access, denied unknown account, denied source address, denied token, and explicit sign-out. Cookie expiration is not actively audited in this cookie-only slice because the server has no durable session table or expiration worker yet; that remains a required design decision before claiming expiration audit evidence.
+- The application is self-hosted, containerized, available only on the private intranet, and backed by persistent data stores suitable for backup.
+- Network ACLs and application ACLs may both be used to prevent unauthorized access.
+- `dev`, `staging`, and `main` should be treated as separate long-lived data sets:
+  - `dev` may be freely broken
+  - `staging` is a long-lived test environment
+  - `main` is production
+- Environment-data strategy:
+  - `dev` uses mocks by default
+  - `staging` should use sandbox integrations where available
+  - if a sandbox is not available, `staging` may use masked data instead
+
+## Compliance and Data Protection
+- The application must treat sensitive educational and personnel data with maximum caution, even at the expense of performance.
+- Design and implementation must account for FERPA, COPPA, and GDPR-sensitive handling requirements.
+- All inbound data must be treated as untrusted and sanitized defensively, including:
+  - CSV imports
+  - SFTP payloads
+  - third-party API responses
+  - SAML claims
+  - operator-entered form data
+- The application should persist only fields that are required for workflow behavior, auditing, or user-visible product needs; unnecessary provider fields should be omitted from the database.
+- Manual-intake sensitive fields such as last 4 of SSN must be visible only to HR and IT roles.
+- Sensitive-field storage, display, audit, and retention behavior must be explicitly documented rather than left implicit.
+- Sensitive fields such as last 4 of SSN must use field-level encryption at rest.
+- Sensitive fields must be masked by default in the UI and in audit logs unless the current viewer is explicitly authorized to see the full value.
+- Staging and production database storage must use encrypted volumes or managed database encryption at rest. Local Compose `pgdata` is acceptable only for disposable development data.
+- Secrets, tokens, private keys, passwords, and provider credential material must not be stored in plaintext application tables, audit logs, operational tickets, generated artifacts, or mock/reference corpora. Persist only encrypted secret references or non-secret fingerprints/labels needed for diagnostics.
+- Any database column that stores raw provider payloads, request/response summaries, audit diffs, or backups must either omit credential-bearing fields before persistence or store sensitive subfields through the field-level encryption mechanism.
+
+## Legacy Script Diagnostics
+- The legacy scripts directory is a required discovery input because it captures real operational behaviors that should either be absorbed into the dashboard, explicitly retired, or preserved as controlled fallbacks.
+- Current diagnostic themes observed from `docs/reference-inputs/vendor-code/scripts/` include:
+  - staff creation with manual location overrides, cloud propagation waits, and explicit safety locks before production writes
+  - Escape-to-Aeries reconciliation and staff mismatch detection
+  - Escape record prioritization via `EscapeRecordPrioritized/PrioritizeEscapeRecords.ps1` and `EscapeRecordPrioritizedV2/PrioritizeEscapeRecordsV2.ps1`, including payroll assignment windows and FTE weighting
+  - title normalization and employee-type inference for Aeries fields
+  - orphan or unmatched AD account cleanup
+  - Google-side attribute bridging for legacy Zoom licensing logic
+- Current observed diagnostic outputs worth turning into dashboard queues or health signals:
+  - `Escape_Aeries_Staff_Sync/Staff_Mismatch.csv` contains 667 mismatch rows
+  - `Escape_Aeries_Staff_Sync/Flagged_AStaff.csv` contains 19 flagged Aeries staff rows
+  - `Account_Cleanup_ADStaff_not_in_Aeries/UnmatchedADUsers.csv` contains 30 unmatched AD users
+  - `AD_Staff_Creation/UsersToBeProcessed.csv` currently lists 1698 queued email addresses
+- Dashboard enhancements suggested by the legacy automation evidence:
+  - an identity reconciliation queue for unmatched or conflicting staff records
+  - a dedicated Google-active / Aeries-inactive audit queue for missed lifecycle actions
+  - a job-title normalization queue for ambiguous or unmapped titles
+  - a propagation-readiness indicator so ticket creation waits until the user is actually safe to reference in Incident IQ
+  - sync-health and failure-history views that expose current manual bottlenecks before they become silent data drift
+
+- What is the exact normalization table from `Sheet83` job title to baseline permissions, hardware bundle, and any default provider entitlements for v1?
+
+## Repo Layout
+- `cmd/provisioner`
+- `internal/core`
+- `internal/db`
+- `internal/provider`
+- `internal/orchestrator`
+- `internal/web`
+- `pkg/zoom`
+- root `README.md`, `.env.example`, `compose.yaml`, `.devcontainer/devcontainer.json`, `Makefile`
+
+## Core Tables
+- `people`, `employees`, `contractors`, `external_volunteers`
+- `jobs`, `source_records`, `known_identifiers`
+- `manual_overrides`, `audit_log`, `record_backups`
+- `external_request_log`, `resource_registry`, `extension_inventory`
+- `event_outbox`, `sheet_publish_log`, `system_controls`
+- `workflow_runs`, `import_batches`, `approval_requests`, `provider_circuit_breakers`
+
+## Identity and Precedence
+- `people.uuid` uses UUIDv7.
+- `known_identifiers` is keyed by `(source_system, source_id)` and maps to `people_uuid`.
+- Intake must check `known_identifiers` before creating a person.
+- Ambiguous matches move to `awaiting_review` with reason codes such as:
+  - `MATCH_NAME_NO_DOB`
+  - `MATCH_NAME_EMAIL_CONFLICT`
+  - `MATCH_SOURCE_ID_REUSE`
+- Field precedence:
+  - HR/CSV: legal identity, employment status, dates, manager, full-time employee number
+  - Aeries: site, school, room, roster context
+  - Manual: contractor/external-only records and approved override fields
+
+## FSMs
+- Person states:
+  - `intake_pending`, `normalized`, `reconciled`, `provision_pending_context`, `awaiting_review`
+  - `preprovision_ready`, `preprovisioning`, `provision_ready`, `provisioning`, `active`
+  - `transfer_pending`, `leave_pending`, `deprovisioning`, `terminated`, `failed`, `on_hold`
+- Job states:
+  - `queued`, `running`, `recovering`, `blocked`, `waiting_manual`, `succeeded`, `failed`, `skipped`, `canceled`
+- Room resource states:
+  - `vacant_cap_active`, `transitioning_to_human`, `human_active`, `cleanup_pending`
+
+## Transactions and Ordering
+- All FSM transitions, extension mutations, and room-scoped mutations run in `SERIALIZABLE` transactions.
+- `jobs` and `event_outbox` use sequence-backed `global_tick`; strict ordering must use `global_tick`, never UUID sort order.
+- `internal/db` must expose `WithRetry(ctx, pool, fn)` with jittered exponential backoff for `40001` and deadlock-class failures, up to 5 attempts.
+
+## Allocation and Resource Safety
+- `extension_inventory` is the only extension allocator.
+- Allocation is two-phase:
+  - `available → reserved_for_job_id → assigned_to_person_id`
+  - canceled or expired reservations are reclaimed by a cleanup worker
+- Same-site transfer keeps the human extension.
+- Site-to-site transfer allocates a new extension from `extension_inventory`.
+- Room-scoped mutations use Postgres advisory transaction locks keyed by room/site.
+- Zoom phone extension allocation must follow the district six-digit schema:
+  - `[site_code] + [line_code] + [increment_pool]`
+  - `site_code`: 1 digit
+  - `line_code`: 2 digits indicating extension purpose
+  - `increment_pool`: 3 digits, sequential `001-999`
+- Current site-code map:
+  - `1`: `DO` District Office
+  - `2`: `BES` Brooks Elementary School
+  - `3`: `CLA` Cali Calmecac Language Academy
+  - `4`: `WMS` Windsor Middle School
+  - `5`: `WHS` Windsor High School
+  - `6`: `MWE` Mattie Washburn Elementary School
+  - `7`: `BPL` Big Picture Learning
+- Current line-code meanings confirmed from the phone design inputs:
+  - `10`: personal human line
+  - `30`: shared line group
+  - `31`: physical desk phone
+  - `50`: department shared line group
+- District operational ranges currently relied on by workflow rules:
+  - `[sitecode]+30000` range: classroom SLGs
+  - `[sitecode]+50000` range: department SLGs using line code `50`
+
+## Aeries Lag Handling
+- People missing room context move to `provision_pending_context`.
+- A dedicated context watcher rescans only `provision_pending_context` people against the most recent imported Aeries snapshot every 5 minutes with jitter and on every successful Aeries sync.
+- The context watcher must hold an advisory lock so only one instance runs the scan cluster-wide.
+- Records unresolved after 72 hours move to `awaiting_review` with `CONTEXT_TIMEOUT`.
+
+## Recovery and Idempotency
+- Every Zoom and Google write uses a deterministic idempotency key and `external_request_log`.
+- Normalized snapshots and change-driving provider facts should be hashed so delta detection, drift checks, and no-op reconciliation are efficient.
+- Recovering jobs must use read-before-write reconciliation:
+  - query the provider first
+  - if the intended effect already exists and matches the job intent, mark the step succeeded
+  - only perform a write if reconciliation proves it is still needed
+- Starting with Phase 2, live writeback also requires a what-if validation pass before provider mutation and a pilot allowlist check immediately before the write call. The only approved live-write targets are `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org` until a later project-owner-approved PR explicitly changes the merged allowlist. Provider workers must treat any non-allowlisted, ambiguous, missing, or unmerged-approval target as a hard pre-write denial, not as a warning or manual override.
+
+## Zoom Rules
+- V1 covers create user, set site/extension, assign calling plan, manage room SLG membership, and maintain one room-scoped CAP while a room is vacant.
+- Zoom phone transfer rules clarified by the design inputs:
+  - same-site transfer:
+    - retain existing DID
+    - retain existing personal extension
+    - remove the user from the old desk phone before reassignment
+    - if the move is classroom-to-classroom, update classroom SLGs
+    - if the move is department-based, update department SLGs only as needed by the move intent
+  - site-to-site transfer:
+    - retain existing DID
+    - remove the user from the old desk phone
+    - remove all existing shared line groups
+    - assign a new personal extension in the destination site's `10` line-code range
+    - then add the destination classroom or department SLGs and assign the new desk phone
+- Shared line group handling rules:
+  - same-site moves modify only classroom SLGs in the `[sitecode]+30000` range unless the workflow is explicitly department-based
+  - same-site moves preserve `[sitecode]+50000` department SLGs unchanged during classroom-only moves
+  - site-to-site moves clear all SLGs before destination-state application
+- Department shared line group suggestion rules:
+  - the first pass must not auto-assign department SLGs
+  - the dashboard may suggest department SLGs for manual IT fulfillment
+  - suggestions are limited to SLGs at the user's resolved site
+  - suggestions must skip any SLG marked `Inactive`
+  - suggestions should use current SLG membership patterns, job title, and employee classification as ranking signals
+  - department SLG fulfillment stays in the manual ticket path until a later iteration explicitly promotes it to automatic provisioning
+- Common Area Phone rationale:
+  - when a staff member leaves a location without a replacement and the location must still receive calls, create a CAP
+  - CAPs exist because Zoom requires a room SLG to have either a user or a common area phone member to receive calls
+  - the CAP acts as a licensed proxy so the physical desk phone continues ringing until a replacement is assigned
+  - CAPs consume a Zoom Phone license
+  - CAP creation rules:
+    - create a new CAP object rather than mutating the existing desk phone object
+    - CAP name is identical to the phone name except it ends in `CAP` instead of `PHnn`
+    - example: `MOT-B104-PH01` becomes `MOT-B104-CAP`
+    - CAP extension uses the site code + `31` + the shared line group's three-digit increment so it matches the SLG location
+    - example: room SLG `130007` yields CAP extension `131007`
+    - CAP site assignment matches the phone and SLG site abbreviation
+    - once created, the CAP must be assigned a `PRO` calling plan
+- Before any SLG membership write, check projected membership against `zoom_slg_max_members`.
+- If exceeded, set the job to `blocked` with `PROVIDER_LIMIT_EXCEEDED:ZOOM_SLG_FULL` and expose that clearly in the Tech UI.
+- CAP-to-human cutover is safe-order only:
+  - keep CAP active until human identity and room membership are confirmed
+  - then deprovision CAP as the final step
+  - if human cutover fails, a janitor loop restores or preserves the CAP and returns the room to `vacant_cap_active`
+- Poly VVX250/450 template support in v1 must account for the district's template families:
+  - `VVX250/450 - Default - No InformaCast Paging`
+  - `VVX250/450 - InformaCast Paging - Receive All / Send G1/G2`
+  - `VVX250/450 - InformaCast Paging - Receive All / Send G2`
+  - `VVX250/450 - InformaCast Paging - Receive Only`
+- Paging configuration details from the current design inputs:
+  - `ptt.address = 224.0.1.116`
+  - default page group is channel `2` (`Announcements`)
+  - group labels:
+    - `1`: `Emergency`
+    - `2`: `Announcements`
+    - `3`: `Bells`
+- Phone-template handling rule:
+  - never automatically assign, remove, or change phone templates during provisioning, transfer, CAP conversion, or deprovisioning flows
+  - whatever template is currently on the phone persists until IT changes it manually
+- The technical implementation must preserve the district's established phone naming and extension conventions from the Zoom phone design document and workflows.
+
+## Phone Directory Dashboard
+- The current Google Sheet-derived phone directory and exported HTML bundle are design references for required user-facing functionality, not the long-term runtime architecture.
+- The phone directory dashboard must:
+- be available to all logged-in dashboard user types, with scope and field visibility still constrained by role
+- default site-level users to their current or assigned site as a result-ordering focus, while keeping all district results eligible
+- keep phone-directory site focus separate from normal shared-header site scoping so a locked site header never prevents cross-district directory lookup
+- preserve the legacy directory mental models with a user-switchable view mode:
+  - by person
+  - by room
+  - by department
+- promote `By Person`, `By Room`, and `By Department` to live runtime-backed routes rather than leaving room and department as static placeholders
+- use the `By Person` / `By Room` / `By Department` control as an alternating single-view mode rather than a split layout
+- implement the in-page `By Person` / `By Room` / `By Department` strip as a real clickable mode toggle between:
+  - `/phone-directory/by-person`
+  - `/phone-directory/by-room`
+  - `/phone-directory/by-department`
+- preserve only the shared query parameter `q` when switching directory modes and reset all mode-specific filters, including directory focus, on every mode change
+- route shared header search to the global `/search` page, while the reusable table search/sort primitive searches the currently active directory mode
+- use the DEV-only directory focus dropdown only for result ordering:
+  - `IT Admin` and `Human Resources` default to `District-wide`
+  - single-site operational personas default to their one assigned site
+  - Faculty and Staff default to the onboarding/current-assignment-derived site even when additional associated sites exist
+  - `site_id=district-wide` disables site boosting
+  - a known site id ranks that site first and then returns the rest of the district in stable site/name order
+  - an invalid site id falls back to the persona default directory focus
+- never show person and room directories side by side in the same main view
+- treat the phone-directory detail surface as a closed-by-default overlay drawer in all three modes so no permanent right-side blank rail remains in the base page layout
+- open the directory drawer only after a row is selected, give it a visible `X` close control, and clear the current selection whenever the user switches directory modes
+- `By Person` should show only:
+  - individual people
+  - common area phones
+- `By Room` should show only:
+  - common area phones
+  - classroom shared line groups in the `[sitecode]+30000` range
+- `By Department` should show only:
+  - department shared line groups in the `[sitecode]+50000` range
+  - Zoom call queues retrieved from `GET /phones/call_queues`
+- `By Person` must exclude shared line groups and call queues.
+- `By Room` must exclude people and department shared line groups.
+- `By Department` must exclude people, common area phones, classroom shared line groups, and auto attendants.
+- expose an authorized one-person corrective room-move action from person-detail and room-detail contexts when the current room or phone assignment is wrong
+- Current legacy phone-directory data points that should inform the first dashboard pass include:
+  - by person:
+    - last name
+    - first name
+    - email
+    - personal extension
+    - phone number
+    - room extension(s)
+  - by room:
+    - room number
+    - room extension
+    - phone number
+    - assigned personal extension(s)
+  - by department:
+    - department or service line name
+    - extension
+    - classification label
+    - provider source type
+    - destination or owner context where available
+- The application must use direct provider synchronization or API reads for phone-directory data rather than rebuilding the current CSV export/import flow.
+- Department-view inclusion rules:
+  - include shared-service or department extensions in the `[sitecode]+50000` range
+  - include Zoom call queues retrieved from `GET /phones/call_queues`
+  - keep call queues visible in the `By Department` view even when their extension pattern differs from the `[sitecode]+50000` heuristic
+  - in the `Assigned To / Destination` column:
+    - shared line groups and call queues must show all current members
+    - auto attendants must not show a person assignment
+    - auto attendants may show routing or service context instead when available
+- Global dashboard table-rendering rules:
+  - the same multi-line row behavior must be used across all dashboard tables rather than implemented only for phone-directory views
+  - any row containing multi-line content must use a shared top baseline across all visible cells in that row
+  - the first visible line of content in each cell must align horizontally across the row
+  - cells must not vertically center themselves relative to taller neighboring cells
+  - row height should expand downward to fit the tallest cell while the remaining cells stay top-aligned
+  - badges or state pills in sparse columns such as `State` must align to the top of the row when adjacent cells contain multiple lines
+- Phone Directory result tables:
+  - must show phone number before extension in `By Person`, `By Room`, and `By Department`
+  - must not keep a `Details` column in `By Room` or `By Department` when the title, site, type, phone, and extension columns already carry the same information
+  - must render phone and extension values as `tel:` links; internal extensions use the numeric-only `tel:<digits>` href, and formatted phone numbers strip punctuation for the href while preserving their displayed value
+- Global dashboard select/disclosure rendering rules:
+  - dropdown and expandable-field indicators must use a normalized icon rather than a text glyph such as `V` or `v`
+  - every field or control with a dropdown/disclosure indicator must reserve fixed right-side padding so the indicator never overlaps labels, values, or scope text
+  - dropdown indicators should align to a shared vertical centerline within their containing control
+  - sidebar expansion indicators and active-status dots must align to the same row-center vertical axis so the navigation rows render consistently
+  - when persona-based route filtering removes sidebar rows, the remaining visible rows must compact upward in canonical order with no blank gaps
+  - the active sidebar row label and icon must render above the selected highlight so the current destination remains readable while selected
+  - Lucide is the standardized SVG icon family for v1 dashboard UI, wireframes, and approved mock assets
+  - the maintained icon source for generated SVG, PEN, and PNG mock assets must come from the vendored Lucide snapshot in `docs/vendor/lucide-static/`
+  - generated dashboard mock assets must maintain explicit gutters between adjacent cards, tables, rails, and notes so border lines do not appear to overlap or merge
+  - table-card headers and footers must detect title, badge, and link collisions and stack or truncate text rather than drawing overlapping labels
+- Extension-display rules for all phone-directory views:
+  - render extension values as numeric-only strings
+  - do not show letters inside extension values
+  - trim or normalize provider-export whitespace and formatting artifacts so displayed extensions match the canonical numeric format
+- Phone-directory detail surfaces, including the detail rail and any equivalent result-detail surfaces, must expose `Employee ID` only for:
+  - `IT Admin`
+  - `Site Admin`
+  - `Human Resources`
+- Phone-directory detail surfaces, including the detail rail and any equivalent result-detail surfaces, must hide `Employee ID` for:
+  - `Site Secretary`
+  - `Device Wrangler`
+  - `Faculty and Staff`
+- The application should persist only the phone-directory fields required for:
+  - directory rendering
+  - reconciliation
+  - assignment workflows
+  - auditing
+- Phone-directory assignment state labels must be explicit and human-readable.
+- Initial allowed assignment state labels are:
+  - `Assigned`
+  - `Unassigned`
+  - `Common Area`
+  - `Conflict`
+  - `Pending Change`
+- Department-view classification labels must group the most common shared-service line types.
+- Initial classification labels are:
+  - `Department`
+  - `Main Line`
+  - `Call Queue`
+  - `Main Office`
+  - `Room`
+  - `Quad`
+- `By Person` should use the type labels `Person` and `Common Area`.
+- `By Room` should use the type labels `Common Area` and `Classroom Shared Line`.
+- Use the label `Call Queue` when retrieving and displaying call-queue extensions sourced from `GET /phones/call_queues`.
+- Seed the first-pass department classification rules from the vendored reference file `docs/reference-inputs/data/Catchall Spreadsheet - Zoom Classifications.csv`.
+- Undefined abbreviations such as `NV` must not appear in the product UI.
+- Legacy Google Sheet publishing and CSV steps should be treated as migration-era compatibility or reference tooling, not the authoritative runtime data plane for the dashboard.
+- Extension values shown anywhere in the phone directory must be numeric-only strings.
+- Extensions with 4, 5, or 6 digits are valid for the phone directory.
+- When DEV phone-directory seed data is built from the read-only directory HTML reference set, prefer 6-digit extensions as the default visible mock shape while still keeping representative 4- and 5-digit legacy variations where the reference patterns support them.
+
+## Sync Timing and Refresh Controls
+- Dashboard projections must refresh immediately after local automation pushes a successful change.
+- The system must also perform periodic upstream reconciliation to capture manual changes made outside the application.
+- Sync timing must be configurable per data source by IT Admin through a settings dashboard.
+- Sync timing must use bounded presets and minimum intervals rather than fully unrestricted values.
+- For API-backed providers, prefer inbound webhooks or event-subscription/pubsub integrations where supported.
+- Event-driven ingestion does not remove the need for scheduled reconciliation; scheduled deltas and daily full syncs remain required backstops.
+- Existing hourly delta presets are an acceptable coarse baseline, but the preferred target for API-backed projection freshness is now `15m` deltas where provider limits, operational cost, and environment safety allow it.
+- Recommended first-pass sync presets:
+  - `Escape CSV flat file`: every `24h`
+  - `Aeries direct API`: delta reconciliation every `1h`, full reconciliation every `24h` with a `1 week` lookback
+  - `Zoom`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+  - `Google`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+  - `IncidentIQ`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+  - `InformedK12`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
+- Projection-backed list and queue surfaces should show `Last synced` or equivalent freshness context.
+- Explicit UI refresh actions should prefer targeted live provider reads for the selected surface instead of indiscriminately rebuilding every projection.
+- Implemented React pages that expose manual freshness actions should pass page-level metadata and action handlers through the shared shell page sync/refresh primitive. `Refresh` means a targeted reread for the current page surface; `Sync now` means source reconciliation or a DEV mock simulation of that reconciliation. Pages with no intentional manual action may continue to show passive freshness metadata without adding a new callback.
+- The shared page sync/refresh primitive is a shared runtime component (not a page-local CSS fragment). It owns the visual grouping of freshness metadata plus the action button so pages cannot drift in label text, spacing, loading state, or accessible action naming (tracked by GitHub issue #59).
+- When a page exposes a header-level action button (`Refresh` or `Sync now`), the freshness metadata cluster renders immediately to the left of the button with a visible `5px` gap and must not exceed the button height; wrap to at most two lines when needed to avoid collisions.
+- The primitive must support:
+  - last-refreshed (or last-synced) timestamp display with stable label + date/time grouping
+  - optional next-sync text
+  - disabled/loading state for the action button without layout shift
+  - a stable accessible name that matches the visible action label (`Refresh` or `Sync now`)
+- Pages that currently expose page-level freshness or source reconciliation actions should migrate to the shared primitive intentionally as a shared-shell change, not as page-by-page button restyling.
+- AD is managed directly by this application where applicable; downstream AD → Entra propagation is externally managed and should be treated as complete within `1h` maximum for workflow timing.
+- Entra propagation is considered complete for app workflow gating when the user exists in Entra and `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled` match expected state.
+- If Entra convergence has not occurred after `1h`, continue the workflow with warning rather than blocking the entire run.
+- Slow Entra convergence warning visibility:
+  - visible to anyone viewing the affected workflow status
+  - separately surfaced on the IT Admin page as a slow-convergence warning entry
+- Aeries environment/credential expectations:
+  - access is read-only via configured `base URL + certificate`
+  - no sandbox/staging tenant is currently available
+  - non-production should use masked production-backed data
+  - prefer previous-year API reads using `DatabaseYear=YYYY` so test data is structurally valid but stale
+  - determine the current school year from Aeries School Info
+  - if schools disagree, use the earliest start date and latest end date across all schools to define the district school year
+  - staging default should be `current school year - 1`
+  - example: if Aeries School Info says current school year is `2025-2026`, staging default `DatabaseYear=2024`
+
+## Google Sheets Publishing
+- Google Sheets publishing is not the authoritative runtime source for the dashboard.
+- If retained, this subsystem exists only for migration compatibility, legacy reporting continuity, or external consumers that still require sheet-shaped outputs.
+- Existing Google Sheet compatibility processes must remain in place during rollout.
+- TODO: remove legacy Google Sheets processes only after dashboard parity is accepted and signoff is complete. The removal runbook must explicitly identify and retire:
+  - phone-directory workbook tabs:
+    - `Zoom_SLG`
+    - `Zoom_Users`
+    - `Zoom_CallQueues`
+    - `Zoom_CommonArea`
+    - `Zoom_AR`
+    - `All EXTN`
+    - `Next_EXTN`
+    - `Lookup`
+    - `Shortcuts`
+    - every site `by Person` tab
+    - every site `by Room` tab
+  - Frequent Fliers emailed Google Sheet export flow
+  - People Tracker onboarding, offboarding, and Informacast Google Sheet processes once their dashboard replacements are fully accepted
+- Legacy-sheet retirement acceptance gate:
+  - no end-user modification activity for 90+ days
+  - ignore system automation writes when evaluating the 90-day retirement window
+- Target tabs remain `Zoom_SLG`, `Zoom_Users`, `Zoom_CallQueues`, `Zoom_CommonArea`, `Zoom_AR`.
+- Each publish writes to a versioned staging tab such as `Zoom_Users_STAGING_<global_tick>`.
+- Each staging tab ends with a terminal sentinel row containing fixed marker, expected row count, checksum, and publish version.
+- `sheet_publish_log` records staging completion, sentinel validation, and pointer-application state.
+- Visible production tabs are formula-backed views, never directly rewritten.
+- `Sync_Config` cells are fixed:
+  - `B2` active sheet for `Zoom_SLG`
+  - `B3` active sheet for `Zoom_Users`
+  - `B4` active sheet for `Zoom_CallQueues`
+  - `B5` active sheet for `Zoom_CommonArea`
+  - `B6` active sheet for `Zoom_AR`
+- Example visible-tab formula pattern:
+  - `=QUERY(INDIRECT(Sync_Config!B3 & "!A:Z"), "select *", 0)` for `Zoom_Users`
+- Recovering sheet-publish jobs must detect a valid staged sheet plus sentinel and finish the pointer update instead of rewriting data.
+- `Members` and designated extension columns must always be written as text.
+
+## Events, Health, and Controls
+- SSE uses durable outbox plus Postgres `LISTEN/NOTIFY`.
+- Replay backfill is capped to the last 100 events or 10 minutes, whichever is smaller; older clients receive `resync_required`.
+- `system_controls.global_pause` is the global kill switch; the orchestrator must honor it before claiming work and between steps while leaving UI and diagnostics online.
+- Health endpoints:
+  - `/health/live`
+  - `/health/ready`
+  - `/health`
+- `/health/ready` must validate DB connectivity, sequence access, local import-staging path read/write access, configured SFTP reachability in integration mode, and Google service-account token acquisition.
+
+## Provider Protection
+- Circuit breakers use exponential backoff `1s → 2s → 4s`, then pause only the affected queue for 15 minutes before a half-open probe.
+
+## Orchestration Loops and Provider Workflows
+- Orchestration is durable:
+  - `workflow_runs` expand into ordered `jobs`
+  - planner logic is the only component that creates job graphs
+  - workers execute jobs, recovery reconciles expired leases, and janitor loops clean residual state
+- Core orchestration types:
+  - `WorkflowType`: `person_onboard`, `person_update`, `person_same_site_transfer`, `person_site_transfer`, `person_leave`, `person_terminate`, `room_coverage`, `directory_publish`, `context_refresh`
+  - `WorkflowRunState`: `planned`, `running`, `waiting_manual`, `blocked`, `recovering`, `succeeded`, `failed`, `canceled`
+  - `ApprovalState`: `not_required`, `pending`, `approved`, `rejected`, `expired`
+  - `ProviderKind`: `hr_sftp`, `aeries`, `zoom`, `google_sheets`, `internal`
+- Planner rules:
+  - dedupe by `(workflow_type, subject_id, trigger_fingerprint)`
+  - person workflows and room workflows are separate
+  - room vacancy can emit a separate `room_coverage` workflow
+- Required loops:
+  - `hr_import_loop`: every `24h`, cluster-wide advisory lock, fingerprint new Escape flat files, create `import_batches`, update `known_identifiers` and `source_records`
+  - `aeries_sync_loop`: every `1h`, cluster-wide advisory lock, reconcile room/site context from the direct Aeries API
+  - `aeries_full_reconcile_loop`: every `24h`, cluster-wide advisory lock, perform a full Aeries reconciliation using a `1 week` lookback window
+  - `provider_event_ingest_loop`: webhook or event-subscription consumer where supported by `Zoom`, normalizing inbound change events into internal triggers
+  - `provider_delta_sync_loop`: every `15m`, cluster-wide advisory lock, reconcile provider deltas for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12`
+  - `provider_full_reconcile_loop`: every `24h`, cluster-wide advisory lock, perform full provider reconciliation for `Zoom`, `Google`, `IncidentIQ`, and `InformedK12` using a `1 week` lookback window
+  - `context_watcher_loop`: every `5m + jitter`, cluster-wide advisory lock, recheck `provision_pending_context`
+  - `workflow_planner_loop`: NOTIFY-driven with `30s` fallback sweep, no provider calls
+  - `job_worker_loop`: continuous, lease-based job claims, provider/site concurrency enforcement
+  - `recovery_loop`: every `30s`, move expired `running` jobs to `recovering` and reconcile with read-before-write
+  - `approval_loop`: event-driven with `30s` fallback sweep for stale approvals
+  - `janitor_loop`: every `2m`, reclaim extension reservations and restore CAP coverage
+  - directory publishing is debounced into one `directory_publish` workflow with `run_after = now + 60s`
+- Provider workflow scope for v1:
+  - `HR/SFTP`: normalize identity facts only
+  - `Aeries`: sync context facts only
+  - `Zoom`: create/link users, assign site/extension/calling plan, manage room SLGs, maintain room CAP coverage
+  - `API-backed providers`: consume inbound events where supported, but treat event ingestion as advisory acceleration rather than a replacement for reconciliation
+  - `Google Sheets`: optional compatibility exports only, not the authoritative dashboard data plane
+- Scheduler overlap protection:
+  - if a scheduled sync family is still running when its next cadence window arrives, do not start a conflicting second run for that same provider/job family
+  - allow the in-flight run to continue until complete, then carry any deferred work into the next eligible cycle without duplicate writes
+  - track overlap/overrun frequency per scheduled job family
+  - after 5 overlaps within 7 days for the same job family, raise or update an operational IncidentIQ ticket recommending cadence adjustment
+  - create that cadence-adjustment ticket on behalf of the affected service account
+  - do not reset the overlap counter on ticket creation; keep counting and keep updating the open ticket until a material cadence change is made
+  - only a material cadence change counts as schedule resolution for counter reset
+  - if overlaps continue after that material cadence change, keep updating the same open ticket rather than opening a new one
+  - use IncidentIQ ticket routing `Other Tech Requests → Project → Integrations` for those cadence-adjustment tickets
+  - per-job schedule configuration must be visible and editable from the IT Admin UI
+  - batch size and concurrency limits are v2 admin controls and do not need v1 UI exposure
+- Approval-gated destructive actions:
+  - site-transfer cutover that changes active site/extension
+  - CAP removal
+  - removing a human from a room when coverage is affected
+  - Zoom deprovision/license removal
+  - extension release after leave/termination
+- Provider contracts:
+  - `ReadExisting(ctx, ref) → ProviderSnapshot`
+  - `ApplyIntent(ctx, intent) → ApplyResult`
+  - `ClassifyError(err) → transient | blocked | manual | fatal`
+  - Sheets-specific:
+    - `StageWorkbook(ctx, publishSpec) → StageResult`
+    - `ValidateSentinel(ctx, stageRef) → ValidationResult`
+    - `ApplyPointers(ctx, pointerSpec) → ApplyResult`
+
+## Sync Transparency Dashboard
+- Data sync is a first-class subsystem inside the workflow engine, not a sidecar report.
+- Sync-specific types:
+  - `SyncSubjectType`: `staff`, `student`
+  - `SyncPhase`: `ingested`, `photo_processed`, `iiq_matched`, `room_mapped`, `zoom_provisioned`
+  - `SyncOverallStatus`: `pending`, `in_progress`, `manual_action`, `completed`
+  - `SyncIssueCode`: `room_mapping_required`, `licensing_error`, `primary_conflict`, `missing_asset`, `rollover_wait`
+- `WorkflowType` additions:
+  - `staff_sync_dry_run`
+  - `student_sync_dry_run`
+  - `sync_recheck`
+  - `annual_reset_archive`
+- `ProviderKind` additions:
+  - `incident_iq`
+  - `photo`
+- `user_sync_status` is the sync dashboard projection table and must include:
+  - `user_id`, `user_type`, `current_phase`, `overall_status`, `last_job_date`, `errors_warnings`, `is_archived`
+  - `people_uuid nullable`, `school_year`, `display_name`, `site_code`, `queued_at`, `completion_date`, `completion_summary`, `archived_at`
+  - primary key `(user_type, user_id, school_year)`
+- `room_mapping_overrides` stores local room normalization and Incident IQ mapping decisions.
+- Existing system-of-record tables remain authoritative:
+  - `workflow_runs`
+  - `jobs`
+  - `manual_overrides`
+  - `audit_log`
+  - `event_outbox`
+- Sync workflow rules:
+  - Aeries/HR changes create sync workflows first
+  - provisioning workflows consume sync readiness, rather than treating sync as an external precondition
+  - on first Aeries sighting, create `user_sync_status` immediately with `current_phase=ingested`, `overall_status=pending`, and `queued_at=now`
+  - required sync workflows:
+    - `staff_sync_dry_run`
+    - `student_sync_dry_run`
+    - `sync_recheck`
+    - `annual_reset_archive`
+- Staff completion requires:
+  - photo dry-run check complete
+  - room mapped to Incident IQ
+  - Zoom SLG membership dry-run validated
+  - if primary, phone assignment dry-run validated
+- Student completion requires:
+  - photo dry-run check complete
+  - Incident IQ person-record match validated
+- Manual-action issue codes:
+  - `room_mapping_required`
+  - `licensing_error`
+  - `primary_conflict`
+  - `missing_asset`
+- `rollover_wait` is an in-progress warning, not a manual-action block.
+- Dashboard routes:
+  - HTML:
+    - `/sync-dashboard`
+    - `/sync-dashboard/mappings`
+  - JSON:
+    - `/api/v1/sync-status/pending`
+    - `/api/v1/sync-status/in-progress`
+    - `/api/v1/sync-status/completed`
+    - `/api/v1/sync-status/history`
+    - `/api/v1/sync-status/{user_type}/{user_id}/override`
+    - `/api/v1/room-mappings`
+    - `/api/v1/annual-reset`
+- Dashboard UI rules:
+  - tabs: `Pending`, `In Progress / Manual Actions`, `Completed`, `History`
+  - columns: `User`, `Current Step`, `Issue/Action`, `Date`
+  - auto-poll every `15s`
+  - Completed and History support filtering by `site_code` and `user_type`
+- Local-only dashboard actions:
+  - `Open Mapping Tool` persists local room mapping overrides
+  - `Ignore/Override Exception` persists local manual overrides, updates sync issues, and enqueues `sync_recheck`
+- Annual Reset archives completed rows, preserves room-mapping configuration, and clears per-user exception overrides.
+
+## Test Plan
+- Unit tests:
+  - UUIDv7 generation and parsing
+  - `known_identifiers` exact-match linkage
+  - precedence decisions and duplicate reason codes
+  - `WithRetry` behavior on `40001`
+  - two-phase extension allocation and reservation reclaim
+  - CAP room-state transitions
+  - idempotency-key generation
+  - checksum and sentinel builders
+  - workflow graph creation for each `WorkflowType`
+  - approval-required vs auto-run step classification
+  - provider error classification
+  - sync enum validation
+  - mapping from sync evaluation results into `current_phase` and `overall_status`
+  - staff vs student completion rules
+  - annual reset archive and override-retention behavior
+- Contract tests:
+  - JSON API payload shapes
+  - Zoom provider request/response mappings
+  - SLG limit enforcement
+  - Google Sheet row serialization and pointer-cutover contract
+  - README disclaimer presence
+  - dependency allowlist enforcement
+  - workflow and approval API payloads
+  - sync dashboard HTML and JSON payloads
+- Integration tests:
+  - `SERIALIZABLE` contention with retry success
+  - advisory-lock room mutation
+  - context watcher single-run advisory lock
+  - read-before-write recovery after provider-side success
+  - staged-sheet recovery that finishes pointer update without rewriting
+  - outbox plus `LISTEN/NOTIFY`
+  - replay-window overflow returning `resync_required`
+  - global pause behavior
+  - `/health/ready` dependency checks
+  - single-run advisory locks for HR import and Aeries sync
+  - worker lease expiry moving jobs to `recovering`
+  - first Aeries sighting creates `user_sync_status`
+  - room-mapping overrides resolve `room_mapping_required` on reevaluation
+  - Annual Reset archives completed sync rows while preserving history
+- Scenario tests:
+  - new hire
+  - same-site transfer
+  - site-to-site transfer
+  - leave
+  - leave-with-no-replacement
+  - missing Aeries room context
+  - late upstream identifier conflict
+  - crash-after-provider-success recovery
+  - CAP-to-human cutover failure with janitor restoration
+  - blocked `ZOOM_SLG_FULL`
+  - directory publish recovery from staged-but-not-pointed state
+  - staff sync dry run fully completes
+  - student sync dry run fully completes
+  - sync dashboard shows room mapping required, licensing error, primary conflict, missing asset, and rollover wait
+
+## Assumptions and Defaults
+- The visible Google Sheet tabs can be converted into formula-backed views controlled by `Sync_Config`.
+- A staging publish is valid only when the terminal sentinel row matches expected count and checksum.
+- Aeries may lag HR by days, so room-context resolution is independently re-polled.
+- Defaults:
+  - `zoom_slg_max_members = 10`
+  - replay backfill = `100 events / 10 minutes`
+  - context watcher cadence = `5 minutes + jitter`
+  - `SERIALIZABLE` retry attempts = `5`
+  - sync dashboard poll interval = `15s`

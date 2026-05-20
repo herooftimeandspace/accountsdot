@@ -1633,6 +1633,27 @@
       }
     },
     {
+      "type": "ellipse",
+      "id": "e92a",
+      "x": 62,
+      "y": 603,
+      "name": "Admin nested route dot",
+      "width": 5,
+      "height": 5,
+      "fill": "#6E7E85"
+    },
+    {
+      "type": "text",
+      "id": "t92a",
+      "x": 82,
+      "y": 596,
+      "fill": "#01161E",
+      "content": "Feature Flags",
+      "fontFamily": "Arial",
+      "fontSize": 12,
+      "fontWeight": "500"
+    },
+    {
       "type": "path",
       "id": "p92",
       "x": 22,
@@ -2335,7 +2356,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t108",
-      "content": "FirstName (Aeries)",
+      "content": "Current first name",
       "x": 546,
       "y": 432,
       "fontFamily": "Arial",
@@ -2348,7 +2369,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t109",
-      "content": "LastName (Aeries)",
+      "content": "Current last name",
       "x": 724,
       "y": 432,
       "fontFamily": "Arial",
@@ -2438,7 +2459,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t116",
-      "content": "Carlos → Carlos",
+      "content": "Carlos",
       "x": 546,
       "y": 466,
       "fontFamily": "Arial",
@@ -2451,7 +2472,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t118",
-      "content": "Nuno → Nuno",
+      "content": "Nuño → Nuno",
       "x": 724,
       "y": 466,
       "fontFamily": "Arial",
@@ -2541,7 +2562,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t127",
-      "content": "Alex → Alex",
+      "content": "Alex",
       "x": 546,
       "y": 520,
       "fontFamily": "Arial",
@@ -2644,7 +2665,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t138",
-      "content": "Jose → Jose",
+      "content": "Jose",
       "x": 546,
       "y": 574,
       "fontFamily": "Arial",
@@ -2657,7 +2678,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t140",
-      "content": "Martinez → Martinez",
+      "content": "Martínez → Martinez",
       "x": 724,
       "y": 574,
       "fontFamily": "Arial",
@@ -2747,7 +2768,7 @@
     {
       "type": "text",
       "id": "student-data-cleanup__t150",
-      "content": "Taylor → Taylor",
+      "content": "Taylor",
       "x": 546,
       "y": 628,
       "fontFamily": "Arial",

@@ -5,11 +5,17 @@
   "scripts": {
     "dev:api": "go run ./cmd/provisioner",
     "dev:web": "vite --config frontend/vite.config.mjs",
+    "dev:persona": "node scripts/dev_persona_switch.mjs",
     "build:web": "vite build --config frontend/vite.config.mjs",
     "a11y:check": "node scripts/check_frontend_accessibility.mjs",
+    "long-pages:self-test": "node scripts/dev_long_page_harness.mjs --self-test",
     "ci:local": "python3 scripts/run_local_ci.py",
     "docs:comments:check": "node scripts/check_doc_comment_quality.mjs",
     "docs:comments:test": "node scripts/check_doc_comment_quality.mjs --self-test",
+    "symphony:report": "node scripts/symphony_runner.mjs report",
+    "symphony:ui-monitor": "node scripts/symphony_runner.mjs ui-monitor",
+    "symphony:test": "node scripts/symphony_runner.mjs test",
+    "route-api-inventory:check": "node scripts/check_route_api_authorization_inventory.mjs",
     "write-inventory:check": "node scripts/check_external_write_inventory.mjs",
     "write-inventory:test": "node scripts/check_external_write_inventory.mjs --self-test",
     "perf:routes:plan": "node scripts/dev_route_performance_matrix.mjs",
@@ -20,10 +26,10 @@
     "pen:check": "node scripts/sync_implemented_pages.mjs --check",
     "pen:lint": "node scripts/lint_implemented_pages.mjs",
     "pen:lint:test": "node scripts/lint_implemented_pages.mjs --self-test",
-    "pen:export": "node docs/mocks/export_pen_assets.mjs",
-    "vendor:lucide": "node docs/mocks/vendor_lucide.mjs",
-    "render:wireframes": "node docs/mocks/render_wireframes.mjs",
-    "export:wireframes": "node docs/mocks/export_wireframes_with_pencil.mjs"
+    "pen:export": "node docs/design/mocks/export_pen_assets.mjs",
+    "vendor:lucide": "node docs/design/mocks/vendor_lucide.mjs",
+    "render:wireframes": "node docs/design/mocks/render_wireframes.mjs",
+    "export:wireframes": "node docs/design/mocks/export_wireframes_with_pencil.mjs"
   },
   "dependencies": {
     "react": "^19.2.5",

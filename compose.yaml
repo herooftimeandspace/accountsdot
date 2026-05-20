@@ -16,7 +16,7 @@ services:
       retries: 10
 
   app:
-    image: golang:1.26.2
+    image: golang:1.26.3
     working_dir: /workspace
     command: sleep infinity
     environment:
@@ -32,7 +32,7 @@ services:
         condition: service_healthy
 
   worker:
-    image: golang:1.26.2
+    image: golang:1.26.3
     working_dir: /workspace
     command: sleep infinity
     environment:

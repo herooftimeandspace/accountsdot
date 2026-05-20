@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(__filename), "..");
-const inventoryPath = path.join(repoRoot, "docs", "external-write-inventory.md");
+const inventoryPath = path.join(repoRoot, "docs", "planning", "external-write-inventory.md");
 const appPath = path.join(repoRoot, "internal", "web", "app.go");
 const webPath = path.join(repoRoot, "internal", "web");
 
@@ -24,14 +24,19 @@ const routeMetadata = new Map([
   ["POST /api/v1/sync-status/{user_type}/{user_id}/override", { owner: "sync override" }],
   ["POST /api/v1/room-mappings", { owner: "room mappings" }],
   ["POST /api/v1/annual-reset", { owner: "annual reset" }],
+  ["POST /api/v1/breakglass/login", { owner: "breakglass local emergency auth" }],
   ["POST /api/v1/dev/login", { owner: "DEV session mock" }],
   ["POST /api/v1/dev/logout", { owner: "DEV session mock" }],
+  ["PUT /api/v1/dev/my-profile", { owner: "DEV My Profile mock" }],
   ["PUT /api/v1/dev/feature-flags/{key}", { owner: "DEV feature flags" }],
   ["POST /api/v1/dev/onboarding/manual-drafts", { owner: "DEV drafts" }],
   ["PUT /api/v1/dev/onboarding/manual-drafts/{id}", { owner: "DEV drafts" }],
   ["POST /api/v1/dev/onboarding/manual-drafts/{id}/finalize", { owner: "DEV drafts" }],
   ["DELETE /api/v1/dev/onboarding/manual-drafts/{id}", { owner: "DEV drafts" }],
+  ["PUT /api/v1/dev/onboarding/rows/{id}/room", { owner: "DEV onboarding room overrides" }],
   ["PUT /api/v1/dev/offboarding/records/{id}/end-date", { owner: "offboarding" }],
+  ["POST /api/v1/dev/offboarding/emergency-deprovision", { owner: "offboarding" }],
+  ["POST /api/v1/dev/offboarding/contractor-offboarding", { owner: "offboarding" }],
   ["PUT /api/v1/dev/departing-seniors/records/{id}/end-date", { owner: "departing seniors" }],
   ["POST /api/v1/dev/departing-seniors/records/{id}/deprovision", { owner: "departing seniors" }],
   ["POST /api/v1/dev/room-moves/drafts", { owner: "room moves" }],
@@ -67,6 +72,9 @@ const dynamicRouteResolvers = {
       { method: "POST", path: `${base}/{id}/finalize` },
       { method: "DELETE", path: `${base}/{id}` },
     ];
+  },
+  handleDevOnboardingRoomUpdate(_body, registeredPath) {
+    return [{ method: "PUT", path: `${stripTrailingSlash(registeredPath)}/{id}/room` }];
   },
   handleDevOffboardingRecord(_body, registeredPath) {
     return [{ method: "PUT", path: `${stripTrailingSlash(registeredPath)}/{id}/end-date` }];
@@ -260,7 +268,7 @@ function checkInventory(markdown, routes = deriveLiveMutatingRoutes().routes, de
     }
     if (!documentedRoutes.has(key) && !exceptions.has(key)) {
       const owner = routeMetadata.get(key)?.owner ?? "unknown owner";
-      failures.push(`${key} (${owner}, ${route.source}) is missing from docs/external-write-inventory.md`);
+      failures.push(`${key} (${owner}, ${route.source}) is missing from docs/planning/external-write-inventory.md`);
     }
   }
 

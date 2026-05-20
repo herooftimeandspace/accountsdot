@@ -592,7 +592,7 @@ function PhoneDirectoryResultsOverlay({
                         className="phone-directory-runtime__row-action"
                         aria-label={`View details for ${resultSummary(result, columns)}`}
                         aria-pressed={result.id === selectedResultId}
-                        onClick={() => onSelect(result.id)}
+                        onClick={() => onSelect(result.id === selectedResultId ? "" : result.id)}
                       >
                         <span className="phone-directory-runtime__primary">{primaryValue}</span>
                       </button>
@@ -628,7 +628,7 @@ function PhoneDirectoryDetailOverlay({ bounds, mode, result, session, onClose })
   }
 
   return (
-    <RuntimeDrawer title={result.title} bounds={bounds} onClose={onClose} className="phone-directory-runtime__drawer">
+    <RuntimeDrawer title={result.title} onClose={onClose} className="phone-directory-runtime__drawer">
       <div className="phone-directory-runtime__detail">
         <p>{result.site_name}</p>
         <div className="phone-directory-runtime__detail-card">
@@ -917,6 +917,7 @@ export function PhoneDirectoryPage({
         onSearch,
         searchQuery,
         activeNavKey: "phoneDirectory",
+        activeRoutePath: `/phone-directory/by-${mode}`,
         refreshMetadata: payload?.page?.last_refreshed ?? null,
         // WCAG 1.3.1/3.3.2/4.1.2: the DEV directory scope selector reuses the shared native dropdown primitive with an accessible label.
         scopeDropdown: {

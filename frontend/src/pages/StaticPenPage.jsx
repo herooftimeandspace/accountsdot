@@ -26,9 +26,17 @@ const STATIC_PAGE_TITLES = {
   "student-data-cleanup": "Student Data Cleanup",
   reports: "Reports",
   "reports-sync-transparency": "Sync Transparency",
-  "reports-ticketing-human-work": "Ticketing Human Work",
   admin: "Admin",
   "my-profile": "My Profile",
+};
+
+const STATIC_PAGE_ACTIVE_ROUTE_PATHS = {
+  "dashboard-it-admin": "/dashboard/it-admin",
+  "dashboard-hr-lifecycle": "/dashboard/hr-lifecycle",
+  "dashboard-site-admin": "/dashboard/site-admin",
+  "reports-sync-transparency": "/reports/sync-transparency",
+  admin: "/admin",
+  "my-profile": "/my-profile",
 };
 
 const STATIC_DRAWER_CONFIGS = {
@@ -218,7 +226,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "alex-ramirez",
         ariaLabel: "View sync item for Alex Ramirez",
         left: 306,
-        top: 321,
+        top: 420,
         width: 1232,
         height: 42,
         details: [
@@ -236,7 +244,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "marisol-vega",
         ariaLabel: "View sync item for Marisol Vega",
         left: 306,
-        top: 363,
+        top: 462,
         width: 1232,
         height: 42,
         details: [
@@ -253,7 +261,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "mika-ito-sync",
         ariaLabel: "View sync item for Mika Ito",
         left: 306,
-        top: 405,
+        top: 504,
         width: 1232,
         height: 42,
         details: [
@@ -271,7 +279,7 @@ const STATIC_DRAWER_CONFIGS = {
         id: "nia-brooks-sync",
         ariaLabel: "View sync item for Nia Brooks",
         left: 306,
-        top: 447,
+        top: 546,
         width: 1232,
         height: 42,
         details: [
@@ -282,78 +290,6 @@ const STATIC_DRAWER_CONFIGS = {
           ["Queued At", "Apr 28, 2026 12:12 PM PT"],
           ["Errors / Warnings", "room_mapping_required"],
           ["Action", "Open mapping"],
-        ],
-      },
-    ],
-  },
-  "reports-ticketing-human-work": {
-    title: "Selected Ticket Context",
-    ariaLabel: "Human work queue rows",
-    rows: [
-      {
-        id: "ticket-jordan-miles",
-        ariaLabel: "View ticket context for Jordan Miles",
-        left: 306,
-        top: 407,
-        width: 1232,
-        height: 54,
-        details: [
-          ["Affected User", "Jordan Miles"],
-          ["Current Workflow", "Onboarding"],
-          ["Matching Rule", "Requestor email + category"],
-          ["Displayed Ticket", "IT-12904"],
-          ["Current Status", "Open"],
-          ["Category", "Aeries Add User"],
-        ],
-        sections: [["Workflow", "Aeries (Asset Tag: AERIES) → User Rights → Add User"]],
-      },
-      {
-        id: "ticket-nia-brooks",
-        ariaLabel: "View ticket context for Nia Brooks",
-        left: 306,
-        top: 461,
-        width: 1232,
-        height: 42,
-        details: [
-          ["Affected User", "Nia Brooks"],
-          ["Current Workflow", "Onboarding"],
-          ["Matching Rule", "External IIQ config"],
-          ["Displayed Ticket", "MOT-4412"],
-          ["Current Status", "Waiting"],
-          ["Category", "Alarm Code"],
-        ],
-        sections: [["Workflow", "Security Systems → Alarm Codes → Add Alarm Code"]],
-      },
-      {
-        id: "ticket-morgan-lee",
-        ariaLabel: "View ticket context for Morgan Lee",
-        left: 306,
-        top: 503,
-        width: 1232,
-        height: 42,
-        details: [
-          ["Affected User", "Morgan Lee"],
-          ["Current Workflow", "Room Move"],
-          ["Matching Rule", "Manual fallback"],
-          ["Displayed Ticket", "IT-13012"],
-          ["Current Status", "Open"],
-          ["Category", "Phone conflict"],
-        ],
-      },
-      {
-        id: "ticket-chris-morgan",
-        ariaLabel: "View ticket context for Chris Morgan",
-        left: 306,
-        top: 545,
-        width: 1232,
-        height: 42,
-        details: [
-          ["Affected User", "Chris Morgan"],
-          ["Current Workflow", "Offboarding"],
-          ["Matching Rule", "Linked to lifecycle"],
-          ["Displayed Ticket", "IT-13044"],
-          ["Current Status", "Closed"],
-          ["Category", "Asset retrieval"],
         ],
       },
     ],
@@ -411,7 +347,7 @@ async function readJSON(response) {
 }
 
 /**
- * AdminRoomMoveRevertOverlay renders the UI surface for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+ * AdminRoomMoveRevertOverlay renders the UI surface for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/planning/external-write-inventory.md when it triggers mutations.
  */
 function AdminRoomMoveRevertOverlay({ session, onNavigate }) {
   const isItAdmin = session?.current_persona?.id === "it_admin";
@@ -454,7 +390,7 @@ function AdminRoomMoveRevertOverlay({ session, onNavigate }) {
   }, [isItAdmin]);
 
   /**
-   * revertJob documents runtime data flow for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/external-write-inventory.md when it triggers mutations.
+   * revertJob documents runtime data flow for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/planning/external-write-inventory.md when it triggers mutations.
    */
   async function revertJob(job) {
     const confirmed = window.confirm(
@@ -559,6 +495,7 @@ export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, sear
     onSearch,
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
+    activeRoutePath: STATIC_PAGE_ACTIVE_ROUTE_PATHS[artboardKey] ?? null,
     refreshMetadata: staticRefreshMetadataForArtboard(artboardKey),
   });
   /**

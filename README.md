@@ -18,11 +18,13 @@ The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard is a self-host
 13. Preserve source-system truth in displayed data. Operator-facing labels and controls stay in English, but imported source values should be shown exactly as stored rather than translated or normalized for language.
 
 ## Documentation Policy
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) is the authoritative execution plan and decision log for implementation-affecting behavior.
-- [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) captures the business-facing product requirements and scope boundaries.
-- [ENVIRONMENT_DATA_PLAYBOOK.md](ENVIRONMENT_DATA_PLAYBOOK.md) defines the safe process for creating and refreshing mock and staging environments.
-- [TEST_MATRIX.md](TEST_MATRIX.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
-- [docs/promotion-pipeline.md](docs/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
+- [docs/planning/implementation-plan.md](docs/planning/implementation-plan.md) is the authoritative execution plan and decision log for implementation-affecting behavior.
+- [docs/product/product-requirements.md](docs/product/product-requirements.md) captures the business-facing product requirements and scope boundaries.
+- [docs/operations/environment-data-playbook.md](docs/operations/environment-data-playbook.md) defines the safe process for creating and refreshing mock and staging environments.
+- [docs/testing/test-matrix.md](docs/testing/test-matrix.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
+- [docs/product/permissions-matrix.md](docs/product/permissions-matrix.md) documents the currently implemented DEV route/API permission matrix, field-level visibility, and known authorization gaps for review against the PRD and implementation plan.
+- [docs/operations/promotion-pipeline.md](docs/operations/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
+- [docs/agent-orchestration/SPEC.md](docs/agent-orchestration/SPEC.md) defines the repo-local Symphony-style Codex orchestration contract for GitHub issue driven agent work. [.agents/WORKFLOW.md](.agents/WORKFLOW.md) is the runner-readable prompt and configuration contract for that workflow. The first checked-in runner is `scripts/symphony_runner.mjs`; use `npm run symphony:report`, `npm run symphony:ui-monitor -- --dry-run`, and `npm run symphony:test` for local queue and monitor validation.
 - [docs/reference-inputs/VENDORED_INVENTORY.md](docs/reference-inputs/VENDORED_INVENTORY.md) is the authoritative provenance and refresh ledger for the repo-local reference corpus under `docs/reference-inputs/`.
 - The promotion runbook/process also lives outside the repo. It must capture one implementation-signoff entry per workflow bucket, reference the external IncidentIQ testing-ticket evidence, and use the corresponding documented rollback path and rollback trigger conditions for write-capable buckets. Each bucket entry must include exact metadata for release, ticket, phase, bucket, environment, revisions, timestamps, signoff, evidence links, and rollback references as applicable. Each bucket entry must also include a final disposition plus explicit yes/no attestations for scenario cleanliness, evidence review, and write-safety checks. A bucket that was previously `rolled back` may later be updated to `ready` after a new clean pass, and `superseded` means an older attempt was replaced by a newer one in the same release; the replacement current entry must explicitly link back to the superseded one. A `no` attestation does not require a separate explanation field beyond the disposition and any required closure note. If a rollback trigger blocks a bucket in `dev`, the runbook must carry an explicit closure note with links to the replacement evidence before `staging` can begin for that bucket. The external IncidentIQ testing ticket should use one parent ticket per release with evidence organized in `phase → bucket → dev/staging → scenario` order, with `dev` listed before `staging` in every bucket.
 - This README must continue to enumerate the product goals at a high level.
@@ -119,6 +121,31 @@ curl -i http://localhost:8080/api/v1/dev/session
 
 The preflight should return `200 OK` with DEV session JSON from either URL. An unauthenticated but correctly started DEV API includes fields such as `"environment":"development"`, `"authenticated":false`, `"authorized":false`, and a non-empty `"personas"` array. A `404` from the direct API URL is a startup/configuration failure; restart the API with `APP_ENV=development` before collecting Browser evidence. A `200 OK` from the direct API URL but a failed Vite URL means the route matrix is still blocked by frontend proxy startup or port wiring, not by Browser or page readiness. A passing preflight followed by lost automation connection, missing `iab` tab access, or interrupted pipe output is a Browser transport failure. A passing preflight with an app-rendered error, timeout after navigation, or missing route content is a page readiness failure for the route being measured.
 
+### DEV Persona Switching From Terminal Tooling
+Codex and other terminal-only evidence workflows can switch the active mock persona without clicking the in-browser DEV persona switcher. Start the API with `APP_ENV=development`, keep Vite running when you want the same target the Browser uses, then run:
+
+```bash
+npm run dev:persona -- site_admin
+```
+
+The helper posts to `/api/v1/dev/login` with `activate_mock_session=true`. That flag is development-only and records a process-local active mock session before returning the same structured session payload the frontend reads from `/api/v1/dev/session`. The JSON output includes `authenticated`, `authorized`, `current_persona`, `landing_path`, `allowed_routes`, default/current site fields, visible sites, shell context, and feature flag availability. Refreshing or navigating the Browser tab after the command makes the frontend consume the selected persona even when an older Browser cookie still exists.
+
+Use the Vite URL for normal Browser evidence:
+
+```bash
+npm run dev:persona -- device_wrangler --base-url http://localhost:5173
+curl -s http://localhost:5173/api/v1/dev/session
+```
+
+Use the API URL when Vite is not running:
+
+```bash
+npm run dev:persona -- no_access --base-url http://localhost:8080
+curl -s http://localhost:8080/api/v1/dev/session
+```
+
+Supported persona ids are the ids returned by `/api/v1/dev/session`, including `it_admin`, `human_resources`, `site_admin`, `site_secretary`, `device_wrangler`, `faculty_staff`, and `no_access`. Site-scoped personas keep their documented default/current site and visible-site context. Invalid persona ids return `400` with `code:"invalid_persona"`, clear the local DEV cookie in the response, and force the shared mock session to anonymous so stale Browser cookies do not silently restore an authorized persona. Missing or non-development `APP_ENV` returns `404`; this tooling is not production authorization and must not be enabled outside local development.
+
 `npm run perf:routes:plan` prints the current route set, directed-transition coverage count, default batch sizes, readiness metadata, and the first transitions without opening a browser. Route variants are content-sensitive by default: `/search?q=alex` must render the expected result text because the query changes the page body. Static generated-page variants may opt in to URL/title readiness only when their variant entry is explicitly annotated with `allowTitleAndUrlReadiness`; the room-move draft routes use this exception because their mock draft body text is not a durable readiness contract. Do not make all variants URL/title-ready, because that would hide regressions on routes where the variant-specific body content is the signal being tested.
 
 `npm run perf:routes:batch-plan -- artifacts/performance` scans local artifacts that match the current route plan and reports the next transition or refresh batch without opening a browser.
@@ -136,7 +163,7 @@ await runDevRoutePerformanceBatches({
 });
 ```
 
-By default `runDevRoutePerformanceBatches` executes one bounded Browser batch per call. Re-run the same snippet until it returns `"complete": true`; it measures all directed transitions first, then measures refresh samples across the same route targets. The default batch sizes are 50 directed transitions or 12 route-refresh samples per Browser call. If a local Browser session is stable and the tool response window allows it, pass `maxBatches` to run more than one bounded batch in the same call.
+By default `runDevRoutePerformanceBatches` executes one bounded Browser batch per call. Re-run the same snippet until it returns `"complete": true`; it measures all directed transitions first, then measures refresh samples across the same route targets. The default batch sizes are 50 directed transitions or 12 route-refresh samples per Browser call. The helper also calls `/api/v1/dev/session` through the configured `baseUrl` before it touches the Browser tab. If that DEV startup guard fails, the helper writes a blocked local artifact with `devServerHealthy: false` and `stopReason: "dev_server_unhealthy"` so strict merge can reject the evidence without confusing startup misconfiguration with page readiness. If a local Browser session is stable and the tool response window allows it, pass `maxBatches` to run more than one bounded batch in the same call.
 
 The harness writes JSON and Markdown summaries to `artifacts/performance/` after every measured row so partial results survive a Browser pipe interruption. Each measured row includes additive performance-budget fields: `budgetStatus`, `budgetWarningMs`, `budgetFailureMs`, and `budgetExceededByMs`. The default transition and refresh budgets warn when readiness time is over `3000 ms` and fail when readiness time is over `7000 ms`; readiness failures still use the existing `status`, `failureClass`, and Browser/app failure sections so slow-but-ready rows are not confused with pages that never became ready.
 
@@ -184,7 +211,7 @@ Use the non-strict merge command for historical handoff context and interrupted-
 npm run perf:routes:merge:strict -- artifacts/performance
 ```
 
-Strict merge still writes the merged Markdown and JSON artifacts, but exits nonzero when the merged evidence is not release-quality. Blocking conditions include transition failures, refresh failures, Browser transport failures, app timeout rows, stale route-plan coverage, missing or duplicate transition indexes, missing refresh samples, invalid directed-edge coverage, and current route-count or directed-transition-count mismatches. The failure message names the blocking counts and points to the merged artifact paths so the Markdown summary can be attached or copied into external evidence.
+Strict merge still writes the merged Markdown and JSON artifacts, but exits nonzero when the merged evidence is not release-quality. Blocking conditions include transition failures, refresh failures, Browser transport failures, app timeout rows, stale route-plan coverage, missing or duplicate transition indexes, missing, duplicate, extra, or invalid refresh samples, invalid directed-edge coverage, current route-count or directed-transition-count mismatches, and any artifact set that explicitly records `devServerHealthy: false` from the DEV session preflight. The failure message names the blocking counts and points to the merged artifact paths so the Markdown summary can be attached or copied into external evidence.
 
 The merged Markdown file is the human-readable summary to copy into external evidence. The merged JSON file is for debugging and reproducibility; keep it local unless a PR explicitly asks for a curated repository artifact.
 
@@ -200,6 +227,16 @@ Required or commonly used local variables:
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URL`
 - `GOOGLE_ALLOWED_GROUPS_CONFIG`
+- `AUTH_ALLOWED_EMAIL_DOMAINS`
+- `AUTH_DENIED_EMAIL_DOMAINS`
+- `GOOGLE_SAML_ENTITY_ID`
+- `GOOGLE_SAML_ACS_URL`
+- `GOOGLE_SAML_IDP_METADATA_URL`
+- `GOOGLE_SAML_IDP_SSO_URL`
+- `GOOGLE_SAML_IDP_CERT_FILE`
+- `GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON`
+- `GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON`
+- `GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON`
 - `GOOGLE_SHEETS_SPREADSHEET_ID`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `ZOOM_ACCOUNT_ID`
@@ -226,3 +263,109 @@ Required or commonly used local variables:
 - Real third-party integrations are opt-in and should remain disabled for normal local TDD work.
 - The local stack is intentionally lean: app, worker, and postgres are enough for baseline development.
 - Compose binds Postgres to `127.0.0.1` only and reads secrets from `.env`, not from committed example values.
+
+## Manual Remote Deployment
+The remote deployment stack is for a Proxmox QEMU VM that has Docker Engine,
+the Docker Compose plugin, Git, and outbound access to GitHub and public
+container registries. It is separate from the local-development `compose.yaml`
+so local testing remains app/worker/Postgres focused.
+
+The checked-in deployment files are:
+
+- `docker-compose.deploy.yml`: reverse proxy, three app containers, and
+  environment-specific Postgres services.
+- `deploy/Caddyfile`: host-based Caddy routing for dev, staging, and main.
+- `deploy/Dockerfile`: production-style Go service image for each branch.
+- `deploy/remote-redeploy.sh`: manual update helper that fetches Git branches,
+  refreshes branch worktrees, then runs Docker Compose.
+- `deploy/env/*.example`: templates for uncommitted remote environment files.
+
+The stack expects three Git branches to exist on the remote named `dev`,
+`staging`, and `main`. The deployment helper creates or refreshes sibling
+worktrees under `../accountsdot-deploy-worktrees` by default:
+
+```text
+accountsdot/
+accountsdot-deploy-worktrees/
+  dev/
+  staging/
+  main/
+```
+
+Each app image builds from its matching branch worktree. A redeploy therefore
+pulls the latest branch revisions before rebuilding and recreating containers.
+The helper keeps those worktrees on detached checkouts of the matching remote
+branches; do not make hand edits inside `accountsdot-deploy-worktrees`.
+
+### First-Time Remote Setup
+1. Clone the repository on the QEMU VM:
+   ```bash
+   git clone git@github.com:herooftimeandspace/accountsdot.git
+   cd accountsdot
+   ```
+2. Confirm the deployment branches exist:
+   ```bash
+   git ls-remote --heads origin dev staging main
+   ```
+   If `staging` has not been created yet, create it through the documented
+   promotion process before deploying the full three-environment stack.
+3. Copy the example environment files and fill real remote values:
+   ```bash
+   cp deploy/env/proxy.env.example deploy/env/proxy.env
+   cp deploy/env/dev.db.env.example deploy/env/dev.db.env
+   cp deploy/env/dev.app.env.example deploy/env/dev.app.env
+   cp deploy/env/staging.db.env.example deploy/env/staging.db.env
+   cp deploy/env/staging.app.env.example deploy/env/staging.app.env
+   cp deploy/env/main.db.env.example deploy/env/main.db.env
+   cp deploy/env/main.app.env.example deploy/env/main.app.env
+   ```
+4. Replace every placeholder secret with generated values. Use distinct
+   database passwords, `SESSION_SECRET` values, and `ENCRYPTION_KEY` values for
+   dev, staging, and main. Do not reuse staging credentials in main.
+5. Set `ACCOUNTSDOT_DEV_HOST`, `ACCOUNTSDOT_STAGING_HOST`, and
+   `ACCOUNTSDOT_MAIN_HOST` in `deploy/env/proxy.env` to the public hostnames
+   that should terminate TLS at Caddy.
+6. Start the stack:
+   ```bash
+   chmod +x deploy/remote-redeploy.sh
+   ./deploy/remote-redeploy.sh
+   ```
+
+### Redeploying
+Run the same helper from the root clone whenever one or more deployment branches
+has new code:
+
+```bash
+./deploy/remote-redeploy.sh
+```
+
+The helper runs `git fetch`, updates the `dev`, `staging`, and `main`
+deployment worktrees to `origin/dev`, `origin/staging`, and `origin/main`, then
+runs:
+
+```bash
+docker compose -f docker-compose.deploy.yml up -d --build --remove-orphans
+```
+
+Named Docker volumes keep database data across redeploys. Do not use
+`docker compose down -v` on this stack unless you intend to destroy the
+databases.
+
+### Environment Responsibilities
+- Dev runs with `APP_ENV=development`, mock providers enabled, and the
+  long-lived `postgres-dev-data` volume.
+- Staging runs with `APP_ENV=staging`, the long-lived
+  `postgres-staging-data` volume, and sandbox or masked/read-only provider
+  configuration as defined in `docs/operations/environment-data-playbook.md`.
+- Main runs with `APP_ENV=production`, production secrets, and the main
+  database only. Production must not reuse dev or staging credentials.
+
+The checked-in examples default staging providers to mocks until the staging
+sandbox or masked provider strategy is configured. Flip individual
+`USE_MOCK_*` flags only after the corresponding staging credential, data, and
+write-safety plan exists.
+
+The current Go service image exposes the backend service on port `8080`. The
+React/Vite DEV UI is still a development-time frontend and is not bundled into
+the remote image by this deployment stack; production frontend asset packaging
+remains a separate deployment decision.

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
+import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -175,6 +176,11 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, selectedRowId, er
         <div>Action</div>
       </div>
       <div className="departing-seniors-runtime__table-body">
+        {table.visibleRows.length === 0 ? (
+          <p className="departing-seniors-runtime__empty" role="status">
+            No departing seniors match the current search.
+          </p>
+        ) : null}
         {table.visibleRows.map((row) => {
           const dateValue = dateDrafts[row.id] ?? row.end_date ?? "";
           const hasDevices = (row.outstanding_devices ?? []).length > 0;
@@ -186,7 +192,7 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, selectedRowId, er
               }`}
               onClick={(event) => {
                 if (shouldSelectRowFromTarget(event.target)) {
-                  onSelectRow(row);
+                  onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row));
                 }
               }}
             >
@@ -196,7 +202,7 @@ function DepartingSeniorsTable({ rows, canManage, savingRowId, selectedRowId, er
                   className="departing-seniors-runtime__row-open"
                   aria-label={`Open departing senior details for ${row.display_name}`}
                   aria-pressed={selectedRowId === row.id}
-                  onClick={() => onSelectRow(row)}
+                  onClick={() => onSelectRow(nextRuntimeDrawerSelectionForId(selectedRowId, row))}
                 >
                   <strong>{row.display_name}</strong>
                 </button>
@@ -441,6 +447,7 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
         onSearch,
         searchQuery,
         activeNavKey: "departingSeniors",
+        activeRoutePath: "/departing-seniors",
         refreshMetadata: payload?.page?.last_refreshed,
       }),
     [onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]

@@ -37,28 +37,28 @@ export function loadGeneratedArtboard(key) {
 }
 
 export const generatedArtboardMeta = {
-  "data-quality": { key: "data-quality", sourcePen: "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen", activeNav: "dataQuality" },
-  "dashboard-it-admin": { key: "dashboard-it-admin", sourcePen: "docs/mocks/wireframes/wireframe-it-admin-overview.pen", activeNav: "dashboard" },
-  "dashboard-hr-lifecycle": { key: "dashboard-hr-lifecycle", sourcePen: "docs/mocks/wireframes/wireframe-hr-lifecycle-overview.pen", activeNav: "dashboard" },
-  "dashboard-site-admin": { key: "dashboard-site-admin", sourcePen: "docs/mocks/wireframes/wireframe-site-admin-dashboard.pen", activeNav: "dashboard" },
-  "onboarding": { key: "onboarding", sourcePen: "docs/mocks/wireframes/wireframe-onboarding-dashboard.pen", activeNav: "onboarding" },
-  "offboarding": { key: "offboarding", sourcePen: "docs/mocks/wireframes/wireframe-offboarding-dashboard.pen", activeNav: "offboarding" },
-  "room-moves": { key: "room-moves", sourcePen: "docs/mocks/wireframes/wireframe-room-moves.pen", activeNav: "roomMoves" },
-  "room-moves-bulk-draft": { key: "room-moves-bulk-draft", sourcePen: "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen", activeNav: null },
-  "phone-directory-by-person": { key: "phone-directory-by-person", sourcePen: "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen", activeNav: "phoneDirectory" },
-  "phone-directory-by-room": { key: "phone-directory-by-room", sourcePen: "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen", activeNav: "phoneDirectory" },
-  "phone-directory-by-department": { key: "phone-directory-by-department", sourcePen: "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen", activeNav: "phoneDirectory" },
-  "frequent-fliers": { key: "frequent-fliers", sourcePen: "docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen", activeNav: "frequentFliers" },
-  "student-data-cleanup": { key: "student-data-cleanup", sourcePen: "docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen", activeNav: "studentDataCleanup" },
-  "reports": { key: "reports", sourcePen: "docs/mocks/wireframes/wireframe-it-admin-reports.pen", activeNav: "reports" },
-  "reports-sync-transparency": { key: "reports-sync-transparency", sourcePen: "docs/mocks/wireframes/wireframe-sync-transparency-dashboard.pen", activeNav: "reports" },
-  "reports-ticketing-human-work": { key: "reports-ticketing-human-work", sourcePen: "docs/mocks/wireframes/wireframe-ticketing-human-work.pen", activeNav: "reports" },
-  "admin": { key: "admin", sourcePen: "docs/mocks/wireframes/wireframe-it-admin-admin-controls.pen", activeNav: "admin" },
-  "admin-feature-flags": { key: "admin-feature-flags", sourcePen: "docs/mocks/wireframes/wireframe-admin-feature-flags.pen", activeNav: "admin" },
-  "my-profile": { key: "my-profile", sourcePen: "docs/mocks/wireframes/wireframe-faculty-staff-my-profile.pen", activeNav: null },
-  "login": { key: "login", sourcePen: "docs/mocks/wireframes/wireframe-login.pen", activeNav: null },
-  "error-logged-in": { key: "error-logged-in", sourcePen: "docs/mocks/wireframes/wireframe-http-error.pen", activeNav: null },
-  "error-logged-out": { key: "error-logged-out", sourcePen: "docs/mocks/wireframes/wireframe-http-error.pen", activeNav: null },
+  "data-quality": { key: "data-quality", sourcePen: "docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen", activeNav: "dataQuality" },
+  "dashboard-it-admin": { key: "dashboard-it-admin", sourcePen: "docs/design/mocks/wireframes/wireframe-it-admin-overview.pen", activeNav: "dashboard" },
+  "dashboard-hr-lifecycle": { key: "dashboard-hr-lifecycle", sourcePen: "docs/design/mocks/wireframes/wireframe-hr-lifecycle-overview.pen", activeNav: "dashboard" },
+  "dashboard-site-admin": { key: "dashboard-site-admin", sourcePen: "docs/design/mocks/wireframes/wireframe-site-admin-dashboard.pen", activeNav: "dashboard" },
+  "onboarding": { key: "onboarding", sourcePen: "docs/design/mocks/wireframes/wireframe-onboarding-dashboard.pen", activeNav: "onboarding" },
+  "offboarding": { key: "offboarding", sourcePen: "docs/design/mocks/wireframes/wireframe-offboarding-dashboard.pen", activeNav: "offboarding" },
+  "room-moves": { key: "room-moves", sourcePen: "docs/design/mocks/wireframes/wireframe-room-moves.pen", activeNav: "roomMoves" },
+  "room-moves-bulk-draft": { key: "room-moves-bulk-draft", sourcePen: "docs/design/mocks/wireframes/wireframe-room-moves-bulk-draft.pen", activeNav: null },
+  "phone-directory-by-person": { key: "phone-directory-by-person", sourcePen: "docs/design/mocks/wireframes/wireframe-phone-directory-by-person.pen", activeNav: "phoneDirectory" },
+  "phone-directory-by-room": { key: "phone-directory-by-room", sourcePen: "docs/design/mocks/wireframes/wireframe-phone-directory-by-room.pen", activeNav: "phoneDirectory" },
+  "phone-directory-by-department": { key: "phone-directory-by-department", sourcePen: "docs/design/mocks/wireframes/wireframe-phone-directory-by-department.pen", activeNav: "phoneDirectory" },
+  "frequent-fliers": { key: "frequent-fliers", sourcePen: "docs/design/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen", activeNav: "frequentFliers" },
+  "student-data-cleanup": { key: "student-data-cleanup", sourcePen: "docs/design/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen", activeNav: "studentDataCleanup" },
+  "reports": { key: "reports", sourcePen: "docs/design/mocks/wireframes/wireframe-it-admin-reports.pen", activeNav: "reports" },
+  "reports-sync-transparency": { key: "reports-sync-transparency", sourcePen: "docs/design/mocks/wireframes/wireframe-sync-transparency-dashboard.pen", activeNav: "reports" },
+  "reports-ticketing-human-work": { key: "reports-ticketing-human-work", sourcePen: "docs/design/mocks/wireframes/wireframe-ticketing-human-work.pen", activeNav: "reports" },
+  "admin": { key: "admin", sourcePen: "docs/design/mocks/wireframes/wireframe-it-admin-admin-controls.pen", activeNav: "admin" },
+  "admin-feature-flags": { key: "admin-feature-flags", sourcePen: "docs/design/mocks/wireframes/wireframe-admin-feature-flags.pen", activeNav: "admin" },
+  "my-profile": { key: "my-profile", sourcePen: "docs/design/mocks/wireframes/wireframe-faculty-staff-my-profile.pen", activeNav: null },
+  "login": { key: "login", sourcePen: "docs/design/mocks/wireframes/wireframe-login.pen", activeNav: null },
+  "error-logged-in": { key: "error-logged-in", sourcePen: "docs/design/mocks/wireframes/wireframe-http-error.pen", activeNav: null },
+  "error-logged-out": { key: "error-logged-out", sourcePen: "docs/design/mocks/wireframes/wireframe-http-error.pen", activeNav: null },
 };
 
 export const sharedShellSpec = {
@@ -153,7 +153,9 @@ export const sharedShellSpec = {
       "p88",
       "p89",
       "t90",
-      "p91"
+      "p91",
+      "e92a",
+      "t92a"
     ]
   },
   "navLabelIds": {
@@ -174,11 +176,11 @@ export const implementedPageDesignManifest = {
   "schemaVersion": 1,
   "sourceOfTruth": [
     "README.md",
-    "IMPLEMENTATION_PLAN.md",
-    "PRODUCT_REQUIREMENTS.md",
-    "TEST_MATRIX.md",
-    "AGENTS.md",
-    "docs/mocks/wireframes/implemented-page-design-contract.md"
+    "docs/planning/implementation-plan.md",
+    "docs/product/product-requirements.md",
+    "docs/testing/test-matrix.md",
+    ".agents/AGENTS.md",
+    "docs/design/mocks/wireframes/implemented-page-design-contract.md"
   ],
   "generatedBy": "scripts/sync_implemented_pages.mjs",
   "generatedFileGlobs": [
@@ -190,7 +192,7 @@ export const implementedPageDesignManifest = {
   "artboards": [
     {
       "key": "data-quality",
-      "sourcePen": "docs/mocks/wireframes/wireframe-data-quality-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-data-quality-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "dataQuality",
       "loggedInShell": true,
@@ -200,7 +202,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "dashboard-it-admin",
-      "sourcePen": "docs/mocks/wireframes/wireframe-it-admin-overview.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-it-admin-overview.pen",
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
@@ -210,7 +212,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "dashboard-hr-lifecycle",
-      "sourcePen": "docs/mocks/wireframes/wireframe-hr-lifecycle-overview.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-hr-lifecycle-overview.pen",
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
@@ -220,17 +222,15 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "dashboard-site-admin",
-      "sourcePen": "docs/mocks/wireframes/wireframe-site-admin-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-site-admin-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "onboarding",
-      "sourcePen": "docs/mocks/wireframes/wireframe-onboarding-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-onboarding-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "onboarding",
       "loggedInShell": true,
@@ -240,7 +240,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "offboarding",
-      "sourcePen": "docs/mocks/wireframes/wireframe-offboarding-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-offboarding-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "offboarding",
       "loggedInShell": true,
@@ -250,7 +250,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "room-moves",
-      "sourcePen": "docs/mocks/wireframes/wireframe-room-moves.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-room-moves.pen",
       "mode": "merge-shell",
       "activeNav": "roomMoves",
       "loggedInShell": true,
@@ -260,7 +260,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "room-moves-bulk-draft",
-      "sourcePen": "docs/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-room-moves-bulk-draft.pen",
       "mode": "merge-shell",
       "activeNav": null,
       "loggedInShell": true,
@@ -268,7 +268,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "phone-directory-by-person",
-      "sourcePen": "docs/mocks/wireframes/wireframe-phone-directory-by-person.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-phone-directory-by-person.pen",
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
@@ -278,7 +278,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "phone-directory-by-room",
-      "sourcePen": "docs/mocks/wireframes/wireframe-phone-directory-by-room.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-phone-directory-by-room.pen",
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
@@ -288,7 +288,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "phone-directory-by-department",
-      "sourcePen": "docs/mocks/wireframes/wireframe-phone-directory-by-department.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-phone-directory-by-department.pen",
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
@@ -298,7 +298,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "frequent-fliers",
-      "sourcePen": "docs/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-device-wrangler-frequent-fliers.pen",
       "mode": "merge-shell",
       "activeNav": "frequentFliers",
       "loggedInShell": true,
@@ -308,7 +308,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "student-data-cleanup",
-      "sourcePen": "docs/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-site-secretary-student-data-cleanup.pen",
       "mode": "merge-shell",
       "activeNav": "studentDataCleanup",
       "loggedInShell": true,
@@ -318,7 +318,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "reports",
-      "sourcePen": "docs/mocks/wireframes/wireframe-it-admin-reports.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-it-admin-reports.pen",
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
@@ -328,7 +328,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "reports-sync-transparency",
-      "sourcePen": "docs/mocks/wireframes/wireframe-sync-transparency-dashboard.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-sync-transparency-dashboard.pen",
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
@@ -338,7 +338,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "reports-ticketing-human-work",
-      "sourcePen": "docs/mocks/wireframes/wireframe-ticketing-human-work.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-ticketing-human-work.pen",
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
@@ -348,17 +348,15 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "admin",
-      "sourcePen": "docs/mocks/wireframes/wireframe-it-admin-admin-controls.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-it-admin-admin-controls.pen",
       "mode": "merge-shell",
       "activeNav": "admin",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "admin-feature-flags",
-      "sourcePen": "docs/mocks/wireframes/wireframe-admin-feature-flags.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-admin-feature-flags.pen",
       "mode": "merge-shell",
       "activeNav": "admin",
       "loggedInShell": true,
@@ -366,17 +364,15 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "my-profile",
-      "sourcePen": "docs/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-faculty-staff-my-profile.pen",
       "mode": "merge-shell",
       "activeNav": null,
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "login",
-      "sourcePen": "docs/mocks/wireframes/wireframe-login.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-login.pen",
       "mode": "passthrough",
       "activeNav": null,
       "loggedInShell": false,
@@ -384,7 +380,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "error-logged-in",
-      "sourcePen": "docs/mocks/wireframes/wireframe-http-error.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-http-error.pen",
       "mode": "error-logged-in",
       "activeNav": null,
       "loggedInShell": true,
@@ -392,7 +388,7 @@ export const implementedPageDesignManifest = {
     },
     {
       "key": "error-logged-out",
-      "sourcePen": "docs/mocks/wireframes/wireframe-http-error.pen",
+      "sourcePen": "docs/design/mocks/wireframes/wireframe-http-error.pen",
       "mode": "error-logged-out",
       "activeNav": null,
       "loggedInShell": false,
@@ -400,7 +396,7 @@ export const implementedPageDesignManifest = {
     }
   ],
   "sharedShell": {
-    "sourcePen": "docs/mocks/wireframes/wireframe-shared-shell.pen",
+    "sourcePen": "docs/design/mocks/wireframes/wireframe-shared-shell.pen",
     "loggedInPane": {
       "x": 264,
       "y": 76
@@ -496,7 +492,9 @@ export const implementedPageDesignManifest = {
         "p88",
         "p89",
         "t90",
-        "p91"
+        "p91",
+        "e92a",
+        "t92a"
       ]
     },
     "navLabelIds": {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -78,7 +79,11 @@ type roomMoveReviewRow struct {
 	DestinationRoom    string   `json:"destination_room"`
 	Phone              string   `json:"phone"`
 	Author             string   `json:"author"`
+	AuthorID           string   `json:"author_id,omitempty"`
 	State              string   `json:"state"`
+	ScheduledFor       string   `json:"scheduled_for,omitempty"`
+	CanEdit            bool     `json:"can_edit"`
+	CanCancel          bool     `json:"can_cancel"`
 	Warning            string   `json:"warning,omitempty"`
 	WarningLevel       string   `json:"warning_level,omitempty"`
 	AttentionReason    string   `json:"attention_reason,omitempty"`
@@ -87,6 +92,10 @@ type roomMoveReviewRow struct {
 	ManualActionReason string   `json:"manual_action_reason,omitempty"`
 	ResolutionSteps    []string `json:"resolution_steps,omitempty"`
 	ExternalSystems    []string `json:"external_systems,omitempty"`
+	FallbackTicket     string   `json:"fallback_ticket,omitempty"`
+	FallbackTicketHref string   `json:"fallback_ticket_href,omitempty"`
+	FallbackStatus     string   `json:"fallback_status,omitempty"`
+	TechnicalOutcome   string   `json:"technical_outcome,omitempty"`
 }
 
 type roomMoveDraftPayload struct {
@@ -98,6 +107,7 @@ type roomMoveDraftPayload struct {
 	EffectiveDate     string             `json:"effective_date"`
 	ScheduledFor      string             `json:"scheduled_for,omitempty"`
 	Author            string             `json:"author"`
+	AuthorID          string             `json:"author_id,omitempty"`
 	Warnings          []string           `json:"warnings"`
 	Rows              []roomMoveDraftRow `json:"rows"`
 	CanEdit           bool               `json:"can_edit"`
@@ -134,10 +144,12 @@ type roomMoveDraftRow struct {
 	CurrentSite        string   `json:"current_site"`
 	CurrentRoomID      string   `json:"current_room_id"`
 	CurrentRoom        string   `json:"current_room"`
+	SourceRole         string   `json:"-"`
 	DestinationSiteID  string   `json:"destination_site_id"`
 	DestinationSite    string   `json:"destination_site"`
 	DestinationRoomID  string   `json:"destination_room_id"`
 	DestinationRoom    string   `json:"destination_room"`
+	DestinationRole    string   `json:"destination_role,omitempty"`
 	Phone              string   `json:"phone"`
 	Action             string   `json:"action"`
 	Warning            string   `json:"warning,omitempty"`
@@ -147,6 +159,10 @@ type roomMoveDraftRow struct {
 	ManualActionReason string   `json:"manual_action_reason,omitempty"`
 	ResolutionSteps    []string `json:"resolution_steps,omitempty"`
 	ExternalSystems    []string `json:"external_systems,omitempty"`
+	FallbackTicket     string   `json:"fallback_ticket,omitempty"`
+	FallbackTicketHref string   `json:"fallback_ticket_href,omitempty"`
+	FallbackStatus     string   `json:"fallback_status,omitempty"`
+	TechnicalOutcome   string   `json:"technical_outcome,omitempty"`
 }
 
 type roomMovePersonOption struct {
@@ -159,6 +175,7 @@ type roomMovePersonOption struct {
 	Site          string `json:"site"`
 	CurrentRoomID string `json:"current_room_id"`
 	CurrentRoom   string `json:"current_room"`
+	SourceRole    string `json:"source_role,omitempty"`
 	Phone         string `json:"phone"`
 }
 
@@ -193,7 +210,7 @@ type devRoomMoveStoreState struct {
 
 func newDevRoomMoveStore() *devRoomMoveStoreState {
 	store := &devRoomMoveStoreState{
-		nextID:    100,
+		nextID:    1000,
 		drafts:    map[string]roomMoveDraftPayload{},
 		completed: map[string]bool{},
 		canceled:  map[string]bool{},
@@ -206,7 +223,7 @@ func newDevRoomMoveStore() *devRoomMoveStoreState {
 }
 
 func handleDevRoomMovesPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -225,7 +242,7 @@ func handleDevRoomMovesPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDevRoomMovesBulkDraftPage(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -266,7 +283,7 @@ func roomMoveBulkDraftTitle(mode string) string {
 // The frontend single-move drawer posts one JSON draft request here; validation
 // errors return field messages, while success returns the stored draft payload.
 func handleDevRoomMoveDrafts(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodPost {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodPost {
 		http.NotFound(w, r)
 		return
 	}
@@ -290,9 +307,9 @@ func handleDevRoomMoveDrafts(w http.ResponseWriter, r *http.Request) {
 // handleDevRoomMoveDraft routes PUT, transition, cancel, and delete actions for
 // an existing DEV room-move draft. Each branch checks the authenticated persona
 // before mutating the in-memory store so site-scoped users cannot alter another
-// site's draft.
+// site's draft or a visible draft authored by IT or another operator.
 func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -352,7 +369,7 @@ func handleDevRoomMoveDraft(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDevRoomMoveCompletedJobs(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() || r.Method != http.MethodGet {
+	if !devSessionConsumerEnabled(r) || r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
 	}
@@ -364,7 +381,7 @@ func handleDevRoomMoveCompletedJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDevRoomMoveCompletedJob(w http.ResponseWriter, r *http.Request) {
-	if !devModeEnabled() {
+	if !devSessionConsumerEnabled(r) {
 		http.NotFound(w, r)
 		return
 	}
@@ -432,11 +449,12 @@ func (s *devRoomMoveStoreState) page(config devPersonaConfig) roomMovesPageConte
 
 func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveReviewRow {
 	base := []roomMoveReviewRow{
-		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
+		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "it_admin", "Ready", ""),
 		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
-		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
-		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
-		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
+		manualFallbackReviewRow("single-taylor-chen", "single-taylor-chen", "Taylor Chen", "taylor.chen@wusd.org", "103884", "clover-hs", "C-202", "clover-hs", "C-214", "Avery Shah"),
+		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "it_admin", "Scheduled", "Two rows need review before scheduling").withScheduledFor("2026-07-27T20:00:00-07:00"),
+		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "it_admin", "Ready", ""),
+		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "other_site_operator", "Ready", ""),
 	}
 	baseDraftIDs := map[string]bool{}
 	for _, row := range base {
@@ -445,10 +463,9 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	suppressedDraftIDs := map[string]bool{}
 	for _, draft := range s.drafts {
-		if baseDraftIDs[draft.ID] {
-			continue
-		}
+		suppressedDraftIDs[draft.ID] = true
 		if s.completed[draft.ID] || s.canceled[draft.ID] {
 			continue
 		}
@@ -473,7 +490,11 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 				DestinationRoom:    row.DestinationRoom,
 				Phone:              row.Phone,
 				Author:             draft.Author,
+				AuthorID:           draft.AuthorID,
 				State:              draftStatusLabel(draft.Status),
+				ScheduledFor:       draft.ScheduledFor,
+				CanEdit:            canMutateRoomMoveDraft(config, draft),
+				CanCancel:          canMutateRoomMoveDraft(config, draft),
 				Warning:            row.Warning,
 				WarningLevel:       warningLevel(row.Warning),
 				AttentionReason:    row.AttentionReason,
@@ -482,8 +503,24 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 				ManualActionReason: row.ManualActionReason,
 				ResolutionSteps:    row.ResolutionSteps,
 				ExternalSystems:    row.ExternalSystems,
+				FallbackTicket:     row.FallbackTicket,
+				FallbackTicketHref: row.FallbackTicketHref,
+				FallbackStatus:     row.FallbackStatus,
+				TechnicalOutcome:   row.TechnicalOutcome,
 			})
 			continue
+		}
+		state := draftStatusLabel(draft.Status)
+		scheduledFor := draft.ScheduledFor
+		warning := strings.Join(draft.Warnings, " ")
+		phone := fmt.Sprintf("%d rows", len(draft.Rows))
+		author := draft.Author
+		if seed, ok := seedRoomMoveReviewRowByDraftID(draft.ID); ok && seed.ID != seed.DraftID && draft.Status == roomMoveDraftStatusOpen {
+			state = seed.State
+			scheduledFor = seed.ScheduledFor
+			warning = seed.Warning
+			phone = seed.Phone
+			author = seed.Author
 		}
 		base = append(base, roomMoveReviewRow{
 			ID:                "bulk-" + draft.ID,
@@ -499,24 +536,44 @@ func (s *devRoomMoveStoreState) reviewRows(config devPersonaConfig) []roomMoveRe
 			DestinationSite:   draft.ScopeSite,
 			DestinationRoomID: "",
 			DestinationRoom:   "Multiple",
-			Phone:             fmt.Sprintf("%d rows", len(draft.Rows)),
-			Author:            draft.Author,
-			State:             draftStatusLabel(draft.Status),
-			Warning:           strings.Join(draft.Warnings, " "),
-			WarningLevel:      warningLevel(strings.Join(draft.Warnings, " ")),
+			Phone:             phone,
+			Author:            author,
+			AuthorID:          draft.AuthorID,
+			State:             state,
+			ScheduledFor:      scheduledFor,
+			CanEdit:           canMutateRoomMoveDraft(config, draft),
+			CanCancel:         canMutateRoomMoveDraft(config, draft),
+			Warning:           warning,
+			WarningLevel:      warningLevel(warning),
 		})
 	}
 
 	filtered := base[:0]
+	rowIndexByDraftID := map[string]int{}
 	for _, row := range base {
+		if baseDraftIDs[row.DraftID] && suppressedDraftIDs[row.DraftID] && isSeededRoomMoveReviewRow(row) {
+			continue
+		}
 		if canAccessRoomMoveSite(config, row.CurrentSiteID) && !s.canceled[row.DraftID] {
+			row.CanEdit = canMutateRoomMoveReviewRow(config, row)
+			row.CanCancel = row.CanEdit
+			if index, ok := rowIndexByDraftID[row.DraftID]; ok {
+				filtered[index] = row
+				continue
+			}
+			rowIndexByDraftID[row.DraftID] = len(filtered)
 			filtered = append(filtered, row)
 		}
 	}
 	return filtered
 }
 
-func seedRoomMoveReviewRow(id string, draftID string, moveType string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, phone string, author string, state string, warning string) roomMoveReviewRow {
+func (row roomMoveReviewRow) withScheduledFor(scheduledFor string) roomMoveReviewRow {
+	row.ScheduledFor = scheduledFor
+	return row
+}
+
+func seedRoomMoveReviewRow(id string, draftID string, moveType string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, phone string, author string, authorID string, state string, warning string) roomMoveReviewRow {
 	currentSite := siteByID(currentSiteID)
 	destinationSite := siteByID(destinationSiteID)
 	return roomMoveReviewRow{
@@ -535,6 +592,7 @@ func seedRoomMoveReviewRow(id string, draftID string, moveType string, person st
 		DestinationRoom:   destinationRoom,
 		Phone:             phone,
 		Author:            author,
+		AuthorID:          authorID,
 		State:             state,
 		Warning:           warning,
 		WarningLevel:      warningLevel(warning),
@@ -560,29 +618,75 @@ func primaryConflictReviewRow(id string, draftID string, person string, email st
 		destinationRoom,
 		"Add to room shared line group; keep primary phone owner",
 		author,
+		"other_site_operator",
 		"Ready",
 		primaryConflictWarning(person, destinationRoom, "Jordan Patel"),
 	)
 	row.AttentionReason = primaryConflictAttentionReason(person, destinationRoom, "Jordan Patel")
 	row.AutomationOutcome = primaryConflictAutomationOutcome(person, destinationRoom)
 	row.ResolutionSteps = primaryConflictResolutionSteps(person, destinationRoom)
-	row.ExternalSystems = primaryConflictExternalSystems()
+	return row
+}
+
+// manualFallbackReviewRow seeds the Room Moves owner surface with a fallback
+// ticket that is already closed and technically verified. The DEV payload keeps
+// the owner, reason, resolution steps, linked systems, ticket status, and
+// verification result together so the React drawer demonstrates auto-resolution
+// without reviving the retired standalone human-work report route.
+func manualFallbackReviewRow(id string, draftID string, person string, email string, employeeID string, currentSiteID string, currentRoom string, destinationSiteID string, destinationRoom string, author string) roomMoveReviewRow {
+	row := seedRoomMoveReviewRow(
+		id,
+		draftID,
+		roomMoveTypeSingle,
+		person,
+		email,
+		employeeID,
+		currentSiteID,
+		currentRoom,
+		destinationSiteID,
+		destinationRoom,
+		"Verified by fallback ticket",
+		author,
+		"other_site_operator",
+		"Resolved",
+		"Manual fallback ticket closed after Zoom and IncidentIQ room state verification.",
+	)
+	row.AttentionReason = "Automation could not verify the Zoom shared line group during execution, so IT completed and verified the room move through IncidentIQ."
+	row.AutomationOutcome = "Resolved automatically after the linked ticket closed and the room/phone technical outcome was verified."
+	row.ManualActionOwner = "IT Service Desk"
+	row.ManualActionReason = "Zoom shared line group membership verification failed during room-move cutover."
+	row.ResolutionSteps = []string{
+		"Confirm the destination room shared line group includes the moving user.",
+		"Confirm the IncidentIQ room association reflects the destination room.",
+		"Close the fallback ticket only after both technical checks pass.",
+	}
+	row.ExternalSystems = []string{"Zoom room shared line group", "IncidentIQ room association"}
+	row.FallbackTicket = "IT-12977"
+	row.FallbackTicketHref = "https://mock.wusd.local/incidentiq/tickets/IT-12977"
+	row.FallbackStatus = "Closed"
+	row.TechnicalOutcome = "Verified Zoom shared line group and IncidentIQ room association; row auto-resolved."
 	return row
 }
 
 func seedRoomMoveReviewRowByDraftID(draftID string) (roomMoveReviewRow, bool) {
 	for _, row := range []roomMoveReviewRow{
-		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "Ready", ""),
+		seedRoomMoveReviewRow("single-alex-ramirez", "single-alex-ramirez", roomMoveTypeSingle, "Alex Ramirez", "alex.ramirez@wusd.org", "103118", "clover-hs", "A-104", "clover-hs", "A-108", "Move ext 51042", "Alex Ramirez", "it_admin", "Ready", ""),
 		primaryConflictReviewRow("single-morgan-lee", "single-morgan-lee", "Morgan Lee", "morgan.lee@wusd.org", "103442", "clover-hs", "B-210", "clover-hs", "B-204", "Avery Shah"),
-		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "Scheduled", "Two rows need review before scheduling"),
-		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "Ready", ""),
-		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "Ready", ""),
+		manualFallbackReviewRow("single-taylor-chen", "single-taylor-chen", "Taylor Chen", "taylor.chen@wusd.org", "103884", "clover-hs", "C-202", "clover-hs", "C-214", "Avery Shah"),
+		seedRoomMoveReviewRow("bulk-clover-summer", "rm-draft-103", roomMoveTypeBulkRoster, "Bulk Move", "", "", "clover-hs", "Multiple", "clover-hs", "Multiple", "Batch cutover", "Alex Ramirez", "it_admin", "Scheduled", "Two rows need review before scheduling").withScheduledFor("2026-07-27T20:00:00-07:00"),
+		seedRoomMoveReviewRow("single-jamie-reed", "single-jamie-reed", roomMoveTypeSingle, "Jamie Reed", "jamie.reed@wusd.org", "103772", "desert-view", "C-118", "desert-view", "None", "Remove phone and SLGs; convert room to common area", "Alex Ramirez", "it_admin", "Ready", ""),
+		seedRoomMoveReviewRow("single-nia-brooks", "single-nia-brooks", roomMoveTypeSingle, "Nia Brooks", "nia.brooks@wusd.org", "104012", "franklin-ms", "D-102", "franklin-ms", "D-112", "Assign line", "Avery Shah", "other_site_operator", "Ready", ""),
 	} {
 		if row.DraftID == draftID {
 			return row, true
 		}
 	}
 	return roomMoveReviewRow{}, false
+}
+
+func isSeededRoomMoveReviewRow(row roomMoveReviewRow) bool {
+	seed, ok := seedRoomMoveReviewRowByDraftID(row.DraftID)
+	return ok && row.ID == seed.ID
 }
 
 func seedCompletedRoomMoveJobs() []roomMoveCompletedJobPayload {
@@ -623,18 +727,41 @@ func (s *devRoomMoveStoreState) createDraft(config devPersonaConfig, request roo
 }
 
 // updateDraft replaces an existing DEV draft after confirming the current
-// persona can access the draft's scoped site. Missing mode or effective-date
-// fields keep their prior values so partial frontend saves do not reset workflow
-// context.
+// persona can access the draft's scoped site. Missing mode, scope-site, or
+// effective-date fields keep their prior values so partial frontend saves do
+// not reset workflow context.
 func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID string, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing, ok := s.drafts[draftID]
 	if !ok {
-		return roomMoveDraftPayload{}, http.StatusNotFound, map[string]string{"draft": "Draft not found."}
+		if seed, seedOK := seedRoomMoveReviewRowByDraftID(draftID); seedOK {
+			existing = roomMoveDraftPayload{
+				ID:                draftID,
+				Mode:              seed.MoveType,
+				Status:            roomMoveDraftStatusOpen,
+				ScopeSiteID:       seed.CurrentSiteID,
+				ScopeSite:         seed.CurrentSite,
+				EffectiveDate:     "2026-07-27",
+				Author:            seed.Author,
+				AuthorID:          seed.AuthorID,
+				Rows:              []roomMoveDraftRow{{PersonID: roomMovePersonIDByEmail(seed.Email), DestinationSiteID: seed.DestinationSiteID, DestinationRoomID: seed.DestinationRoomID}},
+				CanEdit:           canMutateRoomMoveReviewRow(config, seed),
+				CanDelete:         canMutateRoomMoveReviewRow(config, seed),
+				CanManageDistrict: canManageDistrictRoomMoves(config),
+			}
+		} else {
+			return roomMoveDraftPayload{}, http.StatusNotFound, map[string]string{"draft": "Draft not found."}
+		}
 	}
 	if !canAccessRoomMoveSite(config, existing.ScopeSiteID) {
 		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot update another site's room move draft."}
+	}
+	if !canMutateRoomMoveDraft(config, existing) {
+		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"author": "This persona can view this room move but only the original author or IT Admin can update it."}
+	}
+	if request.ScopeSiteID == "" {
+		request.ScopeSiteID = existing.ScopeSiteID
 	}
 	draft, status, errors := buildRoomMoveDraft(config, draftID, request)
 	if status != http.StatusOK {
@@ -646,9 +773,11 @@ func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID str
 	if request.EffectiveDate == "" {
 		draft.EffectiveDate = existing.EffectiveDate
 	}
+	draft.Author = existing.Author
+	draft.AuthorID = existing.AuthorID
 	draft.Status = existing.Status
 	s.drafts[draft.ID] = draft
-	return draft, http.StatusOK, nil
+	return roomMoveDraftWithPermissions(config, draft), http.StatusOK, nil
 }
 
 // transitionDraft records the DEV-only schedule or completion state for a draft.
@@ -664,8 +793,14 @@ func (s *devRoomMoveStoreState) transitionDraft(config devPersonaConfig, draftID
 	if !canAccessRoomMoveSite(config, draft.ScopeSiteID) {
 		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot update another site's room move draft."}
 	}
+	if !canMutateRoomMoveDraft(config, draft) {
+		return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"author": "This persona can view this room move but only the original author or IT Admin can apply or schedule it."}
+	}
 	if s.canceled[draft.ID] {
 		return roomMoveDraftPayload{}, http.StatusConflict, map[string]string{"draft": "Canceled drafts cannot be scheduled or applied."}
+	}
+	if status, errors := validateRoomMoveRowsForTransition(draft.Rows); status != http.StatusOK {
+		return roomMoveDraftPayload{}, status, errors
 	}
 	if action == "schedule" {
 		draft.Status = "scheduled"
@@ -688,7 +823,7 @@ func (s *devRoomMoveStoreState) transitionDraft(config devPersonaConfig, draftID
 		}
 	}
 	s.drafts[draft.ID] = draft
-	return draft, http.StatusOK, nil
+	return roomMoveDraftWithPermissions(config, draft), http.StatusOK, nil
 }
 
 // cancelDraft marks draft-review and saved drafts as canceled in the DEV store.
@@ -704,14 +839,20 @@ func (s *devRoomMoveStoreState) cancelDraft(config devPersonaConfig, draftID str
 		if !canAccessRoomMoveSite(config, draft.ScopeSiteID) {
 			return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot cancel another site's room move draft."}
 		}
+		if !canMutateRoomMoveDraft(config, draft) {
+			return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"author": "This persona can view this room move but only the original author or IT Admin can cancel it."}
+		}
 		draft.Status = "canceled"
 		s.drafts[draft.ID] = draft
 		s.canceled[draft.ID] = true
-		return draft, http.StatusOK, nil
+		return roomMoveDraftWithPermissions(config, draft), http.StatusOK, nil
 	}
 	if seed, ok := seedRoomMoveReviewRowByDraftID(draftID); ok {
 		if !canAccessRoomMoveSite(config, seed.CurrentSiteID) {
 			return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"scope": "This persona cannot cancel another site's room move draft."}
+		}
+		if !canMutateRoomMoveReviewRow(config, seed) {
+			return roomMoveDraftPayload{}, http.StatusForbidden, map[string]string{"author": "This persona can view this room move but only the original author or IT Admin can cancel it."}
 		}
 		s.canceled[draftID] = true
 		return roomMoveDraftPayload{
@@ -741,6 +882,10 @@ func (s *devRoomMoveStoreState) cancelDraft(config devPersonaConfig, draftID str
 				ResolutionSteps:    seed.ResolutionSteps,
 				ExternalSystems:    seed.ExternalSystems,
 			}},
+			Author:            seed.Author,
+			AuthorID:          seed.AuthorID,
+			CanEdit:           canMutateRoomMoveReviewRow(config, seed),
+			CanDelete:         canMutateRoomMoveReviewRow(config, seed),
 			CanManageDistrict: canManageDistrictRoomMoves(config),
 		}, http.StatusOK, nil
 	}
@@ -759,6 +904,9 @@ func (s *devRoomMoveStoreState) deleteDraft(config devPersonaConfig, draftID str
 	}
 	if !canAccessRoomMoveSite(config, draft.ScopeSiteID) {
 		return http.StatusForbidden, map[string]string{"scope": "This persona cannot delete another site's room move draft."}
+	}
+	if !canMutateRoomMoveDraft(config, draft) {
+		return http.StatusForbidden, map[string]string{"author": "This persona can view this room move but only the original author or IT Admin can delete it."}
 	}
 	delete(s.drafts, draftID)
 	delete(s.completed, draftID)
@@ -833,7 +981,7 @@ func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if draft, ok := s.drafts[draftID]; ok && canAccessRoomMoveSite(config, draft.ScopeSiteID) {
-		return draft
+		return roomMoveDraftWithPermissions(config, draft)
 	}
 	mode := defaultMode
 	if mode == "" {
@@ -853,8 +1001,12 @@ func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID
 		request.Rows = seededBulkDraftFeedbackRows()
 	}
 	draft, _, _ := buildRoomMoveDraft(config, newID, request)
+	if seed, ok := seedRoomMoveReviewRowByDraftID(newID); ok {
+		draft.Author = seed.Author
+		draft.AuthorID = seed.AuthorID
+	}
 	s.drafts[draft.ID] = draft
-	return draft
+	return roomMoveDraftWithPermissions(config, draft)
 }
 
 func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
@@ -883,7 +1035,7 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 	}
 	if mode == roomMoveTypeBulkRoster && len(rows) == 0 {
 		for _, person := range roomMovePeopleForSite(scopeSite.ID) {
-			rows = append(rows, draftRowFromPerson(person, person.SiteID, person.CurrentRoomID))
+			rows = append(rows, draftRowFromPerson(person, person.SiteID, "none"))
 		}
 	}
 	if mode == roomMoveTypeBuildList && rows == nil {
@@ -901,6 +1053,7 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 		ScopeSite:         scopeSite.Name,
 		EffectiveDate:     effectiveDate,
 		Author:            config.Persona.DisplayName,
+		AuthorID:          config.Persona.ID,
 		Warnings:          warnings,
 		Rows:              normalizedRows,
 		CanEdit:           true,
@@ -911,7 +1064,9 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 
 // normalizeRoomMoveRows converts client-supplied draft rows into the canonical DEV mock payload saved by createDraft
 // and updateDraft. The action-specific branches are user-visible: add rows clear prior room state, and removal rows
-// always save destination room None so reloads continue to represent removal from room phones, SLGs, and queues.
+// always save destination room None so reloads continue to represent removal from room phones, SLGs, and queues. The
+// repeated-user pass preserves every same-person row and models the Phase 3 planner contract for one primary desk-phone
+// owner plus secondary, tertiary, or later-order shared-line-group memberships.
 func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, rows []roomMoveDraftRow) ([]roomMoveDraftRow, []string, int, map[string]string) {
 	normalized := make([]roomMoveDraftRow, 0, len(rows))
 	warnings := []string{}
@@ -943,6 +1098,13 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		} else if destinationRoomID == "" {
 			destinationRoomID = person.CurrentRoomID
 		}
+		destinationRole := normalizeRoomMoveDestinationRole(row.DestinationRole)
+		if action == "removal" {
+			destinationRole = "removal"
+		}
+		if roomMoveIsSameStableRoom(person, destinationSiteID, destinationRoomID, action) {
+			return nil, nil, http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, person.CurrentRoom)}
+		}
 		room := roomMoveRoomByID(destinationRoomID, destinationSiteID)
 		warning := row.Warning
 		attentionReason := row.AttentionReason
@@ -951,9 +1113,13 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		manualActionReason := row.ManualActionReason
 		resolutionSteps := row.ResolutionSteps
 		externalSystems := row.ExternalSystems
+		fallbackTicket := row.FallbackTicket
+		fallbackTicketHref := sanitizeRoomMoveFallbackTicketHref(row.FallbackTicketHref)
+		fallbackStatus := row.FallbackStatus
+		technicalOutcome := row.TechnicalOutcome
 		phoneOutcome := person.Phone
-		if destinationRoomID == "none" && person.CurrentRoomID != "none" {
-			warning = "Destination room is none; phone and room assignments will be removed."
+		if destinationRoomID == "none" && person.CurrentRoomID != "none" && !roomMoveIsNeutralRolloverPlaceholder(person, destinationSiteID, destinationRoomID, action) {
+			warning = fmt.Sprintf("Destination room for %s is None; phone and room assignments will be removed.", person.Name)
 			warnings = appendUniqueString(warnings, warning)
 			phoneOutcome = "Remove phone and SLGs; convert room to common area"
 		}
@@ -966,7 +1132,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			attentionReason = primaryConflictAttentionReason(person.Name, room.Label, primaryOwner)
 			automationOutcome = primaryConflictAutomationOutcome(person.Name, room.Label)
 			resolutionSteps = primaryConflictResolutionSteps(person.Name, room.Label)
-			externalSystems = primaryConflictExternalSystems()
+			externalSystems = nil
 			phoneOutcome = "Add to room shared line group; keep primary phone owner"
 			manualActionOwner = ""
 			manualActionReason = ""
@@ -988,10 +1154,12 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			CurrentSite:        person.Site,
 			CurrentRoomID:      currentRoomID,
 			CurrentRoom:        currentRoom,
+			SourceRole:         person.SourceRole,
 			DestinationSiteID:  destinationSiteID,
 			DestinationSite:    destinationSite.Name,
 			DestinationRoomID:  destinationRoomID,
 			DestinationRoom:    room.Label,
+			DestinationRole:    destinationRole,
 			Phone:              phoneOutcome,
 			Action:             action,
 			Warning:            warning,
@@ -1001,9 +1169,228 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			ManualActionReason: manualActionReason,
 			ResolutionSteps:    resolutionSteps,
 			ExternalSystems:    externalSystems,
+			FallbackTicket:     fallbackTicket,
+			FallbackTicketHref: fallbackTicketHref,
+			FallbackStatus:     fallbackStatus,
+			TechnicalOutcome:   technicalOutcome,
 		})
 	}
+	normalized, repeatedWarnings := applyRepeatedUserRoomMovePlanning(normalized)
+	warnings = roomMoveWarningsFromRows(normalized)
+	for _, warning := range repeatedWarnings {
+		warnings = appendUniqueString(warnings, warning)
+	}
 	return normalized, warnings, http.StatusOK, nil
+}
+
+func normalizeRoomMoveDestinationRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "primary":
+		return "primary"
+	case "secondary":
+		return "secondary"
+	case "tertiary":
+		return "tertiary"
+	case "slg_only", "slg-only", "member":
+		return "member"
+	default:
+		return ""
+	}
+}
+
+func sanitizeRoomMoveFallbackTicketHref(href string) string {
+	parsed, err := url.Parse(strings.TrimSpace(href))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	switch parsed.Scheme {
+	case "http", "https":
+		return parsed.String()
+	default:
+		return ""
+	}
+}
+
+// roomMoveWarningsFromRows rebuilds draft-level warning copy after planner passes finish mutating rows. The DEV draft
+// create/update handlers use the returned list for drawer and summary gating, so it must mirror the warnings still
+// attached to saved rows instead of retaining conflicts that a later planner pass downgraded to shared-line-group work.
+func roomMoveWarningsFromRows(rows []roomMoveDraftRow) []string {
+	warnings := []string{}
+	for _, row := range rows {
+		warnings = appendUniqueString(warnings, row.Warning)
+	}
+	return warnings
+}
+
+// applyRepeatedUserRoomMovePlanning is the DEV mock stand-in for the future live Room Moves planner. It handles
+// same-person bulk rows as one planning group so rows are not dropped and secondary destinations never steal the desk
+// phone from the one resolved primary room. When no row is explicitly primary, it first uses source-role and current-room
+// data to infer the retained source room as primary when that choice is unique. Ambiguous repeated-primary input is
+// returned as actionable review output instead of silently selecting one room.
+func applyRepeatedUserRoomMovePlanning(rows []roomMoveDraftRow) ([]roomMoveDraftRow, []string) {
+	indexesByPerson := map[string][]int{}
+	for index, row := range rows {
+		indexesByPerson[row.PersonID] = append(indexesByPerson[row.PersonID], index)
+	}
+	warnings := []string{}
+	for _, indexes := range indexesByPerson {
+		if len(indexes) < 2 {
+			continue
+		}
+		activeIndexes := []int{}
+		primaryIndexes := []int{}
+		for _, index := range indexes {
+			row := rows[index]
+			if row.Action == "removal" || row.DestinationRoomID == "none" {
+				continue
+			}
+			activeIndexes = append(activeIndexes, index)
+			if row.DestinationRole == "primary" {
+				primaryIndexes = append(primaryIndexes, index)
+			}
+		}
+		if len(activeIndexes) < 2 {
+			continue
+		}
+		personName := rows[indexes[0]].Person
+		if len(primaryIndexes) == 0 {
+			if inferredPrimaryIndex, ok := inferRepeatedUserPrimaryIndex(rows, activeIndexes); ok {
+				rows[inferredPrimaryIndex].DestinationRole = "primary"
+				primaryIndexes = append(primaryIndexes, inferredPrimaryIndex)
+			}
+		}
+		switch {
+		case len(primaryIndexes) > 1:
+			roomLabels := repeatedRoomLabels(rows, primaryIndexes)
+			warning := fmt.Sprintf("Ambiguous repeated-user primary room: %s is marked primary for %s; choose one primary before execution.", personName, strings.Join(roomLabels, ", "))
+			for _, index := range activeIndexes {
+				rows[index].Warning = warning
+				rows[index].AttentionReason = fmt.Sprintf("%s appears in multiple primary destination rows, so automation cannot safely decide which room owns the desk phone.", personName)
+				rows[index].AutomationOutcome = "Hold primary phone assignment until one primary room is selected; preserve shared-line-group membership planning for the remaining destination rooms."
+				rows[index].Phone = "Review required before primary phone assignment"
+				rows[index].ResolutionSteps = []string{
+					"Select exactly one destination row as primary.",
+					"Keep additional destination rows as secondary, tertiary, or later-order shared-line-group memberships.",
+					"Re-run the Room Moves review before scheduling or applying the batch.",
+				}
+				rows[index].ExternalSystems = []string{"Zoom primary phone assignment", "Zoom room shared line group", "IncidentIQ room association"}
+			}
+			warnings = appendUniqueString(warnings, warning)
+		case len(primaryIndexes) == 1:
+			primaryIndex := primaryIndexes[0]
+			memberOrdinal := 0
+			for _, index := range activeIndexes {
+				if index == primaryIndex {
+					rows[index].Phone = repeatedPrimaryPhoneOutcome(rows[index])
+					rows[index].AutomationOutcome = repeatedPrimaryAutomationOutcome(rows[index])
+					continue
+				}
+				memberOrdinal++
+				rows[index].DestinationRole = repeatedMemberRole(memberOrdinal)
+				rows[index].Warning = ""
+				rows[index].AttentionReason = ""
+				rows[index].AutomationOutcome = repeatedMemberAutomationOutcome(rows[index])
+				rows[index].Phone = repeatedMemberPhoneOutcome(rows[index])
+				rows[index].ManualActionOwner = ""
+				rows[index].ManualActionReason = ""
+				rows[index].ResolutionSteps = []string{
+					fmt.Sprintf("Keep %s as the primary room owner for the selected primary destination row.", personName),
+					fmt.Sprintf("Add %s to the %s room shared line group only.", personName, rows[index].DestinationRoom),
+					"Verify Zoom shared-line-group membership during execution.",
+				}
+				rows[index].ExternalSystems = []string{"Zoom room shared line group", "IncidentIQ room association"}
+			}
+		default:
+			roomLabels := repeatedRoomLabels(rows, activeIndexes)
+			warning := fmt.Sprintf("Repeated-user room planning needs primary selection: %s appears in %s with no primary destination role.", personName, strings.Join(roomLabels, ", "))
+			for _, index := range activeIndexes {
+				rows[index].Warning = warning
+				rows[index].AttentionReason = fmt.Sprintf("%s appears in multiple destination rooms, but none is marked as the primary desk-phone owner.", personName)
+				rows[index].AutomationOutcome = "Hold primary phone assignment until one destination is marked primary; keep rows available for secondary or tertiary shared-line-group planning."
+				rows[index].Phone = "Review required before primary phone assignment"
+				rows[index].ResolutionSteps = []string{
+					"Mark one row as primary if the person should own a desk phone in that room.",
+					"Mark the remaining rows as secondary, tertiary, or member destinations.",
+					"Use shared-line-group-only roles when the source data shows the person is not a primary room owner.",
+				}
+				rows[index].ExternalSystems = []string{"Zoom primary phone assignment", "Zoom room shared line group", "IncidentIQ room association"}
+			}
+			warnings = appendUniqueString(warnings, warning)
+		}
+	}
+	return rows, warnings
+}
+
+// inferRepeatedUserPrimaryIndex applies the source-data branch of the repeated-user planner contract. A retained
+// current-room row can become the primary destination only when the source record says that room was a primary owner
+// role and no other retained source-room candidate exists; SLG-only source records still require explicit operator
+// selection because they do not prove desk-phone ownership.
+func inferRepeatedUserPrimaryIndex(rows []roomMoveDraftRow, activeIndexes []int) (int, bool) {
+	candidates := []int{}
+	for _, index := range activeIndexes {
+		row := rows[index]
+		if row.CurrentRoomID == "" || row.CurrentRoomID == "none" {
+			continue
+		}
+		if row.DestinationRoomID != row.CurrentRoomID {
+			continue
+		}
+		switch row.SourceRole {
+		case "primary", "last_primary":
+			candidates = append(candidates, index)
+		}
+	}
+	if len(candidates) != 1 {
+		return 0, false
+	}
+	return candidates[0], true
+}
+
+func repeatedRoomLabels(rows []roomMoveDraftRow, indexes []int) []string {
+	labels := []string{}
+	for _, index := range indexes {
+		labels = append(labels, rows[index].DestinationRoom)
+	}
+	return labels
+}
+
+func repeatedMemberRole(ordinal int) string {
+	switch ordinal {
+	case 1:
+		return "secondary"
+	case 2:
+		return "tertiary"
+	default:
+		return "member"
+	}
+}
+
+func repeatedPrimaryPhoneOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return "Assign room phone; replace common-area phone after membership is verified"
+	}
+	return row.Phone
+}
+
+func repeatedPrimaryAutomationOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return fmt.Sprintf("Make %s the primary phone owner for %s, add them to the room shared line group, then retire the common-area phone only after Zoom verifies human coverage.", row.Person, row.DestinationRoom)
+	}
+	return row.AutomationOutcome
+}
+
+func repeatedMemberPhoneOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return "Add to room shared line group; keep common-area phone active"
+	}
+	return "Add to room shared line group; no desk phone assignment"
+}
+
+func repeatedMemberAutomationOutcome(row roomMoveDraftRow) string {
+	if roomMoveRoomHasCommonAreaPhone(row.DestinationRoomID) {
+		return fmt.Sprintf("Add %s to the %s room shared line group as %s coverage and keep the common-area phone active.", row.Person, row.DestinationRoom, row.DestinationRole)
+	}
+	return fmt.Sprintf("Add %s to the %s room shared line group as %s coverage without changing the primary desk-phone owner.", row.Person, row.DestinationRoom, row.DestinationRole)
 }
 
 // seededBulkDraftFeedbackRows keeps issue #55's browser-verification fixture stable for /room-moves/bulk-draft?draft_id=rm-draft-103.
@@ -1052,6 +1439,39 @@ func roomMoveSummaryCards(rows []roomMoveReviewRow) []summaryCardPayload {
 
 func canManageDistrictRoomMoves(config devPersonaConfig) bool {
 	return config.Persona.ID == "it_admin"
+}
+
+// canMutateRoomMoveDraft separates site-scoped visibility from edit authority
+// for DEV room-move drafts. The mutation handlers call it after route and site
+// checks so Site Admin and Site Secretary users may see assigned-site drafts
+// from IT or another operator but cannot save, apply, cancel, or delete them.
+func canMutateRoomMoveDraft(config devPersonaConfig, draft roomMoveDraftPayload) bool {
+	if canManageDistrictRoomMoves(config) {
+		return true
+	}
+	return draft.AuthorID != "" && draft.AuthorID == config.Persona.ID
+}
+
+// canMutateRoomMoveReviewRow applies the same author-ownership rule to seeded
+// review rows that do not yet exist in the in-memory draft map. Seeded rows are
+// direct DEV mutation targets, so update and cancel calls must reject them
+// before converting the row into a stored draft for another persona.
+func canMutateRoomMoveReviewRow(config devPersonaConfig, row roomMoveReviewRow) bool {
+	if canManageDistrictRoomMoves(config) {
+		return true
+	}
+	return row.AuthorID != "" && row.AuthorID == config.Persona.ID
+}
+
+// roomMoveDraftWithPermissions computes caller-specific edit flags immediately
+// before a DEV draft leaves the store. The stored draft keeps its true author,
+// while each page/API response reflects whether the active persona may mutate it.
+func roomMoveDraftWithPermissions(config devPersonaConfig, draft roomMoveDraftPayload) roomMoveDraftPayload {
+	editable := canMutateRoomMoveDraft(config, draft)
+	draft.CanEdit = editable
+	draft.CanDelete = editable
+	draft.CanManageDistrict = canManageDistrictRoomMoves(config)
+	return draft
 }
 
 func roomMovesScopeSite(config devPersonaConfig) devSiteContext {
@@ -1153,11 +1573,12 @@ func roomMoveRoomsForSite(siteID string) []roomMoveRoomOption {
 
 func roomMovePeopleSeed() []roomMovePersonOption {
 	return []roomMovePersonOption{
-		{ID: "alex-ramirez", Name: "Alex Ramirez", Email: "alex.ramirez@wusd.org", EmployeeID: "103118", Role: "IT Admin", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-a104", CurrentRoom: "A-104", Phone: "51042"},
-		{ID: "morgan-lee", Name: "Morgan Lee", Email: "morgan.lee@wusd.org", EmployeeID: "103442", Role: "Teacher", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-b210", CurrentRoom: "B-210", Phone: "51017"},
+		{ID: "alex-ramirez", Name: "Alex Ramirez", Email: "alex.ramirez@wusd.org", EmployeeID: "103118", Role: "IT Admin", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-a104", CurrentRoom: "A-104", SourceRole: "primary", Phone: "51042"},
+		{ID: "morgan-lee", Name: "Morgan Lee", Email: "morgan.lee@wusd.org", EmployeeID: "103442", Role: "Teacher", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-b210", CurrentRoom: "B-210", SourceRole: "last_primary", Phone: "51017"},
+		{ID: "casey-nguyen", Name: "Casey Nguyen", Email: "casey.nguyen@wusd.org", EmployeeID: "105887", Role: "Instructional Specialist", SiteID: "clover-hs", Site: "Clover High School", CurrentRoomID: "cla-a104", CurrentRoom: "A-104", SourceRole: "slg_only", Phone: ""},
 		{ID: "taylor-quinn", Name: "Taylor Quinn", Email: "taylor.quinn@wusd.org", EmployeeID: "106103", Role: "Contractor", SiteID: "desert-view", Site: "Desert View Elementary", CurrentRoomID: "none", CurrentRoom: "None", Phone: ""},
-		{ID: "jamie-reed", Name: "Jamie Reed", Email: "jamie.reed@wusd.org", EmployeeID: "103772", Role: "Teacher", SiteID: "desert-view", Site: "Desert View Elementary", CurrentRoomID: "dve-c118", CurrentRoom: "C-118", Phone: "52013"},
-		{ID: "nia-brooks", Name: "Nia Brooks", Email: "nia.brooks@wusd.org", EmployeeID: "104012", Role: "Site Secretary", SiteID: "franklin-ms", Site: "Franklin Middle School", CurrentRoomID: "fms-d102", CurrentRoom: "D-102", Phone: "53022"},
+		{ID: "jamie-reed", Name: "Jamie Reed", Email: "jamie.reed@wusd.org", EmployeeID: "103772", Role: "Teacher", SiteID: "desert-view", Site: "Desert View Elementary", CurrentRoomID: "dve-c118", CurrentRoom: "C-118", SourceRole: "last_primary", Phone: "52013"},
+		{ID: "nia-brooks", Name: "Nia Brooks", Email: "nia.brooks@wusd.org", EmployeeID: "104012", Role: "Site Secretary", SiteID: "franklin-ms", Site: "Franklin Middle School", CurrentRoomID: "fms-d102", CurrentRoom: "D-102", SourceRole: "primary", Phone: "53022"},
 	}
 }
 
@@ -1168,6 +1589,56 @@ func roomMovePersonByID(id string) (roomMovePersonOption, bool) {
 		}
 	}
 	return roomMovePersonOption{}, false
+}
+
+// roomMovePersonIDByEmail lets updateDraft turn a seeded review row into an
+// editable in-memory draft under the same draft id. The seed payload carries an
+// email address for the drawer, while buildRoomMoveDraft requires the stable
+// person id before it will normalize and persist the edited row.
+func roomMovePersonIDByEmail(email string) string {
+	for _, person := range roomMovePeopleSeed() {
+		if person.Email == email {
+			return person.ID
+		}
+	}
+	return ""
+}
+
+// roomMoveIsSameStableRoom is the DEV mock validation predicate shared by draft
+// normalization and transition checks. Add, removal, revert, and None
+// destinations are real operations, but ordinary change rows must not write a
+// future room move when the stable destination id equals the person's current
+// room id at the same site.
+func roomMoveIsSameStableRoom(person roomMovePersonOption, destinationSiteID string, destinationRoomID string, action string) bool {
+	if action == "add" || action == "removal" || action == "revert" || destinationRoomID == "" || destinationRoomID == "none" {
+		return false
+	}
+	return person.SiteID == destinationSiteID && person.CurrentRoomID == destinationRoomID
+}
+
+func roomMoveIsNeutralRolloverPlaceholder(person roomMovePersonOption, destinationSiteID string, destinationRoomID string, action string) bool {
+	return action == "change" && person.SiteID == destinationSiteID && destinationRoomID == "none" && person.CurrentRoomID != "none"
+}
+
+// validateRoomMoveRowsForTransition reruns the same-room guard immediately
+// before schedule/apply so stale DEV drafts or manually constructed payloads
+// cannot bypass create/update validation and become planned provider work. It
+// also keeps untouched site-rollover placeholder rows from turning into
+// implicit room-removal work during schedule or apply.
+func validateRoomMoveRowsForTransition(rows []roomMoveDraftRow) (int, map[string]string) {
+	for index, row := range rows {
+		person, ok := roomMovePersonByID(row.PersonID)
+		if !ok {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.person_id", index): "Unknown person."}
+		}
+		if roomMoveIsNeutralRolloverPlaceholder(person, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("Choose a destination room for %s before scheduling or applying the room move.", person.Name)}
+		}
+		if roomMoveIsSameStableRoom(person, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, person.CurrentRoom)}
+		}
+	}
+	return http.StatusOK, nil
 }
 
 func roomMoveRoomByID(roomID string, siteID string) roomMoveRoomOption {
@@ -1204,6 +1675,19 @@ func roomMoveActivePrimaryOwner(destinationRoomID string, movingPersonID string)
 	return "", false
 }
 
+// roomMoveRoomHasCommonAreaPhone marks deterministic DEV fixtures where Zoom
+// has CAP/common-area coverage for an otherwise unoccupied room. The repeated-user
+// planning pass uses this to show safe CAP-to-human or CAP-preserving outcomes
+// without touching the Room Moves UI artboards owned by the active UI branch.
+func roomMoveRoomHasCommonAreaPhone(roomID string) bool {
+	switch roomID {
+	case "cla-a108", "dve-c122", "fms-d112":
+		return true
+	default:
+		return false
+	}
+}
+
 // primaryConflictWarning is the short warning line surfaced in summary and
 // drawer warning areas when a destination room already has an active primary
 // room owner. It keeps the table state compact while the structured fields below
@@ -1236,14 +1720,6 @@ func primaryConflictResolutionSteps(personName string, destinationRoom string) [
 		fmt.Sprintf("Schedule or apply the draft; automation will add %s to the %s room shared line group.", personName, destinationRoom),
 		"Escalate to IT only if Zoom cannot verify the shared line group membership during execution.",
 	}
-}
-
-// primaryConflictExternalSystems lists the external systems named in the drawer
-// explanation for this mock automation path. Keeping the list structured lets
-// tests lock down that the row points operators at Zoom rather than a generic
-// manual-ticket bucket.
-func primaryConflictExternalSystems() []string {
-	return []string{"Zoom room shared line group", "IncidentIQ room association"}
 }
 
 func draftRowFromPerson(person roomMovePersonOption, destinationSiteID string, destinationRoomID string) roomMoveDraftRow {
