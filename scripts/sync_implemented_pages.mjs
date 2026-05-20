@@ -34,6 +34,7 @@ const artboardSpecs = [
     key: "dashboard-site-admin",
     source: "docs/design/mocks/wireframes/wireframe-site-admin-dashboard.pen",
     mode: "merge-shell",
+    standardPrimitives: [],
   },
   {
     key: "onboarding",
