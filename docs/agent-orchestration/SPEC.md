@@ -132,7 +132,7 @@ The workspace manager must not delete workspaces automatically on success. Reten
 
 The orchestrator owns the poll loop, runtime state, dispatch queue, retry queue, and reconciliation logic.
 
-The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, dispatch eligible GitHub issues into deterministic workspaces and issue branches, render issue-specific Codex prompts, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, inspect thread-aware Codex Review feedback, resolve outdated Codex Review threads that were left unresolved after the reviewed line became obsolete, emit Browser evaluation requests, and record Browser results. It does not manually merge PRs, close issues, run production/provider writeback, resolve current actionable review threads without an in-scope fix, or bypass human review.
+The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, dispatch eligible GitHub issues into deterministic workspaces and issue branches, render issue-specific Codex prompts, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, inspect thread-aware Codex Review feedback, resolve outdated Codex Review threads that were left unresolved after the reviewed line became obsolete, evaluate Phase 0 pull request merge readiness, emit Browser evaluation requests, and record Browser results. It does not close issues, run production/provider writeback, resolve current actionable review threads without an in-scope fix, or bypass documented review gates.
 
 The package scripts are:
 
@@ -143,23 +143,30 @@ The package scripts are:
 
 Dry-run mode must remain non-mutating. `npm run symphony:sync -- --dry-run --json` may read GitHub issues and PRs, rank eligible issues, route repo-local skills, and report which workspaces and branches would be prepared. It must not create worktrees, branches, prompts, state files, issue comments, labels, or PRs. `npm run symphony:ui-monitor -- --dry-run` may read GitHub, inspect local worktrees, check health endpoints, and report which PR branches would be eligible for safe rebase, but it must not acquire the production monitor lock, update branches, write runner state, restart dev servers, change issues or PRs, or invoke Browser.
 
-The dispatcher now prepares work for Codex and launches the configured repo-owned agent command. A non-dry-run `sync` tick creates or reuses one workspace per selected issue under the configured `dispatch.workspace_root`, creates a branch from the issue's target branch using `branching.branch_template`, writes `prompt.md`, invokes `dispatch.agent_runner_command` from the prepared worktree, writes agent stdout/stderr into the issue `logs/` directory, writes per-issue `state.json`, and updates the dispatcher status file. The approved runner command is `codex --ask-for-approval never exec --json --sandbox workspace-write --cd {repo} -`, which reads the rendered prompt from stdin and executes with workspace-scoped write access.
+The dispatcher now prepares work for Codex and launches the configured repo-owned agent command. A non-dry-run `sync` tick first evaluates the Phase 0 pull request queue, then creates or reuses one workspace per selected issue under the configured `dispatch.workspace_root`, creates a branch from the issue's target branch using `branching.branch_template`, writes `prompt.md`, invokes `dispatch.agent_runner_command` from the prepared worktree, writes agent stdout/stderr into the issue `logs/` directory, writes per-issue `state.json`, and updates the dispatcher status file. The approved runner command is `codex --ask-for-approval never exec --json --sandbox workspace-write --cd {repo} -`, which reads the rendered prompt from stdin and executes with workspace-scoped write access.
 
 The `ui-improvements` branch reconciliation pass is deliberately conservative. It may rebase and push a non-draft PR branch only when the branch name matches the configured safe prefixes, the branch has a remote ref, the selected worktree is clean, and the local branch still matches `origin/<branch>` before rebase. Successful branch updates must use `git push --force-with-lease`. Dirty worktrees, divergent local branches, missing remote refs, and rebase conflicts are recorded as blocked reconciliation results for a later human or issue-worker pass.
 
 Codex Review reconciliation is also conservative. The monitor must read `reviewThreads` so it can distinguish active, resolved, and outdated inline feedback. It may automatically resolve only outdated unresolved threads authored by configured Codex Review accounts, because those comments no longer point at the current diff. Active Codex Review threads remain blocking review-remediation work until an agent applies an in-scope code or documentation fix, runs relevant verification, and records the evidence needed to resolve the thread.
 
+Phase 0 clean PR merging is an orchestrator responsibility, not a heartbeat-prompt responsibility. For open PRs targeting `phase-0-platform-foundation`, `symphony:sync` should inspect merge state, checks, blocked labels, thread-aware Codex Review state, requested-changes reviews, and PR conversation reactions before selecting more issue work. A PR may be merged automatically only when it is non-draft, cleanly mergeable, targeted to `phase-0-platform-foundation`, unblocked by labels, not missing required runtime evidence, and free of unresolved current Codex Review feedback. When no Codex Review response exists, a thumbs-up reaction from `chatgpt-codex-connector[bot]` is an accepted clean signal if the other gates pass. An eyes reaction or missing reaction means `waiting_for_codex_review`, not merge-ready.
+
+Review waiting must be non-blocking. The orchestrator records the review request or pending signal and exits the tick instead of sleeping for several minutes. The next scheduled tick re-evaluates state. This prevents a single long wait from causing missed quarter-hour automation windows.
+
 On each tick, it should:
 
 1. Load and validate `.agents/WORKFLOW.md`.
-2. Read open candidate issues.
-3. Reconcile active runs with current issue state, branch state, and process state.
-4. Stop runs whose issues became ineligible.
-5. Select new eligible issues up to the concurrency limit.
-6. Prepare or reuse each issue workspace.
-7. Render the issue-specific prompt.
-8. Start the Codex runner.
-9. Record state and structured logs.
+2. Read open pull requests for the configured target branch and evaluate merge readiness.
+3. Merge clean approved PRs when the configured gates pass.
+4. Prioritize conflicted PRs or actionable Codex Review remediation over new issue work.
+5. Read open candidate issues.
+6. Reconcile active runs with current issue state, branch state, and process state.
+7. Stop runs whose issues became ineligible.
+8. Select new eligible issues up to the concurrency limit only after the PR queue is clear enough for more work.
+9. Prepare or reuse each issue workspace.
+10. Render the issue-specific prompt.
+11. Start the Codex runner.
+12. Record state and structured logs.
 
 The orchestrator should keep a single authoritative local state file. A database is not required for the first version.
 

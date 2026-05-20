@@ -23,12 +23,29 @@ workspace:
   preserve_after_success: true
 dispatch:
   poll_interval_seconds: 300
-  max_concurrent_runs: 1
+  max_concurrent_runs: 6
   max_attempts: 4
   require_explicit_agent_ready_label: true
   workspace_root: /private/tmp/accountsdot-symphony
   agent_runner_command: codex --ask-for-approval never exec --json --sandbox workspace-write --cd {repo} -
   agent_runner_timeout_ms: 21600000
+pull_requests:
+  target_branch: phase-0-platform-foundation
+  inspect_before_dispatch: true
+  auto_merge_clean_prs: true
+  merge_method: squash
+  codex_review_authors:
+    - chatgpt-codex-connector
+    - chatgpt-codex-connector[bot]
+    - github-copilot
+    - codex-review
+  codex_review_success_reactions:
+    - THUMBS_UP
+    - +1
+  codex_review_bot: chatgpt-codex-connector[bot]
+  no_review_with_bot_thumbs_up_is_clean: true
+  review_wait_policy: non_blocking_stateful
+  review_grace_period_seconds: 300
 verification:
   docs_only:
     - markdown review
@@ -155,6 +172,24 @@ The Codex automation wrapper should stay small:
 6. Write results back with `node scripts/symphony_runner.mjs record-browser-results --browser-results <path> --json`.
 7. Summarize the queue, blockers, Browser evidence, and next recommended PR without manually merging PRs.
 
+## Phase 0 Pull Request Queue Runtime
+
+The Synchronizer owns the Phase 0 pull request queue before it starts more issue work. The automation wrapper should not carry this policy in a long heartbeat prompt; it should invoke the repo command and summarize the structured result.
+
+For every open non-draft PR targeting `phase-0-platform-foundation`, the Synchronizer must inspect merge state, labels, checks, thread-aware Codex Review data, and issue-comment reactions before selecting more work. Merge readiness is intentionally evidence-based:
+
+- The PR must target `phase-0-platform-foundation`, be non-draft, have a clean GitHub merge state, and have no blocking labels from `tracker.blocked_labels`.
+- Required checks must be passing, or GitHub must report no required check rollup for the PR.
+- Current unresolved Codex Review threads from configured `codex_review_authors` are hard blockers until a branch update makes the feedback fixed or obsolete.
+- Requested-changes reviews from configured Codex Review authors are hard blockers until a later review or thread state makes them non-actionable.
+- If there is no Codex Review response yet, a thumbs-up reaction from `chatgpt-codex-connector[bot]` on the PR conversation or review-request comment is an explicit clean signal. In that case the PR is safe for merge when the other merge gates pass.
+- An eyes reaction, missing reaction, or pending review request is not a clean signal. The Synchronizer should record `waiting_for_codex_review` and move on to the next tick instead of sleeping inside the current tick.
+- Clean PR merging is approved only for PRs targeting `phase-0-platform-foundation`; use the configured GitHub merge method and do not merge PRs for `dev`, `main`, or `ui-improvements` from this dispatcher.
+
+The previous chat-level behavior of sleeping for five minutes inside the automation tick is not allowed. Review waiting is stateful and non-blocking: record when a review was requested or observed, report the wait reason, and let the next scheduled tick re-evaluate. This keeps the `:00`, `:15`, `:30`, and `:45` automation windows available instead of letting one run occupy the next one.
+
+If a PR is merge-conflicted or has actionable Codex Review feedback, the Synchronizer should prioritize remediation over new issue dispatch. It should reuse the prepared issue workspace when one exists, implement in-scope fixes, run the relevant checks, push with `--force-with-lease`, and leave concise review-thread replies or resolution only when the code/docs evidence makes the comment non-actionable.
+
 ## Issue Dispatcher Runtime
 
 The repo-owned issue dispatcher is `npm run symphony:sync`. It is the checked-in entrypoint for turning `agent-ready` GitHub issues into deterministic workspaces and branch prompts. It reads the same `.agents/WORKFLOW.md` front matter as the monitor, uses `tracker.active_labels` and `tracker.blocked_labels` for eligibility, derives each issue target branch from the issue body, and honors the `phase-0-platform-foundation` target branch when that line is present in Phase 0 issues.
@@ -167,7 +202,7 @@ The dispatcher is conservative by design:
 - The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.
 - `dispatch.agent_runner_command` is approved for this repo and launches `codex exec` from the prepared worktree with the rendered issue prompt on stdin. The dispatcher writes runner stdout and stderr to the issue workspace `logs/` directory and records completion or failure in `state.json`.
 
-The Synchronizer wrapper should now call `npm run symphony:sync -- --json` for issue dispatch state instead of maintaining a chat-only issue queue. The wrapper remains responsible for monitoring the resulting issue workspace state, surfacing runner failures, and leaving manual merge decisions to a human.
+The Synchronizer wrapper should now call `npm run symphony:sync -- --json` for pull-request queue handling and issue dispatch state instead of maintaining a chat-only issue queue. The wrapper remains responsible for making sure the runner worktree is clean and current, invoking the repo-owned command, and surfacing runner failures. It should not duplicate merge policy, run long sleeps, or decide review status from flat comments when the runner can inspect thread-aware review state.
 
 ## Implementation Rules
 
