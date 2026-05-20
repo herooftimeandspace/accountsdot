@@ -44,6 +44,8 @@ pull_requests:
     - +1
   codex_review_bot: chatgpt-codex-connector[bot]
   no_review_with_bot_thumbs_up_is_clean: true
+  remediate_blocked_prs: true
+  max_review_remediations_per_tick: 6
   review_wait_policy: non_blocking_stateful
   review_grace_period_seconds: 300
 verification:
@@ -189,6 +191,8 @@ For every open non-draft PR targeting `phase-0-platform-foundation`, the Synchro
 The previous chat-level behavior of sleeping for five minutes inside the automation tick is not allowed. Review waiting is stateful and non-blocking: record when a review was requested or observed, report the wait reason, and let the next scheduled tick re-evaluate. This keeps the `:00`, `:15`, `:30`, and `:45` automation windows available instead of letting one run occupy the next one.
 
 If a PR is merge-conflicted or has actionable Codex Review feedback, the Synchronizer should prioritize remediation over new issue dispatch. It should reuse the prepared issue workspace when one exists, implement in-scope fixes, run the relevant checks, push with `--force-with-lease`, and leave concise review-thread replies or resolution only when the code/docs evidence makes the comment non-actionable.
+
+Actionable Codex Review feedback is agent work, not a terminal blocker. When the Synchronizer sees current unresolved Codex Review threads on an open Phase 0 PR, it must launch a review-remediation agent in the PR's existing issue workspace before considering unrelated new issue dispatch. That agent receives the PR URL, target branch, working branch, review-thread URLs, comment excerpts, file paths, and the original issue context. The agent must inspect the feedback, plan and implement the in-scope fix, run relevant verification, commit and push the PR branch, and reply to or resolve threads only when the branch update makes the feedback fixed or obsolete. If the PR workspace is missing, dirty, or ambiguous, the Synchronizer records a concrete remediation blocker instead of silently pausing the queue.
 
 ## Issue Dispatcher Runtime
 
