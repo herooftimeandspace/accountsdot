@@ -4,9 +4,20 @@
 This document defines the required process for creating and refreshing safe development and staging environments from production-derived data. The goal is to replace the current high-risk production-first workflow with a repeatable, testable environment strategy.
 
 ## Environment Roles
-- `dev`: freely breakable developer environment, mock-heavy by default.
-- `staging`: long-lived test environment for realistic end-to-end validation before promotion.
-- `main`: production.
+- `dev`: freely breakable developer environment, mock-heavy by default. Remote
+  deployment examples identify this role with `ENVIRONMENT_ROLE=dev`,
+  `APP_ENV=development`, `ENVIRONMENT_DATA_MODE=mock`, all `USE_MOCK_*` flags
+  set to `true`, and a `postgres-dev` database URL.
+- `staging`: long-lived test environment for realistic end-to-end validation
+  before promotion. Remote deployment examples identify this role with
+  `ENVIRONMENT_ROLE=staging`, `APP_ENV=staging`,
+  `ENVIRONMENT_DATA_MODE=masked-read-only`,
+  `ENVIRONMENT_DATA_SOURCE=masked-production-derived`, and a `postgres-staging`
+  database URL.
+- `main`: production. Remote deployment examples identify this role with
+  `ENVIRONMENT_ROLE=main`, `APP_ENV=production`,
+  `ENVIRONMENT_DATA_MODE=production`, all `USE_MOCK_*` flags set to `false`,
+  and a `postgres-main` database URL.
 - Aeries exception: because no sandbox/staging tenant exists, realistic Aeries integration in non-production uses masked production-backed read-only data, ideally from previous school years.
 - Aeries staging should determine the current school year from Aeries School Info and default to `current school year - 1`.
 - Example: if Aeries School Info reports `2025-2026`, staging should default to `DatabaseYear=2024`.
@@ -171,6 +182,24 @@ This document defines the required process for creating and refreshing safe deve
   - rollback behavior is documented
   - ticket fallback behavior is verified where automation cannot complete
   - projection freshness and live action-path verification behavior are both understood for the affected provider
+
+### Environment Role Static Validation
+- `npm run environment-roles:check` is the Phase 0 static gate for scenario
+  `P0-0A-002` Environment Role Separation.
+- The check parses `deploy/env/dev.app.env.example`,
+  `deploy/env/staging.app.env.example`, `deploy/env/main.app.env.example`, the
+  matching database env examples, and `docker-compose.deploy.yml`.
+- The check fails when dev, staging, and main do not declare distinct
+  `ENVIRONMENT_ROLE`, `APP_ENV`, `ENVIRONMENT_DATA_MODE`, database names,
+  database users, database service URLs, or provider mock flags.
+- Dev verification is intentionally strict: the dev app example must stay
+  mock-backed and must keep every `USE_MOCK_*` provider flag enabled so a local
+  or remote dev run cannot depend on production-only data.
+- Staging verification requires the explicit
+  `ENVIRONMENT_DATA_SOURCE=masked-production-derived` marker until a provider
+  has a documented sandbox strategy and safety approval.
+- `scripts/run_local_ci.py` includes this check in every branch target so the
+  static role contract stays aligned with the checked-in branch gates.
 
 ### GitHub Branch Gates
 - Checked-in CI/CD branch-gate behavior is defined in `docs/operations/promotion-pipeline.md`.

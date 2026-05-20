@@ -12,6 +12,7 @@
     "ci:local": "python3 scripts/run_local_ci.py",
     "docs:comments:check": "node scripts/check_doc_comment_quality.mjs",
     "docs:comments:test": "node scripts/check_doc_comment_quality.mjs --self-test",
+    "environment-roles:check": "node scripts/check_environment_roles.mjs",
     "symphony:report": "node scripts/symphony_runner.mjs report",
     "symphony:sync": "node scripts/symphony_runner.mjs sync",
     "symphony:ui-monitor": "node scripts/symphony_runner.mjs ui-monitor",

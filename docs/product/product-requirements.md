@@ -270,6 +270,10 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the application has safe environments, durable orchestration primitives, auth gates, provider connectivity, observability, and admin control surfaces before operational writes are trusted
 - Success gates:
   - separate `dev`, `staging`, and `main` datasets are operational with documented refresh procedures
+  - deployment examples expose explicit `ENVIRONMENT_ROLE` and
+    `ENVIRONMENT_DATA_MODE` markers for `dev`, `staging`, and `main`, with
+    staging marked as masked production-derived data until a sandbox strategy is
+    documented
   - health checks, auditability, global pause, and crash/retry safety exist before automation writes are enabled
   - IT Admin has emergency cutoff control through global pause and cadence controls before bad data can continue propagating
   - new write-capable workflows are proven in `dev` with mocks before real provider integrations are attempted

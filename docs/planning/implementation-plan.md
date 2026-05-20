@@ -499,6 +499,10 @@
   - IT Admin can stop the system quickly through global pause/cadence controls before bad data propagates to downstream systems
   - new write-capable workflows are proven in `dev` with mocks before any real provider integration is attempted
   - Aeries masked previous-year staging access is proven without touching live production writes
+  - checked-in deploy examples for `dev`, `staging`, and `main` declare distinct
+    `ENVIRONMENT_ROLE`, `APP_ENV`, `ENVIRONMENT_DATA_MODE`, database targets,
+    and provider mock settings, and `npm run environment-roles:check` fails if
+    those role boundaries drift
 - Failure gates:
   - any write path depends on unmasked production-only testing
   - real provider integrations are attempted before mock validation in `dev`
