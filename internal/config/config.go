@@ -80,7 +80,9 @@ func loadProductionAuthPolicy() (auth.Policy, error) {
 // provider, whether startup should use the DEV mock client, and the sanitized
 // endpoint or credential label that staging probes can echo in diagnostics
 // without exposing tokens, certificates, passwords, private keys, or raw
-// service-account JSON.
+// service-account JSON. The Aeries entry also carries non-secret
+// previous-year-read flags so staging evidence can prove masked read-only
+// `DatabaseYear=YYYY` setup before any live client is constructed.
 func loadProviderReadinessConfig() []provider.ReadinessConfig {
 	return []provider.ReadinessConfig{
 		{
@@ -98,11 +100,14 @@ func loadProviderReadinessConfig() []provider.ReadinessConfig {
 			CredentialLabel: getEnv("GOOGLE_SAML_ENTITY_ID", ""),
 		},
 		{
-			Provider:        provider.ProviderNameAeries,
-			UseMock:         getEnvBool("USE_MOCK_AERIES", true),
-			ReadOnly:        true,
-			Endpoint:        getEnv("AERIES_BASE_URL", ""),
-			CredentialLabel: getEnv("AERIES_CLIENT_ID", ""),
+			Provider:                  provider.ProviderNameAeries,
+			UseMock:                   getEnvBool("USE_MOCK_AERIES", true),
+			ReadOnly:                  getEnvBool("AERIES_READ_ONLY", true),
+			Endpoint:                  getEnv("AERIES_BASE_URL", ""),
+			CredentialLabel:           getEnv("AERIES_CLIENT_ID", ""),
+			DatabaseYearMode:          getEnv("AERIES_DATABASE_YEAR_MODE", ""),
+			MaskedPreviousYearOnly:    getEnvBool("AERIES_MASKED_PREVIOUS_YEAR_ONLY", false),
+			CertificateFileConfigured: getEnv("AERIES_CERT_FILE", "") != "",
 		},
 		{
 			Provider:        provider.ProviderNameSFTP,

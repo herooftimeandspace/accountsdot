@@ -2561,6 +2561,10 @@
   - if schools disagree, use the earliest start date and latest end date across all schools to define the district school year
   - staging default should be `current school year - 1`
   - example: if Aeries School Info says current school year is `2025-2026`, staging default `DatabaseYear=2024`
+  - Phase 0 code-level evidence uses
+    `internal/provider.ResolveAeriesPreviousYearStagingConfig` to fail closed
+    unless staging is masked production-derived, read-only, previous-year-only,
+    and using `AERIES_DATABASE_YEAR_MODE=previous_school_year`
 
 ## Google Sheets Publishing
 - Google Sheets publishing is not the authoritative runtime source for the dashboard.
