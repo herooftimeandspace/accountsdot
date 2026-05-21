@@ -43,6 +43,8 @@ pull_requests:
   codex_review_success_reactions:
     - THUMBS_UP
     - +1
+  codex_review_in_progress_reactions:
+    - EYES
   codex_review_bot: chatgpt-codex-connector[bot]
   no_review_with_bot_thumbs_up_is_clean: true
   remediate_blocked_prs: true
@@ -186,7 +188,8 @@ For every open non-draft PR targeting `phase-0-platform-foundation`, the Synchro
 - Current unresolved Codex Review threads from configured `codex_review_authors` are hard blockers until a branch update makes the feedback fixed or obsolete.
 - Requested-changes reviews from configured Codex Review authors are hard blockers until a later review or thread state makes them non-actionable.
 - If there is no Codex Review response yet, a thumbs-up reaction from `chatgpt-codex-connector[bot]` on the PR conversation or review-request comment is an explicit clean signal. In that case the PR is safe for merge when the other merge gates pass.
-- An eyes reaction, missing reaction, or pending review request is not a clean signal. The Synchronizer should record `waiting_for_codex_review` and move on to the next tick instead of sleeping inside the current tick.
+- An eyes reaction from `chatgpt-codex-connector[bot]` on the PR conversation or review-request comment means GitHub Codex Review is actively looking at the PR. It is not a clean signal and not a remediation signal by itself; the Synchronizer should record `waiting_for_codex_review` with an in-progress note and move on to the next tick.
+- A missing reaction or pending review request is not a clean signal. The Synchronizer should record `waiting_for_codex_review` and move on to the next tick instead of sleeping inside the current tick.
 - Clean PR merging is approved only for PRs targeting `phase-0-platform-foundation`; use the configured GitHub merge method and do not merge PRs for `dev`, `main`, or `ui-improvements` from this dispatcher.
 
 The previous chat-level behavior of sleeping for five minutes inside the automation tick is not allowed. Review waiting is stateful and non-blocking: record when a review was requested or observed, report the wait reason, and let the next scheduled tick re-evaluate. This keeps the `:00`, `:15`, `:30`, and `:45` automation windows available instead of letting one run occupy the next one.
