@@ -2290,6 +2290,7 @@
 ## Transactions and Ordering
 - All FSM transitions, extension mutations, and room-scoped mutations run in `SERIALIZABLE` transactions.
 - `jobs` and `event_outbox` use sequence-backed `global_tick`; strict ordering must use `global_tick`, never UUID sort order.
+- `internal/db.ListOutboxEvents` reads event outbox rows by `global_tick asc` and returns `OutboxEvent.GlobalTick` as the sequencing value; the row id is only an identity field and must not drive publisher order.
 - `internal/db` must expose `WithRetry(ctx, pool, fn)` with jittered exponential backoff for `40001` and deadlock-class failures, up to 5 attempts.
 
 ## Allocation and Resource Safety
@@ -2339,8 +2340,10 @@
   - `internal/db.ClaimNextJob` claims the oldest eligible queued job by `global_tick`, moves it to `running`, and records `lease_owner`, `lease_expires_at`, and `lease_heartbeat_at`
   - `internal/db.RecoverExpiredJobLeases` finds expired `running` leases with `FOR UPDATE SKIP LOCKED`, moves them to `recovering`, clears claim ownership, returns the previous owner and nullable heartbeat details for runtime evidence, and also returns already-`recovering` rows so an interrupted recovery loop can reconcile them on the next pass
   - `internal/db.ReconcileRecoveredJob` checks `external_request_log` before requeueing; an existing `outcome = 'succeeded'` row marks the job `succeeded` without another execution, while no success row moves the job back to `queued` and increments `attempt_count`
+  - `internal/db.ListOutboxEvents` reads `event_outbox` rows in `global_tick` order for Phase 0 ordering evidence and future publisher loops; it is read-only and does not acknowledge, delete, publish, or write provider state
   - worker and recovery-loop callers must run these primitives inside `internal/db.WithRetry` so recovery preserves the repository's `SERIALIZABLE` transaction rule
   - staging evidence for `P0-0B-001` should run the same claim, expired-lease recovery, and external-request-log reconciliation flow against staging infrastructure without manual database repair
+  - staging evidence for `P0-0B-002` should insert concurrent jobs and outbox events in staging-safe configuration, then show selected rows follow `global_tick` order even when row ids, UUID-backed subjects, or timestamps do not provide the same ordering guarantee
 - Starting with Phase 2, live writeback also requires a what-if validation pass before provider mutation and a pilot allowlist check immediately before the write call. The only approved live-write targets are `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org` until a later project-owner-approved PR explicitly changes the merged allowlist. Provider workers must treat any non-allowlisted, ambiguous, missing, or unmerged-approval target as a hard pre-write denial, not as a warning or manual override.
 
 ## Zoom Rules
