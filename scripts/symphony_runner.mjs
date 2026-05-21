@@ -325,6 +325,34 @@ function listOpenPullRequestsForBases(baseRefs) {
   return prs;
 }
 
+function listMergedPullRequests(baseRef) {
+  return ghJson([
+    "pr",
+    "list",
+    "--state",
+    "merged",
+    "--base",
+    baseRef,
+    "--json",
+    "number,title,url,headRefName,mergedAt,labels",
+    "--limit",
+    "200",
+  ]);
+}
+
+function listMergedPullRequestsForBases(baseRefs) {
+  const seen = new Set();
+  const prs = [];
+  for (const baseRef of [...new Set(baseRefs.filter(Boolean))]) {
+    for (const pr of listMergedPullRequests(baseRef)) {
+      if (seen.has(pr.number)) continue;
+      seen.add(pr.number);
+      prs.push({ ...pr, baseRefName: baseRef });
+    }
+  }
+  return prs;
+}
+
 function listOpenIssues() {
   return ghJson([
     "issue",
@@ -727,6 +755,12 @@ function prReferencesIssue(pr, issue) {
   return text.includes(`#${issue.number}`) || text.includes(`issue-${issue.number}-`);
 }
 
+function mergedPullRequestForIssue(issue, mergedPrs, targetBranch) {
+  return mergedPrs
+    .filter((pr) => prReferencesIssue(pr, issue) && (!targetBranch || pr.baseRefName === targetBranch))
+    .sort((a, b) => String(b.mergedAt || "").localeCompare(String(a.mergedAt || "")))[0] || null;
+}
+
 function activeWorkspaceForIssue(issue, dispatchConfig) {
   const workspacePath = issueWorkspacePath(issue, dispatchConfig);
   const statePath = path.join(workspacePath, "state.json");
@@ -750,14 +784,41 @@ function activeWorkspaceForIssue(issue, dispatchConfig) {
   return null;
 }
 
-function classifyIssueForDispatch(issue, prs, dispatchConfig) {
+function classifyIssueForDispatch(issue, prs, mergedPrs, dispatchConfig) {
   const labels = new Set(issueLabelNames(issue));
   const targetBranch = issueTargetBranch(issue, dispatchConfig);
   const branchName = issueBranchName(issue, dispatchConfig);
   const openPr = prs.find((pr) => prReferencesIssue(pr, issue));
-  const activeWorkspace = activeWorkspaceForIssue(issue, dispatchConfig);
+  const mergedPr = mergedPullRequestForIssue(issue, mergedPrs, targetBranch);
+  const activeWorkspace = mergedPr ? null : activeWorkspaceForIssue(issue, dispatchConfig);
   const reasons = [];
   const blockedBy = [...labels].filter((label) => dispatchConfig.blockedLabels.includes(label));
+
+  if (mergedPr) {
+    return {
+      number: issue.number,
+      title: issue.title,
+      url: issue.url,
+      labels: [...labels].sort(),
+      target_branch: targetBranch,
+      branch: branchName,
+      workspace: "",
+      prompt_path: "",
+      state_path: "",
+      open_pr: null,
+      merged_pr: {
+        number: mergedPr.number,
+        head: mergedPr.headRefName,
+        base: mergedPr.baseRefName || "",
+        url: mergedPr.url,
+        merged_at: mergedPr.mergedAt || "",
+      },
+      eligible: false,
+      status: "merged",
+      reason: `merged PR #${mergedPr.number}`,
+      priority_score: Number.MAX_SAFE_INTEGER - Number(issue.number || 0),
+    };
+  }
 
   if (dispatchConfig.requireExplicitAgentReadyLabel) {
     const hasActiveLabel = dispatchConfig.activeLabels.some((label) => labels.has(label));
@@ -780,6 +841,7 @@ function classifyIssueForDispatch(issue, prs, dispatchConfig) {
     prompt_path: activeWorkspace?.prompt_path || "",
     state_path: activeWorkspace?.state_path || "",
     open_pr: openPr ? { number: openPr.number, head: openPr.headRefName, base: openPr.baseRefName || "" } : null,
+    merged_pr: null,
     eligible: reasons.length === 0,
     status: reasons.length === 0 ? "eligible" : "skipped",
     reason: reasons.join("; "),
@@ -787,9 +849,9 @@ function classifyIssueForDispatch(issue, prs, dispatchConfig) {
   };
 }
 
-function rankedDispatchQueue(issues, prs, dispatchConfig) {
+function rankedDispatchQueue(issues, prs, mergedPrs, dispatchConfig) {
   return issues
-    .map((issue) => classifyIssueForDispatch(issue, prs, dispatchConfig))
+    .map((issue) => classifyIssueForDispatch(issue, prs, mergedPrs, dispatchConfig))
     .sort((a, b) => {
       if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
       if (a.priority_score !== b.priority_score) return a.priority_score - b.priority_score;
@@ -800,6 +862,81 @@ function rankedDispatchQueue(issues, prs, dispatchConfig) {
 
 function issueWorkspacePath(issue, dispatchConfig) {
   return path.join(dispatchConfig.workspaceRoot, `issue-${issue.number}-${issueSlug(issue)}`);
+}
+
+function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dryRun }) {
+  const results = [];
+  for (const issue of issues) {
+    const mergedPr = mergedPullRequestForIssue(issue, mergedPrs, issueTargetBranch(issue, dispatchConfig));
+    if (!mergedPr) continue;
+    const workspacePath = findIssueWorkspace(issue, dispatchConfig);
+    const statePath = path.join(workspacePath, "state.json");
+    if (!fs.existsSync(statePath)) continue;
+    const result = {
+      issue_number: issue.number,
+      pr_number: mergedPr.number,
+      workspace: workspacePath,
+      state_path: statePath,
+      status: dryRun ? "would-mark-merged" : "merged",
+      teardown_status: "not-needed",
+    };
+    try {
+      const current = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      const repoPath = path.join(workspacePath, "repo");
+      if (fs.existsSync(repoPath)) {
+        const status = cleanStatus(repoPath);
+        if (!status.clean) {
+          results.push({ ...result, status: "blocked", teardown_status: "blocked", reason: status.blocker, dirty_files: status.dirty_files });
+          continue;
+        }
+        if (!dryRun) {
+          const removed = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
+          if (removed.failed) {
+            results.push({
+              ...result,
+              status: "blocked",
+              teardown_status: "blocked",
+              reason: removed.stderr || removed.stdout || `git worktree remove failed with status ${removed.status}`,
+            });
+            continue;
+          }
+        }
+        result.teardown_status = dryRun ? "would-remove-clean-worktree" : "removed-clean-worktree";
+      }
+      if (current.status === "merged" && current.merged_pr === mergedPr.number) {
+        result.status = "already_merged";
+        results.push(result);
+        continue;
+      }
+      if (!dryRun) {
+        fs.writeFileSync(
+          statePath,
+          `${JSON.stringify(
+            {
+              ...current,
+              status: "merged",
+              merged_pr: mergedPr.number,
+              merged_pr_url: mergedPr.url,
+              merged_at: mergedPr.mergedAt || new Date().toISOString(),
+              resolved_by: "manual-or-external-pr-merge",
+            },
+            null,
+            2,
+          )}\n`,
+        );
+      }
+      results.push(result);
+    } catch (error) {
+      results.push({ ...result, status: "blocked", reason: error.message });
+    }
+  }
+  return results;
+}
+
+function shouldRemediateBlockedPullRequest(entry) {
+  if (entry.status !== "blocked" || !entry.head_ref) return false;
+  if (entry.unresolved_codex_review_threads > 0 && entry.unresolved_codex_review_thread_summaries.length > 0) return true;
+  return entry.blockers.some((blocker) => /^merge state /i.test(blocker) || blocker === "draft PR");
 }
 
 function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
@@ -1045,6 +1182,10 @@ function workspaceForReviewRemediation({ pr, issue, dispatchConfig }) {
 function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills }) {
   const targetBranch = pr.target_branch || "phase-0-platform-foundation";
   const branchName = pr.head_ref;
+  const blockerList =
+    (pr.blockers || []).length === 0
+      ? "- No merge/draft/check blockers were returned; inspect the PR before changing code."
+      : pr.blockers.map((blocker) => `- ${blocker}`).join("\n");
   const threadList =
     pr.unresolved_codex_review_thread_summaries.length === 0
       ? "- No thread details were returned; inspect the PR review threads directly before changing code."
@@ -1081,6 +1222,10 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
     `Target branch: ${targetBranch}`,
     `Working branch: ${branchName}`,
     "",
+    "## PR Blockers To Resolve",
+    "",
+    blockerList,
+    "",
     "## Codex Review Threads To Address",
     "",
     threadList,
@@ -1100,6 +1245,8 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
     "## Remediation Contract",
     "",
     "- Work only in the prepared PR worktree and branch.",
+    "- If the PR is merge-conflicted, update the PR branch against the target branch, resolve conflicts explicitly, and rerun relevant verification.",
+    "- If the PR is draft, verify whether it is complete, run required checks, and mark it ready for review only when it satisfies the issue and PR contract.",
     "- Inspect each active Codex Review thread and decide whether it needs a code, docs, test, or generated-artifact fix.",
     "- Implement only in-scope fixes for this PR and preserve unrelated local or user-authored changes.",
     "- Run the relevant verification for the files touched.",
@@ -1734,6 +1881,8 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     ...issues.map((issue) => issueTargetBranch(issue, dispatchConfig)),
   ];
   const prs = listOpenPullRequestsForBases(targetBranches);
+  const mergedPrs = listMergedPullRequestsForBases(targetBranches);
+  const mergedWorkspaceStates = markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dryRun });
   const prReviewThreads = prConfig.inspectBeforeDispatch ? fetchReviewThreads(prConfig.targetBranch) : [];
   const prSignals = prConfig.inspectBeforeDispatch ? fetchPullRequestReviewSignals(prConfig.targetBranch) : new Map();
   const targetPrs = prs.filter((pr) => pr.baseRefName === prConfig.targetBranch);
@@ -1754,13 +1903,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   }
   const maxSelected = maxRuns || dispatchConfig.maxConcurrentRuns;
   const reviewRemediationCandidates = prConfig.remediateBlockedPrs
-    ? prMergeQueue.filter(
-        (entry) =>
-          entry.status === "blocked" &&
-          entry.unresolved_codex_review_threads > 0 &&
-          entry.head_ref &&
-          entry.unresolved_codex_review_thread_summaries.length > 0,
-      )
+    ? prMergeQueue.filter((entry) => shouldRemediateBlockedPullRequest(entry))
     : [];
   const reviewRemediations = reviewRemediationCandidates
     .slice(0, Math.min(maxSelected, prConfig.maxReviewRemediationsPerTick))
@@ -1768,7 +1911,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const shouldPauseDispatchForPrQueue =
     prConfig.inspectBeforeDispatch &&
     prMergeQueue.length > 0;
-  const queue = rankedDispatchQueue(issues, prs, dispatchConfig);
+  const queue = rankedDispatchQueue(issues, prs, mergedPrs, dispatchConfig);
   const selected = shouldPauseDispatchForPrQueue ? [] : queue.filter((entry) => entry.eligible).slice(0, maxSelected);
   const dispatches = [];
 
@@ -1800,6 +1943,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
       items: prMergeQueue,
       merge_results: prMergeResults,
       review_remediations: reviewRemediations,
+      merged_workspace_states: mergedWorkspaceStates,
       dispatch_paused_for_pr_queue: shouldPauseDispatchForPrQueue,
     },
     issue_queue: queue.map(({ priority_score, ...entry }) => entry),
@@ -1839,6 +1983,9 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
           ...reviewRemediations
             .filter((result) => ["prepared", "succeeded", "failed"].includes(result.status))
             .map((result) => `review remediation ${result.status} for PR #${result.number} in ${result.repo}`),
+          ...mergedWorkspaceStates
+            .filter((result) => result.status === "merged")
+            .map((result) => `marked issue #${result.issue_number} workspace merged by PR #${result.pr_number}`),
           ...dispatches
             .filter((dispatch) => ["prepared", "succeeded", "failed"].includes(dispatch.status))
             .map((dispatch) => `${dispatch.status} ${dispatch.branch} in ${dispatch.repo}`),
@@ -2113,6 +2260,9 @@ async function selfTest() {
     });
     assert.equal(readyEvaluation.status, "ready_to_merge");
     assert.equal(readyEvaluation.bot_thumbs_up, true);
+    assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["merge state DIRTY"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
+    assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["draft PR"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
+    assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["check state FAILURE"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), false);
     assert.equal(
       evaluatePullRequestForMerge({
         pr: { ...readyPr, labels: [{ name: "blocked" }] },
@@ -2136,14 +2286,35 @@ async function selfTest() {
     };
     assert.equal(issueTargetBranch(phaseIssue, dispatchConfig), "phase-0-platform-foundation");
     assert.equal(issueBranchName(phaseIssue, dispatchConfig), "codex/issue-900264-reference-input-snapshot-integrity");
-    assert.equal(classifyIssueForDispatch(phaseIssue, [], dispatchConfig).eligible, true);
-    assert.equal(classifyIssueForDispatch(blockedIssue, [], dispatchConfig).eligible, false);
+    assert.equal(classifyIssueForDispatch(phaseIssue, [], [], dispatchConfig).eligible, true);
+    assert.equal(classifyIssueForDispatch(blockedIssue, [], [], dispatchConfig).eligible, false);
     assert.equal(
-      classifyIssueForDispatch(phaseIssue, [{ number: 310, title: "Fixes #900264", headRefName: "codex/issue-900264-fix" }], dispatchConfig)
+      classifyIssueForDispatch(
+        phaseIssue,
+        [{ number: 310, title: "Fixes #900264", headRefName: "codex/issue-900264-fix" }],
+        [],
+        dispatchConfig,
+      )
         .eligible,
       false,
     );
-    assert.equal(rankedDispatchQueue([blockedIssue, phaseIssue], [], dispatchConfig)[0].number, 900264);
+    const mergedPhasePr = {
+      number: 311,
+      title: "Fixes #900264",
+      headRefName: "codex/issue-900264-reference-input-snapshot-integrity",
+      baseRefName: "phase-0-platform-foundation",
+      url: "https://example.invalid/pull/311",
+      mergedAt: "2026-05-21T00:00:00Z",
+    };
+    const mergedClassification = classifyIssueForDispatch(phaseIssue, [], [mergedPhasePr], dispatchConfig);
+    assert.equal(mergedClassification.status, "merged");
+    assert.equal(mergedClassification.merged_pr.number, 311);
+    assert.equal(mergedClassification.eligible, false);
+    assert.equal(
+      classifyIssueForDispatch(phaseIssue, [], [{ ...mergedPhasePr, baseRefName: "ui-improvements" }], dispatchConfig).status,
+      "eligible",
+    );
+    assert.equal(rankedDispatchQueue([blockedIssue, phaseIssue], [], [], dispatchConfig)[0].number, 900264);
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
     assert.deepEqual(splitCommandLine("codex --ask-for-approval never exec --cd {repo} -"), [
       "codex",
@@ -2169,6 +2340,21 @@ async function selfTest() {
     );
 
     const reviewWorkflow = { promptTemplate: "Review workflow prompt" };
+    const mergedStateWorkspace = path.join(tempRoot, "issue-900264-reference-input-snapshot-integrity");
+    fs.mkdirSync(mergedStateWorkspace, { recursive: true });
+    const mergedStatePath = path.join(mergedStateWorkspace, "state.json");
+    fs.writeFileSync(mergedStatePath, `${JSON.stringify({ status: "succeeded", issue_number: 900264 }, null, 2)}\n`);
+    const mergedStateResults = markMergedIssueWorkspaceStates({
+      issues: [phaseIssue],
+      mergedPrs: [mergedPhasePr],
+      dispatchConfig,
+      dryRun: false,
+    });
+    assert.equal(mergedStateResults[0].status, "merged");
+    const mergedState = JSON.parse(fs.readFileSync(mergedStatePath, "utf8"));
+    assert.equal(mergedState.status, "merged");
+    assert.equal(mergedState.merged_pr, 311);
+
     const oldSlugWorkspace = path.join(tempRoot, "issue-267-old-title");
     const oldSlugRepo = path.join(oldSlugWorkspace, "repo");
     fs.mkdirSync(oldSlugRepo, { recursive: true });

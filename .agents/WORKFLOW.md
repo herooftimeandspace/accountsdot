@@ -203,6 +203,7 @@ The dispatcher is conservative by design:
 - `npm run symphony:sync -- --dry-run --json` is non-mutating and should be the first command in any automation tick.
 - A non-dry-run tick creates or reuses one workspace per selected issue under `dispatch.workspace_root`, creates a branch using `branching.branch_template`, and writes `prompt.md` plus `state.json` for the assigned run.
 - The dispatcher skips issues with blocked labels, missing acceptance criteria, missing `agent-ready`, or an already-open PR that references the issue.
+- When a human manually merges a PR that references an issue, the next dispatcher tick treats that PR as resolved and merged. It must not keep the issue blocked by the old prepared workspace; instead it records `status: merged` in the matching workspace `state.json` when the file exists, removes the clean prepared `repo` worktree checkout, and reports the issue queue entry as `merged`. If the prepared worktree is dirty, it must report the dirty files instead of deleting anything.
 - The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.
 - `dispatch.agent_runner_command` is approved for this repo and launches `codex exec` from the prepared worktree with the rendered issue prompt on stdin. The dispatcher writes runner stdout and stderr to the issue workspace `logs/` directory and records completion or failure in `state.json`.
 
