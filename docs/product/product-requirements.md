@@ -281,6 +281,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - new write-capable workflows are proven in `dev` with mocks before real provider integrations are attempted
   - each workflow introduced in the phase has named mock scenarios that pass in `dev`
   - non-production Aeries and other provider access can be exercised safely without production-side write risk
+  - provider readiness checks can initialize mock-backed provider clients in `dev`, and any staging provider readiness probe remains read-only with writeback disabled
 - Failure gates:
   - environment separation is unsafe or undocumented
   - real provider integrations are attempted before mock validation in `dev`

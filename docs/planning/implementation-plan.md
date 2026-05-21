@@ -2635,6 +2635,7 @@
 
 ## Provider Protection
 - Circuit breakers use exponential backoff `1s → 2s → 4s`, then pause only the affected queue for 15 minutes before a half-open probe.
+- Phase 0 provider readiness is a client-initialization and connectivity boundary, not a writeback boundary. Development readiness uses mock clients for `zoom`, `google`, `aeries`, and `sftp`; those mock checks must return success without calling outbound probes or provider write APIs. Staging readiness may disable individual mocks only for read-only probes configured with non-production or masked credentials outside the repository, and diagnostics may include only non-secret endpoint/account labels. The operational procedure and evidence expectations live in `docs/operations/provider-readiness.md`.
 
 ## Orchestration Loops and Provider Workflows
 - Orchestration is durable:
