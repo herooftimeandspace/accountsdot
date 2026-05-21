@@ -80,11 +80,15 @@ func DefaultPolicy() Policy {
 	}
 }
 
-// EvaluateGoogleIdentity converts verified Google SAML identity data into the
-// application authorization decision. The domain gate runs before role mapping
-// for normal SAML users so student or unknown domains cannot receive access via
-// a broad group match. Local breakglass identities are evaluated by the future
-// breakglass implementation and therefore bypass only the domain gate here.
+// EvaluateGoogleIdentity converts one verified Google SAML assertion into the
+// application authorization decision. Future SAML middleware calls this on each
+// request with the current Google group/attribute inputs; the evaluator does
+// not cache a prior site scope, so changed group or attribute mappings replace
+// the previous decision instead of leaving stale cross-site access behind. The
+// domain gate runs before role mapping for normal SAML users so student or
+// unknown domains cannot receive access via a broad group match. Local
+// breakglass identities are evaluated by the breakglass route before reaching
+// this boundary and therefore bypass only the domain gate here.
 func EvaluateGoogleIdentity(policy Policy, identity GoogleIdentity) Decision {
 	email := canonicalEmail(identity.Email)
 	if email == "" {
@@ -216,6 +220,11 @@ func resolveRoles(policy Policy, identity GoogleIdentity) []string {
 	return sortedKeys(roles)
 }
 
+// resolveSiteScopes derives the request-local site list from the current policy
+// and Google identity claims. It intentionally reads only the supplied group
+// membership and attribute values so future request middleware can recalculate
+// scope after Google Workspace or admin-managed mapping changes without
+// consulting stale session, database, or UI state.
 func resolveSiteScopes(policy Policy, identity GoogleIdentity) []string {
 	scopes := map[string]struct{}{}
 	groups := canonicalSet(identity.Groups)
