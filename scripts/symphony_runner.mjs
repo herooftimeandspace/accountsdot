@@ -1038,6 +1038,12 @@ function remediationConsumesDispatchSlot(remediation) {
   return ["would-remediate", "prepared", "succeeded", "failed"].includes(remediation.status);
 }
 
+function hasUnattemptedReadyToMergePr(prMergeQueue, prMergeResults) {
+  return prMergeQueue.some(
+    (entry) => entry.status === "ready_to_merge" && !prMergeResults.some((result) => result.number === entry.number),
+  );
+}
+
 function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
   const routedSkills = routeSkills(`${issue.title}\n${issue.body || ""}`, skills);
   const skillSection =
@@ -1327,7 +1333,7 @@ function workspaceForReviewRemediation({ pr, issue, dispatchConfig }) {
   return path.join(dispatchConfig.workspaceRoot, `pr-${pr.number}`);
 }
 
-function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills }) {
+function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills, dirtyStatus }) {
   const targetBranch = pr.target_branch || "phase-0-platform-foundation";
   const branchName = pr.head_ref;
   const blockerList =
@@ -1361,6 +1367,19 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
               }\n\n${skill.summary || ""}`,
           )
           .join("\n\n");
+  const dirtyWorkspaceSection =
+    dirtyStatus?.dirty_files?.length > 0
+      ? [
+          "## Existing Local Workspace Edits",
+          "",
+          "This prepared PR remediation workspace already has local edits. Treat them as previous automation work for this PR branch, not as a reason to stop.",
+          "",
+          dirtyStatus.dirty_files.map((file) => `- ${file}`).join("\n"),
+          "",
+          "Inspect these edits before changing files. Keep in-scope fixes, finish or correct incomplete work, run verification, commit, and push the PR branch. Do not discard local edits unless they are clearly generated noise or contradicted by the PR scope; explain any discarded files in the final report.",
+          "",
+        ].join("\n")
+      : "";
   return [
     "# Symphony PR Review Remediation Prompt",
     "",
@@ -1378,6 +1397,7 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
     "",
     threadList,
     "",
+    dirtyWorkspaceSection,
     "## Linked Issue Body",
     "",
     issue?.body || "(No linked issue body was resolved. Use the PR and review thread context.)",
@@ -1455,7 +1475,7 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
     }
   }
   const status = cleanStatus(repoPath);
-  if (!status.clean) {
+  if (!status.clean && status.blocker !== "worktree has local edits") {
     return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
   }
   const branch = currentBranch(repoPath);
@@ -1467,11 +1487,24 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
   }
 
   if (dryRun) {
-    return { ...result, reason: "dry-run verified remediation prerequisites and performs no prompt, state, runner, or PR mutations" };
+    return {
+      ...result,
+      dirty_files: status.dirty_files,
+      reason: status.clean
+        ? "dry-run verified remediation prerequisites and performs no prompt, state, runner, or PR mutations"
+        : "dry-run would launch remediation runner with existing local workspace edits preserved",
+    };
   }
 
   fs.mkdirSync(logsPath, { recursive: true });
-  const prompt = renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills });
+  const prompt = renderReviewRemediationPrompt({
+    pr,
+    issue,
+    dispatchConfig,
+    workflow,
+    skills,
+    dirtyStatus: status.clean ? null : status,
+  });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
     ? runAgentRunner({
@@ -1504,6 +1537,7 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
     review_remediation_prompt_path: promptPath,
     updated_at: new Date().toISOString(),
     runner,
+    dirty_files_at_start: status.dirty_files,
     last_event:
       runner.runner_status === "completed"
         ? "review remediation agent completed"
@@ -1512,7 +1546,13 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
           : "review remediation prompt prepared; no repo-owned agent runner command is configured yet",
   };
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
-  return { ...result, status: runner.status, runner_status: runner.runner_status, reason: runner.reason };
+  return {
+    ...result,
+    status: runner.status,
+    runner_status: runner.runner_status,
+    reason: runner.reason || (status.clean ? "" : "launched remediation runner with existing local workspace edits preserved"),
+    dirty_files: status.dirty_files,
+  };
 }
 
 function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
@@ -2101,9 +2141,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     .map((entry) => ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }));
   const remediationSlotsUsed = reviewRemediations.filter((entry) => remediationConsumesDispatchSlot(entry)).length;
   const remainingDispatchSlots = Math.max(0, maxSelected - remediationSlotsUsed);
-  const readyToMergeRemaining = prMergeQueue.some(
-    (entry) => entry.status === "ready_to_merge" && !prMergeResults.some((result) => result.number === entry.number && result.status === "merged"),
-  );
+  const readyToMergeRemaining = hasUnattemptedReadyToMergePr(prMergeQueue, prMergeResults);
   const shouldPauseDispatchForPrQueue =
     prConfig.inspectBeforeDispatch &&
     readyToMergeRemaining;
@@ -2564,6 +2602,39 @@ async function selfTest() {
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["merge state DIRTY"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["draft PR"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["check state FAILURE"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), false);
+    assert.equal(
+      hasUnattemptedReadyToMergePr([{ number: 302, status: "ready_to_merge" }], [{ number: 302, status: "blocked" }]),
+      false,
+    );
+    assert.equal(
+      hasUnattemptedReadyToMergePr(
+        [
+          { number: 302, status: "ready_to_merge" },
+          { number: 305, status: "ready_to_merge" },
+        ],
+        [{ number: 302, status: "blocked" }],
+      ),
+      true,
+    );
+    const dirtyRemediationPrompt = renderReviewRemediationPrompt({
+      pr: {
+        number: 303,
+        title: "Issue #280: Expose health pause and dependency state",
+        url: "https://example.invalid/pull/303",
+        head_ref: "codex/issue-280-health-endpoints-reflect-pause-and-dependency-st",
+        target_branch: "phase-0-platform-foundation",
+        blockers: ["unresolved current Codex Review thread"],
+        unresolved_codex_review_thread_summaries: [],
+      },
+      issue: null,
+      dispatchConfig,
+      workflow: { promptTemplate: "Follow repo workflow." },
+      skills: [],
+      dirtyStatus: { dirty_files: ["internal/web/health.go", "cmd/provisioner/main.go"] },
+    });
+    assert.match(dirtyRemediationPrompt, /Existing Local Workspace Edits/);
+    assert.match(dirtyRemediationPrompt, /internal\/web\/health\.go/);
+    assert.match(dirtyRemediationPrompt, /previous automation work for this PR branch/);
     assert.equal(
       evaluatePullRequestForMerge({
         pr: { ...readyPr, labels: [{ name: "blocked" }] },
