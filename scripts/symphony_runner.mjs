@@ -585,13 +585,24 @@ function hasRequestedChanges(signals, config) {
   );
 }
 
+function mergeStateBlocker(mergeStateStatus) {
+  const state = String(mergeStateStatus || "").toUpperCase();
+  if (state === "CLEAN") return "";
+  if (state === "UNKNOWN") return "";
+  return `merge state ${mergeStateStatus}`;
+}
+
 function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
   const threadEntry = reviewThreadsForPr(reviewThreads, pr.number);
   const blockers = [];
   const warnings = [];
   const labelBlockers = prLabelNames(pr).filter((label) => (config.blockedLabels || []).includes(label));
   if (pr.isDraft) blockers.push("draft PR");
-  if (pr.mergeStateStatus !== "CLEAN") blockers.push(`merge state ${pr.mergeStateStatus}`);
+  const mergeBlocker = mergeStateBlocker(pr.mergeStateStatus);
+  if (mergeBlocker) blockers.push(mergeBlocker);
+  if (String(pr.mergeStateStatus || "").toUpperCase() === "UNKNOWN") {
+    warnings.push("mergeability is temporarily unknown; GitHub merge command must make the final server-side decision");
+  }
   if (labelBlockers.length > 0) blockers.push(`blocked labels: ${labelBlockers.join(", ")}`);
   const checkState = statusRollupState(pr.statusCheckRollup);
   if (checkState === "failing") blockers.push("status checks are failing or pending");
@@ -2495,6 +2506,24 @@ async function selfTest() {
     });
     assert.equal(topLevelReactionEvaluation.status, "ready_to_merge");
     assert.equal(topLevelReactionEvaluation.bot_thumbs_up, true);
+    const unknownMergeabilityEvaluation = evaluatePullRequestForMerge({
+      pr: { ...readyPr, mergeStateStatus: "UNKNOWN" },
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [],
+        comments: [],
+        reactionGroups: [
+          {
+            content: "THUMBS_UP",
+            users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(unknownMergeabilityEvaluation.status, "ready_to_merge");
+    assert.equal(unknownMergeabilityEvaluation.bot_thumbs_up, true);
+    assert.match(unknownMergeabilityEvaluation.notes.join("; "), /mergeability is temporarily unknown/);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["merge state DIRTY"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["draft PR"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["check state FAILURE"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), false);
