@@ -86,9 +86,11 @@ func DefaultPolicy() Policy {
 // not cache a prior site scope, so changed group or attribute mappings replace
 // the previous decision instead of leaving stale cross-site access behind. The
 // domain gate runs before role mapping for normal SAML users so student or
-// unknown domains cannot receive access via a broad group match. Local
-// breakglass identities are evaluated by the breakglass route before reaching
-// this boundary and therefore bypass only the domain gate here.
+// unknown domains cannot receive access via a broad group match. The documented
+// student-domain denial is a safety floor even when deployment config adds or
+// removes other denied domains. Local breakglass identities are evaluated by the
+// breakglass route before reaching this boundary and therefore bypass only the
+// domain gate here.
 func EvaluateGoogleIdentity(policy Policy, identity GoogleIdentity) Decision {
 	email := canonicalEmail(identity.Email)
 	if email == "" {
@@ -96,7 +98,7 @@ func EvaluateGoogleIdentity(policy Policy, identity GoogleIdentity) Decision {
 	}
 
 	if !identity.BreakglassLocal {
-		if emailDomainDenied(email, policy.DeniedEmailDomains) {
+		if emailDomainDenied(email, mandatoryDeniedEmailDomains(policy.DeniedEmailDomains)) {
 			return Decision{Email: email, Reason: "denied_domain"}
 		}
 		if !emailDomainAllowed(email, policy.AllowedEmailDomains) {
@@ -264,6 +266,14 @@ func emailDomainAllowed(email string, domains []string) bool {
 func emailDomainDenied(email string, domains []string) bool {
 	domain := domainFromEmail(email)
 	return domain != "" && slices.Contains(canonicalList(domains), domain)
+}
+
+// mandatoryDeniedEmailDomains keeps the student-domain block active for every
+// EvaluateGoogleIdentity call, including staging tests or deployments that add
+// custom denied domains through AUTH_DENIED_EMAIL_DOMAINS. It returns only
+// normalized domain labels and has no side effects.
+func mandatoryDeniedEmailDomains(configured []string) []string {
+	return append(ParseDomainList(DefaultDeniedEmailDomains), configured...)
 }
 
 func domainFromEmail(email string) string {

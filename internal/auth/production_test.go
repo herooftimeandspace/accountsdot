@@ -91,6 +91,43 @@ func TestEvaluateGoogleIdentityAppliesDomainGateBeforeRoleMapping(t *testing.T) 
 	}
 }
 
+// TestP000C002StudentDomainDenyGate records the Phase 0 student-domain safety
+// scenario. It feeds the evaluator an otherwise role- and site-mapped identity
+// and intentionally misconfigures the allowed-domain list to prove
+// @stu.wusd.org remains a hard denial before role authorization.
+func TestP000C002StudentDomainDenyGate(t *testing.T) {
+	policy := auth.Policy{
+		AllowedEmailDomains: []string{"stu.wusd.org", "wusd.org"},
+		GroupRoleMappings: []auth.GroupRoleMapping{
+			{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
+		},
+		AttributeRoleMappings: []auth.AttributeRoleMapping{
+			{Attribute: "wizard_role", Values: []string{"Site Secretary"}, Roles: []string{auth.RoleSiteSecretary}},
+		},
+		SiteScopeMappings: []auth.SiteScopeMapping{
+			{SourceType: "group", Source: "wizard-clover-scope@wusd.org", Sites: []string{"clover-hs"}},
+		},
+	}
+
+	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "Student.Helper@stu.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-clover-scope@wusd.org"},
+		Attributes: map[string][]string{
+			"wizard_role": {"Site Secretary"},
+		},
+	})
+
+	if decision.Authorized {
+		t.Fatalf("student-domain identity authorized despite matching roles and site scope: %#v", decision)
+	}
+	if decision.Reason != "denied_domain" {
+		t.Fatalf("reason = %q, want denied_domain", decision.Reason)
+	}
+	if decision.Email != "student.helper@stu.wusd.org" {
+		t.Fatalf("email = %q, want canonical student address", decision.Email)
+	}
+}
+
 func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 	policy := auth.DefaultPolicy()
 	policy.GroupRoleMappings = []auth.GroupRoleMapping{

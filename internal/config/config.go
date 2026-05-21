@@ -44,11 +44,13 @@ func Load() (Config, error) {
 // loadProductionAuthPolicy parses the checked-in production-auth environment
 // contract. It creates only configuration data: future SAML middleware will use
 // the SAML endpoints and mapping tables to validate Google assertions and apply
-// role/site authorization after the domain gate.
+// role/site authorization after the domain gate. AUTH_DENIED_EMAIL_DOMAINS may
+// add local blocked domains, but the documented student-domain denial remains
+// present even when that deployment variable is customized.
 func loadProductionAuthPolicy() (auth.Policy, error) {
 	policy := auth.DefaultPolicy()
 	policy.AllowedEmailDomains = auth.ParseDomainList(getEnv("AUTH_ALLOWED_EMAIL_DOMAINS", auth.DefaultAllowedEmailDomains))
-	policy.DeniedEmailDomains = auth.ParseDomainList(getEnv("AUTH_DENIED_EMAIL_DOMAINS", auth.DefaultDeniedEmailDomains))
+	policy.DeniedEmailDomains = auth.ParseDomainList(auth.DefaultDeniedEmailDomains + "," + getEnv("AUTH_DENIED_EMAIL_DOMAINS", ""))
 	policy.SAML = auth.SAMLConfig{
 		EntityID:       getEnv("GOOGLE_SAML_ENTITY_ID", ""),
 		ACSURL:         getEnv("GOOGLE_SAML_ACS_URL", ""),

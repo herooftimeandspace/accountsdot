@@ -176,6 +176,42 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	}
 }
 
+// TestLoadKeepsMandatoryStudentDenyDomain records the Phase 0 dev and staging
+// evidence for explicit student-domain denial before live SAML assertion
+// handling exists. Deployment-specific denied domains can add local blocks, but
+// neither development nor staging config can remove the documented
+// @stu.wusd.org safety floor from the parsed production auth policy.
+func TestLoadKeepsMandatoryStudentDenyDomain(t *testing.T) {
+	for _, appEnv := range []string{"development", "staging"} {
+		t.Run(appEnv, func(t *testing.T) {
+			clearProductionAuthEnv(t)
+			t.Setenv("APP_ENV", appEnv)
+			t.Setenv("AUTH_ALLOWED_EMAIL_DOMAINS", "wusd.org,stu.wusd.org")
+			t.Setenv("AUTH_DENIED_EMAIL_DOMAINS", "blocked.example")
+			t.Setenv("GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON", `[{"group":"wizard-it-admins@wusd.org","roles":["it_admin"]}]`)
+
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatalf("Load returned error: %v", err)
+			}
+			if cfg.AppEnv != appEnv {
+				t.Fatalf("app env = %q, want %q", cfg.AppEnv, appEnv)
+			}
+			if !slices.Equal(cfg.ProductionAuthPolicy.DeniedEmailDomains, []string{"blocked.example", "stu.wusd.org"}) {
+				t.Fatalf("denied domains = %#v, want blocked.example and mandatory stu.wusd.org", cfg.ProductionAuthPolicy.DeniedEmailDomains)
+			}
+
+			decision := auth.EvaluateGoogleIdentity(cfg.ProductionAuthPolicy, auth.GoogleIdentity{
+				Email:  "otherwise.mapped@stu.wusd.org",
+				Groups: []string{"wizard-it-admins@wusd.org"},
+			})
+			if decision.Authorized || decision.Reason != "denied_domain" {
+				t.Fatalf("student decision = %#v, want denied_domain", decision)
+			}
+		})
+	}
+}
+
 // TestLoadFallsBackOnInvalidIntegerValues confirms optional numeric tuning
 // variables cannot prevent local startup when they contain non-integer values.
 func TestLoadFallsBackOnInvalidIntegerValues(t *testing.T) {
