@@ -412,7 +412,7 @@ function fetchReviewThreads(baseRef) {
 
 function fetchPullRequestReviewSignals(baseRef) {
   const query =
-    'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviews(first:50){ nodes { author { login } state submittedAt } } comments(first:50){ nodes { author { login } body createdAt reactionGroups { content users(first:20){ nodes { login } } } } } } } } }';
+    'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reactionGroups { content users(first:20){ nodes { login } } } reviews(first:50){ nodes { author { login } state submittedAt } } comments(first:50){ nodes { author { login } body createdAt reactionGroups { content users(first:20){ nodes { login } } } } } } } } }';
   const result = ghJson([
     "api",
     "graphql",
@@ -431,6 +431,7 @@ function fetchPullRequestReviewSignals(baseRef) {
       {
         reviews: pr.reviews.nodes,
         comments: pr.comments.nodes,
+        reactionGroups: pr.reactionGroups || [],
       },
     ]),
   );
@@ -562,12 +563,13 @@ function reviewThreadsForPr(reviewThreads, number) {
 function hasBotSuccessReaction(signals, config) {
   const successReactions = new Set((config.codexReviewSuccessReactions || []).map((reaction) => String(reaction).toUpperCase()));
   const botLogin = config.codexReviewBot || "";
-  return (signals.comments || []).some((comment) =>
-    (comment.reactionGroups || []).some((group) => {
+  const hasSuccessReaction = (reactionGroups) =>
+    (reactionGroups || []).some((group) => {
       if (!successReactions.has(String(group.content || "").toUpperCase())) return false;
       return (group.users?.nodes || []).some((user) => authorMatches(user.login, [botLogin]));
-    }),
-  );
+    });
+  if (hasSuccessReaction(signals.reactionGroups)) return true;
+  return (signals.comments || []).some((comment) => hasSuccessReaction(comment.reactionGroups));
 }
 
 function hasCodexReviewResponse({ signals, threadEntry, config }) {
@@ -2476,6 +2478,23 @@ async function selfTest() {
     });
     assert.equal(readyEvaluation.status, "ready_to_merge");
     assert.equal(readyEvaluation.bot_thumbs_up, true);
+    const topLevelReactionEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [],
+        comments: [],
+        reactionGroups: [
+          {
+            content: "THUMBS_UP",
+            users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(topLevelReactionEvaluation.status, "ready_to_merge");
+    assert.equal(topLevelReactionEvaluation.bot_thumbs_up, true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["merge state DIRTY"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["draft PR"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["check state FAILURE"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), false);
