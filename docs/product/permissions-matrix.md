@@ -20,13 +20,14 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 - `@stu.wusd.org` is explicitly denied before role authorization.
 - Local breakglass accounts are the only domain-gate exception.
 - Phase 0 scenario `P0-0C-001` is covered by `TestP000C001StaffDomainAllowlistGate` and `TestP000C001DevAndStagingShareStaffDomainGate`. Those tests are intentionally narrow: the first proves the evaluator lets the three staff domains proceed to role mapping and blocks non-staff domains before role mapping can grant access; the second proves development and staging load the same default staff-domain policy before live SAML assertion handling is added.
+- Phase 0 scenario `P0-0C-002` is covered by `TestP000C002StudentDomainDenyGate` and `TestLoadKeepsMandatoryStudentDenyDomain`. Those tests prove `@stu.wusd.org` remains denied before role/site authorization even when a deployment-specific allowed-domain override accidentally includes the student domain.
 
 ## Production Auth Flow
 
 1. Google Workspace authenticates the user through SAML.
 2. The application receives verified identity data from the future SAML middleware: email address, group memberships, and configured SAML attributes.
 3. The application canonicalizes the email address and applies the domain gate before any normal role authorization.
-4. The application denies `@stu.wusd.org` even if Google groups or attributes would otherwise map to an application role.
+4. The application denies `@stu.wusd.org` even if Google groups or attributes would otherwise map to an application role, and even if a deployment-specific allowed-domain override accidentally includes the student domain.
 5. The application allows only `@wusd.org`, `@it.wusd.org`, and `@staff.wusd.org` for normal SAML users.
 6. The breakglass runtime may bypass the domain gate only for named local emergency accounts after its own local-auth and network-source checks pass.
 7. The application maps Google groups and SAML attributes to stable role ids.
@@ -50,7 +51,7 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 The checked-in environment contract is:
 
 - `AUTH_ALLOWED_EMAIL_DOMAINS`: comma-separated normal SAML domains. Default: `wusd.org,it.wusd.org,staff.wusd.org`.
-- `AUTH_DENIED_EMAIL_DOMAINS`: comma-separated explicit denied domains. Default: `stu.wusd.org`.
+- `AUTH_DENIED_EMAIL_DOMAINS`: comma-separated explicit denied domains. Default: `stu.wusd.org`. Deployments may add local denied domains, but `stu.wusd.org` is a non-removable safety floor in the checked-in evaluator and startup policy.
 - `GOOGLE_SAML_ENTITY_ID`: service-provider entity id configured in Google Workspace.
 - `GOOGLE_SAML_ACS_URL`: assertion consumer service URL configured in Google Workspace.
 - `GOOGLE_SAML_IDP_METADATA_URL`: Google-hosted metadata URL when the deployment uses metadata discovery.
