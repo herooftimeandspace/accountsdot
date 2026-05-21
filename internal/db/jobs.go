@@ -139,24 +139,21 @@ select pg_advisory_xact_lock(hashtextextended($1, 0))
 // activeScheduledWorkflowRunID locks and returns the current active scheduled
 // run for a family after StartScheduledWorkflowRun has acquired the family
 // advisory lock. A missing row is normal and lets the caller create the first
-// active run for that cadence window.
+// active run for that cadence window. The scheduled trigger and active statuses
+// stay literal in this query so PostgreSQL can prove it matches the
+// workflow_runs_scheduled_family_active_idx partial-index predicate.
 func activeScheduledWorkflowRunID(ctx context.Context, tx JobExecutor, jobFamily string) (int64, error) {
 	var activeID int64
 	err := tx.QueryRow(ctx, `
 select id
 from workflow_runs
 where job_family = $1
-  and trigger_type = $2
-  and status in ($3, $4, $5, $6)
+  and trigger_type = 'scheduled'
+  and status in ('planned', 'running', 'recovering', 'waiting_manual')
 order by created_at asc
 for update
 limit 1
-`, jobFamily, scheduledTriggerType,
-		string(core.WorkflowRunStatePlanned),
-		string(core.WorkflowRunStateRunning),
-		string(core.WorkflowRunStateRecovering),
-		string(core.WorkflowRunStateWaitingManual),
-	).Scan(&activeID)
+`, jobFamily).Scan(&activeID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil
 	}

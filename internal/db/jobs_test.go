@@ -209,6 +209,12 @@ func TestStartScheduledWorkflowRunCreatesActiveRunWhenFamilyIsIdle(t *testing.T)
 	if !strings.Contains(exec.queries[0].sql, "pg_advisory_xact_lock") {
 		t.Fatalf("expected advisory lock before family lookup, got %#v", exec.queries[0])
 	}
+	activeLookup := exec.queries[1]
+	if !strings.Contains(activeLookup.sql, "trigger_type = 'scheduled'") ||
+		!strings.Contains(activeLookup.sql, "status in ('planned', 'running', 'recovering', 'waiting_manual')") ||
+		len(activeLookup.args) != 1 {
+		t.Fatalf("active scheduled lookup must match partial-index predicate literally, got %#v", activeLookup)
+	}
 	insert := exec.queries[2]
 	if !strings.Contains(insert.sql, "insert into workflow_runs") || insert.args[4] != string(core.WorkflowRunStateRunning) {
 		t.Fatalf("expected running workflow insert, got %#v", insert)

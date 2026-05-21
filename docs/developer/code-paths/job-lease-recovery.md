@@ -13,6 +13,13 @@ This walkthrough explains the Phase 0 worker-crash recovery primitive for `P0-0B
 - `workflow_runs.overlap_state` records `none` for active scheduled runs and `deferred_due_to_active_run` for suppressed duplicate starts.
 - `workflow_runs.overlap_count` records the family-scoped overlap sequence used by later cadence-adjustment ticket work.
 
+Existing dev and staging databases that were created before these overlap fields
+must apply `internal/db/migrations/202605200001_workflow_run_overlap.sql`. New
+databases receive the same columns and partial indexes from
+`internal/db/schema.sql`. The active-run lookup keeps `trigger_type = 'scheduled'`
+and the active status list as SQL literals so PostgreSQL can use the
+`workflow_runs_scheduled_family_active_idx` partial index.
+
 ## Claim Path
 
 `internal/db.ClaimNextJob` is the worker claim boundary.
