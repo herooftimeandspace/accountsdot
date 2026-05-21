@@ -19,6 +19,7 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 - Allowed staff domains are `@wusd.org`, `@it.wusd.org`, and `@staff.wusd.org`.
 - `@stu.wusd.org` is explicitly denied before role authorization.
 - Local breakglass accounts are the only domain-gate exception.
+- Phase 0 scenario `P0-0C-001` is covered by `TestP000C001StaffDomainAllowlistGate` and `TestP000C001DevAndStagingShareStaffDomainGate`. Those tests are intentionally narrow: the first proves the evaluator lets the three staff domains proceed to role mapping and blocks non-staff domains before role mapping can grant access; the second proves development and staging load the same default staff-domain policy before live SAML assertion handling is added.
 
 ## Production Auth Flow
 
@@ -61,6 +62,8 @@ The checked-in environment contract is:
 - `BREAKGLASS_ACCOUNTS`: comma-separated local emergency account ids.
 - `BREAKGLASS_TOKEN_SHA256_<SANITIZED_ACCOUNT_ID>`: per-account SHA-256 token hash where non-alphanumeric account-id characters are converted to underscores and uppercased.
 - `BREAKGLASS_ALLOWED_CIDRS`: optional comma-separated allowed source networks. Default: `10.23.0.0/16,10.19.100.0/24`.
+
+Deployment operators may override `AUTH_ALLOWED_EMAIL_DOMAINS` or `AUTH_DENIED_EMAIL_DOMAINS`, but doing so changes the Phase 0 staff-domain gate and must be recorded with the deployment configuration and promotion evidence. The repository default remains the baseline for both development and staging checks.
 
 Example mapping shape:
 

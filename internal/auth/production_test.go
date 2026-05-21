@@ -7,6 +7,61 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/auth"
 )
 
+// TestP000C001StaffDomainAllowlistGate is the named Phase 0 dev evidence for
+// the staff-domain gate. It calls the production Google identity evaluator with
+// verified identity-shaped input so allowed staff domains can reach role
+// mapping, while non-staff domains are denied before those same role mappings
+// can grant access.
+func TestP000C001StaffDomainAllowlistGate(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{{Group: "wizard-it-admins@wusd.org", Roles: []string{auth.RoleITAdmin}}}
+
+	allowedIdentities := []string{
+		"alex@wusd.org",
+		"casey@it.wusd.org",
+		"avery@staff.wusd.org",
+		" Mixed.Case@IT.WUSD.ORG ",
+	}
+	for _, email := range allowedIdentities {
+		t.Run("allows "+email, func(t *testing.T) {
+			decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+				Email:  email,
+				Groups: []string{"wizard-it-admins@wusd.org"},
+			})
+			if !decision.Authorized {
+				t.Fatalf("decision denied %q: %#v", email, decision)
+			}
+			assertContains(t, decision.Roles, auth.RoleITAdmin)
+		})
+	}
+
+	deniedIdentities := []struct {
+		email  string
+		reason string
+	}{
+		{email: "student@stu.wusd.org", reason: "denied_domain"},
+		{email: "vendor@example.org", reason: "domain_not_allowed"},
+		{email: "contractor@external.wusd.org", reason: "domain_not_allowed"},
+	}
+	for _, tt := range deniedIdentities {
+		t.Run("denies "+tt.email, func(t *testing.T) {
+			decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+				Email:  tt.email,
+				Groups: []string{"wizard-it-admins@wusd.org"},
+			})
+			if decision.Authorized {
+				t.Fatalf("decision authorized %q before domain gate: %#v", tt.email, decision)
+			}
+			if decision.Reason != tt.reason {
+				t.Fatalf("reason = %q, want %q", decision.Reason, tt.reason)
+			}
+			if len(decision.Roles) != 0 {
+				t.Fatalf("roles = %#v, want none because domain gate runs before role mapping", decision.Roles)
+			}
+		})
+	}
+}
+
 func TestEvaluateGoogleIdentityAppliesDomainGateBeforeRoleMapping(t *testing.T) {
 	policy := auth.DefaultPolicy()
 	policy.GroupRoleMappings = []auth.GroupRoleMapping{{Group: "wizard-it-admins@wusd.org", Roles: []string{auth.RoleITAdmin}}}
