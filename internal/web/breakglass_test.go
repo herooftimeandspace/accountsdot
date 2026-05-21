@@ -133,6 +133,40 @@ func TestBreakglassRejectsAccountIDsWithCollidingTokenEnvNames(t *testing.T) {
 	}
 }
 
+func TestBreakglassRejectsNamedAccountMissingTokenHash(t *testing.T) {
+	configureBreakglassForPackageTest(t, "emergency-alex", "local-test-token")
+	t.Setenv("BREAKGLASS_ACCOUNTS", "emergency-alex,emergency-casey")
+
+	rec := postBreakglassLoginForPackageTest(t, "emergency-alex", "local-test-token", "10.23.4.5:62000", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("missing token hash config returned %d, want 500: %s", rec.Code, rec.Body.String())
+	}
+	if cookie := findBreakglassCookieForPackageTest(rec); cookie != nil {
+		t.Fatalf("missing token hash config set cookie %#v", cookie)
+	}
+	payload := decodeBreakglassErrorForPackageTest(t, rec)
+	if payload.Code != "breakglass_configuration_invalid" {
+		t.Fatalf("error code = %q, want breakglass_configuration_invalid", payload.Code)
+	}
+}
+
+func TestBreakglassRejectsNamedAccountInvalidTokenHash(t *testing.T) {
+	configureBreakglassForPackageTest(t, "emergency-alex", "local-test-token")
+	t.Setenv(breakglassTokenHashEnvName("emergency-alex"), "not-a-sha256-hex-digest")
+
+	rec := postBreakglassLoginForPackageTest(t, "emergency-alex", "local-test-token", "10.23.4.5:62000", nil)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("invalid token hash config returned %d, want 500: %s", rec.Code, rec.Body.String())
+	}
+	if cookie := findBreakglassCookieForPackageTest(rec); cookie != nil {
+		t.Fatalf("invalid token hash config set cookie %#v", cookie)
+	}
+	payload := decodeBreakglassErrorForPackageTest(t, rec)
+	if payload.Code != "breakglass_configuration_invalid" {
+		t.Fatalf("error code = %q, want breakglass_configuration_invalid", payload.Code)
+	}
+}
+
 func configureBreakglassForPackageTest(t *testing.T, accountID string, token string) {
 	t.Helper()
 	hash := sha256.Sum256([]byte(token))
