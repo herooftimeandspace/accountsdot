@@ -32,6 +32,7 @@ func TestWorkflowTypesValidate(t *testing.T) {
 func TestWorkflowRunStatesValidate(t *testing.T) {
 	valid := []core.WorkflowRunState{
 		core.WorkflowRunStatePlanned,
+		core.WorkflowRunStateDeferred,
 		core.WorkflowRunStateWaitingManual,
 		core.WorkflowRunStateRecovering,
 		core.WorkflowRunStateSucceeded,

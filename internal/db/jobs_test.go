@@ -24,6 +24,20 @@ type fakeJobExecutor struct {
 	rowScans  [][]any
 	rowErrs   []error
 	queries   []jobQuery
+	execErrs  []error
+}
+
+// Exec records advisory-lock statements used by scheduled job-family tests.
+// The fake does not need to return rows because production Exec only acquires
+// transaction-local PostgreSQL state before the normal QueryRow assertions.
+func (f *fakeJobExecutor) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	f.queries = append(f.queries, jobQuery{sql: sql, args: args})
+	if len(f.execErrs) > 0 {
+		err := f.execErrs[0]
+		f.execErrs = f.execErrs[1:]
+		return pgconn.CommandTag{}, err
+	}
+	return pgconn.CommandTag{}, nil
 }
 
 // Query records job-recovery SQL issued by tests so they can prove the
@@ -157,6 +171,80 @@ func assignFakeScanValue(dest any, value any) {
 		*d = core.ProviderKind(value.(string))
 	default:
 		panic("unsupported fake scan destination")
+	}
+}
+
+func scheduledRunRequest() ScheduledWorkflowRunRequest {
+	return ScheduledWorkflowRunRequest{
+		WorkflowType:        core.WorkflowTypeStaffSyncDryRun,
+		SubjectKind:         core.SubjectKindPerson,
+		SubjectID:           "staff-sync",
+		JobFamily:           "zoom.staff.delta",
+		ScheduledFor:        time.Date(2026, 5, 20, 10, 15, 0, 0, time.UTC),
+		DesiredSnapshotJSON: `{"lookback":"15m"}`,
+	}
+}
+
+// TestStartScheduledWorkflowRunCreatesActiveRunWhenFamilyIsIdle covers the
+// first P0-0B-003 cadence tick. With no active family run, the scheduler
+// records a running workflow_run row that later ticks must treat as the
+// anti-overlap owner.
+func TestStartScheduledWorkflowRunCreatesActiveRunWhenFamilyIsIdle(t *testing.T) {
+	now := time.Date(2026, 5, 20, 10, 14, 0, 0, time.UTC)
+	exec := &fakeJobExecutor{
+		rowErrs:  []error{pgx.ErrNoRows},
+		rowScans: [][]any{{int64(2001)}},
+	}
+
+	start, err := StartScheduledWorkflowRun(context.Background(), exec, scheduledRunRequest(), now)
+	if err != nil {
+		t.Fatalf("StartScheduledWorkflowRun returned error: %v", err)
+	}
+	if start.Deferred || start.RunID != 2001 || start.ActiveRunID != 2001 {
+		t.Fatalf("unexpected active start outcome: %#v", start)
+	}
+	if start.Status != core.WorkflowRunStateRunning || start.OverlapState != "none" || start.OverlapCount != 0 {
+		t.Fatalf("unexpected active status metadata: %#v", start)
+	}
+	if !strings.Contains(exec.queries[0].sql, "pg_advisory_xact_lock") {
+		t.Fatalf("expected advisory lock before family lookup, got %#v", exec.queries[0])
+	}
+	activeLookup := exec.queries[1]
+	if !strings.Contains(activeLookup.sql, "trigger_type = 'scheduled'") ||
+		!strings.Contains(activeLookup.sql, "status in ('planned', 'running', 'recovering', 'waiting_manual')") ||
+		len(activeLookup.args) != 1 {
+		t.Fatalf("active scheduled lookup must match partial-index predicate literally, got %#v", activeLookup)
+	}
+	insert := exec.queries[2]
+	if !strings.Contains(insert.sql, "insert into workflow_runs") || insert.args[4] != string(core.WorkflowRunStateRunning) {
+		t.Fatalf("expected running workflow insert, got %#v", insert)
+	}
+}
+
+// TestStartScheduledWorkflowRunDefersOverlapWithoutClobberingActiveRun
+// simulates the second P0-0B-003 scheduled tick while the first run is still
+// active. The second row is deferred, points to the active run, and records
+// overlap state instead of changing the active workflow_run.
+func TestStartScheduledWorkflowRunDefersOverlapWithoutClobberingActiveRun(t *testing.T) {
+	now := time.Date(2026, 5, 20, 10, 29, 0, 0, time.UTC)
+	exec := &fakeJobExecutor{rowScans: [][]any{
+		{int64(2001)},
+		{int64(2002), 1},
+	}}
+
+	start, err := StartScheduledWorkflowRun(context.Background(), exec, scheduledRunRequest(), now)
+	if err != nil {
+		t.Fatalf("StartScheduledWorkflowRun returned error: %v", err)
+	}
+	if !start.Deferred || start.RunID != 2002 || start.ActiveRunID != 2001 {
+		t.Fatalf("unexpected deferred start outcome: %#v", start)
+	}
+	if start.Status != core.WorkflowRunStateDeferred || start.OverlapState != "deferred_due_to_active_run" || start.OverlapCount != 1 {
+		t.Fatalf("unexpected overlap metadata: %#v", start)
+	}
+	insert := exec.queries[2]
+	if !strings.Contains(insert.sql, "deferred_from_run_id") || insert.args[4] != string(core.WorkflowRunStateDeferred) || insert.args[7] != int64(2001) {
+		t.Fatalf("expected deferred workflow insert tied to active run, got %#v", insert)
 	}
 }
 

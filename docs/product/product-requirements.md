@@ -1131,6 +1131,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Event-driven updates accelerate freshness but do not replace scheduled delta syncs and daily full reconciliations. For API-backed projection surfaces, the preferred refresh target is `15m` deltas where provider limits and environment safety allow.
 - Long-running sync jobs must be allowed to finish even if the next cadence window arrives while they are still running.
 - The system must not start conflicting overlapping runs for the same provider or sync job family, and must defer duplicate work cleanly so race conditions and clobbering do not occur.
+- Deferred duplicate starts must be represented as durable workflow state, not as transient log-only evidence. The deferred record must preserve the job family, scheduled cadence time, blocking active run, and overlap count while leaving the active run and provider work untouched.
 - If schedule overlap happens 5 times within 7 days for the same job family, the app must generate or update an operational ticket recommending cadence adjustment.
 - Create that cadence-adjustment ticket on behalf of the affected service account.
 - Do not reset the overlap counter on ticket creation; keep counting and keep updating the open ticket until a material cadence change is made.

@@ -32,6 +32,11 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 		"create table if not exists event_outbox",
 		"create table if not exists system_controls",
 		"create table if not exists workflow_runs",
+		"job_family text not null default 'unclassified'",
+		"deferred_from_run_id bigint references workflow_runs(id)",
+		"overlap_state text not null default 'none'",
+		"create index if not exists workflow_runs_scheduled_family_active_idx",
+		"create index if not exists workflow_runs_scheduled_family_overlap_idx",
 		"create table if not exists import_batches",
 		"create table if not exists approval_requests",
 		"create table if not exists provider_circuit_breakers",
@@ -48,6 +53,37 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(strings.ToLower(text), strings.ToLower(snippet)) {
 			t.Fatalf("schema.sql must contain %q", snippet)
+		}
+	}
+}
+
+// TestOverlapMigrationContainsExistingDatabaseChanges exercises the migration
+// script that keeps already-created dev and staging workflow_runs tables aligned
+// with schema.sql. It checks for idempotent column and partial-index DDL so
+// P0-0B-003 can be applied without rebuilding the database.
+func TestOverlapMigrationContainsExistingDatabaseChanges(t *testing.T) {
+	root := projectRoot(t)
+	migration, err := os.ReadFile(filepath.Join(root, "internal", "db", "migrations", "202605200001_workflow_run_overlap.sql"))
+	if err != nil {
+		t.Fatalf("failed reading workflow overlap migration: %v", err)
+	}
+	text := string(migration)
+
+	requiredSnippets := []string{
+		"alter table if exists workflow_runs",
+		"add column if not exists job_family text not null default 'unclassified'",
+		"add column if not exists scheduled_for timestamptz",
+		"add column if not exists deferred_from_run_id bigint references workflow_runs(id) on delete set null",
+		"add column if not exists overlap_state text not null default 'none'",
+		"add column if not exists overlap_count integer not null default 0",
+		"create index if not exists workflow_runs_scheduled_family_active_idx",
+		"where trigger_type = 'scheduled'",
+		"and status in ('planned', 'running', 'recovering', 'waiting_manual')",
+		"create index if not exists workflow_runs_scheduled_family_overlap_idx",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(strings.ToLower(text), strings.ToLower(snippet)) {
+			t.Fatalf("workflow overlap migration must contain %q", snippet)
 		}
 	}
 }
