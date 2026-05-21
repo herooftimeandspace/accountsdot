@@ -261,7 +261,10 @@ func configuredBreakglassAccounts() (map[string]breakglassAccount, error) {
 		envNames[envName] = accountID
 		tokenHash := strings.TrimSpace(os.Getenv(envName))
 		if tokenHash == "" {
-			continue
+			return nil, fmt.Errorf("breakglass account %q is missing %s", accountID, envName)
+		}
+		if !validBreakglassTokenHash(tokenHash) {
+			return nil, fmt.Errorf("breakglass account %q has invalid token hash in %s", accountID, envName)
 		}
 		accounts[accountID] = breakglassAccount{
 			AccountID: accountID,
@@ -356,6 +359,15 @@ func breakglassTokenMatches(expectedHash string, token string) bool {
 	}
 	actual := sha256.Sum256([]byte(token))
 	return subtle.ConstantTimeCompare(decodedExpected, actual[:]) == 1
+}
+
+// validBreakglassTokenHash checks deployment-supplied token-hash configuration
+// before handleBreakglassLogin accepts any named emergency account. It allows
+// configuration validation to fail closed without comparing the submitted token
+// or writing secret material into diagnostics.
+func validBreakglassTokenHash(expectedHash string) bool {
+	decodedExpected, err := hex.DecodeString(strings.TrimSpace(expectedHash))
+	return err == nil && len(decodedExpected) == sha256.Size
 }
 
 func breakglassModeEnabled() bool {
