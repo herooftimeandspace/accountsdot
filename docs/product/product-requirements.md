@@ -473,6 +473,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Staging should determine the current school year from Aeries School Info and default `DatabaseYear` to `current school year - 1`.
 - Example: if Aeries School Info reports current school year `2025-2026`, staging should default to `DatabaseYear=2024`.
 - If Aeries School Info disagrees across schools, use the earliest start date and latest end date across all schools to define the district school year.
+- Phase 0 staging evidence must prove the resolved `DatabaseYear=YYYY`
+  parameter from sanitized School Info metadata and must not expose Aeries
+  credential material, auth headers, certificates, or raw student/staff records.
 - Teacher data must be queried from the distinct teacher-related API paths and converged with staff and scheduling data into one internal dashboard entity.
 - The join key between Aeries staff and teacher-related records is `StaffID`.
 - When Aeries `staff`, `teacher`, and `scheduling` disagree on a teacher's school or room before local overrides apply, the `staff` record wins.

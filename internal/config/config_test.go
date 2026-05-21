@@ -129,6 +129,13 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	t.Setenv("USE_MOCK_ZOOM", "false")
 	t.Setenv("ZOOM_ACCOUNT_ID", "zoom-staging-label")
 	t.Setenv("ZOOM_BASE_URL", "https://zoom.example.test/v2")
+	t.Setenv("USE_MOCK_AERIES", "false")
+	t.Setenv("AERIES_READ_ONLY", "true")
+	t.Setenv("AERIES_DATABASE_YEAR_MODE", provider.AeriesDatabaseYearModePreviousSchoolYear)
+	t.Setenv("AERIES_MASKED_PREVIOUS_YEAR_ONLY", "true")
+	t.Setenv("AERIES_BASE_URL", "https://aeries.example.invalid/api")
+	t.Setenv("AERIES_CLIENT_ID", "aeries-staging-label")
+	t.Setenv("AERIES_CERT_FILE", "/run/secrets/aeries-client-cert.pem")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -173,6 +180,16 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	}
 	if zoomReadiness.Endpoint != "https://zoom.example.test/v2" || zoomReadiness.CredentialLabel != "zoom-staging-label" {
 		t.Fatalf("zoom readiness metadata = %#v", zoomReadiness)
+	}
+	aeriesReadiness := cfg.ProviderReadiness[2]
+	if aeriesReadiness.Provider != provider.ProviderNameAeries || aeriesReadiness.UseMock || !aeriesReadiness.ReadOnly {
+		t.Fatalf("aeries readiness = %#v, want read-only non-mock config", aeriesReadiness)
+	}
+	if aeriesReadiness.Endpoint != "https://aeries.example.invalid/api" || aeriesReadiness.CredentialLabel != "aeries-staging-label" {
+		t.Fatalf("aeries readiness metadata = %#v", aeriesReadiness)
+	}
+	if aeriesReadiness.DatabaseYearMode != provider.AeriesDatabaseYearModePreviousSchoolYear || !aeriesReadiness.MaskedPreviousYearOnly || !aeriesReadiness.CertificateFileConfigured {
+		t.Fatalf("aeries previous-year safety flags = %#v", aeriesReadiness)
 	}
 }
 
@@ -237,6 +254,10 @@ func clearProviderReadinessEnv(t *testing.T) {
 		"GOOGLE_REDIRECT_URL",
 		"AERIES_BASE_URL",
 		"AERIES_CLIENT_ID",
+		"AERIES_READ_ONLY",
+		"AERIES_DATABASE_YEAR_MODE",
+		"AERIES_MASKED_PREVIOUS_YEAR_ONLY",
+		"AERIES_CERT_FILE",
 		"SFTP_HOST",
 		"SFTP_USERNAME",
 	} {

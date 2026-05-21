@@ -20,11 +20,14 @@ const (
 )
 
 type ReadinessConfig struct {
-	Provider        string
-	UseMock         bool
-	ReadOnly        bool
-	Endpoint        string
-	CredentialLabel string
+	Provider                  string
+	UseMock                   bool
+	ReadOnly                  bool
+	Endpoint                  string
+	CredentialLabel           string
+	DatabaseYearMode          string
+	MaskedPreviousYearOnly    bool
+	CertificateFileConfigured bool
 }
 
 type ReadinessResult struct {

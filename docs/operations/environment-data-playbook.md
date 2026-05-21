@@ -106,6 +106,16 @@ This document defines the required process for creating and refreshing safe deve
   - determine current school year from Aeries School Info, then default staging to `current school year - 1`
   - if schools disagree, use the earliest start and latest end dates across schools to define the school year
   - preserve masking and omission rules before any non-production persistence
+  - the checked-in staging example disables only the Aeries mock provider and
+    keeps `AERIES_READ_ONLY=true`,
+    `AERIES_DATABASE_YEAR_MODE=previous_school_year`, and
+    `AERIES_MASKED_PREVIOUS_YEAR_ONLY=true`; this is a read-only connectivity
+    profile, not permission to write to Aeries
+  - startup/config evidence should pass sanitized School Info records into
+    `internal/provider.ResolveAeriesPreviousYearStagingConfig`, then record the
+    resolved `DatabaseYear` value and the `DatabaseYear=YYYY` query parameter
+    in the external IncidentIQ testing ticket or promotion runbook without
+    copying credentials, certificates, auth headers, or raw student/staff data
 
 ### Step 6. Validate the Staging Refresh
 - Validate record counts and key relationship counts.
