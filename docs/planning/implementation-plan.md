@@ -295,42 +295,19 @@
   - explicit `Refresh` actions may perform targeted live reads rather than full-table provider fan-out
   - all write-capable workflows must do live read-before-write and live read-after-write
   - if live provider truth disagrees with the projection during an action path, the live provider result wins for that action and the local projection must be refreshed
-- Provider recommendations for the current product:
-  - `Escape / SFTP`
-    - authoritative mode: `batch-only source`
-    - local use: normalized employment and assignment facts plus import metadata
-    - live UI dependency: none
-    - preferred cadence: `24h`
-  - `Aeries`
-    - authoritative mode: `projection-backed list/search`
-    - local use: minimal read-only student, staff, school, scheduling, and room-context facts needed for joins and workflows
-    - live UI dependency: no normal live list UI dependency
-    - preferred cadence: `1h` delta and `24h` full reconciliation
-  - `Active Directory / LDAP`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live write-path verification`
-    - local use: minimal identity and account facts required for joins, orphan detection, naming, and workflow planning
-    - live reads required for: username collision checks, rename verification, deprovision verification, and other write-sensitive operations
-  - `Google`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
-    - local use: minimal identity, alias, login-activity, and group-membership facts needed for workflows and audit
-    - preferred cadence: `15m` delta, `24h` full reconciliation, and immediate post-write refresh
-  - `Zoom`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
-    - local use: minimal user, phone, extension, license, SLG, CAP, and queue facts needed for directory, transfer, and cleanup behavior
-    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
-  - `IncidentIQ`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read`
-    - local use: minimal user linkage, ticket linkage, and ticket status facts needed for workflow visibility and operator queues
-    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
-  - `InformedK12`
-    - authoritative mode: normalized trigger and event facts only
-    - local use: workflow-triggering and preparatory facts, not broad operator-search duplication
-    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
-  - `Google Sheets`
-    - authoritative mode: compatibility export only
-    - local use: none as a runtime source of truth
-    - live UI dependency: none
-    - preferred cadence: export on demand or through compatibility workflows only
+- Provider capability classification matrix for the current product:
+
+  | Provider | Authoritative source mode | Projection freshness target | Live detail read | Live write-path verification | Events/webhooks | Local persistence and implementation boundary |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `Escape / SFTP` | `batch-only source` | `24h` import cadence | No | No | No | Persist normalized employment and assignment facts plus import metadata. Do not design interactive Escape lookups or a full Escape mirror. |
+  | `Aeries` | `projection-backed list/search` from read-only API sync | `1h` delta and `24h` full reconciliation | No for routine list/detail navigation | No; Aeries is read-only in the planned product | Not assumed | Persist minimal student, staff, school, scheduling, and room-context facts needed for joins and workflows. Staging uses masked previous-year reads when no sandbox exists. |
+  | `Active Directory / LDAP` | Hybrid `projection-backed list/search` plus `live write-path verification` | `15m` delta where feasible and `24h` full reconciliation | Only when a selected workflow step needs current account state | Yes for collision checks, rename verification, deprovision verification, and other write-sensitive operations | Not assumed | Persist minimal identity and account facts required for joins, orphan detection, naming, and workflow planning. Live provider truth wins on action paths. |
+  | `Google` | Hybrid `projection-backed list/search`, `live detail read`, and `live write-path verification` | `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Yes for selected user/group/detail refresh | Yes for every write-capable account, alias, group, license, or destructive action path | Not assumed for v1 | Persist minimal identity, alias, login-activity, and group-membership facts needed for workflows and audit. |
+  | `Zoom` | Hybrid `projection-backed list/search`, `live detail read`, and `live write-path verification` | Event-driven acceleration where supported, `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Yes for selected user, phone, extension, license, SLG, CAP, and queue detail refresh | Yes for every write-capable phone, license, account, entitlement, cleanup, or transfer action path | Yes, where tenant support is proven | Persist minimal user, phone, extension, license, SLG, CAP, and queue facts needed for directory, transfer, and cleanup behavior. Scheduled reconciliation remains the backstop for missed events. |
+  | `IncidentIQ` | Hybrid `projection-backed list/search`, `live detail read`, and ticket-action `live write-path verification` | Event-driven acceleration where supported, `15m` delta, `24h` full reconciliation, and immediate post-write refresh for app-created ticket actions | Yes for selected ticket, asset, requester, or action-sensitive status refresh | Yes for app-created ticket, subtask, status, owner, and close/update actions | Not assumed until proven in tenant | Persist minimal user linkage, asset linkage, ticket linkage, and ticket status facts needed for workflow visibility and operator queues. |
+  | `InformedK12` | `projection-backed list/search` for workflow trigger/event facts only | Event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation | No normal operator live-detail dependency | No planned provider write path in the current product | Where supported, as an accelerator only | Persist workflow-triggering and preparatory event facts only. Do not create broad operator-search duplication or a full form-system mirror. |
+  | `Google Sheets` | `batch-only source` for migration inputs and compatibility exports; not a runtime source of truth | No routine runtime freshness target; publish outputs are versioned when generated | No | Yes only for future compatibility-export publish paths, with staging-tab sentinel validation and pointer-swap verification | No | Do not use Sheets as a runtime source of truth. Future export writes must validate staging tabs, sentinels, checksums, and pointer application before replacing a visible sheet. |
+  | `Verkada` | `projection-backed list/search` only when future workflows need local reference facts | Deferred until a direct integration is approved | No current live-detail dependency | No direct provider write path in the current product; create or update IncidentIQ follow-up tickets instead | Not assumed | Treat account or door-access follow-up as external IncidentIQ configuration/ticket work unless a later phase explicitly approves a direct Verkada integration. |
 
 ### Pre-Phase 0: Frontend Design and DEV UI Iteration
 - Purpose:
@@ -527,7 +504,8 @@
     - provider readiness success evidence against mocks
     - provider readiness failure evidence for missing or bad credentials/config
     - safe Aeries previous-year staging configuration evidence
-    - evidence that each provider is documented with the intended batch, projection-backed, live-detail, and live-write-verification behavior before implementation begins
+    - evidence that the provider capability classification matrix above documents each provider with the intended `batch-only source`, `projection-backed list/search`, `live detail read`, and `live write-path verification` behavior before implementation begins
+    - staging readiness evidence must use the same provider capability classification matrix and freshness expectations rather than a separate staging-only interpretation
   - `0E` health checks, metrics, readiness gates, and promotion plumbing
     - `/health/live` and `/health/ready` evidence under healthy and degraded conditions
     - observability evidence for pause/dependency state
