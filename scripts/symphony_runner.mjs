@@ -991,6 +991,14 @@ function findIssueWorkspace(issue, dispatchConfig) {
   return candidates[0] || currentPath;
 }
 
+function workspaceRepoMatchesBranch(workspacePath, branchName) {
+  if (!branchName) return false;
+  const repoPath = path.join(workspacePath, "repo");
+  if (!fs.existsSync(repoPath)) return false;
+  const branch = currentBranch(repoPath);
+  return branch.ok && branch.branch === branchName;
+}
+
 // Review remediation belongs to the PR branch that already exists. Prefer the
 // prepared branch workspace, then recorded state, then issue or PR fallbacks.
 function workspaceForReviewRemediation({ pr, issue, dispatchConfig }) {
@@ -1003,18 +1011,31 @@ function workspaceForReviewRemediation({ pr, issue, dispatchConfig }) {
       .readdirSync(dispatchConfig.workspaceRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => path.join(dispatchConfig.workspaceRoot, entry.name))
-      .filter((workspacePath) => {
+      .map((workspacePath) => {
         const statePath = path.join(workspacePath, "state.json");
-        if (!fs.existsSync(statePath)) return false;
+        if (!fs.existsSync(statePath)) return null;
         try {
           const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-          return state.review_remediation_pr === pr.number || state.branch === branchName || state.issue_number === issue?.number;
+          const matchesReviewPr = state.review_remediation_pr === pr.number;
+          const matchesBranch = state.branch === branchName;
+          const matchesIssue = state.issue_number === issue?.number;
+          if (!matchesReviewPr && !matchesBranch && !matchesIssue) return null;
+          return { workspacePath, matchesReviewPr, matchesBranch, matchesIssue, repoMatchesBranch: workspaceRepoMatchesBranch(workspacePath, branchName) };
         } catch {
-          return false;
+          return null;
         }
       })
-      .sort();
-    if (stateMatches.length > 0) return stateMatches[0];
+      .filter(Boolean)
+      .sort((a, b) => {
+        const score = (candidate) =>
+          (candidate.repoMatchesBranch ? 1000 : 0) +
+          (candidate.matchesReviewPr ? 100 : 0) +
+          (candidate.matchesBranch ? 10 : 0) +
+          (candidate.matchesIssue ? 1 : 0);
+        if (score(a) !== score(b)) return score(b) - score(a);
+        return a.workspacePath.localeCompare(b.workspacePath);
+      });
+    if (stateMatches.length > 0) return stateMatches[0].workspacePath;
   }
 
   if (issue) return findIssueWorkspace(issue, dispatchConfig);
@@ -2193,6 +2214,33 @@ async function selfTest() {
     });
     assert.equal(closedIssueResult.status, "would-remediate");
     assert.equal(closedIssueResult.issue_number, null);
+
+    const staleStateWorkspace = path.join(tempRoot, "issue-267-a-stale-title");
+    const staleStateRepo = path.join(staleStateWorkspace, "repo");
+    fs.mkdirSync(staleStateRepo, { recursive: true });
+    run("git", ["init"], { cwd: staleStateRepo });
+    run("git", ["checkout", "-b", "codex/stale-review-branch"], { cwd: staleStateRepo });
+    fs.writeFileSync(
+      path.join(staleStateWorkspace, "state.json"),
+      `${JSON.stringify({ issue_number: 267, branch: "codex/stale-review-branch" }, null, 2)}\n`,
+    );
+    const exactPrWorkspace = path.join(tempRoot, "issue-267-z-current-title");
+    const exactPrRepo = path.join(exactPrWorkspace, "repo");
+    fs.mkdirSync(exactPrRepo, { recursive: true });
+    run("git", ["init"], { cwd: exactPrRepo });
+    run("git", ["checkout", "-b", "codex/current-review-branch"], { cwd: exactPrRepo });
+    fs.writeFileSync(
+      path.join(exactPrWorkspace, "state.json"),
+      `${JSON.stringify({ issue_number: 267, review_remediation_pr: 292, branch: "codex/current-review-branch" }, null, 2)}\n`,
+    );
+    assert.equal(
+      workspaceForReviewRemediation({
+        pr: { number: 292, head_ref: "codex/current-review-branch" },
+        issue: { number: 267, title: "Current title" },
+        dispatchConfig,
+      }),
+      exactPrWorkspace,
+    );
 
     const wrongBranchWorkspace = path.join(tempRoot, "pr-290");
     const wrongBranchRepo = path.join(wrongBranchWorkspace, "repo");
