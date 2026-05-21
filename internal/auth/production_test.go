@@ -228,6 +228,68 @@ func TestEvaluateGoogleIdentityReflectsChangedAssignments(t *testing.T) {
 	}
 }
 
+func TestEvaluateGoogleIdentityRecalculatesSiteScopeFromCurrentPolicy(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-site-admins@wusd.org", Roles: []string{auth.RoleSiteAdmin}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"clover-hs"}},
+	}
+	identity := auth.GoogleIdentity{
+		Email:  "admin@staff.wusd.org",
+		Groups: []string{"wizard-site-admins@wusd.org"},
+		Attributes: map[string][]string{
+			"wizard_site": {"Clover HS"},
+		},
+	}
+
+	before := auth.EvaluateGoogleIdentity(policy, identity)
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"windsor-high"}},
+	}
+	after := auth.EvaluateGoogleIdentity(policy, identity)
+
+	if !before.Authorized || !after.Authorized {
+		t.Fatalf("expected both current-policy decisions authorized, got before=%#v after=%#v", before, after)
+	}
+	if !slices.Equal(before.SiteScopes, []string{"clover-hs"}) {
+		t.Fatalf("before scopes = %#v, want clover-hs", before.SiteScopes)
+	}
+	if !slices.Equal(after.SiteScopes, []string{"windsor-high"}) {
+		t.Fatalf("after scopes = %#v, want windsor-high", after.SiteScopes)
+	}
+}
+
+func TestEvaluateGoogleIdentityRemovesStaleSiteScopeWhenAssignmentDisappears(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "group", Source: "wizard-clover-scope@wusd.org", Sites: []string{"clover-hs"}},
+	}
+
+	authorized := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "secretary@staff.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-clover-scope@wusd.org"},
+	})
+	changed := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "secretary@staff.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org"},
+	})
+
+	if !authorized.Authorized || !slices.Equal(authorized.SiteScopes, []string{"clover-hs"}) {
+		t.Fatalf("expected initial assignment authorized for clover-hs, got %#v", authorized)
+	}
+	if changed.Authorized {
+		t.Fatalf("removed site assignment left stale authorization: %#v", changed)
+	}
+	if changed.Reason != "single_site_role_scope_conflict" {
+		t.Fatalf("reason = %q, want single_site_role_scope_conflict", changed.Reason)
+	}
+}
+
 func TestEvaluateGoogleIdentityDeniesKnownUserWithoutRoleMapping(t *testing.T) {
 	decision := auth.EvaluateGoogleIdentity(auth.DefaultPolicy(), auth.GoogleIdentity{
 		Email: "staff.member@it.wusd.org",
