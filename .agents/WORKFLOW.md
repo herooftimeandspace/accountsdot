@@ -28,6 +28,7 @@ dispatch:
   require_explicit_agent_ready_label: true
   workspace_root: /private/tmp/accountsdot-symphony
   agent_runner_command: codex --ask-for-approval never exec --json --sandbox workspace-write --cd {repo} -
+  agent_runner_codex_home_root: /private/tmp/accountsdot-symphony/.codex-agent-homes
   agent_runner_timeout_ms: 21600000
 pull_requests:
   target_branch: phase-0-platform-foundation
@@ -209,7 +210,7 @@ The dispatcher is conservative by design:
 - When a human manually merges a PR that references an issue, the next dispatcher tick treats that PR as resolved and merged. It must not keep the issue blocked by the old prepared workspace; instead it records `status: merged` in the matching workspace `state.json` when the file exists, removes the clean prepared `repo` worktree checkout, and reports the issue queue entry as `merged`. If the prepared worktree is dirty, it must report the dirty files instead of deleting anything.
 - The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.
 - The dispatcher treats only a clean PR that is ready to merge as a reason to pause ordinary issue dispatch. Blocked, dirty, draft, or waiting-for-review PRs must be reported and remediated, but they should not prevent unrelated eligible issues from using remaining worker capacity.
-- `dispatch.agent_runner_command` is approved for this repo and launches `codex exec` from the prepared worktree with the rendered issue prompt on stdin. The dispatcher writes runner stdout and stderr to the issue workspace `logs/` directory and records completion or failure in `state.json`.
+- `dispatch.agent_runner_command` is approved for this repo and launches `codex exec` from the prepared worktree with the rendered issue prompt on stdin. The dispatcher sets `CODEX_HOME` to a per-workspace directory under `dispatch.agent_runner_codex_home_root`, symlinks the operator's existing Codex auth/config/plugin references into that writable home, and keeps worker state databases out of the desktop app's `~/.codex` directory. This prevents automation-launched workers from failing on readonly `state_5.sqlite` or app-server state writes while still using the authenticated Codex installation. The dispatcher writes runner stdout and stderr to the issue workspace `logs/` directory and records completion or failure in `state.json`.
 
 The Synchronizer wrapper should now call `npm run symphony:sync -- --json` for pull-request queue handling and issue dispatch state instead of maintaining a chat-only issue queue. The wrapper remains responsible for making sure the runner worktree is clean and current, invoking the repo-owned command, and surfacing runner failures. It should not duplicate merge policy, run long sleeps, or decide review status from flat comments when the runner can inspect thread-aware review state.
 
