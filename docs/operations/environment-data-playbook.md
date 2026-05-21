@@ -233,6 +233,7 @@ This document defines the required process for creating and refreshing safe deve
   - that the local projection can tolerate ordinary provider or API lag without corrupting operator workflows
   - that targeted live verification can still protect action paths when the projection is stale
 - Staging validation should confirm that projection freshness targets and live verification expectations are appropriate for each provider before write-capable behavior is promoted.
+- Staging readiness review for `P0-0D-004` must reuse the provider capability classification matrix in `docs/planning/implementation-plan.md`. The reviewer should not create a separate staging-only classification; any provider mode or freshness change found during staging must be reflected back into the implementation plan, product requirements, and test matrix before promotion evidence is accepted.
 
 ## Provider-Specific Expectations
 - Zoom: test assignment, SLG changes, CAP handling, and limited-license reclamation without relying on production users or production devices.

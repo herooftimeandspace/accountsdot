@@ -511,6 +511,19 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Escape remains a batch-ingested source through SFTP rather than a live interactive data source.
 - Aeries remains a read-only API source whose data is converged into local projections for runtime use rather than queried live for every operator interaction.
 - Active Directory / LDAP should use a hybrid approach: retain only the minimal local identity and account facts needed for joins and workflow planning, while using live reads for collision-sensitive and write-sensitive operations.
+- Provider access modes for the current product are:
+
+  | Provider | Product access mode | Freshness expectation | Operator-facing implication |
+  | --- | --- | --- | --- |
+  | `Escape / SFTP` | `batch-only source` | `24h` import cadence | Employment and assignment state appears through local projections after import, with no live Escape lookup in operator pages. |
+  | `Aeries` | `projection-backed list/search` from read-only API sync | `1h` delta and `24h` full reconciliation | Student, staff, school, teacher, scheduling, and room-context facts are converged into local views instead of queried live for normal navigation. |
+  | `Active Directory / LDAP` | `projection-backed list/search` plus `live write-path verification` | `15m` delta where feasible and `24h` full reconciliation | Directory/account lists can use projections, while collision-sensitive and write-sensitive workflows must check live account state. |
+  | `Google` | `projection-backed list/search`, `live detail read`, and `live write-path verification` | `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Lists use projections; selected details and account, alias, group, license, or destructive actions verify current Google state. |
+  | `Zoom` | `projection-backed list/search`, `live detail read`, and `live write-path verification` | event acceleration where proven, `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Phone, extension, license, SLG, CAP, cleanup, and transfer surfaces use projections for lists and live reads for selected details or action paths. |
+  | `IncidentIQ` | `projection-backed list/search`, `live detail read`, and ticket-action `live write-path verification` | event acceleration where proven, `15m` delta, `24h` full reconciliation, and immediate post-write refresh for app-created ticket actions | Ticket and asset queues avoid live fan-out, while selected tickets and app-created ticket updates verify current provider state. |
+  | `InformedK12` | `projection-backed list/search` for trigger/event facts only | event acceleration where proven, `15m` delta, and `24h` full reconciliation | Form events may trigger workflow preparation, but broad operator search duplication of the form system is out of scope. |
+  | `Google Sheets` | `batch-only source` for migration inputs and compatibility exports, not runtime truth | no routine runtime freshness target; generated exports are versioned when published | Sheets do not drive normal dashboard behavior; future compatibility exports must verify staging tabs and sentinels before pointer application. |
+  | `Verkada` | `projection-backed list/search` only if a future approved workflow needs reference facts | deferred until a direct integration is approved | Current product treats Verkada follow-up as IncidentIQ ticket/configuration work rather than direct account provisioning. |
 - Operational site-alias mapping that affects phone and permission scope currently includes:
   - `MOT` → site code `1`
   - `WELL` → site code `1`
