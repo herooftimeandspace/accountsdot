@@ -741,7 +741,7 @@ function issueHasAcceptanceCriteria(issue) {
 function issueTargetBranch(issue, dispatchConfig) {
   const body = String(issue.body || "");
   for (const line of body.split(/\r?\n/)) {
-    const match = line.match(/^\s*Target branch:\s*`?([A-Za-z0-9._/-]+)`?(?=\.|\s|$)/i);
+    const match = line.match(/^\s*Target branch:\s*`?([A-Za-z0-9._/-]+)`?(?=[.,;)]|\s|$)/i);
     if (match) return match[1].replace(/[.`]+$/g, "");
   }
   return dispatchConfig.defaultTargetBranch;
@@ -781,7 +781,7 @@ function prReferencesIssue(pr, issue) {
 }
 
 function readIssueWorkspaceState(issue, dispatchConfig) {
-  const statePath = path.join(issueWorkspacePath(issue, dispatchConfig), "state.json");
+  const statePath = path.join(findIssueWorkspace(issue, dispatchConfig), "state.json");
   if (!fs.existsSync(statePath)) return null;
   try {
     return JSON.parse(fs.readFileSync(statePath, "utf8"));
@@ -792,11 +792,12 @@ function readIssueWorkspaceState(issue, dispatchConfig) {
 
 function mergedPullRequestForIssueWithWorkspace(issue, mergedPrs, targetBranch, dispatchConfig) {
   const state = readIssueWorkspaceState(issue, dispatchConfig);
-  if (!state) return null;
   return (
     mergedPrs
       .filter((pr) => prReferencesIssue(pr, issue) && (!targetBranch || pr.baseRefName === targetBranch))
       .filter((pr) => {
+        if (issue.updatedAt && pr.mergedAt && new Date(issue.updatedAt) > new Date(pr.mergedAt)) return false;
+        if (!state) return true;
         const stateBranch = String(state.branch || "");
         return stateBranch === pr.headRefName || issueBranchName(issue, dispatchConfig) === pr.headRefName;
       })
@@ -933,6 +934,7 @@ function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dry
       const mergedPr =
         mergedPrs
           .filter((pr) => prReferencesIssue(pr, issue) && pr.baseRefName === issueTargetBranch(issue, dispatchConfig))
+          .filter((pr) => !issue.updatedAt || !pr.mergedAt || new Date(issue.updatedAt) <= new Date(pr.mergedAt))
           .filter((pr) => String(current.branch || "") === pr.headRefName || issueBranchName(issue, dispatchConfig) === pr.headRefName)
           .sort((a, b) => String(b.mergedAt || "").localeCompare(String(a.mergedAt || "")))[0] || null;
       if (!mergedPr) continue;
@@ -995,6 +997,10 @@ function shouldRemediateBlockedPullRequest(entry) {
   if (entry.status !== "blocked" || !entry.head_ref) return false;
   if (entry.unresolved_codex_review_threads > 0 && entry.unresolved_codex_review_thread_summaries.length > 0) return true;
   return entry.blockers.some((blocker) => /^merge state /i.test(blocker) || blocker === "draft PR");
+}
+
+function remediationConsumesDispatchSlot(remediation) {
+  return ["would-remediate", "prepared", "succeeded", "failed"].includes(remediation.status);
 }
 
 function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
@@ -1343,10 +1349,9 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
     if (!isSafePrBranch(pr.head_ref)) {
       return { ...result, status: "blocked", reason: `unsafe PR branch for automatic remediation: ${pr.head_ref}` };
     }
-    if (dryRun) {
-      return { ...result, reason: `dry-run would create missing PR remediation workspace at ${repoPath}` };
+    if (!dryRun) {
+      run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
     }
-    run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
     if (!refExists(`origin/${pr.head_ref}`)) {
       return { ...result, status: "blocked", reason: `remote PR branch origin/${pr.head_ref} does not exist` };
     }
@@ -1354,8 +1359,12 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
     if (existingWorktree) {
       return { ...result, status: "blocked", reason: `PR branch is already checked out at ${existingWorktree.path}` };
     }
+    if (dryRun) {
+      return { ...result, reason: `dry-run would create missing PR remediation workspace at ${repoPath}` };
+    }
     fs.mkdirSync(workspacePath, { recursive: true });
     if (refExists(pr.head_ref)) {
+      run("git", ["branch", "-f", pr.head_ref, `origin/${pr.head_ref}`], { cwd: repoRoot });
       run("git", ["worktree", "add", repoPath, pr.head_ref], { cwd: repoRoot });
     } else {
       run("git", ["worktree", "add", "-b", pr.head_ref, repoPath, `origin/${pr.head_ref}`], { cwd: repoRoot });
@@ -1453,6 +1462,13 @@ function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryR
     if (!status.clean) {
       return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
     }
+    const branch = currentBranch(repoPath);
+    if (!branch.ok) {
+      return { ...result, status: "blocked", reason: branch.reason };
+    }
+    if (branch.branch !== branchName) {
+      return { ...result, status: "blocked", reason: `prepared issue workspace is on ${branch.branch || "(detached)"}, expected ${branchName}` };
+    }
   } else {
     run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
     const existingWorktree = worktreeForBranch(branchName);
@@ -1473,7 +1489,14 @@ function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryR
     }
   }
 
-  const priorState = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
+  let priorState = {};
+  if (fs.existsSync(statePath)) {
+    try {
+      priorState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    } catch (error) {
+      return { ...result, status: "blocked", reason: `failed to parse existing state.json: ${error.message}` };
+    }
+  }
   const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
@@ -1988,7 +2011,8 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const reviewRemediations = reviewRemediationCandidates
     .slice(0, Math.min(maxSelected, prConfig.maxReviewRemediationsPerTick))
     .map((entry) => ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }));
-  const remainingDispatchSlots = Math.max(0, maxSelected - reviewRemediations.length);
+  const remediationSlotsUsed = reviewRemediations.filter((entry) => remediationConsumesDispatchSlot(entry)).length;
+  const remainingDispatchSlots = Math.max(0, maxSelected - remediationSlotsUsed);
   const readyToMergeRemaining = prMergeQueue.some(
     (entry) => entry.status === "ready_to_merge" && !prMergeResults.some((result) => result.number === entry.number && result.status === "merged"),
   );
@@ -2382,6 +2406,7 @@ async function selfTest() {
       issueTargetBranch({ ...phaseIssue, body: "Target branch: https://example.invalid/docs/testing/test-matrix.md" }, dispatchConfig),
       dispatchConfig.defaultTargetBranch,
     );
+    assert.equal(issueTargetBranch({ ...phaseIssue, body: "Target branch: phase-0-platform-foundation," }, dispatchConfig), "phase-0-platform-foundation");
     assert.equal(issueBranchName(phaseIssue, dispatchConfig), "codex/issue-900264-reference-input-snapshot-integrity");
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], dispatchConfig).eligible, true);
     assert.equal(classifyIssueForDispatch(blockedIssue, [], [], dispatchConfig).eligible, false);
@@ -2412,8 +2437,22 @@ async function selfTest() {
       mergedAt: "2026-05-21T00:00:00Z",
     };
     assert.equal(
-      classifyIssueForDispatch(phaseIssue, [], [mergedPhasePr], { ...dispatchConfig, workspaceRoot: path.join(tempRoot, "historical") }).status,
+      classifyIssueForDispatch(
+        { ...phaseIssue, updatedAt: "2026-05-21T01:00:00Z" },
+        [],
+        [mergedPhasePr],
+        { ...dispatchConfig, workspaceRoot: path.join(tempRoot, "historical") },
+      ).status,
       "eligible",
+    );
+    assert.equal(
+      classifyIssueForDispatch(
+        { ...phaseIssue, updatedAt: "2026-05-20T23:00:00Z" },
+        [],
+        [mergedPhasePr],
+        { ...dispatchConfig, workspaceRoot: path.join(tempRoot, "historical") },
+      ).status,
+      "merged",
     );
     const mergedStateWorkspace = issueWorkspacePath(phaseIssue, dispatchConfig);
     fs.mkdirSync(mergedStateWorkspace, { recursive: true });
@@ -2586,7 +2625,7 @@ async function selfTest() {
         skills: fakeSkills,
         dryRun: true,
       }).status,
-      "would-remediate",
+      "blocked",
     );
     assert.equal(
       ensureReviewRemediationDispatch({
