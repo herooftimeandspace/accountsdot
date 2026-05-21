@@ -6,6 +6,12 @@ This guide explains how The WIZARD documents implemented code so a new contribut
 
 Document every repo-owned runtime and test function under `cmd/`, `internal/`, and `frontend/src/`. Exclude generated artboards, `frontend/dist/`, caches, vendored files, and build output.
 
+For Phase 0 implementation work, also keep
+[phase-0-code-documentation-standard.md](phase-0-code-documentation-standard.md)
+aligned. That file is the Markdown review map for implemented Phase 0 packages,
+routes, workflows, and backend methods; this guide is the lower-level standard
+for comments and debugging walkthroughs.
+
 Each function comment should answer five questions:
 
 1. Why does this function exist?
@@ -120,8 +126,9 @@ Documentation must evolve with code. Before finishing a code change:
 1. Search for renamed functions, routes, JSON fields, workflow names, and provider operations.
 2. Update direct caller comments when a callee's behavior changes.
 3. Remove or rewrite comments for deleted paths.
-4. Update this guide if the debugging workflow changes.
-5. Update `docs/planning/external-write-inventory.md` when any write-capable path changes.
+4. Update `docs/developer/phase-0-code-documentation-standard.md` when Phase 0 package, route, workflow, or backend-method behavior changes.
+5. Update this guide if the debugging workflow changes.
+6. Update `docs/planning/external-write-inventory.md` when any write-capable path changes.
 
 Stale documentation is dangerous in this project because it can hide provider-write risk. Prefer deleting obsolete detail over leaving a confident but wrong explanation.
 

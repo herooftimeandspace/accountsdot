@@ -1,0 +1,213 @@
+# Phase 0 Code Documentation Standard
+
+Marker: `P0-DOC-CODE`
+
+Tracker issue: [#281](https://github.com/herooftimeandspace/accountsdot/issues/281)
+
+This document is the Phase 0 code-review map for implemented packages, routes,
+workflows, and backend methods. It exists so a new contributor can start from
+Markdown under `/docs`, understand what the current code does, and know which
+tests or checks prove the behavior.
+
+This file documents implemented behavior only. It does not approve production
+provider writes, does not replace the source-of-truth planning documents, and
+does not turn DEV mock endpoints into production APIs.
+
+## Source Order
+
+When this file disagrees with a more specific source, update the stale document
+in the same branch as the code change.
+
+1. [Phase 0 implementation plan](../planning/implementation-plan.md#phase-0-platform-foundation-and-safety-rails)
+2. [Phase 0 product requirements](../product/product-requirements.md#phase-0-platform-foundation-and-safety-rails)
+3. [Phase 0 test matrix](../testing/test-matrix.md#phase-0)
+4. [External write inventory](../planning/external-write-inventory.md)
+5. [Route/API authorization inventory](../planning/route-api-authorization-inventory.md)
+6. [Code documentation guide](code-documentation-guide.md)
+7. [Agent workflow](../../.agents/WORKFLOW.md)
+
+## Documentation Rule For Phase 0 Work
+
+Every Phase 0 issue that changes implemented code under `cmd/`, `internal/`,
+`frontend/src/`, route registration, workflow planning, database access,
+provider contracts, scripts used as gates, or DEV mock mutation behavior must
+update the matching `/docs` entry before the PR is ready.
+
+The documentation update must answer these questions in plain language:
+
+- Purpose: why the package, route, workflow, method, or helper exists.
+- Inputs: route method/path, JSON body, environment variables, database rows,
+  typed arguments, mock persona, or provider facts it receives.
+- Outputs: HTTP status and payload, returned Go type, rendered frontend state,
+  database row, planned workflow job, log signal, or generated artifact.
+- Side effects: cookie changes, in-memory DEV store mutation, database write,
+  planned provider operation, audit row, generated file, or no-op acceptance.
+- Safety constraints: environment limits, role/persona requirements,
+  site-scope checks, field masking, no-production-write rules, idempotency,
+  retry expectations, or staging-only proof requirements.
+- Verification: the narrowest local test, script, or manual review needed to
+  prove the behavior still matches the docs.
+
+If the implementation touches a route or method that can mutate state, also
+update [external-write-inventory.md](../planning/external-write-inventory.md).
+If it touches frontend routes or protected DEV APIs, also update
+[route-api-authorization-inventory.md](../planning/route-api-authorization-inventory.md).
+If it touches database schema, fields, migrations, or query examples, coordinate
+with the Phase 0 database documentation tracker
+[#282](https://github.com/herooftimeandspace/accountsdot/issues/282).
+If it touches callable API contract or DB-backed API behavior, coordinate with
+the API documentation tracker
+[#248](https://github.com/herooftimeandspace/accountsdot/issues/248).
+
+## Phase 0 Scenario Links
+
+Related scenario issues should link back to tracker
+[#281](https://github.com/herooftimeandspace/accountsdot/issues/281) whenever
+they change implemented code documentation.
+
+| Scenario | Issue | Primary docs to update when implementation changes |
+| --- | --- | --- |
+| `P0-0A-001` Reference Input Snapshot Integrity | [#264](https://github.com/herooftimeandspace/accountsdot/issues/264) | [reference-input-snapshot-integrity.md](../operations/reference-input-snapshot-integrity.md), [this package map](#implemented-phase-0-packages), [code documentation guide](code-documentation-guide.md) |
+| `P0-0A-002` Environment Role Separation | [#265](https://github.com/herooftimeandspace/accountsdot/issues/265) | [environment-data-playbook.md](../operations/environment-data-playbook.md), [promotion-pipeline.md](../operations/promotion-pipeline.md), [this package map](#implemented-phase-0-packages) |
+| `P0-0B-001` Worker Crash Lease Recovery | [#266](https://github.com/herooftimeandspace/accountsdot/issues/266) | [job-lease-recovery.md](code-paths/job-lease-recovery.md), [external-write-inventory.md](../planning/external-write-inventory.md), [this backend method map](#implemented-backend-methods) |
+| `P0-0B-002` Global Tick Ordering Integrity | [#267](https://github.com/herooftimeandspace/accountsdot/issues/267) | [job-lease-recovery.md](code-paths/job-lease-recovery.md), database docs tracker [#282](https://github.com/herooftimeandspace/accountsdot/issues/282), [this backend method map](#implemented-backend-methods) |
+| `P0-0B-003` Overlap Protection Prevents Duplicate Job Family Runs | [#268](https://github.com/herooftimeandspace/accountsdot/issues/268) | [job-lease-recovery.md](code-paths/job-lease-recovery.md), [external-write-inventory.md](../planning/external-write-inventory.md), [this backend method map](#implemented-backend-methods) |
+| `P0-0C-001` Staff Domain Allowlist Gate | [#269](https://github.com/herooftimeandspace/accountsdot/issues/269) | [permissions-matrix.md](../product/permissions-matrix.md), [permissions-model.md](../product/permissions-model.md), [this package map](#implemented-phase-0-packages) |
+| `P0-0C-002` Student Domain Deny Gate | [#270](https://github.com/herooftimeandspace/accountsdot/issues/270) | [permissions-matrix.md](../product/permissions-matrix.md), [permissions-model.md](../product/permissions-model.md), [this package map](#implemented-phase-0-packages) |
+| `P0-0C-003` Google Group And Attribute Role Mapping | [#188](https://github.com/herooftimeandspace/accountsdot/issues/188) | [permissions-matrix.md](../product/permissions-matrix.md), [permissions-model.md](../product/permissions-model.md), [this backend method map](#implemented-backend-methods) |
+| `P0-0C-004` Site Scope Recalculation | [#271](https://github.com/herooftimeandspace/accountsdot/issues/271) | [permissions-matrix.md](../product/permissions-matrix.md), [permissions-model.md](../product/permissions-model.md), [route-api-authorization-inventory.md](../planning/route-api-authorization-inventory.md) |
+| `P0-0C-005` Breakglass Access Bypass | [#272](https://github.com/herooftimeandspace/accountsdot/issues/272) | [breakglass-access.md](../operations/breakglass-access.md), [external-write-inventory.md](../planning/external-write-inventory.md), [this route map](#implemented-routes-and-route-groups) |
+| `P0-0C-006` Global Pause Stops New Claims | [#273](https://github.com/herooftimeandspace/accountsdot/issues/273) | [external-write-inventory.md](../planning/external-write-inventory.md), [route-api-authorization-inventory.md](../planning/route-api-authorization-inventory.md), [this backend method map](#implemented-backend-methods) |
+| `P0-0C-007` DEV Persona Tooling Switch | [#274](https://github.com/herooftimeandspace/accountsdot/issues/274) | [route-api-authorization-inventory.md](../planning/route-api-authorization-inventory.md), [external-write-inventory.md](../planning/external-write-inventory.md), [this route map](#implemented-routes-and-route-groups) |
+| `P0-0D-001` Provider Readiness Mock Success Path | [#275](https://github.com/herooftimeandspace/accountsdot/issues/275) | [external-write-inventory.md](../planning/external-write-inventory.md), [this package map](#implemented-phase-0-packages) |
+| `P0-0D-002` Provider Readiness Failure Surfacing | [#276](https://github.com/herooftimeandspace/accountsdot/issues/276) | [external-write-inventory.md](../planning/external-write-inventory.md), [this package map](#implemented-phase-0-packages) |
+| `P0-0D-003` Aeries Previous-Year Staging Configuration | [#277](https://github.com/herooftimeandspace/accountsdot/issues/277) | [environment-data-playbook.md](../operations/environment-data-playbook.md), [external-write-inventory.md](../planning/external-write-inventory.md), [this package map](#implemented-phase-0-packages) |
+| `P0-0D-004` Provider Access Modes Classified Before Implementation | [#278](https://github.com/herooftimeandspace/accountsdot/issues/278) | [implementation-plan.md](../planning/implementation-plan.md), [external-write-inventory.md](../planning/external-write-inventory.md), [this workflow map](#implemented-workflows-and-planned-provider-operations) |
+| `P0-0E-001` Readiness Fails Closed on Missing Dependency | [#279](https://github.com/herooftimeandspace/accountsdot/issues/279) | [this route map](#implemented-routes-and-route-groups), [this backend method map](#implemented-backend-methods) |
+| `P0-0E-002` Health Endpoints Reflect Pause and Dependency State | [#280](https://github.com/herooftimeandspace/accountsdot/issues/280) | [this route map](#implemented-routes-and-route-groups), [this backend method map](#implemented-backend-methods) |
+| `P0-0E-003` Promotion Gate Requires Named Scenario Passes | [#197](https://github.com/herooftimeandspace/accountsdot/issues/197) | [promotion-pipeline.md](../operations/promotion-pipeline.md), [agent-orchestration/SPEC.md](../agent-orchestration/SPEC.md), [this package map](#implemented-phase-0-packages) |
+
+## Implemented Phase 0 Packages
+
+This table lists the implemented code areas a reviewer should understand first.
+Generated frontend artboards under `frontend/src/generated/` and local build
+output are excluded because they are derived artifacts.
+
+| Code area | Purpose | Inputs | Outputs | Side effects | Safety constraints | Expected verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cmd/provisioner` | Starts the Go service and connects startup config to the HTTP mux. | Process context, environment variables read through `internal/config`, and the standard HTTP server address. | Running HTTP server or a startup error. | Opens a listener during runtime tests; no provider writes. | Startup must validate required reference inputs before serving; shutdown must respect context cancellation. | `go test ./cmd/provisioner`; broader startup guard coverage from `go test ./internal/referenceinputs ./internal/config ./cmd/provisioner`. |
+| `internal/config` | Loads safe defaults, app environment, app port, tuning values, production auth policy, and the reference-input startup guard. | Environment variables such as `APP_ENV`, `APP_PORT`, auth-domain settings, SAML config labels, and JSON mapping variables. | `config.Config` with parsed values and `auth.Policy`. | Reads environment and local reference-input files; no network calls and no secret logging. | Fails closed on invalid auth mapping JSON and missing startup reference inputs. | `go test ./internal/config ./internal/referenceinputs`; `npm run environment-roles:check` when environment-role docs or examples change. |
+| `internal/referenceinputs` | Verifies the repo-local Phase 0 reference corpus exists and Markdown links stay inside the repository. | `WIZARD_REFERENCE_INPUT_ROOT` or detected repo root plus required relative paths. | `nil` on success or a clear missing-path/link error. | Reads local files only. | Rejects missing required snapshots and links that escape the repo. | `go test ./internal/referenceinputs ./internal/config ./cmd/provisioner`; review [reference-input-snapshot-integrity.md](../operations/reference-input-snapshot-integrity.md). |
+| `internal/auth` | Applies the staff-domain gate, student-domain denial, Google group and SAML attribute role mapping, and site-scope rules. | Verified identity email, groups, attributes, breakglass flag, and `auth.Policy`. | `auth.Decision` with authorization result, roles, site scopes, and failure reason. | Pure calculation; no cookies, database writes, or provider calls. | Domain gate runs before role mapping for normal users; single-site operational roles require exactly one site. | `go test ./internal/auth ./internal/config -run 'TestP000C001'` plus focused auth tests for changed mapping behavior. |
+| `internal/core` | Defines shared workflow, provider, permission, and domain types used by planners, database rows, handlers, and tests. | Repo-owned enum-like constants and typed structs. | Stable typed vocabulary for workflow runs, jobs, providers, approvals, and permissions. | No runtime side effects. | Keep names aligned with docs and persisted values because other packages serialize these strings. | `go test ./internal/core`; schema and planner tests when a value affects persisted rows or planned operations. |
+| `internal/db` | Owns Phase 0 schema text, transaction retry logic, job claiming, lease recovery, recovered-job reconciliation, and scheduled job-family overlap protection. | `pgx.Tx`-like executor, workflow/job IDs, lease owner, timestamps, job-family requests, and database rows. | Claimed job rows, recovered-job evidence, reconciliation states, or scheduled-run/deferred-run records. | Writes local PostgreSQL rows for `workflow_runs` and `jobs` when called against a real transaction; reads `external_request_log` during recovery reconciliation. | Use `SERIALIZABLE` transactions through `WithRetry`; order jobs by `global_tick`, not UUID; do not call providers from database helpers. | `go test ./internal/db`; for issue-linked recovery docs also review [job-lease-recovery.md](code-paths/job-lease-recovery.md). |
+| `internal/orchestrator` | Converts workflow facts into ordered planned jobs and default loop cadences. | `PlanInput` with workflow type, subject, room facts, primary-assignment flag, change reason, and current time. | `PlanResult` containing ordered `WorkflowJob` values, follow-up workflows, approval flags, and optional run-after debounce. | No provider calls; emits planned provider operation names only. | Planned write operation names are not live SDK calls and must stay documented before workers make them real. | `go test ./internal/orchestrator`; update [external-write-inventory.md](../planning/external-write-inventory.md) when operation names change. |
+| `internal/provider` | Defines provider error classification plus helper payload/formula builders used by future provider integration work. | Provider errors, Aeries upload input, and Google Sheets rows/tab names. | Error classes, safe Aeries upload payload maps, checksum rows, sentinel rows, and formulas. | Pure helper behavior; no SDK call or provider mutation in this checkout. | Raw personal phone values and credentials must not appear in logs, docs, generated artifacts, or fixtures unless a future approved doc defines safe display. | `go test ./internal/provider`; update provider sections in [external-write-inventory.md](../planning/external-write-inventory.md) when provider methods become live. |
+| `internal/web` | Registers HTTP routes, health endpoints, legacy placeholders, breakglass login, DEV session APIs, DEV page APIs, and DEV mock mutation APIs. | HTTP method, path, cookies, JSON bodies, query strings, DEV persona state, feature flags, and optional health dependencies. | HTML, JSON payloads, cookies, HTTP status codes, and mock page data. | May set or clear local cookies, mutate in-memory DEV stores, write feature flag or audit rows when database-backed settings are configured, and return accepted no-op boundaries for future workflows. | DEV routes require `APP_ENV=development` unless staging access is through documented breakglass; mutating routes must stay in [external-write-inventory.md](../planning/external-write-inventory.md). | `go test ./internal/web`; `npm run route-api-inventory:check`; `npm run write-inventory:check` when routes or mutations change. |
+| `frontend/src` | Implements the React DEV frontend, route registry, access handling, shared shell behavior, page containers, runtime drawers, and page-level mock workflows. | Browser URL, DEV session payload, route registry entries, page API JSON, user input, and `.pen`-derived artboard data. | Rendered pages, route redirects, `401`/`403`/error views, table filtering/sorting, drawers, and DEV API requests. | May update React state and call DEV mock APIs that mutate in-memory backend state; generated artboards are derived from `.pen` files. | Frontend route checks do not replace server-side API authorization; generated files are not hand-edited. | `npm run build:web`; `npm run a11y:check` for UI-affecting work; `npm run route-api-inventory:check` when routes or APIs change. |
+| `scripts` | Provides repository-owned gates for comments, write inventory, route/API inventory, environment roles, promotion checks, route performance, and Symphony dispatch. | Checked-in Markdown, source files, package metadata, CLI flags, local artifacts, and GitHub/Symphony runtime state where applicable. | Exit status, JSON reports, Markdown summaries, or local artifacts. | May write local non-committed artifacts for performance or dispatcher state; docs/check scripts should not mutate source files. | Runner and monitor scripts must not bypass review gates, manually merge unsafe PRs, expose secrets, or treat Browser evidence as passed when missing. | Relevant `npm run ...:check` or `npm run symphony:test`; branch gates through `python3 scripts/run_local_ci.py --target dev` when promotion plumbing changes. |
+
+## Implemented Routes And Route Groups
+
+The route source of truth is `internal/web.NewAppHandler`. The frontend route
+source of truth is
+[route-api-authorization-inventory.md](../planning/route-api-authorization-inventory.md).
+This section explains the implemented backend route groups for Phase 0 review.
+
+| Route or route group | Purpose | Inputs | Outputs | Side effects | Safety constraints | Expected verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GET /` | Local smoke-test HTML placeholder before the React DEV frontend is running. | Request path and method. | Static HTML landing placeholder or `404` for non-root paths. | None beyond response write. | Must not expose protected data. | `go test ./internal/web -run TestSyncDashboardHTMLRoutes` and root handler coverage in router tests when changed. |
+| `GET /sync-dashboard` and `GET /sync-dashboard/mappings` | Legacy static sync and room-mapping shells retained for smoke tests. | GET request path. | Static HTML with placeholder sections or room search form. | None; no provider reads and no persistence. | These are not live workflow dashboards. | `go test ./internal/web -run TestSyncDashboardHTMLRoutes`. |
+| `GET /metrics` | Minimal Prometheus-compatible liveness gauge. | HTTP request. | Plain-text `app_up 1` metric. | None. | Must not include tenant, credential, provider, persona, or workflow labels. | `go test ./internal/web`; review metric output manually if labels change. |
+| `GET /events/stream` | Placeholder server-sent-events readiness stream for legacy shell tests. | HTTP request. | One `ready` SSE event. | Keeps an HTTP response stream open while serving the event. | Must not expose workflow, provider, or persona data. | `go test ./internal/web -run TestSyncDashboardHTMLRoutes`. |
+| `GET /api/v1/session/me` | Legacy edge-auth placeholder separate from DEV persona auth. | HTTP request. | JSON with `authenticated:false` and `mode:"edge-auth-proxy"`. | None. | Must not be treated as production auth. | `go test ./internal/web`. |
+| `GET /api/v1/workflows` and `GET /api/v1/workflows/{id}` | Placeholder workflow list/detail API. | Workflow path ID for detail. | Empty collection or planned placeholder detail. | None. | Must not fabricate provider-backed lifecycle state. | `go test ./internal/web -run TestWorkflowAndApprovalRoutes`. |
+| `POST /api/v1/workflows/{id}/retry` | Accepted workflow retry boundary for future durable workflow code. | Workflow run ID in the path. | `202 Accepted` JSON echo. | No database write and no provider work today. | Listed as a planned write boundary in the external write inventory. | `go test ./internal/web -run TestWorkflowAndApprovalRoutes`; `npm run write-inventory:check`. |
+| `GET /api/v1/approvals` and `POST /api/v1/approvals/{id}/approve\|reject` | Placeholder approval collection and accepted decision boundary. | Approval ID and decision path segment. | Empty collection or `202 Accepted` JSON echo. | Does not persist decisions or advance workflows today. | Future durable approval writes must document audit, idempotency, and workflow state behavior first. | `go test ./internal/web -run TestWorkflowAndApprovalRoutes`; `npm run write-inventory:check`. |
+| `GET/POST /api/v1/sync-status/...`, `POST /api/v1/room-mappings`, `POST /api/v1/annual-reset` | Legacy sync tabs, accepted override, room mapping, and annual reset boundaries. | Tab/user path data or request body depending on route. | Static JSON tab payloads or `202 Accepted` echoes. | No durable persistence or provider mutation today. | Future live behavior must update external-write and API docs before implementation. | `go test ./internal/web -run TestSyncDashboardJSONRoutes`; `npm run write-inventory:check`. |
+| `GET /health`, `GET /health/live`, `GET /health/ready` | Liveness and readiness endpoints for Phase 0 observability. | Optional dependency check callbacks supplied to `NewHealthHandler`. | JSON health status; readiness returns `503` when configured dependency checks fail. | Calls dependency check functions supplied by the caller; writes only response JSON. | Liveness must remain meaningful even when readiness fails. Dependency messages must not expose secrets. | `go test ./internal/web -run TestHealth`; scenario issues [#279](https://github.com/herooftimeandspace/accountsdot/issues/279) and [#280](https://github.com/herooftimeandspace/accountsdot/issues/280). |
+| `POST /api/v1/breakglass/login` | Local emergency IT Admin session for development and staging. | JSON account ID/token plus remote IP and optional trusted proxy headers. | Breakglass-scoped cookie and DEV-session-style JSON on success; sanitized error JSON on failure. | Writes cookie; records sanitized audit event in memory or `audit_log` when database-backed audit storage is configured. | Enabled only in documented non-production modes; rejects colliding account env names, missing/malformed token hashes, unknown accounts, denied source IPs, untrusted forwarded IPs, and audit-write failures. | `go test ./internal/web -run Breakglass`; review [breakglass-access.md](../operations/breakglass-access.md) and external write inventory. |
+| `/api/v1/dev/session`, `/api/v1/dev/login`, `/api/v1/dev/logout` | DEV mock session and terminal persona tooling. | Cookie state, persona ID, and optional `activate_mock_session=true` JSON. | Session JSON, login/logout status, and cookie changes. | Sets or clears local DEV session cookie; tooling activation mutates the process-local shared mock persona. | Normal persona switching is development-only; invalid tooling persona IDs force anonymous readback; staging uses breakglass, not DEV persona switching. | `go test ./internal/web -run 'DevSession\|SharedMockPersona'`; `npm run dev:persona -- <persona>` during local Browser evidence. |
+| `/api/v1/dev/feature-flags` and `/api/v1/dev/feature-flags/{key}` | IT Admin DEV feature-flag read/update API. | Current persona, flag key, and target enabled values. | Feature flag configuration JSON. | Mutates in-memory flag state without `DATABASE_URL`; with database configuration, updates `feature_flags`/`feature_flag_targets` and writes `audit_log`. | IT Admin only; IT override is displayed read-only and not stored as an editable target. | `go test ./internal/web -run FeatureFlag`; `npm run route-api-inventory:check`; `npm run write-inventory:check`. |
+| `GET/PUT /api/v1/dev/my-profile` | DEV self-service profile mock API. | Current persona plus preferred/display name and pronoun JSON for PUT. | Current persona profile JSON. | PUT mutates only the in-memory DEV profile store. | Rejects unauthenticated and student-like personas; does not change legal source data or providers. | `go test ./internal/web -run DevMyProfile`. |
+| `GET /api/v1/dev/search` | Global search payload for the DEV frontend. | Query string and current persona/session. | Grouped search result JSON. | None. | Results respect route access and field visibility, including employee ID restrictions. | `go test ./internal/web -run GlobalSearch`; route/API inventory check when result ownership changes. |
+| `GET /api/v1/dev/pages/onboarding` and onboarding mutation routes | DEV onboarding page payload, manual Non-Escape draft lifecycle, finalize, soft-delete, and row room override. | Current persona, site scope, draft JSON, draft ID, row ID, and room ID. | Page payload, draft payload, validation errors, or mutation result JSON. | Mutates in-memory DEV onboarding store. | HR/IT own manual draft fields; site roles get active-site visibility and room-only row updates; no live provider writes. | `go test ./internal/web -run Onboarding`; [manual-onboarding-drafts.md](code-paths/manual-onboarding-drafts.md); write-inventory check. |
+| `GET /api/v1/dev/pages/offboarding` and offboarding mutation routes | DEV offboarding payload, local end-date updates, emergency deprovision scheduling, and contractor offboarding scheduling. | Persona, site scope, record ID, end date, candidate/target IDs, and schedule JSON. | Page/action JSON and validation errors. | Mutates in-memory DEV offboarding action state. | HR/IT-only candidate search for sensitive employee IDs; no provider or production database writes. | `go test ./internal/web -run Offboarding`; write-inventory check. |
+| `GET /api/v1/dev/pages/departing-seniors` and departing-senior mutation routes | DEV current-senior device/deprovision page and mock record updates. | Persona, graduation-year query, record ID, end date, and deprovision action. | Page rows, school-year options, and mutation JSON. | Mutates in-memory DEV departing-seniors store. | Device-return and student identifiers are limited to allowed personas; no provider writes. | `go test ./internal/web -run DepartingSeniors`; route/API inventory check. |
+| `GET /api/v1/dev/pages/data-quality` | DEV Data Quality page payload. | IT Admin persona/session. | Mock data-quality JSON. | None. | IT Admin only. | `go test ./internal/web -run DataQuality`; route/API inventory check. |
+| `GET /api/v1/dev/pages/room-moves`, `GET /api/v1/dev/pages/room-moves/bulk-draft`, and room-move mutation routes | DEV room-move draft, bulk draft, apply, cancel, schedule, delete, completed-job list, and revert planning APIs. | Persona, site scope, draft/completed IDs, person/room rows, action JSON, and query filters. | Page payloads, draft/review payloads, warnings, completed-job payloads, and mutation results. | Mutates in-memory DEV room-move store. | Site users can view assigned-site rows but mutate only self-authored visible-site drafts; IT can manage district/inter-site work; same-room no-op moves are rejected before persistence. | `go test ./internal/web -run RoomMoves`; [room-moves.md](code-paths/room-moves.md); write-inventory and route/API checks. |
+| `GET /api/v1/dev/pages/phone-directory/by-person\|by-room\|by-department` | DEV phone directory mode payloads. | Persona, site scope, mode route, query/filter values. | Directory rows and page metadata JSON. | None. | All logged-in personas may access allowed directory modes, but rows and fields remain persona/site filtered. | `go test ./internal/web -run PhoneDirectory`; route/API inventory check. |
+| `GET /api/v1/dev/pages/reports/security-issues` and `/api/v1/dev/pages/reports/zoom-desk-phone-renames` | IT Admin report payloads for security issues and Zoom desk phone rename manual work. | IT Admin persona/session. | Report rows and drawer-oriented metadata JSON. | None. | IT Admin only; Zoom rename rows are action-oriented and do not mutate IncidentIQ or Zoom. | `go test ./internal/web -run Reports`; route/API inventory check. |
+
+## Implemented Workflows And Planned Provider Operations
+
+`internal/orchestrator.PlanWorkflow` produces planned jobs. Planned jobs are not
+live SDK calls in this checkout. They are still documented because future
+workers will likely attach write-capable behavior to the same operation names.
+
+| Workflow type | Purpose | Inputs | Outputs | Side effects | Safety constraints | Expected verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| `person_onboard` | Plan the common path to locate or create a Zoom user, reserve an extension, assign phone access, and optionally attach room membership. | Subject kind/id, room-known flag, change reason. | Ordered jobs: `zoom.read_user`, `zoom.create_or_link_user`, `internal.reserve_extension`, `zoom.assign_site_extension`, `zoom.assign_calling_plan`, and room jobs when room is known. | None today; operation names are planned future work. | Future live implementation needs idempotency keys, `external_request_log`, read-before-write verification, and non-production proof. | `go test ./internal/orchestrator -run PersonOnboard`; external write inventory when operation names change. |
+| `person_same_site_transfer` | Plan room membership change inside one site and create a room-coverage follow-up if the old room becomes vacant. | Subject, old-room-vacancy fact. | Jobs for room SLG membership add/remove plus optional `room_coverage` follow-up. | None today. | Future room/Zoom writes must avoid duplicate memberships and verify provider state. | `go test ./internal/orchestrator -run SameSiteTransfer`. |
+| `person_site_transfer` | Plan extension reservation, room membership, site-extension cutover, room verification, and old-extension release. | Subject and transfer facts. | Ordered jobs with approval required on cutover and old-extension release. | None today. | Cutover and release remain approval-gated planned work until live write safety exists. | `go test ./internal/orchestrator -run SiteTransfer`. |
+| `person_leave` and `person_terminate` | Plan removal of room membership, phone assignment, user provisioning, and extension assignment, optionally preserving room coverage first. | Subject plus room-coverage-required flag. | Zoom room/CAP verification jobs, destructive removal jobs, and internal release job. | None today. | Destructive future writes require approvals, idempotency, rollback references, and provider readback. | `go test ./internal/orchestrator -run 'Leave\|Termination'`. |
+| `room_coverage` | Plan common-area phone coverage for a room. | Room subject. | `zoom.ensure_room_cap` then `zoom.verify_room_cap`. | None today. | CAP writes are future provider writes and must be staged safely before production. | `go test ./internal/orchestrator -run RoomCoverage`. |
+| `directory_publish` | Plan safe Google Sheets directory publishing with debounce. | Current time. | Run-after one minute and jobs `google_sheets.stage_workbook`, `google_sheets.validate_sentinel`, `google_sheets.apply_pointers`. | None today. | Future Sheets writes need sentinel validation, pointer-swap rollback, and partial-write detection. | `go test ./internal/orchestrator -run DirectoryPublish`; provider Sheets tests. |
+| `person_update` and `context_refresh` | Plan internal subject reconciliation. | Subject identity. | One `internal.reconcile_subject` job. | None today. | Local projection writes must be documented when implemented. | `go test ./internal/orchestrator -run UpdateAndContextRefresh`. |
+| `staff_sync_dry_run` | Plan read/validate staff sync without provider writeback. | Subject, primary-assignment-required flag. | Internal ingest, photo check, IncidentIQ room/asset resolve, Zoom membership validation, optional primary phone validation, projection update. | None today. | Keep as dry-run/projection behavior until a later phase explicitly approves writes. | `go test ./internal/orchestrator -run StaffSyncDryRun`. |
+| `student_sync_dry_run` | Plan read/validate student sync without provider writeback. | Subject. | Internal ingest, photo check, IncidentIQ person match, projection update. | None today. | Student dashboard access remains denied; sync planning must not create student dashboard auth. | `go test ./internal/orchestrator -run StudentSyncDryRun`. |
+| `sync_recheck` | Plan a focused recheck for one subject. | Subject. | One `internal.sync_recheck_subject` job. | None today. | Future persistence must use documented retry/audit behavior. | `go test ./internal/orchestrator -run SyncRecheck`. |
+| `annual_reset_archive` | Plan annual archival cleanup. | Subject/workflow trigger. | `internal.archive_completed_sync_rows` and `internal.clear_sync_exception_overrides`. | None today. | Future archive writes must document table changes and rollback expectations. | `go test ./internal/orchestrator -run AnnualResetArchive`. |
+
+## Implemented Backend Methods
+
+This method map covers the Phase 0 backend methods that establish startup,
+authorization, provider classification, database safety, workflow planning,
+route behavior, and health behavior. Small private formatting helpers are
+covered by the owning route or package row unless they are a safety boundary.
+
+| Method or method group | Purpose | Inputs | Outputs | Side effects | Safety constraints | Expected verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| `main`, `realMain`, `run`, `stdServer.Address` in `cmd/provisioner/main.go` | Start the app, load config, build `internal/web.NewAppHandler`, listen, and shut down cleanly. | Context, env-backed config, server factory. | Process exit behavior or returned error. | Opens listener and shuts it down. | Treat `http.ErrServerClosed` as clean; do not serve if config/reference validation fails. | `go test ./cmd/provisioner`. |
+| `config.Load`, `loadProductionAuthPolicy`, `getEnv`, `getEnvInt` | Build startup configuration and auth policy. | Environment variables and reference-input root. | Parsed `Config` or error. | Reads local env/files only. | Missing reference inputs and invalid JSON mappings fail startup; optional integer typo falls back to default. | `go test ./internal/config ./internal/referenceinputs`. |
+| `referenceinputs.ValidateStartup`, `ValidateRepository`, `RequiredStartupPaths`, link/path helpers | Enforce repo-local reference input baseline. | Root path and Markdown links. | Success or descriptive error. | Reads local filesystem. | Required files must exist and local Markdown links must not escape the repo root. | `go test ./internal/referenceinputs`. |
+| `auth.DefaultPolicy`, `EvaluateGoogleIdentity`, mapping parsers, role/site-scope helpers | Produce production authorization decisions from verified Google identity facts. | Email, groups, SAML attributes, breakglass flag, policy mappings. | `Decision` and parser errors. | Pure calculation. | Student domain denied before role mapping; breakglass bypasses only the domain gate; single-site roles require exactly one scope. | `go test ./internal/auth ./internal/config -run 'TestP000C001'`; full auth tests when mapping behavior changes. |
+| `db.WithRetry`, `IsRetryableTxError`, sleep hook helpers | Run transaction work with retry for serialization and deadlock errors. | Context, transaction beginner, callback function. | `nil` or wrapped retry/non-retry error. | Begins, commits, rolls back, and sleeps between retry attempts. | Use for serializable transaction work; never hide non-retryable errors. | `go test ./internal/db -run 'WithRetry\|Retryable'`. |
+| `db.StartScheduledWorkflowRun`, `activeScheduledWorkflowRunID`, `insertActiveScheduledWorkflowRun`, `insertDeferredScheduledWorkflowRun` | Prevent duplicate scheduled job-family execution and record overlap evidence. | Transaction executor, scheduled-run request, current time. | Active or deferred scheduled run metadata. | Writes `workflow_runs`; acquires transaction advisory lock. | Must be called inside `WithRetry`; deferred rows must not clobber active work. | `go test ./internal/db -run StartScheduledWorkflowRun`; [job-lease-recovery.md](code-paths/job-lease-recovery.md). |
+| `db.ClaimNextJob` | Lease the next queued job in `global_tick` order. | Transaction executor, lease owner, lease expiration, current time. | `LeasedJob` or `ErrNoJobAvailable`. | Updates one `jobs` row to `running` and sets lease fields. | Order by `global_tick`; call inside `WithRetry`; future workers must add provider idempotency around effects. | `go test ./internal/db -run ClaimNextJob`. |
+| `db.RecoverExpiredJobLeases` | Move expired running jobs to recovery state and return evidence. | Transaction executor, current time, row limit. | `[]RecoveredJob`. | Updates expired `jobs` rows to `recovering`; reads already recovering rows. | Uses `FOR UPDATE SKIP LOCKED` so concurrent recovery loops do not duplicate recovery. | `go test ./internal/db -run RecoverExpiredJobLeases`. |
+| `db.ReconcileRecoveredJob` | Decide whether recovered jobs succeeded externally or should retry. | Transaction executor, job ID, current time. | `JobRecoveryState`. | Reads `external_request_log`; updates `jobs` to `succeeded` or `queued`. | Provider evidence must come from `external_request_log`; no direct provider calls here. | `go test ./internal/db -run ReconcileRecoveredJob`. |
+| `orchestrator.PlanWorkflow`, `DefaultLoopSpecs`, `buildJobs` | Convert workflow facts into ordered jobs, follow-ups, and loop cadences. | `PlanInput` and planned step data. | `PlanResult`, loop specs, jobs. | Pure calculation. | Operation names are planned boundaries, not live writes. | `go test ./internal/orchestrator`. |
+| `provider.BuildAeriesUploadPayload` | Build Aeries upload payload fields for future planning. | `AeriesUploadInput`. | Map payload. | None. | Includes personal phone only for `manual_non_escape`; do not log raw phone values. | `go test ./internal/provider -run Aeries`. |
+| `provider.ClassifyError`, `ProviderError.Error`, `ProviderError.Unwrap` | Normalize provider failures for retry/diagnostic behavior. | Provider error values and wrapped errors. | Error class or error text. | None. | Diagnostics must stay sanitized when future callers log them. | `go test ./internal/provider -run Provider`. |
+| `provider.ChecksumRows`, `BuildSentinelRow`, `SyncConfigCell`, `VisibleTabFormula` | Build Google Sheets publish guard data and formulas. | Rows, checksum/version values, tab names. | Checksum, sentinel row, or formula string. | None. | Future live Sheets publishing must validate sentinels before pointer swaps. | `go test ./internal/provider -run 'Checksum\|Sentinel\|SyncConfig\|VisibleTab'`. |
+| `web.NewAppHandler` | Register all implemented HTTP routes. | Health dependency callbacks. | `http.Handler`. | None during construction. | Mutating route changes must update external-write inventory; protected route changes must update route/API inventory. | `go test ./internal/web`; inventory checks. |
+| Legacy handlers in `internal/web/app.go` | Serve placeholder HTML, SSE, metrics, session, workflow, approval, sync, room-mapping, and annual-reset responses. | HTTP request method/path/body. | HTML or JSON. | Response write only for read routes; accepted write boundaries do not persist today. | Do not expose protected data or imply provider writes occurred. | `go test ./internal/web -run 'SyncDashboard\|Workflow\|Approval'`; write-inventory check. |
+| Breakglass handlers and helpers in `internal/web/breakglass.go` | Validate emergency account/token/source IP and issue a breakglass session. | Account ID, token, remote address, proxy headers, env token hashes/CIDRs. | Cookie/session JSON or sanitized error. | Cookie write; audit event in memory or database-backed audit store. | Enabled only for documented non-production access; audit write failure fails closed. | `go test ./internal/web -run Breakglass`; [breakglass-access.md](../operations/breakglass-access.md). |
+| Health handlers in `internal/web/health.go` | Report live and ready status. | Dependency callbacks. | JSON health status and HTTP status. | Calls supplied dependency functions and writes JSON. | Readiness must fail closed; liveness must remain available. | `go test ./internal/web -run TestHealth`. |
+| DEV frontend/session handlers in `internal/web/dev_frontend.go` | Serve DEV session, persona login/logout, feature flags, and many page payload helpers. | DEV cookies, persona IDs, route/page requests, feature flag payloads. | Session/page/config JSON. | Cookie changes, in-memory shared mock session changes, in-memory or database-backed feature flag changes. | Normal DEV persona switching must not work outside development; staging uses breakglass. | `go test ./internal/web -run 'DevSession\|FeatureFlag\|RouteAPI'`; route/API and write-inventory checks. |
+| DEV page handler groups in `internal/web/dev_onboarding.go`, `dev_offboarding.go`, `dev_departing_seniors.go`, `dev_room_moves.go`, `dev_reports.go`, `dev_global_search.go`, and `dev_my_profile.go` | Model current DEV page data, search, profile edit, and mock operator workflows. | Persona/session, site scope, query strings, JSON bodies, record IDs, draft IDs. | Page payloads, mutation payloads, validation errors. | In-memory DEV store mutations for write-capable mock routes. | No live provider writes; role/site/field checks must stay server-side. | `go test ./internal/web`; specific code-path docs and inventory checks when a route group changes. |
+
+## Required Review Checklist
+
+Before a Phase 0 PR that touches implemented code is ready:
+
+1. Update this file when a new package, route group, workflow, or backend method
+   becomes implemented or when purpose, inputs, outputs, side effects, safety,
+   or verification changes.
+2. Update direct code comments according to
+   [code-documentation-guide.md](code-documentation-guide.md).
+3. Update [external-write-inventory.md](../planning/external-write-inventory.md)
+   for provider, database, DEV mock, cookie/session, or planned-write changes.
+4. Update
+   [route-api-authorization-inventory.md](../planning/route-api-authorization-inventory.md)
+   for frontend route, protected API, auth/scope, feature-flag, or field
+   visibility changes.
+5. Update scenario docs and issue links in the table above when a Phase 0
+   scenario lands or changes scope.
+6. Run the narrow verification listed in the affected row.
+7. Run `git diff --check`.
+
+For docs-only updates, manually inspect the Markdown diff and run any available
+repo-local inventory or link checks that apply to the touched docs. Do not claim
+code tests for docs-only work unless they were actually run.

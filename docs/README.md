@@ -24,6 +24,7 @@ This directory holds all repository documentation except the root `README.md` an
 ## Developer Guides
 
 - [Code documentation guide](developer/code-documentation-guide.md): code-comment and write-path documentation expectations.
+- [Phase 0 code documentation standard](developer/phase-0-code-documentation-standard.md): implemented Phase 0 package, route, workflow, and backend-method review map.
 - [Code path walkthroughs](developer/code-paths/): high-risk workflow walkthroughs for onboarding, room moves, shared help, and sync overrides.
 
 ## Design And Reference Material
