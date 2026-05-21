@@ -277,6 +277,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - health checks, auditability, global pause, and crash/retry safety exist before automation writes are enabled
   - job and outbox sequencing uses a shared `global_tick` ordering signal before worker or publisher order can affect downstream workflow behavior
   - IT Admin has emergency cutoff control through global pause and cadence controls before bad data can continue propagating
+  - global pause stops new worker job claims at the durable claim boundary while leaving staff UI, health, and diagnostic surfaces online for investigation and recovery
   - new write-capable workflows are proven in `dev` with mocks before real provider integrations are attempted
   - each workflow introduced in the phase has named mock scenarios that pass in `dev`
   - non-production Aeries and other provider access can be exercised safely without production-side write risk
