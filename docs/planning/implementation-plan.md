@@ -2614,6 +2614,8 @@
   - `/health/ready`
   - `/health`
 - `/health/ready` must validate DB connectivity, sequence access, local import-staging path read/write access, configured SFTP reachability in integration mode, and Google service-account token acquisition.
+- `/health/live` stays online during `system_controls.global_pause` and does not execute DB-backed dependency or control checks, so diagnostics remain reachable even when the database is slow or unavailable. `/health/ready` and `/health` must return `503` with `status:"paused"` when global pause is active and dependencies are otherwise healthy. If global pause and a dependency failure are both present, readiness must return `status:"degraded"` so the pause signal does not hide the outage.
+- `/metrics` must expose bounded, non-secret gauges for process liveness, readiness, global pause, and named dependency readiness. The checked-in health-observability runbook is `docs/operations/health-observability.md`.
 
 ## Provider Protection
 - Circuit breakers use exponential backoff `1s → 2s → 4s`, then pause only the affected queue for 15 minutes before a half-open probe.

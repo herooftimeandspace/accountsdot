@@ -16,7 +16,9 @@ func NewAppHandler(deps HealthDependencies) http.Handler {
 	mux.Handle("/", http.HandlerFunc(handleIndex))
 	mux.Handle("/sync-dashboard", http.HandlerFunc(handleSyncDashboard))
 	mux.Handle("/sync-dashboard/mappings", http.HandlerFunc(handleSyncDashboardMappings))
-	mux.Handle("/metrics", http.HandlerFunc(handleMetrics))
+	mux.Handle("/metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleMetrics(w, r, deps)
+	}))
 	mux.Handle("/events/stream", http.HandlerFunc(handleEventStream))
 	mux.Handle("/api/v1/session/me", http.HandlerFunc(handleSessionMe))
 	mux.Handle("/api/v1/workflows", http.HandlerFunc(handleWorkflowList))
@@ -147,12 +149,43 @@ func handleSyncDashboardMappings(w http.ResponseWriter, r *http.Request) {
 </html>`))
 }
 
-// handleMetrics exposes the minimal Prometheus-compatible liveness gauge used
-// by local smoke checks. It is intentionally static and does not include tenant,
-// credential, provider, or workflow labels.
-func handleMetrics(w http.ResponseWriter, _ *http.Request) {
+// handleMetrics exposes Phase 0 Prometheus-compatible health gauges for smoke
+// checks and staging observability. It evaluates the same dependency callbacks
+// as /health/ready with the request context, emits only bounded non-secret
+// labels, and performs no provider, database, or DEV mock mutation.
+func handleMetrics(w http.ResponseWriter, r *http.Request, deps HealthDependencies) {
+	snapshot := evaluateHealth(r.Context(), deps)
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	_, _ = w.Write([]byte("# TYPE app_up gauge\napp_up 1\n"))
+	_, _ = w.Write([]byte("# TYPE app_ready gauge\n"))
+	_, _ = w.Write([]byte("app_ready " + metricBool(snapshot.ready) + "\n"))
+	_, _ = w.Write([]byte("# TYPE app_global_pause gauge\n"))
+	_, _ = w.Write([]byte("app_global_pause " + metricBool(snapshot.paused) + "\n"))
+	_, _ = w.Write([]byte("# TYPE app_dependency_ready gauge\n"))
+	for _, dependency := range dependencyChecks(deps) {
+		_, _ = w.Write([]byte("app_dependency_ready{name=\"" + dependency.name + "\"} " + metricDependency(snapshot.dependencies[dependency.name]) + "\n"))
+	}
+}
+
+// metricBool renders boolean health state in Prometheus gauge form. It keeps
+// handleMetrics focused on bounded metric names and avoids string formatting
+// branches in the response-writing path.
+func metricBool(value bool) string {
+	if value {
+		return "1"
+	}
+	return "0"
+}
+
+// metricDependency converts JSON dependency states to a 0/1 readiness gauge.
+// not_configured is treated as ready for the same local-smoke-test reason as
+// /health/ready; concrete callback failures are the only dependency value that
+// clears the metric.
+func metricDependency(state string) string {
+	if state == "ok" || state == "not_configured" {
+		return "1"
+	}
+	return "0"
 }
 
 // handleEventStream opens the placeholder server-sent-events stream used by the

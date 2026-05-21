@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,7 +10,10 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
 )
 
-// TestAppRoutes exercises and documents internal/web/router_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// TestAppRoutes verifies the application mux still serves the unauthenticated
+// smoke routes used by local startup checks. These routes expose no protected
+// provider data and give quick feedback before the React DEV frontend is
+// running.
 func TestAppRoutes(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
@@ -19,7 +23,7 @@ func TestAppRoutes(t *testing.T) {
 		contains    string
 	}{
 		{path: "/", contentType: "text/html", contains: "Go Employee Provisioner"},
-		{path: "/metrics", contentType: "text/plain", contains: "app_up 1"},
+		{path: "/metrics", contentType: "text/plain", contains: "app_ready 1"},
 		{path: "/events/stream", contentType: "text/event-stream", contains: "event: ready"},
 		{path: "/api/v1/session/me", contentType: "application/json", contains: `"authenticated":false`},
 	}
@@ -40,7 +44,8 @@ func TestAppRoutes(t *testing.T) {
 	}
 }
 
-// TestAppRoutesNotFound exercises and documents internal/web/router_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// TestAppRoutesNotFound keeps the root handler from accidentally turning every
+// unknown path into a successful HTML response.
 func TestAppRoutesNotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
 	rec := httptest.NewRecorder()
@@ -51,3 +56,43 @@ func TestAppRoutesNotFound(t *testing.T) {
 		t.Fatalf("expected 404, got %d", rec.Code)
 	}
 }
+
+// TestMetricsExposePauseAndDependencyState covers the P0-0E-002 observability
+// contract through the full app mux. A paused system and a failed dependency
+// both clear app_ready while liveness remains a separate app_up signal.
+func TestMetricsExposePauseAndDependencyState(t *testing.T) {
+	handler := web.NewAppHandler(web.HealthDependencies{
+		DBReady:         func(context.Context) error { return nil },
+		SequenceReady:   func(context.Context) error { return nil },
+		ImportPathReady: func(context.Context) error { return nil },
+		SFTPReady:       func(context.Context) error { return nil },
+		GoogleReady:     func(context.Context) error { return errMetric{} },
+		GlobalPaused:    func(context.Context) (bool, error) { return true, nil },
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"app_up 1",
+		"app_ready 0",
+		"app_global_pause 1",
+		`app_dependency_ready{name="google"} 0`,
+		`app_dependency_ready{name="db"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q; got %s", want, body)
+		}
+	}
+}
+
+type errMetric struct{}
+
+// Error returns a deterministic metrics dependency failure string. The metrics
+// endpoint converts the failure to a bounded 0/1 gauge instead of exposing this
+// text as a Prometheus label.
+func (errMetric) Error() string { return "metrics dependency failed" }
