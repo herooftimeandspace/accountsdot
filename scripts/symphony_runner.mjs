@@ -907,8 +907,8 @@ function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, bran
   const replacements = {
     repo: repoPath,
     prompt_path: promptPath,
-    issue_number: String(issue.number),
-    issue_url: issue.url || "",
+    issue_number: issue ? String(issue.number) : "",
+    issue_url: issue?.url || "",
     branch: branchName,
     target_branch: targetBranch,
   };
@@ -958,14 +958,88 @@ function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, bran
   }
 }
 
+// Review remediation may run after the source issue is closed, so this parser
+// only trusts explicit PR references and never falls back to arbitrary digits.
+function explicitIssueNumberForPullRequest(pr) {
+  const text = `${pr.title || ""}\n${pr.body || ""}\n${pr.head_ref || pr.headRefName || ""}`;
+  const matches = [
+    ...text.matchAll(/(?:^|[^\w-])#(\d+)(?=$|[^\w-])/gi),
+    ...text.matchAll(/(?:^|[^\w-])issue-(\d+)(?=$|[-_\s/.]|[^\w-])/gi),
+  ].map((match) => Number(match[1]));
+  return matches.find((number) => Number.isInteger(number) && number > 0) || null;
+}
+
 function issueForPullRequest(pr, issues) {
-  const text = `${pr.title || ""}\n${pr.head_ref || pr.headRefName || ""}`.toLowerCase();
-  const issueMatch = text.match(/(?:#|issue-)(\d+)/i);
-  if (issueMatch) {
-    const byNumber = issues.find((issue) => issue.number === Number(issueMatch[1]));
-    if (byNumber) return byNumber;
+  const issueNumber = explicitIssueNumberForPullRequest(pr);
+  if (!issueNumber) return null;
+  return issues.find((issue) => issue.number === issueNumber) || null;
+}
+
+// Issue titles can change after a workspace is prepared. Reuse any existing
+// issue-number workspace instead of treating slug drift as a missing workspace.
+function findIssueWorkspace(issue, dispatchConfig) {
+  if (!issue) return "";
+  const currentPath = issueWorkspacePath(issue, dispatchConfig);
+  if (fs.existsSync(currentPath)) return currentPath;
+  if (!fs.existsSync(dispatchConfig.workspaceRoot)) return currentPath;
+  const prefix = `issue-${issue.number}-`;
+  const candidates = fs
+    .readdirSync(dispatchConfig.workspaceRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix))
+    .map((entry) => path.join(dispatchConfig.workspaceRoot, entry.name))
+    .sort();
+  return candidates[0] || currentPath;
+}
+
+function workspaceRepoMatchesBranch(workspacePath, branchName) {
+  if (!branchName) return false;
+  const repoPath = path.join(workspacePath, "repo");
+  if (!fs.existsSync(repoPath)) return false;
+  const branch = currentBranch(repoPath);
+  return branch.ok && branch.branch === branchName;
+}
+
+// Review remediation belongs to the PR branch that already exists. Prefer the
+// prepared branch workspace, then recorded state, then issue or PR fallbacks.
+function workspaceForReviewRemediation({ pr, issue, dispatchConfig }) {
+  const branchName = pr.head_ref || pr.headRefName || "";
+  const existingWorktree = branchName ? worktreeForBranch(branchName) : null;
+  if (existingWorktree && path.basename(existingWorktree.path) === "repo") return path.dirname(existingWorktree.path);
+
+  if (fs.existsSync(dispatchConfig.workspaceRoot)) {
+    const stateMatches = fs
+      .readdirSync(dispatchConfig.workspaceRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(dispatchConfig.workspaceRoot, entry.name))
+      .map((workspacePath) => {
+        const statePath = path.join(workspacePath, "state.json");
+        if (!fs.existsSync(statePath)) return null;
+        try {
+          const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+          const matchesReviewPr = state.review_remediation_pr === pr.number;
+          const matchesBranch = state.branch === branchName;
+          const matchesIssue = state.issue_number === issue?.number;
+          if (!matchesReviewPr && !matchesBranch && !matchesIssue) return null;
+          return { workspacePath, matchesReviewPr, matchesBranch, matchesIssue, repoMatchesBranch: workspaceRepoMatchesBranch(workspacePath, branchName) };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const score = (candidate) =>
+          (candidate.repoMatchesBranch ? 1000 : 0) +
+          (candidate.matchesReviewPr ? 100 : 0) +
+          (candidate.matchesBranch ? 10 : 0) +
+          (candidate.matchesIssue ? 1 : 0);
+        if (score(a) !== score(b)) return score(b) - score(a);
+        return a.workspacePath.localeCompare(b.workspacePath);
+      });
+    if (stateMatches.length > 0) return stateMatches[0].workspacePath;
   }
-  return issues.find((issue) => text.includes(String(issue.number)));
+
+  if (issue) return findIssueWorkspace(issue, dispatchConfig);
+  return path.join(dispatchConfig.workspaceRoot, `pr-${pr.number}`);
 }
 
 function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills }) {
@@ -1039,7 +1113,8 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
 
 function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun }) {
   const issue = issueForPullRequest(pr, issues);
-  const workspacePath = issue ? issueWorkspacePath(issue, dispatchConfig) : path.join(dispatchConfig.workspaceRoot, `pr-${pr.number}`);
+  const targetBranch = pr.target_branch || dispatchConfig.defaultTargetBranch;
+  const workspacePath = workspaceForReviewRemediation({ pr, issue, dispatchConfig });
   const repoPath = path.join(workspacePath, "repo");
   const logsPath = path.join(workspacePath, "logs");
   const promptPath = path.join(workspacePath, `review-remediation-${pr.number}.md`);
@@ -1050,7 +1125,7 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
     issue_number: issue?.number || null,
     status: dryRun ? "would-remediate" : "prepared",
     branch: pr.head_ref,
-    target_branch: "phase-0-platform-foundation",
+    target_branch: targetBranch,
     workspace: workspacePath,
     repo: repoPath,
     prompt_path: promptPath,
@@ -1059,19 +1134,23 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
     reason: "",
   };
 
-  if (dryRun) {
-    result.reason = "dry-run performs no PR review-remediation mutations";
-    return result;
-  }
-  if (!issue) {
-    return { ...result, status: "blocked", reason: "could not resolve linked issue for PR review remediation" };
-  }
   if (!fs.existsSync(repoPath)) {
     return { ...result, status: "blocked", reason: `missing prepared PR workspace at ${repoPath}` };
   }
   const status = cleanStatus(repoPath);
   if (!status.clean) {
     return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
+  }
+  const branch = currentBranch(repoPath);
+  if (!branch.ok) {
+    return { ...result, status: "blocked", reason: branch.reason };
+  }
+  if (branch.branch !== pr.head_ref) {
+    return { ...result, status: "blocked", reason: `prepared PR workspace is on ${branch.branch || "(detached)"}, expected ${pr.head_ref}` };
+  }
+
+  if (dryRun) {
+    return { ...result, reason: "dry-run verified remediation prerequisites and performs no prompt, state, runner, or PR mutations" };
   }
 
   fs.mkdirSync(logsPath, { recursive: true });
@@ -1093,9 +1172,9 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
   const priorState = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
   const state = {
     ...priorState,
-    issue_number: issue.number,
-    issue_url: issue.url,
-    title: issue.title,
+    issue_number: issue?.number || null,
+    issue_url: issue?.url || "",
+    title: issue?.title || pr.title,
     target_branch: result.target_branch,
     branch: pr.head_ref,
     workspace_path: workspacePath,
@@ -1434,6 +1513,14 @@ function cleanStatus(cwd) {
           .map((line) => line.slice(3))
       : [],
   };
+}
+
+function currentBranch(cwd) {
+  const branch = run("git", ["branch", "--show-current"], { cwd, allowFailure: true });
+  if (branch.failed) {
+    return { ok: false, branch: "", reason: branch.stderr || "failed to inspect current branch" };
+  }
+  return { ok: true, branch, reason: "" };
 }
 
 function branchEqualsRemote(cwd, branchName) {
@@ -2068,6 +2155,132 @@ async function selfTest() {
       "-",
     ]);
     assert.equal(renderCommandToken("{repo}/prompt.md", { repo: "/tmp/example" }), "/tmp/example/prompt.md");
+    assert.equal(
+      issueForPullRequest({ title: "Ship v2 remediation", head_ref: "codex/v2-review-remediation" }, [
+        { number: 2, title: "Unrelated issue" },
+      ]),
+      null,
+    );
+    assert.equal(
+      issueForPullRequest({ title: "Fixes #267", head_ref: "codex/phase0-review-remediation-autonomy" }, [
+        { number: 267, title: "Dispatch review remediation" },
+      ])?.number,
+      267,
+    );
+
+    const reviewWorkflow = { promptTemplate: "Review workflow prompt" };
+    const oldSlugWorkspace = path.join(tempRoot, "issue-267-old-title");
+    const oldSlugRepo = path.join(oldSlugWorkspace, "repo");
+    fs.mkdirSync(oldSlugRepo, { recursive: true });
+    run("git", ["init"], { cwd: oldSlugRepo });
+    run("git", ["checkout", "-b", "codex/issue-267-review-remediation"], { cwd: oldSlugRepo });
+    assert.equal(findIssueWorkspace({ number: 267, title: "New title" }, dispatchConfig), oldSlugWorkspace);
+    const slugDriftResult = ensureReviewRemediationDispatch({
+      pr: {
+        number: 288,
+        title: "Fixes #267",
+        head_ref: "codex/issue-267-review-remediation",
+        target_branch: "custom-target",
+        unresolved_codex_review_thread_summaries: [],
+      },
+      issues: [{ number: 267, title: "New title", body: "", url: "https://example.invalid/issues/267" }],
+      dispatchConfig,
+      workflow: reviewWorkflow,
+      skills: fakeSkills,
+      dryRun: true,
+    });
+    assert.equal(slugDriftResult.status, "would-remediate");
+    assert.equal(slugDriftResult.workspace, oldSlugWorkspace);
+    assert.equal(slugDriftResult.target_branch, "custom-target");
+
+    const closedIssueWorkspace = path.join(tempRoot, "pr-289");
+    const closedIssueRepo = path.join(closedIssueWorkspace, "repo");
+    fs.mkdirSync(closedIssueRepo, { recursive: true });
+    run("git", ["init"], { cwd: closedIssueRepo });
+    run("git", ["checkout", "-b", "codex/closed-issue-review"], { cwd: closedIssueRepo });
+    const closedIssueResult = ensureReviewRemediationDispatch({
+      pr: {
+        number: 289,
+        title: "Fix closed source issue review feedback",
+        head_ref: "codex/closed-issue-review",
+        target_branch: "phase-0-platform-foundation",
+        unresolved_codex_review_thread_summaries: [],
+      },
+      issues: [],
+      dispatchConfig,
+      workflow: reviewWorkflow,
+      skills: fakeSkills,
+      dryRun: true,
+    });
+    assert.equal(closedIssueResult.status, "would-remediate");
+    assert.equal(closedIssueResult.issue_number, null);
+
+    const staleStateWorkspace = path.join(tempRoot, "issue-267-a-stale-title");
+    const staleStateRepo = path.join(staleStateWorkspace, "repo");
+    fs.mkdirSync(staleStateRepo, { recursive: true });
+    run("git", ["init"], { cwd: staleStateRepo });
+    run("git", ["checkout", "-b", "codex/stale-review-branch"], { cwd: staleStateRepo });
+    fs.writeFileSync(
+      path.join(staleStateWorkspace, "state.json"),
+      `${JSON.stringify({ issue_number: 267, branch: "codex/stale-review-branch" }, null, 2)}\n`,
+    );
+    const exactPrWorkspace = path.join(tempRoot, "issue-267-z-current-title");
+    const exactPrRepo = path.join(exactPrWorkspace, "repo");
+    fs.mkdirSync(exactPrRepo, { recursive: true });
+    run("git", ["init"], { cwd: exactPrRepo });
+    run("git", ["checkout", "-b", "codex/current-review-branch"], { cwd: exactPrRepo });
+    fs.writeFileSync(
+      path.join(exactPrWorkspace, "state.json"),
+      `${JSON.stringify({ issue_number: 267, review_remediation_pr: 292, branch: "codex/current-review-branch" }, null, 2)}\n`,
+    );
+    assert.equal(
+      workspaceForReviewRemediation({
+        pr: { number: 292, head_ref: "codex/current-review-branch" },
+        issue: { number: 267, title: "Current title" },
+        dispatchConfig,
+      }),
+      exactPrWorkspace,
+    );
+
+    const wrongBranchWorkspace = path.join(tempRoot, "pr-290");
+    const wrongBranchRepo = path.join(wrongBranchWorkspace, "repo");
+    fs.mkdirSync(wrongBranchRepo, { recursive: true });
+    run("git", ["init"], { cwd: wrongBranchRepo });
+    run("git", ["checkout", "-b", "codex/wrong-branch"], { cwd: wrongBranchRepo });
+    assert.match(
+      ensureReviewRemediationDispatch({
+        pr: {
+          number: 290,
+          title: "Fixes #267",
+          head_ref: "codex/expected-branch",
+          target_branch: "phase-0-platform-foundation",
+          unresolved_codex_review_thread_summaries: [],
+        },
+        issues: [],
+        dispatchConfig,
+        workflow: reviewWorkflow,
+        skills: fakeSkills,
+        dryRun: true,
+      }).reason,
+      /expected codex\/expected-branch/,
+    );
+    assert.equal(
+      ensureReviewRemediationDispatch({
+        pr: {
+          number: 291,
+          title: "No prepared workspace",
+          head_ref: "codex/missing-workspace",
+          target_branch: "phase-0-platform-foundation",
+          unresolved_codex_review_thread_summaries: [],
+        },
+        issues: [],
+        dispatchConfig,
+        workflow: reviewWorkflow,
+        skills: fakeSkills,
+        dryRun: true,
+      }).status,
+      "blocked",
+    );
 
     const evals = browserEvaluationsFor(DEFAULT_MONITOR, { blocker: "" }, [{ ok: true }, { ok: true }]);
     assert.equal(evals.length, 1);
