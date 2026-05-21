@@ -681,6 +681,7 @@ function readDispatchConfig(workflowConfig) {
   const dispatch = workflowConfig.dispatch || {};
   const tracker = workflowConfig.tracker || {};
   const branching = workflowConfig.branching || {};
+  const workspaceRoot = dispatch.workspace_root || path.join(os.tmpdir(), "accountsdot-symphony");
   return {
     activeLabels: (tracker.active_labels || ["agent-ready"]).map((label) => String(label).toLowerCase()),
     blockedLabels: (tracker.blocked_labels || []).map((label) => String(label).toLowerCase()),
@@ -690,8 +691,10 @@ function readDispatchConfig(workflowConfig) {
     maxConcurrentRuns: Number(dispatch.max_concurrent_runs || 1),
     maxAttempts: Number(dispatch.max_attempts || 1),
     requireExplicitAgentReadyLabel: dispatch.require_explicit_agent_ready_label !== false,
-    workspaceRoot: dispatch.workspace_root || path.join(os.tmpdir(), "accountsdot-symphony"),
+    workspaceRoot,
     agentRunnerCommand: dispatch.agent_runner_command || "",
+    agentRunnerCodexHomeRoot:
+      dispatch.agent_runner_codex_home_root || path.join(workspaceRoot, ".codex-agent-homes"),
     agentRunnerTimeoutMs: Number(dispatch.agent_runner_timeout_ms || 6 * 60 * 60 * 1000),
   };
 }
@@ -1100,7 +1103,51 @@ function renderCommandToken(token, replacements) {
   });
 }
 
-function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, branchName, targetBranch, logsPath, timeoutMs }) {
+function ensureSymlink(target, linkPath) {
+  try {
+    const existing = fs.lstatSync(linkPath);
+    if (existing.isSymbolicLink() && fs.readlinkSync(linkPath) === target) return;
+    if (existing.isSymbolicLink()) {
+      fs.unlinkSync(linkPath);
+    } else {
+      return;
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  fs.symlinkSync(target, linkPath);
+}
+
+function prepareAgentCodexHome({ codexHomeRoot, workspacePath }) {
+  if (!codexHomeRoot) return null;
+  const workspaceName = safePathSegment(path.basename(workspacePath || "workspace")) || "workspace";
+  const codexHome = path.join(codexHomeRoot, workspaceName);
+  fs.mkdirSync(codexHome, { recursive: true, mode: 0o700 });
+  const sourceHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"));
+  for (const entry of ["auth.json", "config.toml", "installation_id", "AGENTS.md"]) {
+    const sourcePath = path.join(sourceHome, entry);
+    if (fs.existsSync(sourcePath)) ensureSymlink(sourcePath, path.join(codexHome, entry));
+  }
+  for (const entry of ["plugins", "skills"]) {
+    const sourcePath = path.join(sourceHome, entry);
+    if (fs.existsSync(sourcePath)) ensureSymlink(sourcePath, path.join(codexHome, entry));
+  }
+  return codexHome;
+}
+
+function runAgentRunner({
+  commandLine,
+  repoPath,
+  promptPath,
+  prompt,
+  issue,
+  branchName,
+  targetBranch,
+  logsPath,
+  timeoutMs,
+  codexHomeRoot,
+  workspacePath,
+}) {
   const tokens = splitCommandLine(commandLine);
   if (tokens.length === 0) {
     return { status: "skipped", runner_status: "needs_agent_runner", reason: "agent runner command is empty" };
@@ -1115,7 +1162,9 @@ function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, bran
   };
   const [cmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
   const startedAt = new Date().toISOString();
+  let codexHome = "";
   try {
+    codexHome = prepareAgentCodexHome({ codexHomeRoot, workspacePath }) || "";
     const stdout = execFileSync(cmd, args, {
       cwd: repoPath,
       input: prompt,
@@ -1123,6 +1172,7 @@ function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, bran
       stdio: ["pipe", "pipe", "pipe"],
       timeout: timeoutMs,
       maxBuffer: 50 * 1024 * 1024,
+      env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
     });
     const completedAt = new Date().toISOString();
     const stdoutPath = path.join(logsPath, "agent-stdout.log");
@@ -1133,6 +1183,7 @@ function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, bran
       status: "succeeded",
       runner_status: "completed",
       command: [cmd, ...args],
+      codex_home_path: codexHome,
       started_at: startedAt,
       completed_at: completedAt,
       stdout_path: stdoutPath,
@@ -1149,6 +1200,7 @@ function runAgentRunner({ commandLine, repoPath, promptPath, prompt, issue, bran
       status: "failed",
       runner_status: "failed",
       command: [cmd, ...args],
+      codex_home_path: codexHome,
       started_at: startedAt,
       completed_at: completedAt,
       stdout_path: stdoutPath,
@@ -1400,6 +1452,8 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
         targetBranch: result.target_branch,
         logsPath,
         timeoutMs: dispatchConfig.agentRunnerTimeoutMs,
+        codexHomeRoot: dispatchConfig.agentRunnerCodexHomeRoot,
+        workspacePath,
       })
     : { status: result.status, runner_status: result.runner_status, reason: "no repo-owned agent runner command is configured yet" };
   const priorState = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
@@ -1510,6 +1564,8 @@ function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryR
         targetBranch,
         logsPath,
         timeoutMs: dispatchConfig.agentRunnerTimeoutMs,
+        codexHomeRoot: dispatchConfig.agentRunnerCodexHomeRoot,
+        workspacePath,
       })
     : { status: result.status, runner_status: result.runner_status, reason: "no repo-owned agent runner command is configured yet" };
   const state = {
@@ -2330,6 +2386,56 @@ async function selfTest() {
       },
       dispatch: { max_concurrent_runs: 2, workspace_root: tempRoot },
     });
+    assert.equal(dispatchConfig.agentRunnerCodexHomeRoot, path.join(tempRoot, ".codex-agent-homes"));
+    const sourceCodexHomeName = "source-codex-home";
+    const sourceCodexHome = path.join(tempRoot, sourceCodexHomeName);
+    fs.mkdirSync(sourceCodexHome, { recursive: true });
+    fs.writeFileSync(path.join(sourceCodexHome, "auth.json"), "{}\n");
+    fs.writeFileSync(path.join(sourceCodexHome, "config.toml"), "# test\n");
+    fs.mkdirSync(path.join(sourceCodexHome, "cache"), { recursive: true });
+    fs.mkdirSync(path.join(sourceCodexHome, "vendor_imports"), { recursive: true });
+    const oldCodexHome = process.env.CODEX_HOME;
+    const oldCwd = process.cwd();
+    process.chdir(tempRoot);
+    process.env.CODEX_HOME = sourceCodexHomeName;
+    const preparedCodexHome = prepareAgentCodexHome({
+      codexHomeRoot: dispatchConfig.agentRunnerCodexHomeRoot,
+      workspacePath: path.join(tempRoot, "issue-900264-reference-input-snapshot-integrity"),
+    });
+    process.chdir(oldCwd);
+    if (oldCodexHome === undefined) {
+      delete process.env.CODEX_HOME;
+    } else {
+      process.env.CODEX_HOME = oldCodexHome;
+    }
+    assert.equal(
+      preparedCodexHome,
+      path.join(dispatchConfig.agentRunnerCodexHomeRoot, "issue-900264-reference-input-snapshot-integrity"),
+    );
+    assert.equal(fs.readlinkSync(path.join(preparedCodexHome, "auth.json")), path.join(fs.realpathSync(sourceCodexHome), "auth.json"));
+    assert.equal(fs.existsSync(path.join(preparedCodexHome, "state_5.sqlite")), false);
+    assert.equal(fs.existsSync(path.join(preparedCodexHome, "cache")), false);
+    assert.equal(fs.existsSync(path.join(preparedCodexHome, "vendor_imports")), false);
+    const runnerLogsPath = path.join(tempRoot, "runner-logs");
+    fs.mkdirSync(runnerLogsPath, { recursive: true });
+    const invalidCodexHomeRoot = path.join(tempRoot, "not-a-directory");
+    fs.writeFileSync(invalidCodexHomeRoot, "");
+    const prepFailure = runAgentRunner({
+      commandLine: `${process.execPath} --version`,
+      repoPath: tempRoot,
+      promptPath: path.join(tempRoot, "prompt.md"),
+      prompt: "",
+      issue: { number: 1, url: "https://example.invalid/1" },
+      branchName: "codex/issue-1-test",
+      targetBranch: "phase-0-platform-foundation",
+      logsPath: runnerLogsPath,
+      timeoutMs: 1000,
+      codexHomeRoot: invalidCodexHomeRoot,
+      workspacePath: path.join(tempRoot, "issue-1-test"),
+    });
+    assert.equal(prepFailure.status, "failed");
+    assert.equal(prepFailure.runner_status, "failed");
+    assert.match(prepFailure.reason, /ENOTDIR|not a directory/i);
     const prConfig = readPullRequestConfig(
       {
         tracker: { blocked_labels: ["blocked"] },
