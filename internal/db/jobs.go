@@ -67,7 +67,10 @@ const (
 	JobRecoveryStateSucceeded         JobRecoveryState = "succeeded"
 )
 
-var ErrNoJobAvailable = errors.New("no job available for claim")
+var (
+	ErrNoJobAvailable    = errors.New("no job available for claim")
+	ErrGlobalPauseActive = errors.New("global pause active")
+)
 
 const (
 	scheduledTriggerType     = "scheduled"
@@ -75,6 +78,7 @@ const (
 	overlapStateDeferred     = "deferred_due_to_active_run"
 	defaultDesiredSnapshot   = "{}"
 	defaultScheduledApproval = string(core.ApprovalStateNotRequired)
+	SystemControlGlobalPause = "global_pause"
 )
 
 // ScheduledWorkflowRunRequest is the scheduler input for one provider or sync
@@ -256,13 +260,42 @@ returning id, overlap_count
 	return start, nil
 }
 
-// ClaimNextJob atomically claims the oldest runnable queued job and writes the
-// worker lease fields that a later crash-recovery pass can inspect. The query
-// uses FOR UPDATE SKIP LOCKED so multiple workers can ask for work without
-// double-claiming the same global_tick-ordered job.
-func ClaimNextJob(ctx context.Context, tx JobExecutor, owner string, leaseExpiresAt time.Time, now time.Time) (LeasedJob, error) {
-	var job LeasedJob
+// IsGlobalPauseActive reads the Phase 0 emergency cutoff row from
+// system_controls. ClaimNextJob calls this before mutating jobs so a worker
+// loop using db.WithRetry can distinguish an operator pause from an empty queue
+// while diagnostics and UI routes continue to read their own state normally.
+func IsGlobalPauseActive(ctx context.Context, tx JobExecutor) (bool, error) {
+	var active bool
 	err := tx.QueryRow(ctx, `
+select enabled
+from system_controls
+where control_name = $1
+`, SystemControlGlobalPause).Scan(&active)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read global pause control: %w", err)
+	}
+	return active, nil
+}
+
+// ClaimNextJob atomically claims the oldest runnable queued job after proving
+// the global pause is not active, then writes the worker lease fields that a
+// later crash-recovery pass can inspect. The claim query uses FOR UPDATE SKIP
+// LOCKED so multiple workers can ask for work without double-claiming the same
+// global_tick-ordered job.
+func ClaimNextJob(ctx context.Context, tx JobExecutor, owner string, leaseExpiresAt time.Time, now time.Time) (LeasedJob, error) {
+	paused, err := IsGlobalPauseActive(ctx, tx)
+	if err != nil {
+		return LeasedJob{}, err
+	}
+	if paused {
+		return LeasedJob{}, ErrGlobalPauseActive
+	}
+
+	var job LeasedJob
+	err = tx.QueryRow(ctx, `
 update jobs
 set job_state = $1,
     lease_owner = $2,

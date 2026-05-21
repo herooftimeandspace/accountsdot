@@ -60,7 +60,9 @@ func (f *fakeJobExecutor) QueryRow(_ context.Context, sql string, args ...any) p
 	if len(f.rowErrs) > 0 {
 		err := f.rowErrs[0]
 		f.rowErrs = f.rowErrs[1:]
-		return fakeJobRow{err: err}
+		if err != nil {
+			return fakeJobRow{err: err}
+		}
 	}
 	if len(f.rowScans) == 0 {
 		return fakeJobRow{err: errors.New("unexpected QueryRow call")}
@@ -254,19 +256,22 @@ func TestStartScheduledWorkflowRunDefersOverlapWithoutClobberingActiveRun(t *tes
 func TestClaimNextJobWritesLeaseFields(t *testing.T) {
 	now := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
 	expires := now.Add(30 * time.Second)
-	exec := &fakeJobExecutor{rowScans: [][]any{{
-		int64(42),
-		int64(1001),
-		int64(7),
-		"zoom",
-		"zoom.create_user",
-		"create-user",
-		"",
-		0,
-		"worker-a",
-		expires,
-		now,
-	}}}
+	exec := &fakeJobExecutor{rowScans: [][]any{
+		{false},
+		{
+			int64(42),
+			int64(1001),
+			int64(7),
+			"zoom",
+			"zoom.create_user",
+			"create-user",
+			"",
+			0,
+			"worker-a",
+			expires,
+			now,
+		},
+	}}
 
 	job, err := ClaimNextJob(context.Background(), exec, "worker-a", expires, now)
 	if err != nil {
@@ -275,15 +280,40 @@ func TestClaimNextJobWritesLeaseFields(t *testing.T) {
 	if job.ID != 42 || job.GlobalTick != 1001 || job.LeaseOwner != "worker-a" {
 		t.Fatalf("unexpected leased job: %#v", job)
 	}
-	if got := exec.queries[0]; !strings.Contains(got.sql, "for update skip locked") || got.args[0] != string(core.JobStateRunning) {
+	if pause := exec.queries[0]; !strings.Contains(pause.sql, "from system_controls") || pause.args[0] != SystemControlGlobalPause {
+		t.Fatalf("claim must read global pause before mutating jobs, got %#v", pause)
+	}
+	if got := exec.queries[1]; !strings.Contains(got.sql, "for update skip locked") || got.args[0] != string(core.JobStateRunning) {
 		t.Fatalf("claim query did not lock and mark running: %#v", got)
+	}
+}
+
+// TestClaimNextJobStopsWhenGlobalPauseIsActive covers P0-0C-006. When an IT
+// Admin has enabled system_controls.global_pause, workers receive a stable
+// pause sentinel and ClaimNextJob never issues the jobs update that would create
+// a new lease.
+func TestClaimNextJobStopsWhenGlobalPauseIsActive(t *testing.T) {
+	exec := &fakeJobExecutor{rowScans: [][]any{{true}}}
+
+	_, err := ClaimNextJob(context.Background(), exec, "worker-a", time.Now(), time.Now())
+	if !errors.Is(err, ErrGlobalPauseActive) {
+		t.Fatalf("expected ErrGlobalPauseActive, got %v", err)
+	}
+	if len(exec.queries) != 1 {
+		t.Fatalf("global pause should stop before job mutation, saw queries %#v", exec.queries)
+	}
+	if !strings.Contains(exec.queries[0].sql, "from system_controls") {
+		t.Fatalf("expected pause control lookup, got %#v", exec.queries[0])
 	}
 }
 
 // TestClaimNextJobReturnsNoJobAvailable verifies idle workers receive a stable
 // sentinel instead of treating an empty queue as a database failure.
 func TestClaimNextJobReturnsNoJobAvailable(t *testing.T) {
-	exec := &fakeJobExecutor{rowErrs: []error{pgx.ErrNoRows}}
+	exec := &fakeJobExecutor{
+		rowErrs:  []error{nil, pgx.ErrNoRows},
+		rowScans: [][]any{{false}},
+	}
 	_, err := ClaimNextJob(context.Background(), exec, "worker-a", time.Now(), time.Now())
 	if !errors.Is(err, ErrNoJobAvailable) {
 		t.Fatalf("expected ErrNoJobAvailable, got %v", err)

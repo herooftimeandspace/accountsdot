@@ -2622,6 +2622,7 @@
 - SSE uses durable outbox plus Postgres `LISTEN/NOTIFY`.
 - Replay backfill is capped to the last 100 events or 10 minutes, whichever is smaller; older clients receive `resync_required`.
 - `system_controls.global_pause` is the global kill switch; the orchestrator must honor it before claiming work and between steps while leaving UI and diagnostics online.
+- Phase 0 claim enforcement for `P0-0C-006` lives at `internal/db.ClaimNextJob`: the worker claim boundary reads `system_controls.global_pause` before mutating `jobs`, returns `ErrGlobalPauseActive` when the row is enabled, and does not create a new lease while paused. Dev and staging evidence should pair that no-claim proof with a lightweight UI or diagnostic read so the emergency cutoff is proven without treating pause as a service outage.
 - Health endpoints:
   - `/health/live`
   - `/health/ready`
