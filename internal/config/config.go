@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/auth"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/referenceinputs"
 )
 
@@ -14,6 +15,7 @@ type Config struct {
 	ZoomSLGMaxMembers    int
 	ReplayEventLimit     int
 	ProductionAuthPolicy auth.Policy
+	ProviderReadiness    []provider.ReadinessConfig
 }
 
 // Load builds startup configuration for the Go service. The application
@@ -35,6 +37,7 @@ func Load() (Config, error) {
 		ZoomSLGMaxMembers:    getEnvInt("ZOOM_SLG_MAX_MEMBERS", 10),
 		ReplayEventLimit:     getEnvInt("REPLAY_EVENT_LIMIT", 100),
 		ProductionAuthPolicy: authPolicy,
+		ProviderReadiness:    loadProviderReadinessConfig(),
 	}, nil
 }
 
@@ -70,6 +73,45 @@ func loadProductionAuthPolicy() (auth.Policy, error) {
 	return policy, nil
 }
 
+// loadProviderReadinessConfig collects the non-secret provider metadata used
+// by Phase 0 readiness clients. The returned slice names each configured
+// provider, whether startup should use the DEV mock client, and the sanitized
+// endpoint or credential label that staging probes can echo in diagnostics
+// without exposing tokens, certificates, passwords, private keys, or raw
+// service-account JSON.
+func loadProviderReadinessConfig() []provider.ReadinessConfig {
+	return []provider.ReadinessConfig{
+		{
+			Provider:        provider.ProviderNameZoom,
+			UseMock:         getEnvBool("USE_MOCK_ZOOM", true),
+			ReadOnly:        true,
+			Endpoint:        getEnv("ZOOM_BASE_URL", "https://api.zoom.us/v2"),
+			CredentialLabel: getEnv("ZOOM_ACCOUNT_ID", ""),
+		},
+		{
+			Provider:        provider.ProviderNameGoogle,
+			UseMock:         getEnvBool("USE_MOCK_GOOGLE", true),
+			ReadOnly:        true,
+			Endpoint:        getEnv("GOOGLE_REDIRECT_URL", ""),
+			CredentialLabel: getEnv("GOOGLE_SAML_ENTITY_ID", ""),
+		},
+		{
+			Provider:        provider.ProviderNameAeries,
+			UseMock:         getEnvBool("USE_MOCK_AERIES", true),
+			ReadOnly:        true,
+			Endpoint:        getEnv("AERIES_BASE_URL", ""),
+			CredentialLabel: getEnv("AERIES_CLIENT_ID", ""),
+		},
+		{
+			Provider:        provider.ProviderNameSFTP,
+			UseMock:         getEnvBool("USE_MOCK_SFTP", true),
+			ReadOnly:        true,
+			Endpoint:        getEnv("SFTP_HOST", ""),
+			CredentialLabel: getEnv("SFTP_USERNAME", ""),
+		},
+	}
+}
+
 // getEnv reads one environment variable and applies the caller's fallback when
 // unset. Config loading uses it for non-secret labels and paths as well as
 // secret-bearing settings that are never logged or persisted by this package.
@@ -89,6 +131,22 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+// getEnvBool parses feature-flag style environment variables that control
+// mock-backed provider setup. Invalid values fall back to the safer caller
+// default, which keeps local development mock-backed unless an operator
+// explicitly supplies a valid false value for staging read-only probes.
+func getEnvBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return fallback
 	}

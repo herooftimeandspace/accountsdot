@@ -6,6 +6,7 @@ import (
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/auth"
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/config"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 )
 
 // TestLoadDefaults verifies that local startup receives the documented default
@@ -13,6 +14,7 @@ import (
 // SAML secrets or admin-provided mapping JSON.
 func TestLoadDefaults(t *testing.T) {
 	clearProductionAuthEnv(t)
+	clearProviderReadinessEnv(t)
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -32,6 +34,48 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if !slices.Equal(cfg.ProductionAuthPolicy.DeniedEmailDomains, []string{"stu.wusd.org"}) {
 		t.Fatalf("unexpected denied domains: %#v", cfg.ProductionAuthPolicy.DeniedEmailDomains)
+	}
+	for _, readiness := range cfg.ProviderReadiness {
+		if !readiness.UseMock {
+			t.Fatalf("%s readiness default UseMock = false, want true for local DEV safety", readiness.Provider)
+		}
+		if !readiness.ReadOnly {
+			t.Fatalf("%s readiness ReadOnly = false, want true", readiness.Provider)
+		}
+	}
+}
+
+// TestP000D001ProviderReadinessConfigDefaults records the startup-side
+// evidence for Phase 0 provider mock readiness. Config loading returns one
+// mock-backed read-only readiness entry per current provider without requiring
+// real credentials, so provider clients can initialize safely in DEV.
+func TestP000D001ProviderReadinessConfigDefaults(t *testing.T) {
+	clearProductionAuthEnv(t)
+	clearProviderReadinessEnv(t)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	wantProviders := []string{
+		provider.ProviderNameZoom,
+		provider.ProviderNameGoogle,
+		provider.ProviderNameAeries,
+		provider.ProviderNameSFTP,
+	}
+	gotProviders := make([]string, 0, len(cfg.ProviderReadiness))
+	for _, readiness := range cfg.ProviderReadiness {
+		gotProviders = append(gotProviders, readiness.Provider)
+		if !readiness.UseMock {
+			t.Fatalf("%s readiness UseMock = false, want true", readiness.Provider)
+		}
+		if !readiness.ReadOnly {
+			t.Fatalf("%s readiness ReadOnly = false, want true", readiness.Provider)
+		}
+	}
+	if !slices.Equal(gotProviders, wantProviders) {
+		t.Fatalf("provider readiness entries = %#v, want %#v", gotProviders, wantProviders)
 	}
 }
 
@@ -82,6 +126,9 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	t.Setenv("GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON", `[{"group":"wizard-it-admins@wusd.org","roles":["it_admin"]}]`)
 	t.Setenv("GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON", `[{"attribute":"wizard_role","values":["Human Resources"],"roles":["human_resources"]}]`)
 	t.Setenv("GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON", `[{"source_type":"group","source":"wizard-bpl-scope@wusd.org","sites":["bpl"]}]`)
+	t.Setenv("USE_MOCK_ZOOM", "false")
+	t.Setenv("ZOOM_ACCOUNT_ID", "zoom-staging-label")
+	t.Setenv("ZOOM_BASE_URL", "https://zoom.example.test/v2")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -119,6 +166,13 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	}
 	if len(cfg.ProductionAuthPolicy.SiteScopeMappings) != 1 || cfg.ProductionAuthPolicy.SiteScopeMappings[0].Sites[0] != "bpl" {
 		t.Fatalf("site scope mappings = %#v", cfg.ProductionAuthPolicy.SiteScopeMappings)
+	}
+	zoomReadiness := cfg.ProviderReadiness[0]
+	if zoomReadiness.Provider != provider.ProviderNameZoom || zoomReadiness.UseMock || !zoomReadiness.ReadOnly {
+		t.Fatalf("zoom readiness = %#v, want read-only non-mock config", zoomReadiness)
+	}
+	if zoomReadiness.Endpoint != "https://zoom.example.test/v2" || zoomReadiness.CredentialLabel != "zoom-staging-label" {
+		t.Fatalf("zoom readiness metadata = %#v", zoomReadiness)
 	}
 }
 
@@ -166,6 +220,25 @@ func clearProductionAuthEnv(t *testing.T) {
 		"GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON",
 		"GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON",
 		"GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON",
+	} {
+		t.Setenv(key, "")
+	}
+}
+
+func clearProviderReadinessEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		"USE_MOCK_ZOOM",
+		"USE_MOCK_GOOGLE",
+		"USE_MOCK_AERIES",
+		"USE_MOCK_SFTP",
+		"ZOOM_ACCOUNT_ID",
+		"ZOOM_BASE_URL",
+		"GOOGLE_REDIRECT_URL",
+		"AERIES_BASE_URL",
+		"AERIES_CLIENT_ID",
+		"SFTP_HOST",
+		"SFTP_USERNAME",
 	} {
 		t.Setenv(key, "")
 	}
