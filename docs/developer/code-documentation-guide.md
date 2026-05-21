@@ -76,6 +76,7 @@ Keep `docs/planning/external-write-inventory.md` synchronized whenever a write p
 Use the walkthroughs in `docs/developer/code-paths/` when debugging or extending high-risk paths that cross frontend UI, route handlers, persona rules, and mutation boundaries:
 
 - [Manual onboarding drafts](code-paths/manual-onboarding-drafts.md)
+- [Global tick ordering](code-paths/global-tick-ordering.md)
 - [Job lease recovery](code-paths/job-lease-recovery.md)
 - [Room moves](code-paths/room-moves.md)
 - [Sync dashboard overrides](code-paths/sync-dashboard-overrides.md)

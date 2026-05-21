@@ -174,6 +174,28 @@ func assignFakeScanValue(dest any, value any) {
 	}
 }
 
+// assertGlobalTickOrdering checks Phase 0 ordering SQL for P0-0B-002. The
+// database may return ids and UUID-backed values for identity, but claim,
+// recovery, and outbox reads must sort by global_tick rather than identifiers
+// or timestamps.
+func assertGlobalTickOrdering(t *testing.T, sql string) {
+	t.Helper()
+	normalized := strings.Join(strings.Fields(strings.ToLower(sql)), " ")
+	if !strings.Contains(normalized, "order by global_tick asc") {
+		t.Fatalf("expected global_tick ordering, got SQL: %s", normalized)
+	}
+	for _, forbidden := range []string{
+		"order by id",
+		"order by jobs.id",
+		"order by uuid",
+		"order by created_at",
+	} {
+		if strings.Contains(normalized, forbidden) {
+			t.Fatalf("ordering must not use %q in SQL: %s", forbidden, normalized)
+		}
+	}
+}
+
 func scheduledRunRequest() ScheduledWorkflowRunRequest {
 	return ScheduledWorkflowRunRequest{
 		WorkflowType:        core.WorkflowTypeStaffSyncDryRun,
@@ -278,6 +300,7 @@ func TestClaimNextJobWritesLeaseFields(t *testing.T) {
 	if got := exec.queries[0]; !strings.Contains(got.sql, "for update skip locked") || got.args[0] != string(core.JobStateRunning) {
 		t.Fatalf("claim query did not lock and mark running: %#v", got)
 	}
+	assertGlobalTickOrdering(t, exec.queries[0].sql)
 }
 
 // TestClaimNextJobReturnsNoJobAvailable verifies idle workers receive a stable
@@ -331,8 +354,43 @@ func TestRecoverExpiredJobLeasesMovesRunningJobsToRecovering(t *testing.T) {
 	if !strings.Contains(query.sql, "or job_state = $4") || query.args[3] != string(core.JobStateRecovering) {
 		t.Fatalf("recovery query did not include interrupted recovering rows: %#v", query)
 	}
+	assertGlobalTickOrdering(t, query.sql)
 	if !rows.closed {
 		t.Fatal("expected recovered rows to be closed")
+	}
+}
+
+// TestListOutboxEventsUsesGlobalTickOrdering covers the event half of
+// P0-0B-002. The scripted rows intentionally use ids that do not match tick
+// order so the evidence focuses on the SQL ordering contract instead of a
+// table-local identifier.
+func TestListOutboxEventsUsesGlobalTickOrdering(t *testing.T) {
+	now := time.Date(2026, 5, 20, 10, 4, 0, 0, time.UTC)
+	rows := &fakeJobRows{values: [][]any{
+		{int64(9001), int64(1001), "jobs", "job.created", `{"job":"first"}`, now},
+		{int64(12), int64(1002), "jobs", "job.created", `{"job":"second"}`, now.Add(time.Second)},
+	}}
+	exec := &fakeJobExecutor{queryRows: []pgx.Rows{rows}}
+
+	events, err := ListOutboxEvents(context.Background(), exec, 25)
+	if err != nil {
+		t.Fatalf("ListOutboxEvents returned error: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected two events, got %d", len(events))
+	}
+	if events[0].GlobalTick != 1001 || events[1].GlobalTick != 1002 {
+		t.Fatalf("expected outbox events in global_tick order, got %#v", events)
+	}
+	if events[0].ID < events[1].ID {
+		t.Fatalf("test rows must keep id order opposite global_tick order, got %#v", events)
+	}
+	assertGlobalTickOrdering(t, exec.queries[0].sql)
+	if exec.queries[0].args[0] != 25 {
+		t.Fatalf("expected outbox limit argument to be preserved, got %#v", exec.queries[0])
+	}
+	if !rows.closed {
+		t.Fatal("expected outbox rows to be closed")
 	}
 }
 

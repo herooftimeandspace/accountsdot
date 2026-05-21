@@ -252,6 +252,9 @@ create table if not exists event_outbox (
     created_at timestamptz not null default now()
 );
 
+create index if not exists event_outbox_global_tick_idx
+    on event_outbox (global_tick);
+
 create table if not exists sheet_publish_log (
     id bigserial primary key,
     tab_name text not null,

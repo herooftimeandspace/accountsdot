@@ -30,6 +30,7 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 		"create unique index if not exists external_request_log_idempotency_key_unique",
 		"create index if not exists external_request_log_job_outcome_idx",
 		"create table if not exists event_outbox",
+		"create index if not exists event_outbox_global_tick_idx",
 		"create table if not exists system_controls",
 		"create table if not exists workflow_runs",
 		"job_family text not null default 'unclassified'",
