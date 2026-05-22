@@ -82,6 +82,12 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 		if err := state.AppendEvent(options.StateDir, state.Event{Kind: "daemon.started", Message: "local Symphony daemon started"}); err != nil {
 			return snapshot, err
 		}
+		// Publish the live controller immediately after lock acquisition so
+		// status and TUI clients do not inherit a stopped snapshot from a prior
+		// daemon while the first sync tick is still running or failing.
+		if err := state.WriteSnapshot(options.StateDir, snapshot); err != nil {
+			return snapshot, err
+		}
 	}
 
 	ctx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
