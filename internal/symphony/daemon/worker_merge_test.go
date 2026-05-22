@@ -60,3 +60,25 @@ func TestMergeWorkerObservationsPreservesWorkerStartTime(t *testing.T) {
 		t.Fatalf("expected observed worker update with original start time, got %#v", merged)
 	}
 }
+
+func TestMergeWorkerObservationsDropsStaleUnobservedWorkersWhenNewWorkIsRunnable(t *testing.T) {
+	started := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
+	existing := []state.WorkerState{{
+		ID:         "worker-1",
+		WorkItemID: "issue-292",
+		Kind:       "issue",
+		Status:     "runnable",
+		StartedAt:  started,
+	}}
+	observed := []state.WorkerState{{
+		ID:         "worker-2",
+		WorkItemID: "issue-293",
+		Kind:       "issue",
+		Status:     "runnable",
+		StartedAt:  started.Add(2 * time.Minute),
+	}}
+	merged := mergeWorkerObservations(existing, observed, started.Add(2*time.Minute), time.Minute)
+	if len(merged) != 1 || merged[0].WorkItemID != "issue-293" {
+		t.Fatalf("expected stale unobserved worker to be dropped, got %#v", merged)
+	}
+}

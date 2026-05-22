@@ -20,6 +20,8 @@ import (
 
 const DefaultStateDir = "/private/tmp/accountsdot-symphony"
 
+const daemonLockMaxAge = 30 * time.Minute
+
 // Options configures the local Symphony daemon. The daemon is intentionally
 // single-machine and file-state based so a developer can stop, inspect, and
 // recover it before freeing resources or rebooting.
@@ -212,15 +214,9 @@ func mergeWorkerObservations(existing []state.WorkerState, observed []state.Work
 		staleAfter = 5 * time.Minute
 	}
 	if len(observed) == 0 {
-		fresh := make([]state.WorkerState, 0, len(existing))
-		for _, worker := range existing {
-			if worker.StartedAt.IsZero() || now.Sub(worker.StartedAt) <= staleAfter {
-				fresh = append(fresh, worker)
-			}
-		}
-		return fresh
+		return freshWorkers(existing, now, staleAfter)
 	}
-	merged := append([]state.WorkerState{}, existing...)
+	merged := freshWorkers(existing, now, staleAfter)
 	indexByWorkItem := map[string]int{}
 	for index, worker := range merged {
 		if worker.WorkItemID != "" {
@@ -238,6 +234,16 @@ func mergeWorkerObservations(existing []state.WorkerState, observed []state.Work
 		merged = append(merged, worker)
 	}
 	return merged
+}
+
+func freshWorkers(workers []state.WorkerState, now time.Time, staleAfter time.Duration) []state.WorkerState {
+	fresh := make([]state.WorkerState, 0, len(workers))
+	for _, worker := range workers {
+		if worker.StartedAt.IsZero() || now.Sub(worker.StartedAt) <= staleAfter {
+			fresh = append(fresh, worker)
+		}
+	}
+	return fresh
 }
 
 func applyControl(stateDir string, controller *state.ControllerState) error {
@@ -313,13 +319,20 @@ func staleDaemonLock(path string) (bool, string) {
 	if err != nil {
 		return false, ""
 	}
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		return false, ""
+	}
+	if time.Since(info.ModTime()) > daemonLockMaxAge {
+		return true, "removed stale daemon lock older than max age"
+	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) < 2 {
-		return false, ""
+		return true, "removed malformed daemon lock without pid metadata"
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(lines[1]))
 	if err != nil || pid <= 0 {
-		return false, ""
+		return true, "removed malformed daemon lock with invalid pid metadata"
 	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
