@@ -214,6 +214,10 @@ function parseScalar(value) {
   return value.replace(/^["']|["']$/g, "");
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function discoverSkills(root = skillsRoot) {
   if (!fs.existsSync(root)) return [];
   return fs
@@ -820,7 +824,7 @@ function searchIssueByPostMergeReviewThread(threadId, searchIssues = ghJson) {
     "--search",
     `${fingerprint} repo:${githubRepositorySlug()}`,
     "--json",
-    "number,title,state,url,labels",
+    "number,title,state,url,labels,body",
     "--limit",
     "10",
   ]);
@@ -843,6 +847,29 @@ function updatePostMergeReviewIssue({ number, title, body, labels, updateIssue =
   return updateIssue("gh", args);
 }
 
+function reopenPostMergeReviewIssue({ number, reopenIssue = run }) {
+  return reopenIssue("gh", ["issue", "reopen", String(number)]);
+}
+
+const postMergeManagedBodyStart = "<!-- symphony-post-merge-review:managed:start -->";
+const postMergeManagedBodyEnd = "<!-- symphony-post-merge-review:managed:end -->";
+
+function managedPostMergeReviewIssueBody(body) {
+  return `${postMergeManagedBodyStart}\n${body.trim()}\n${postMergeManagedBodyEnd}`;
+}
+
+function mergePostMergeReviewIssueBody({ body, existingBody = "" }) {
+  const managedBody = managedPostMergeReviewIssueBody(body);
+  if (!existingBody.trim()) return managedBody;
+  const managedPattern = new RegExp(
+    `${escapeRegExp(postMergeManagedBodyStart)}[\\s\\S]*?${escapeRegExp(postMergeManagedBodyEnd)}`,
+  );
+  if (managedPattern.test(existingBody)) {
+    return existingBody.replace(managedPattern, managedBody);
+  }
+  return `${managedBody}\n\n## Preserved Existing Issue Notes\n\n${existingBody.trim()}`;
+}
+
 // materializePostMergeReviewThreads is intentionally idempotent: the hidden
 // thread fingerprint is searched across issues before any GitHub write, so the
 // same actionable merged-PR thread updates one issue across repeated ticks.
@@ -854,18 +881,42 @@ function materializePostMergeReviewThreads({
   searchIssue = searchIssueByPostMergeReviewThread,
   createIssue = createPostMergeReviewIssue,
   updateIssue = updatePostMergeReviewIssue,
+  reopenIssue = reopenPostMergeReviewIssue,
 } = {}) {
-  const labelNames = availableLabels || (dryRun ? [] : listGitHubIssueLabels());
+  let labelNames = availableLabels || (dryRun ? [] : null);
   const results = [];
   for (const pr of mergedReviewThreads || []) {
     for (const thread of pr.unresolved_threads || []) {
       if (!isCodexReviewThread(thread, { codexReviewAuthors: config.codexReviewAuthors })) continue;
       const summary = summarizeReviewThread(thread);
+      if (labelNames === null) labelNames = listGitHubIssueLabels();
       const labels = phaseLabelsForPostMergeIssue(pr, labelNames);
       const phaseLabel = labels.find((label) => /^phase[-_ ]?\d+/.test(label)) || "";
       const title = postMergeReviewIssueTitle({ pr, thread });
       const body = postMergeReviewIssueBody({ pr, thread, phaseLabel });
-      const existing = searchIssue(summary.thread_id);
+      let existing = null;
+      try {
+        existing = searchIssue(summary.thread_id);
+      } catch (error) {
+        results.push({
+          source_pr: pr.number,
+          source_pr_url: pr.url || "",
+          merge_commit: pr.mergeCommitOid || "",
+          thread_id: summary.thread_id,
+          thread_url: summary.url || "",
+          path: summary.path,
+          line: summary.line,
+          severity: "bug",
+          labels,
+          issue_number: null,
+          issue_url: "",
+          action: "search-issue",
+          status: "blocked",
+          reason: error.stderr || error.message || String(error),
+        });
+        continue;
+      }
+      const existingClosed = String(existing?.state || "").toLowerCase() === "closed";
       const result = {
         source_pr: pr.number,
         source_pr_url: pr.url || "",
@@ -878,18 +929,34 @@ function materializePostMergeReviewThreads({
         labels,
         issue_number: existing?.number || null,
         issue_url: existing?.url || "",
-        action: existing ? (dryRun ? "would-update-issue" : "update-issue") : dryRun ? "would-create-issue" : "create-issue",
+        action: existing
+          ? dryRun
+            ? existingClosed
+              ? "would-reopen-update-issue"
+              : "would-update-issue"
+            : existingClosed
+              ? "reopen-update-issue"
+              : "update-issue"
+          : dryRun
+            ? "would-create-issue"
+            : "create-issue",
         status: dryRun ? "dry-run" : "pending",
         reason: dryRun ? "dry-run performs no GitHub issue mutations" : "",
       };
       results.push(result);
       if (dryRun) continue;
       try {
+        let reopenOutput = "";
+        if (existingClosed) {
+          reopenOutput = reopenIssue({ number: existing.number });
+        }
+        const issueBody = existing ? mergePostMergeReviewIssueBody({ body, existingBody: existing.body }) : managedPostMergeReviewIssueBody(body);
         const mutationOutput = existing
-          ? updateIssue({ number: existing.number, title, body, labels })
-          : createIssue({ title, body, labels });
-        result.status = existing ? "updated" : "created";
+          ? updateIssue({ number: existing.number, title, body: issueBody, labels })
+          : createIssue({ title, body: issueBody, labels });
+        result.status = existingClosed ? "reopened-updated" : existing ? "updated" : "created";
         result.reason = mutationOutput || result.status;
+        if (reopenOutput) result.reason = `${reopenOutput}\n${result.reason}`.trim();
       } catch (error) {
         result.status = "blocked";
         result.reason = error.stderr || error.message || String(error);
@@ -1276,9 +1343,9 @@ function readPullRequestConfig(workflowConfig, dispatchConfig) {
         ? DEFAULT_PULL_REQUESTS.materializePostMergeCodexReviewThreads
         : Boolean(configured.materialize_post_merge_codex_review_threads),
     postMergeReviewWindowHours: Number(
-      configured.post_merge_review_window_hours || DEFAULT_PULL_REQUESTS.postMergeReviewWindowHours,
+      configured.post_merge_review_window_hours ?? DEFAULT_PULL_REQUESTS.postMergeReviewWindowHours,
     ),
-    postMergeReviewPrLimit: Number(configured.post_merge_review_pr_limit || DEFAULT_PULL_REQUESTS.postMergeReviewPrLimit),
+    postMergeReviewPrLimit: Number(configured.post_merge_review_pr_limit ?? DEFAULT_PULL_REQUESTS.postMergeReviewPrLimit),
     blockedLabels: (workflowConfig.tracker?.blocked_labels || []).map((label) => String(label).toLowerCase()),
   };
 }
@@ -3492,12 +3559,16 @@ function syncStatusFromResults({
 }) {
   if (prMergeResults.some((result) => result.status === "merged")) return "merged_prs";
   if (postMergeIssueMaterializations.some((result) => result.status === "blocked")) return "post_merge_review_issue_blocked";
-  if (postMergeIssueMaterializations.some((result) => result.status === "created" || result.status === "updated")) {
-    return "post_merge_review_issues_materialized";
-  }
   if (reviewRemediations.some((result) => result.status === "failed")) return "review_remediation_failed";
   if (reviewRemediations.some((result) => result.status === "blocked")) return "review_remediation_blocked";
   if (reviewRemediations.some((result) => result.status === "succeeded")) return "review_remediation_complete";
+  if (
+    postMergeIssueMaterializations.some((result) =>
+      ["created", "updated", "reopened-updated"].includes(result.status),
+    )
+  ) {
+    return "post_merge_review_issues_materialized";
+  }
   if (prReviewThreadRemediations.some((result) => result.status === "resolved")) return "review_threads_resolved";
   if (dispatches.some((dispatch) => dispatch.status === "blocked")) return "blocked";
   if (dispatches.some((dispatch) => dispatch.status === "failed")) return "agent_runner_failed";
@@ -3516,7 +3587,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const prConfig = readPullRequestConfig(workflow.config, dispatchConfig);
   const skills = discoverSkills();
   const discoveredIssues = listOpenIssues(dispatchConfig.activeLabels);
-  const issues = hydrateIssuesForEntries(
+  let issues = hydrateIssuesForEntries(
     discoveredIssues,
     issueCommentHydrationCandidates(discoveredIssues, dispatchConfig),
   );
@@ -3539,6 +3610,18 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     prConfig.inspectBeforeDispatch && prConfig.materializePostMergeCodexReviewThreads
       ? materializePostMergeReviewThreads({ mergedReviewThreads, config: prConfig, dryRun })
       : [];
+  if (
+    !dryRun &&
+    postMergeIssueMaterializations.some((result) =>
+      ["created", "updated", "reopened-updated"].includes(result.status),
+    )
+  ) {
+    const refreshedIssues = listOpenIssues(dispatchConfig.activeLabels);
+    issues = hydrateIssuesForEntries(
+      refreshedIssues,
+      issueCommentHydrationCandidates(refreshedIssues, dispatchConfig),
+    );
+  }
   let prReviewThreads = prConfig.inspectBeforeDispatch ? fetchReviewThreads(prConfig.targetBranch) : [];
   const prReviewThreadRemediations = prConfig.inspectBeforeDispatch
     ? reconcileOutdatedPullRequestReviewThreads({ reviewThreads: prReviewThreads, config: prConfig, dryRun })
@@ -3948,19 +4031,54 @@ async function selfTest() {
     assert.match(createdPostMergeIssues[0].body, /Merge commit: abc123/);
     assert.deepEqual(createdPostMergeIssues[0].labels, ["agent-ready", "bug", "phase-0"]);
     const updatedPostMergeIssues = [];
+    const reopenedPostMergeIssues = [];
     const updateMaterializations = materializePostMergeReviewThreads({
       mergedReviewThreads: [mergedReviewPr],
       config: DEFAULT_PULL_REQUESTS,
       dryRun: false,
       availableLabels: ["agent-ready", "bug", "phase-0"],
-      searchIssue: () => ({ number: 901, url: "https://example.invalid/issues/901" }),
+      searchIssue: () => ({
+        number: 901,
+        url: "https://example.invalid/issues/901",
+        state: "closed",
+        body: "Operator triage note",
+      }),
       updateIssue: (issue) => {
         updatedPostMergeIssues.push(issue);
         return "updated";
       },
+      reopenIssue: (issue) => {
+        reopenedPostMergeIssues.push(issue);
+        return "reopened";
+      },
     });
-    assert.equal(updateMaterializations[0].status, "updated");
+    assert.equal(updateMaterializations[0].status, "reopened-updated");
     assert.equal(updatedPostMergeIssues[0].number, 901);
+    assert.equal(reopenedPostMergeIssues[0].number, 901);
+    assert.match(updatedPostMergeIssues[0].body, /Preserved Existing Issue Notes/);
+    assert.match(updatedPostMergeIssues[0].body, /Operator triage note/);
+    const searchFailureMaterializations = materializePostMergeReviewThreads({
+      mergedReviewThreads: [mergedReviewPr],
+      config: DEFAULT_PULL_REQUESTS,
+      dryRun: false,
+      availableLabels: ["agent-ready", "bug", "phase-0"],
+      searchIssue: () => {
+        throw new Error("search failed");
+      },
+      createIssue: () => {
+        throw new Error("should not create after failed search");
+      },
+    });
+    assert.equal(searchFailureMaterializations[0].status, "blocked");
+    assert.match(searchFailureMaterializations[0].reason, /search failed/);
+    const noThreadLabelLookup = materializePostMergeReviewThreads({
+      mergedReviewThreads: [{ ...mergedReviewPr, unresolved_threads: [] }],
+      config: DEFAULT_PULL_REQUESTS,
+      dryRun: false,
+      availableLabels: null,
+      searchIssue: () => null,
+    });
+    assert.deepEqual(noThreadLabelLookup, []);
     const remediatedThreadPr = {
       number: 245,
       unresolved_codex_review_thread_summaries: [
@@ -4000,6 +4118,7 @@ async function selfTest() {
       syncStatusFromResults({
         prMergeResults: [],
         prReviewThreadRemediations: [{ status: "resolved" }],
+        postMergeIssueMaterializations: [{ status: "created" }],
         reviewRemediations: [{ status: "failed" }],
         prMergeQueue: [],
         dispatches: [],
@@ -4145,10 +4264,12 @@ async function selfTest() {
           auto_merge_clean_prs: true,
           codex_review_bot: "chatgpt-codex-connector[bot]",
           codex_review_success_reactions: ["THUMBS_UP"],
+          post_merge_review_window_hours: 0,
         },
       },
       dispatchConfig,
     );
+    assert.equal(prConfig.postMergeReviewWindowHours, 0);
     const readyPr = {
       number: 286,
       title: "Fixes #266",
