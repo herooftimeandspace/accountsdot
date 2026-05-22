@@ -9,9 +9,14 @@ fi
 subcommand="$1"
 shift
 repo_root="$(pwd)"
+repo_go_cache="$repo_root/.gocache"
+repo_go_mod_cache="$repo_root/.gomodcache"
 
-export GOCACHE="${GOCACHE:-"$repo_root/.gocache"}"
-export GOMODCACHE="${GOMODCACHE:-"$repo_root/.gomodcache"}"
+# Symphony commands must not inherit host-global Go caches. The daemon tears down
+# and repairs workspaces independently, so every Go-backed command uses caches
+# scoped to this checked-out repository regardless of the caller's environment.
+export GOCACHE="$repo_go_cache"
+export GOMODCACHE="$repo_go_mod_cache"
 export GOFLAGS="${GOFLAGS:+$GOFLAGS }-modcacherw"
 
 cleanup_module_cache_permissions() {
