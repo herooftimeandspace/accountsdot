@@ -130,3 +130,42 @@ func restoreDaemonPIDProbe(t *testing.T, probe func(int) error) {
 		daemonPIDProbe = original
 	})
 }
+
+func TestDaemonLockHeartbeatKeepsLiveLockFreshDuringLongTick(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "daemon.lock")
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatalf("create lock: %v", err)
+	}
+	defer file.Close()
+	if err := os.WriteFile(path, []byte("active-daemon\n"+strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		t.Fatalf("write lock: %v", err)
+	}
+
+	stopHeartbeat := startDaemonLockHeartbeat(file, time.Millisecond)
+	defer stopHeartbeat()
+	old := time.Now().Add(-daemonLockMaxAge - time.Minute)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("age lock: %v", err)
+	}
+
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat lock: %v", err)
+		}
+		if time.Since(info.ModTime()) < daemonLockMaxAge {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("heartbeat did not refresh old lock before deadline; modtime=%s", info.ModTime())
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	stale, reason := staleDaemonLock(path)
+	if stale || reason != "" {
+		t.Fatalf("expected heartbeat-refreshed live lock to remain active, got stale=%v reason=%q", stale, reason)
+	}
+}

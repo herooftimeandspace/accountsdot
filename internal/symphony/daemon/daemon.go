@@ -21,6 +21,7 @@ import (
 var DefaultStateDir = filepath.Join(os.TempDir(), "accountsdot-symphony")
 
 const daemonLockMaxAge = 30 * time.Minute
+const daemonLockHeartbeatInterval = daemonLockMaxAge / 3
 
 var daemonPIDProbe = signalDaemonPID
 
@@ -79,6 +80,8 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 		if err := touchDaemonLock(lock); err != nil {
 			return snapshot, err
 		}
+		stopLockHeartbeat := startDaemonLockHeartbeat(lock, daemonLockHeartbeatInterval)
+		defer stopLockHeartbeat()
 		if err := state.AppendEvent(options.StateDir, state.Event{Kind: "daemon.started", Message: "local Symphony daemon started"}); err != nil {
 			return snapshot, err
 		}
@@ -373,6 +376,36 @@ func signalDaemonPID(pid int) error {
 		return err
 	}
 	return process.Signal(syscall.Signal(0))
+}
+
+// startDaemonLockHeartbeat refreshes the singleton lock while Run is inside a
+// long sync tick. staleDaemonLock may still recover a live PID when the lock has
+// not been refreshed for daemonLockMaxAge, but an actively running daemon should
+// keep this heartbeat moving so a second daemon never deletes the active lock
+// solely because one tick exceeded the stale-lock threshold.
+func startDaemonLockHeartbeat(file *os.File, interval time.Duration) func() {
+	if file == nil {
+		return func() {}
+	}
+	if interval <= 0 {
+		interval = daemonLockHeartbeatInterval
+	}
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = touchDaemonLock(file)
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() {
+		close(done)
+	}
 }
 
 func touchDaemonLock(file *os.File) error {
