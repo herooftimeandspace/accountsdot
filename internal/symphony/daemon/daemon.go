@@ -22,6 +22,8 @@ var DefaultStateDir = filepath.Join(os.TempDir(), "accountsdot-symphony")
 
 const daemonLockMaxAge = 30 * time.Minute
 
+var daemonPIDProbe = signalDaemonPID
+
 // Options configures the local Symphony daemon. The daemon is intentionally
 // single-machine and file-state based so a developer can stop, inspect, and
 // recover it before freeing resources or rebooting.
@@ -323,6 +325,11 @@ func acquireLock(stateDir string, daemonID string) (*os.File, error) {
 	return file, nil
 }
 
+// staleDaemonLock decides whether acquireLock may remove an existing daemon
+// lock before starting a replacement daemon. It uses the lock mtime as the
+// daemon heartbeat: fresh locks protect the singleton guarantee, while old
+// locks can be recovered even when the recorded PID now belongs to another
+// user and rejects signal probes with EPERM.
 func staleDaemonLock(path string) (bool, string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -340,20 +347,32 @@ func staleDaemonLock(path string) (bool, string) {
 	if err != nil || pid <= 0 {
 		return true, "removed malformed daemon lock with invalid pid metadata"
 	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return true, fmt.Sprintf("removed stale daemon lock for missing pid %d", pid)
-	}
-	if err := process.Signal(syscall.Signal(0)); err != nil {
+	lockAge := time.Since(info.ModTime())
+	if err := daemonPIDProbe(pid); err != nil {
 		if errors.Is(err, syscall.EPERM) {
+			if lockAge > daemonLockMaxAge {
+				return true, fmt.Sprintf("removed stale daemon lock for unrefreshable pid %d", pid)
+			}
 			return false, ""
 		}
 		return true, fmt.Sprintf("removed stale daemon lock for inactive pid %d", pid)
 	}
-	if time.Since(info.ModTime()) > daemonLockMaxAge {
+	if lockAge > daemonLockMaxAge {
 		return true, fmt.Sprintf("removed stale daemon lock for unrefreshed live pid %d", pid)
 	}
 	return false, ""
+}
+
+// signalDaemonPID is the production PID liveness probe used by staleDaemonLock.
+// It sends signal 0, which checks whether the process exists without mutating
+// it; syscall.EPERM means a process exists but the current user cannot signal
+// it, so staleDaemonLock must fall back to lock heartbeat age before removal.
+func signalDaemonPID(pid int) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return process.Signal(syscall.Signal(0))
 }
 
 func touchDaemonLock(file *os.File) error {
