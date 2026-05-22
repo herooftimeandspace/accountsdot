@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 )
 
@@ -13,6 +16,7 @@ const (
 	StatusFilename     = "status.json"
 	StatusMarkdown     = "status.md"
 	RunsFilename       = "runs.jsonl"
+	liveLockMaxAge     = 30 * time.Minute
 )
 
 // ControllerState is the daemon's durable local control-plane snapshot. It is
@@ -88,19 +92,106 @@ func WriteSnapshot(dir string, snapshot Snapshot) error {
 	return writeFileAtomic(filepath.Join(dir, StatusMarkdown), []byte(renderMarkdown(snapshot)), 0o644)
 }
 
-// ReadSnapshot loads the daemon status file. Missing status is reported as a
-// normal error so CLI callers can distinguish inactive Symphony from malformed
-// state.
+// ReadSnapshot loads the daemon status file and reconciles it with the daemon
+// lock when a live process is holding the singleton. Status and TUI callers use
+// this read path while the daemon may be between startup and its first full
+// tick, so a newer live lock must outrank an older stopped controller snapshot.
 func ReadSnapshot(dir string) (Snapshot, error) {
 	var snapshot Snapshot
 	data, err := os.ReadFile(filepath.Join(dir, StatusFilename))
 	if err != nil {
+		if os.IsNotExist(err) {
+			if live, ok := liveSnapshotFromLock(dir); ok {
+				return live, nil
+			}
+		}
 		return snapshot, err
 	}
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		return snapshot, err
 	}
-	return snapshot, nil
+	return reconcileSnapshotWithLock(dir, snapshot), nil
+}
+
+func reconcileSnapshotWithLock(dir string, snapshot Snapshot) Snapshot {
+	lock, ok := readLiveLock(dir)
+	if !ok {
+		return snapshot
+	}
+	if snapshot.Controller.DaemonID == lock.daemonID && snapshot.Controller.PID == lock.pid {
+		return snapshot
+	}
+	if !snapshot.Controller.UpdatedAt.IsZero() && !lock.updatedAt.After(snapshot.Controller.UpdatedAt) {
+		return snapshot
+	}
+	snapshot.Controller.DaemonID = lock.daemonID
+	snapshot.Controller.PID = lock.pid
+	snapshot.Controller.StateDir = dir
+	snapshot.Controller.Lifecycle = "running"
+	snapshot.Controller.ShutdownRequested = false
+	snapshot.Controller.LastStatus = "status_snapshot_stale"
+	snapshot.Controller.Message = "live daemon lock is newer than status files; waiting for next status write"
+	snapshot.Controller.UpdatedAt = lock.updatedAt
+	return snapshot
+}
+
+func liveSnapshotFromLock(dir string) (Snapshot, bool) {
+	lock, ok := readLiveLock(dir)
+	if !ok {
+		return Snapshot{}, false
+	}
+	return Snapshot{Controller: ControllerState{
+		DaemonID:          lock.daemonID,
+		PID:               lock.pid,
+		StateDir:          dir,
+		Lifecycle:         "running",
+		LastStatus:        "status_snapshot_pending",
+		Message:           "live daemon lock exists but status files have not been written yet",
+		UpdatedAt:         lock.updatedAt,
+		ShutdownRequested: false,
+	}}, true
+}
+
+type liveLock struct {
+	daemonID  string
+	pid       int
+	updatedAt time.Time
+}
+
+func readLiveLock(dir string) (liveLock, bool) {
+	path := filepath.Join(dir, "daemon.lock")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return liveLock{}, false
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return liveLock{}, false
+	}
+	updatedAt := info.ModTime().UTC()
+	if time.Since(updatedAt) > liveLockMaxAge {
+		return liveLock{}, false
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) < 2 {
+		return liveLock{}, false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(lines[1]))
+	if err != nil || pid <= 0 {
+		return liveLock{}, false
+	}
+	if err := probeLivePID(pid); err != nil && !os.IsPermission(err) {
+		return liveLock{}, false
+	}
+	return liveLock{daemonID: strings.TrimSpace(lines[0]), pid: pid, updatedAt: updatedAt}, true
+}
+
+func probeLivePID(pid int) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return process.Signal(syscall.Signal(0))
 }
 
 // AppendEvent records a lifecycle or worker event without rewriting previous
