@@ -376,7 +376,7 @@ function listMergedPullRequestsForBases(baseRefs) {
   return prs;
 }
 
-function listOpenIssues() {
+function listOpenIssuesForArgs(extraArgs = []) {
   return ghJson([
     "issue",
     "list",
@@ -386,7 +386,26 @@ function listOpenIssues() {
     "number,title,body,labels,url,updatedAt,assignees",
     "--limit",
     "200",
+    ...extraArgs,
   ]);
+}
+
+function mergeIssuesByNumber(issueLists) {
+  const merged = new Map();
+  for (const issues of issueLists) {
+    for (const issue of issues || []) {
+      merged.set(issue.number, issue);
+    }
+  }
+  return [...merged.values()];
+}
+
+function listOpenIssues(activeLabels = []) {
+  const issueLists = [listOpenIssuesForArgs()];
+  for (const label of activeLabels) {
+    issueLists.push(listOpenIssuesForArgs(["--label", label]));
+  }
+  return mergeIssuesByNumber(issueLists);
 }
 
 function fetchReviewThreads(baseRef) {
@@ -2893,9 +2912,10 @@ function writeDispatchState(dispatchConfig, status) {
 
 async function report({ json = false } = {}) {
   const workflow = readWorkflow();
+  const dispatchConfig = readDispatchConfig(workflow.config);
   const monitor = readMonitorConfig(workflow.config);
   const prs = listOpenPullRequests(monitor.targetBranch);
-  const issues = listOpenIssues();
+  const issues = listOpenIssues(dispatchConfig.activeLabels);
   const skills = discoverSkills();
   const queued = queuePullRequests(prs).map((pr, index) => ({
     priority: index + 1,
@@ -2961,7 +2981,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const dispatchConfig = readDispatchConfig(workflow.config);
   const prConfig = readPullRequestConfig(workflow.config, dispatchConfig);
   const skills = discoverSkills();
-  const issues = listOpenIssues();
+  const issues = listOpenIssues(dispatchConfig.activeLabels);
   const targetBranches = [
     dispatchConfig.defaultTargetBranch,
     prConfig.targetBranch,
@@ -3843,6 +3863,17 @@ async function selfTest() {
     assert.equal(
       rankedDispatchQueue([blockedIssue, phaseIssue], [], [], { ...dispatchConfig, workspaceRoot: path.join(tempRoot, "rank") })[0].number,
       900264,
+    );
+    assert.deepEqual(
+      mergeIssuesByNumber([
+        [{ number: 1, title: "unready newer issue" }],
+        [{ number: 900264, title: "older agent-ready issue" }],
+        [{ number: 1, title: "unready newer issue with full payload", body: "details" }],
+      ]).map((issue) => [issue.number, issue.title, issue.body || ""]),
+      [
+        [1, "unready newer issue with full payload", "details"],
+        [900264, "older agent-ready issue", ""],
+      ],
     );
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
     const dirtyPrompt = renderIssuePrompt({

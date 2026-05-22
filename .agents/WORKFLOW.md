@@ -126,6 +126,7 @@ Before changing files, read the repository sources in this order:
 6. `docs/operations/environment-data-playbook.md` when environment data, masking, staging, production data, or promotion safety are affected
 7. `docs/agent-orchestration/SPEC.md`
 8. the assigned GitHub issue, its comments, linked PRs, and acceptance criteria
+9. all comments on currently open GitHub issues that are candidates for starting, continuing, or remediation work
 
 Use the most specific checked-in source that applies. If code and docs disagree, verify current behavior and update the relevant durable docs when the task requires alignment.
 
@@ -135,7 +136,7 @@ Use the most specific checked-in source that applies. If code and docs disagree,
 2. Fetch the latest integration branch.
 3. Work from `dev` unless the issue or repo docs explicitly require another integration branch.
 4. Use branch `codex/issue-<number>-<short-slug>`.
-5. Inspect open issues and linked context before implementation.
+5. Inspect open issues, every comment on those issues, and linked context before implementation.
 6. Identify likely file ownership and conflict risk.
 7. Do not touch unrelated generated output or user-authored changes.
 8. Load applicable repo-local skills from `.agents/skills/*/SKILL.md` before rendering the issue prompt.
@@ -273,6 +274,8 @@ The dispatcher is conservative by design:
 - A non-dry-run tick creates or reuses one workspace per selected issue under `dispatch.workspace_root`, creates a branch using `branching.branch_template`, and writes `prompt.md` plus `state.json` for the assigned run.
 - A failed issue workspace may be retried automatically until `dispatch.max_attempts` is reached, provided the worktree is clean. This prevents a transient agent crash from making the issue permanently inactive.
 - The dispatcher skips issues with blocked labels, missing acceptance criteria, missing `agent-ready`, or an already-open PR that references the issue.
+- Skipped issues must not consume worker slots. The dispatcher must keep scanning after non-`agent-ready` candidates and must fetch explicitly labeled `agent-ready` issues in addition to the broad open-issue page so older ready work cannot be hidden behind newer unready issues.
+- Before starting, continuing, or remediating issue work, the dispatcher must gather full open-issue context by reading every comment on each open issue it is evaluating. Issue comments often contain manual decisions, prior remediation attempts, branch or PR references, verification results, and changed acceptance criteria; a worker prompt is incomplete if it includes only the issue body and title. If comment retrieval fails for an otherwise eligible issue, record a concrete blocker instead of launching work with partial context.
 - A stale issue workspace must not permanently consume an issue slot. If the workspace is already checked out on the issue branch but has no readable `state.json`, or the last state is `succeeded` but no PR exists yet, the dispatcher should re-enter that same workspace instead of skipping the issue forever. If the same-issue worktree has local edits, pass the dirty file list to the worker prompt as previous automation work for that issue so the worker can inspect, finish, commit, push, and open or update the PR.
 - When a human manually merges a PR that references an issue, the next dispatcher tick treats that PR as resolved and merged. It must not keep the issue blocked by the old prepared workspace; instead it records `status: merged` in the matching workspace `state.json` when the file exists, removes the clean prepared `repo` worktree checkout, and reports the issue queue entry as `merged`. If the prepared worktree is dirty, it must report the dirty files instead of deleting anything. If `git worktree remove` fails only because generated cache directories such as `.gomodcache`, `.gocache`, or `node_modules/.cache` contain permission-protected files, the dispatcher should make those generated cache trees user-writable and retry teardown once before reporting a blocker.
 - The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.
