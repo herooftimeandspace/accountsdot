@@ -982,8 +982,40 @@ function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dry
       if (fs.existsSync(repoPath)) {
         const status = cleanStatus(repoPath);
         if (!status.clean) {
-          results.push({ ...result, status: "blocked", teardown_status: "blocked", reason: status.blocker, dirty_files: status.dirty_files });
-          continue;
+          if (status.blocker !== "worktree has local edits") {
+            results.push({ ...result, status: "blocked", teardown_status: "blocked", reason: status.blocker, dirty_files: status.dirty_files });
+            continue;
+          }
+          if (dryRun) {
+            results.push({
+              ...result,
+              dirty_files: status.dirty_files,
+              teardown_status: "would-preserve-dirty-worktree-and-remove",
+              workspace_preparation: {
+                reason: "dry-run would preserve dirty merged workspace edits before teardown",
+                dirty_files: status.dirty_files,
+              },
+            });
+            continue;
+          }
+          const preserved = preserveDirtyWorkspaceBeforeRefresh({
+            repoPath,
+            logsPath: path.join(workspacePath, "logs"),
+            prNumber: mergedPr.number,
+          });
+          if (!preserved.ok) {
+            results.push({
+              ...result,
+              status: "blocked",
+              teardown_status: "blocked",
+              reason: preserved.reason,
+              dirty_files: status.dirty_files,
+              workspace_preparation: preserved,
+            });
+            continue;
+          }
+          result.dirty_files = status.dirty_files;
+          result.workspace_preparation = preserved;
         }
         if (!dryRun) {
           const removed = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
@@ -997,7 +1029,7 @@ function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dry
             continue;
           }
         }
-        result.teardown_status = dryRun ? "would-remove-clean-worktree" : "removed-clean-worktree";
+        result.teardown_status = dryRun ? "would-remove-clean-worktree" : "removed-worktree";
       }
       if (current.status === "merged" && current.merged_pr === mergedPr.number) {
         result.status = "already_merged";
@@ -1472,6 +1504,31 @@ function workspaceRepoMatchesBranch(workspacePath, branchName) {
   return branch.ok && branch.branch === branchName;
 }
 
+function preparedPrWorkspaceState(repoPath, branchName) {
+  const branch = currentBranch(repoPath);
+  if (!branch.ok) return { ok: false, branch: "", detached: false, reason: branch.reason };
+  if (branch.branch === branchName) return { ok: true, branch: branch.branch, detached: false, reason: "" };
+  if (branch.branch) {
+    return {
+      ok: false,
+      branch: branch.branch,
+      detached: false,
+      reason: `prepared PR workspace is on ${branch.branch}, expected ${branchName}`,
+    };
+  }
+  const head = revParse(repoPath, "HEAD");
+  const remote = revParse(repoPath, `origin/${branchName}`);
+  if (head.ok && remote.ok && head.oid === remote.oid) {
+    return { ok: true, branch: "", detached: true, reason: `detached at origin/${branchName}` };
+  }
+  return {
+    ok: false,
+    branch: "",
+    detached: true,
+    reason: `prepared PR workspace is detached and not at origin/${branchName}`,
+  };
+}
+
 // Review remediation belongs to the PR branch that already exists. Prefer the
 // prepared branch workspace, then recorded state, then issue or PR fallbacks.
 function workspaceForReviewRemediation({ pr, issue, dispatchConfig }) {
@@ -1515,9 +1572,10 @@ function workspaceForReviewRemediation({ pr, issue, dispatchConfig }) {
   return path.join(dispatchConfig.workspaceRoot, `pr-${pr.number}`);
 }
 
-function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills, dirtyStatus }) {
+function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, skills, dirtyStatus, workspaceState }) {
   const targetBranch = pr.target_branch || "phase-0-platform-foundation";
   const branchName = pr.head_ref;
+  const detachedWorkspace = Boolean(workspaceState?.detached);
   const blockerList =
     (pr.blockers || []).length === 0
       ? "- No merge/draft/check blockers were returned; inspect the PR before changing code."
@@ -1562,6 +1620,35 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
           "",
         ].join("\n")
       : "";
+  const workspacePrepSection =
+    dirtyStatus?.workspace_preparation
+      ? [
+          "## Workspace Preparation Notes",
+          "",
+          dirtyStatus.workspace_preparation.reason ? `- ${dirtyStatus.workspace_preparation.reason}` : "",
+          dirtyStatus.workspace_preparation.stash_ref
+            ? `- Stale pre-refresh edits were preserved in ${dirtyStatus.workspace_preparation.stash_ref}. Inspect or apply that stash only if the refreshed PR head is missing required in-scope work.`
+            : "",
+          dirtyStatus.workspace_preparation.stash_oid
+            ? `- Stable stash commit: ${dirtyStatus.workspace_preparation.stash_oid}`
+            : "",
+          dirtyStatus.workspace_preparation.preserved_head_ref
+            ? `- Local-only pre-refresh commits were preserved at ${dirtyStatus.workspace_preparation.preserved_head_ref}. Inspect that ref only if the refreshed PR head is missing required in-scope work.`
+            : "",
+          dirtyStatus.workspace_preparation.status_manifest_path
+            ? `- Pre-refresh dirty file manifest: ${dirtyStatus.workspace_preparation.status_manifest_path}`
+            : "",
+          dirtyStatus.workspace_preparation.target_merge_status
+            ? `- Target-branch merge preflight: ${dirtyStatus.workspace_preparation.target_merge_status}`
+            : "",
+          dirtyStatus.workspace_preparation.target_merge_output
+            ? `- Target-branch merge output: ${dirtyStatus.workspace_preparation.target_merge_output}`
+            : "",
+          "",
+        ]
+          .filter((line) => line !== "")
+          .join("\n")
+      : "";
   return [
     "# Symphony PR Review Remediation Prompt",
     "",
@@ -1570,6 +1657,7 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
     `Linked issue: ${issue ? `#${issue.number} ${issue.title}` : "(not resolved)"}`,
     `Target branch: ${targetBranch}`,
     `Working branch: ${branchName}`,
+    detachedWorkspace ? `Checkout mode: detached at origin/${branchName}` : "Checkout mode: branch checkout",
     "",
     "## PR Blockers To Resolve",
     "",
@@ -1580,6 +1668,7 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
     threadList,
     "",
     dirtyWorkspaceSection,
+    workspacePrepSection,
     "## Linked Issue Body",
     "",
     issue?.body || "(No linked issue body was resolved. Use the PR and review thread context.)",
@@ -1595,12 +1684,14 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
     "## Remediation Contract",
     "",
     "- Work only in the prepared PR worktree and branch.",
+    detachedWorkspace
+      ? `- This workspace is detached because the PR branch is already checked out elsewhere. Commit fixes here and push with \`git push --force-with-lease origin HEAD:${branchName}\` after verification.`
+      : "- Push the prepared PR branch after verification; use `--force-with-lease` only if a rebase or history rewrite is needed.",
     "- If the PR is merge-conflicted, update the PR branch against the target branch, resolve conflicts explicitly, and rerun relevant verification.",
     "- If the PR is draft, verify whether it is complete, run required checks, and mark it ready for review only when it satisfies the issue and PR contract.",
     "- Inspect each active Codex Review thread and decide whether it needs a code, docs, test, or generated-artifact fix.",
     "- Implement only in-scope fixes for this PR and preserve unrelated local or user-authored changes.",
     "- Run the relevant verification for the files touched.",
-    "- Commit and push the PR branch with `--force-with-lease` only if a rebase or history rewrite is needed.",
     "- Reply to or resolve Codex Review threads only after the branch update makes the comment fixed or obsolete.",
     "- Do not perform production writes, provider writeback, secret disclosure, destructive git, or manual merges.",
     "- Finish with changed files, verification evidence, safety notes, and thread actions taken.",
@@ -1631,25 +1722,35 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     reason: "",
   };
 
+  if (!dryRun) {
+    run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
+  }
+
   if (!fs.existsSync(repoPath)) {
     if (!isSafePrBranch(pr.head_ref)) {
       return { ...result, status: "blocked", reason: `unsafe PR branch for automatic remediation: ${pr.head_ref}` };
-    }
-    if (!dryRun) {
-      run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
     }
     if (!refExists(`origin/${pr.head_ref}`)) {
       return { ...result, status: "blocked", reason: `remote PR branch origin/${pr.head_ref} does not exist` };
     }
     const existingWorktree = worktreeForBranch(pr.head_ref);
     if (existingWorktree) {
-      return { ...result, status: "blocked", reason: `PR branch is already checked out at ${existingWorktree.path}` };
+      result.checkout_mode = "detached";
+      result.reason = `PR branch is already checked out at ${existingWorktree.path}; remediation will use a detached workspace`;
     }
     if (dryRun) {
-      return { ...result, reason: `dry-run would create missing PR remediation workspace at ${repoPath}` };
+      return {
+        ...result,
+        checkout_mode: existingWorktree ? "detached" : "branch",
+        reason: existingWorktree
+          ? `dry-run would create detached PR remediation workspace at ${repoPath} because ${pr.head_ref} is already checked out at ${existingWorktree.path}`
+          : `dry-run would create missing PR remediation workspace at ${repoPath}`,
+      };
     }
     fs.mkdirSync(workspacePath, { recursive: true });
-    if (refExists(pr.head_ref)) {
+    if (existingWorktree) {
+      run("git", ["worktree", "add", "--detach", repoPath, `origin/${pr.head_ref}`], { cwd: repoRoot });
+    } else if (refExists(pr.head_ref)) {
       run("git", ["branch", "-f", pr.head_ref, `origin/${pr.head_ref}`], { cwd: repoRoot });
       run("git", ["worktree", "add", repoPath, pr.head_ref], { cwd: repoRoot });
     } else {
@@ -1660,21 +1761,33 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
   if (!status.clean && status.blocker !== "worktree has local edits") {
     return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
   }
-  const branch = currentBranch(repoPath);
-  if (!branch.ok) {
-    return { ...result, status: "blocked", reason: branch.reason };
+  const workspaceState = preparedPrWorkspaceState(repoPath, pr.head_ref);
+  if (!workspaceState.ok) {
+    return { ...result, status: "blocked", reason: workspaceState.reason };
   }
-  if (branch.branch !== pr.head_ref) {
-    return { ...result, status: "blocked", reason: `prepared PR workspace is on ${branch.branch || "(detached)"}, expected ${pr.head_ref}` };
+  result.checkout_mode = workspaceState.detached ? "detached" : "branch";
+  const preparation = prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranch, dryRun });
+  if (!preparation.ok) {
+    return {
+      ...result,
+      status: preparation.status || "blocked",
+      reason: preparation.reason,
+      dirty_files: preparation.dirty_files || status.dirty_files,
+      workspace_preparation: preparation.preparation || null,
+    };
   }
+  const preparedStatus = cleanStatus(repoPath);
 
   if (dryRun) {
     return {
       ...result,
-      dirty_files: status.dirty_files,
-      reason: status.clean
-        ? "dry-run verified remediation prerequisites and performs no prompt, state, runner, or PR mutations"
-        : "dry-run would launch remediation runner with existing local workspace edits preserved",
+      dirty_files: preparedStatus.dirty_files,
+      workspace_preparation: preparation.preparation,
+      reason:
+        preparation.preparation?.reason ||
+        (preparedStatus.clean
+          ? "dry-run verified remediation prerequisites and performs no prompt, state, runner, or PR mutations"
+          : "dry-run would launch remediation runner with existing local workspace edits preserved"),
     };
   }
 
@@ -1685,7 +1798,10 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     dispatchConfig,
     workflow,
     skills,
-    dirtyStatus: status.clean ? null : status,
+    workspaceState,
+    dirtyStatus: preparedStatus.clean
+      ? { workspace_preparation: preparation.preparation }
+      : { ...preparedStatus, workspace_preparation: preparation.preparation },
   });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
@@ -1720,7 +1836,9 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     review_remediation_prompt_path: promptPath,
     updated_at: new Date().toISOString(),
     runner,
-    dirty_files_at_start: status.dirty_files,
+    dirty_files_at_start: preparedStatus.dirty_files,
+    workspace_preparation: preparation.preparation,
+    checkout_mode: result.checkout_mode,
     last_event:
       runner.runner_status === "completed"
         ? "review remediation agent completed"
@@ -1733,8 +1851,10 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     ...result,
     status: runner.status,
     runner_status: runner.runner_status,
-    reason: runner.reason || (status.clean ? "" : "launched remediation runner with existing local workspace edits preserved"),
-    dirty_files: status.dirty_files,
+    reason: runner.reason || (preparedStatus.clean ? preparation.preparation?.reason || "" : "launched remediation runner with existing local workspace edits preserved"),
+    dirty_files: preparedStatus.dirty_files,
+    workspace_preparation: preparation.preparation,
+    checkout_mode: result.checkout_mode,
   };
 }
 
@@ -2085,11 +2205,213 @@ function currentBranch(cwd) {
   return { ok: true, branch, reason: "" };
 }
 
+function revParse(cwd, refName) {
+  const output = run("git", ["rev-parse", "--verify", refName], { cwd, allowFailure: true });
+  if (output.failed) return { ok: false, oid: "", reason: output.stderr || `failed to resolve ${refName}` };
+  return { ok: true, oid: output, reason: "" };
+}
+
+function branchUpstream(cwd) {
+  const output = run("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], { cwd, allowFailure: true });
+  if (output.failed) return "";
+  return output;
+}
+
 function branchEqualsRemote(cwd, branchName) {
   const local = run("git", ["rev-parse", "HEAD"], { cwd, allowFailure: true });
   const remote = run("git", ["rev-parse", `origin/${branchName}`], { cwd, allowFailure: true });
   if (local.failed || remote.failed) return false;
   return local === remote;
+}
+
+function gitTimestamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function localOnlyCommitCount(cwd, remoteBranch) {
+  const output = run("git", ["rev-list", "--count", `${remoteBranch}..HEAD`], { cwd, allowFailure: true });
+  if (output.failed) return 0;
+  return Number(output) || 0;
+}
+
+function preserveLocalHeadBeforeRefresh({ repoPath, prNumber }) {
+  const refName = `refs/symphony/preserved/pr-${prNumber}-pre-refresh-${gitTimestamp()}`;
+  const preserved = run("git", ["update-ref", refName, "HEAD"], { cwd: repoPath, allowFailure: true });
+  if (preserved.failed) {
+    return {
+      ok: false,
+      reason: preserved.stderr || preserved.stdout || "failed to preserve local-only commits before refresh",
+      preserved_head_ref: refName,
+    };
+  }
+  const oid = revParse(repoPath, refName);
+  return {
+    ok: true,
+    reason: "local-only remediation commits were preserved before refreshing to the current PR head",
+    preserved_head_ref: refName,
+    preserved_head_oid: oid.ok ? oid.oid : "",
+  };
+}
+
+function preserveDirtyWorkspaceBeforeRefresh({ repoPath, logsPath, prNumber }) {
+  const timestamp = gitTimestamp();
+  fs.mkdirSync(logsPath, { recursive: true });
+  const statusManifestPath = path.join(logsPath, `pre-refresh-dirty-status-${timestamp}.txt`);
+  const status = run("git", ["status", "--porcelain=v1", "-uall"], { cwd: repoPath, allowFailure: true });
+  fs.writeFileSync(statusManifestPath, status.failed ? status.stderr || status.stdout || "" : `${status}\n`);
+  const stashMessage = `symphony-pr-${prNumber}-pre-refresh-${timestamp}`;
+  const stash = run("git", ["stash", "push", "--include-untracked", "-m", stashMessage], {
+    cwd: repoPath,
+    allowFailure: true,
+  });
+  if (stash.failed) {
+    return {
+      ok: false,
+      reason: stash.stderr || stash.stdout || "failed to preserve dirty PR remediation workspace before refresh",
+      status_manifest_path: statusManifestPath,
+    };
+  }
+  const stashList = run("git", ["stash", "list", "--format=%H%x00%gd%x00%s"], { cwd: repoPath, allowFailure: true });
+  const stashEntry = stashList.failed
+    ? []
+    : String(stashList)
+        .split(/\r?\n/)
+        .map((line) => line.split("\0"))
+        .find(([_oid, _ref, subject]) => String(subject || "").includes(stashMessage)) || [];
+  const [stashOid = "", stashRef = ""] = stashEntry;
+  return {
+    ok: true,
+    reason: "stale local remediation edits were stashed before refreshing to the current PR head",
+    stash_ref: stashRef,
+    stash_oid: stashOid,
+    stash_message: stashMessage,
+    status_manifest_path: statusManifestPath,
+  };
+}
+
+function mergeFailureHasConflicts(cwd) {
+  const unmerged = run("git", ["diff", "--name-only", "--diff-filter=U"], { cwd, allowFailure: true });
+  return !unmerged.failed && String(unmerged).trim().length > 0;
+}
+
+function prNeedsTargetMergePreflight(pr) {
+  return (
+    String(pr.merge_state || pr.mergeStateStatus || "").toUpperCase() === "DIRTY" ||
+    (pr.blockers || []).some((blocker) => /^merge state DIRTY$/i.test(String(blocker)))
+  );
+}
+
+function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranch, dryRun }) {
+  const remoteBranch = `origin/${pr.head_ref}`;
+  const remoteHead = revParse(repoPath, remoteBranch);
+  if (!remoteHead.ok) {
+    return { ok: false, status: "blocked", reason: `remote PR branch ${remoteBranch} does not exist` };
+  }
+  const localHead = revParse(repoPath, "HEAD");
+  if (!localHead.ok) return { ok: false, status: "blocked", reason: localHead.reason };
+
+  const status = cleanStatus(repoPath);
+  if (!status.clean && status.blocker !== "worktree has local edits") {
+    return { ok: false, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
+  }
+
+  const upstream = branchUpstream(repoPath);
+  const needsRefresh = localHead.oid !== remoteHead.oid;
+  const wrongUpstream = upstream && upstream !== remoteBranch;
+  const localOnlyCommits = needsRefresh ? localOnlyCommitCount(repoPath, remoteBranch) : 0;
+  const needsTargetMerge = prNeedsTargetMergePreflight(pr);
+  const needsCleanTargetMergeBase = needsTargetMerge && !status.clean;
+  const preparation = {
+    reason: "",
+    local_head: localHead.oid,
+    remote_head: remoteHead.oid,
+    upstream,
+    remote_branch: remoteBranch,
+    local_only_commits: localOnlyCommits,
+    dirty_files: status.dirty_files,
+  };
+
+  if (dryRun) {
+    if (needsRefresh || wrongUpstream || needsCleanTargetMergeBase) {
+      return {
+        ok: true,
+        status: "would-refresh",
+        preparation: {
+          ...preparation,
+          reason: `dry-run would preserve local edits and refresh PR remediation workspace to ${remoteBranch}`,
+        },
+      };
+    }
+    if (needsTargetMerge) {
+      return {
+        ok: true,
+        status: "would-merge-target",
+        preparation: {
+          ...preparation,
+          reason: `dry-run would merge origin/${targetBranch} into the PR branch before remediation`,
+        },
+      };
+    }
+    return { ok: true, status: "current", preparation };
+  }
+
+  if (needsRefresh || wrongUpstream || needsCleanTargetMergeBase) {
+    if (localOnlyCommits > 0) {
+      const preservedHead = preserveLocalHeadBeforeRefresh({ repoPath, prNumber: pr.number });
+      if (!preservedHead.ok) {
+        return {
+          ok: false,
+          status: "blocked",
+          reason: preservedHead.reason,
+          dirty_files: status.dirty_files,
+          preparation: { ...preparation, ...preservedHead },
+        };
+      }
+      Object.assign(preparation, preservedHead);
+    }
+    if (!status.clean) {
+      const preserved = preserveDirtyWorkspaceBeforeRefresh({ repoPath, logsPath, prNumber: pr.number });
+      if (!preserved.ok) {
+        return {
+          ok: false,
+          status: "blocked",
+          reason: preserved.reason,
+          dirty_files: status.dirty_files,
+          preparation: { ...preparation, ...preserved },
+        };
+      }
+      Object.assign(preparation, preserved);
+    }
+    run("git", ["branch", "--set-upstream-to", remoteBranch], { cwd: repoPath, allowFailure: true });
+    run("git", ["reset", "--hard", remoteBranch], { cwd: repoPath });
+    preparation.reason = preparation.reason || `refreshed PR remediation workspace to ${remoteBranch}`;
+  }
+
+  const targetRef = `origin/${targetBranch}`;
+  const targetHead = revParse(repoPath, targetRef);
+  if (needsTargetMerge && targetHead.ok) {
+    const merge = run("git", ["merge", "--no-edit", targetRef], { cwd: repoPath, allowFailure: true });
+    if (merge.failed && !mergeFailureHasConflicts(repoPath)) {
+      run("git", ["merge", "--abort"], { cwd: repoPath, allowFailure: true });
+      return {
+        ok: false,
+        status: "blocked",
+        reason: String(merge.stderr || merge.stdout || `git merge failed with status ${merge.status}`).slice(0, 2000),
+        dirty_files: cleanStatus(repoPath).dirty_files,
+        preparation: {
+          ...preparation,
+          target_merge_status: "failed-before-conflicts",
+          target_merge_output: String(merge.stderr || merge.stdout || `git merge failed with status ${merge.status}`).slice(0, 2000),
+        },
+      };
+    }
+    preparation.target_merge_status = merge.failed ? "conflicts-left-for-remediation-worker" : "merged-target-before-remediation";
+    preparation.target_merge_output = merge.failed
+      ? String(merge.stderr || merge.stdout || `git merge failed with status ${merge.status}`).slice(0, 2000)
+      : String(merge || "").slice(0, 2000);
+  }
+
+  return { ok: true, status: "prepared", preparation };
 }
 
 function ensurePrWorktree(config, branchName, prNumber) {
@@ -3011,11 +3333,45 @@ async function selfTest() {
     assert.equal(mergedState.status, "merged");
     assert.equal(mergedState.merged_pr, 311);
 
+    const dirtyMergedIssue = { ...phaseIssue, number: 900266, title: "P0-0A-003: Dirty merged workspace teardown" };
+    const dirtyMergedPr = {
+      ...mergedPhasePr,
+      number: 312,
+      title: "Fixes #900266",
+      headRefName: "codex/issue-900266-dirty-merged-workspace-teardown",
+    };
+    const dirtyMergedWorkspace = issueWorkspacePath(dirtyMergedIssue, dispatchConfig);
+    const dirtyMergedRepo = path.join(dirtyMergedWorkspace, "repo");
+    fs.mkdirSync(dirtyMergedRepo, { recursive: true });
+    run("git", ["init"], { cwd: dirtyMergedRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: dirtyMergedRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: dirtyMergedRepo });
+    fs.writeFileSync(path.join(dirtyMergedRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: dirtyMergedRepo });
+    run("git", ["commit", "-m", "base"], { cwd: dirtyMergedRepo });
+    fs.writeFileSync(path.join(dirtyMergedRepo, "README.md"), "dirty\n");
+    fs.writeFileSync(
+      path.join(dirtyMergedWorkspace, "state.json"),
+      `${JSON.stringify({ status: "succeeded", issue_number: 900266, branch: dirtyMergedPr.headRefName }, null, 2)}\n`,
+    );
+    const dirtyMergedDryRun = markMergedIssueWorkspaceStates({
+      issues: [dirtyMergedIssue],
+      mergedPrs: [dirtyMergedPr],
+      dispatchConfig,
+      dryRun: true,
+    });
+    assert.equal(dirtyMergedDryRun[0].status, "would-mark-merged");
+    assert.equal(dirtyMergedDryRun[0].teardown_status, "would-preserve-dirty-worktree-and-remove");
+
     const oldSlugWorkspace = path.join(tempRoot, "issue-267-old-title");
     const oldSlugRepo = path.join(oldSlugWorkspace, "repo");
     fs.mkdirSync(oldSlugRepo, { recursive: true });
     run("git", ["init"], { cwd: oldSlugRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: oldSlugRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: oldSlugRepo });
     run("git", ["checkout", "-b", "codex/issue-267-review-remediation"], { cwd: oldSlugRepo });
+    run("git", ["commit", "--allow-empty", "-m", "old slug workspace"], { cwd: oldSlugRepo });
+    run("git", ["update-ref", "refs/remotes/origin/codex/issue-267-review-remediation", "HEAD"], { cwd: oldSlugRepo });
     assert.equal(findIssueWorkspace({ number: 267, title: "New title" }, dispatchConfig), oldSlugWorkspace);
     const slugDriftResult = await ensureReviewRemediationDispatch({
       pr: {
@@ -3039,7 +3395,11 @@ async function selfTest() {
     const closedIssueRepo = path.join(closedIssueWorkspace, "repo");
     fs.mkdirSync(closedIssueRepo, { recursive: true });
     run("git", ["init"], { cwd: closedIssueRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: closedIssueRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: closedIssueRepo });
     run("git", ["checkout", "-b", "codex/closed-issue-review"], { cwd: closedIssueRepo });
+    run("git", ["commit", "--allow-empty", "-m", "closed issue workspace"], { cwd: closedIssueRepo });
+    run("git", ["update-ref", "refs/remotes/origin/codex/closed-issue-review", "HEAD"], { cwd: closedIssueRepo });
     const closedIssueResult = await ensureReviewRemediationDispatch({
       pr: {
         number: 289,
@@ -3056,6 +3416,80 @@ async function selfTest() {
     });
     assert.equal(closedIssueResult.status, "would-remediate");
     assert.equal(closedIssueResult.issue_number, null);
+
+    const stalePrRepo = path.join(tempRoot, "stale-pr-repo");
+    const stalePrLogs = path.join(tempRoot, "stale-pr-logs");
+    fs.mkdirSync(stalePrRepo, { recursive: true });
+    run("git", ["init"], { cwd: stalePrRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: stalePrRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: stalePrRepo });
+    fs.writeFileSync(path.join(stalePrRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: stalePrRepo });
+    run("git", ["commit", "-m", "base"], { cwd: stalePrRepo });
+    run("git", ["checkout", "-b", "codex/stale-pr"], { cwd: stalePrRepo });
+    fs.writeFileSync(path.join(stalePrRepo, "remote.txt"), "remote\n");
+    run("git", ["add", "remote.txt"], { cwd: stalePrRepo });
+    run("git", ["commit", "-m", "remote head"], { cwd: stalePrRepo });
+    const remotePrHead = revParse(stalePrRepo, "HEAD").oid;
+    run("git", ["update-ref", "refs/remotes/origin/codex/stale-pr", "HEAD"], { cwd: stalePrRepo });
+    run("git", ["reset", "--hard", "HEAD~1"], { cwd: stalePrRepo });
+    fs.writeFileSync(path.join(stalePrRepo, "README.md"), "local dirty edit\n");
+    fs.writeFileSync(path.join(stalePrRepo, "untracked.txt"), "untracked dirty edit\n");
+    const stalePrep = prepareReviewRemediationWorkspace({
+      repoPath: stalePrRepo,
+      logsPath: stalePrLogs,
+      pr: { number: 293, head_ref: "codex/stale-pr", merge_state: "CLEAN", blockers: [] },
+      targetBranch: "phase-0-platform-foundation",
+      dryRun: false,
+    });
+    assert.equal(stalePrep.ok, true);
+    assert.equal(revParse(stalePrRepo, "HEAD").oid, remotePrHead);
+    assert.equal(cleanStatus(stalePrRepo).clean, true);
+    assert.match(stalePrep.preparation.stash_ref, /^stash@\{\d+\}$/);
+    assert.match(stalePrep.preparation.stash_oid, /^[0-9a-f]{40}$/);
+    assert.equal(fs.existsSync(stalePrep.preparation.status_manifest_path), true);
+
+    const localCommitRepo = path.join(tempRoot, "local-commit-pr-repo");
+    fs.mkdirSync(localCommitRepo, { recursive: true });
+    run("git", ["init"], { cwd: localCommitRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: localCommitRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: localCommitRepo });
+    fs.writeFileSync(path.join(localCommitRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: localCommitRepo });
+    run("git", ["commit", "-m", "base"], { cwd: localCommitRepo });
+    run("git", ["checkout", "-b", "codex/local-commit-pr"], { cwd: localCommitRepo });
+    run("git", ["update-ref", "refs/remotes/origin/codex/local-commit-pr", "HEAD"], { cwd: localCommitRepo });
+    fs.writeFileSync(path.join(localCommitRepo, "local.txt"), "local-only\n");
+    run("git", ["add", "local.txt"], { cwd: localCommitRepo });
+    run("git", ["commit", "-m", "local-only commit"], { cwd: localCommitRepo });
+    const localOnlyHead = revParse(localCommitRepo, "HEAD").oid;
+    const localCommitPrep = prepareReviewRemediationWorkspace({
+      repoPath: localCommitRepo,
+      logsPath: path.join(tempRoot, "local-commit-pr-logs"),
+      pr: { number: 294, head_ref: "codex/local-commit-pr", merge_state: "CLEAN", blockers: [] },
+      targetBranch: "phase-0-platform-foundation",
+      dryRun: false,
+    });
+    assert.equal(localCommitPrep.ok, true);
+    assert.equal(localCommitPrep.preparation.local_only_commits, 1);
+    assert.equal(localCommitPrep.preparation.preserved_head_oid, localOnlyHead);
+    assert.equal(revParse(localCommitRepo, localCommitPrep.preparation.preserved_head_ref).oid, localOnlyHead);
+    assert.equal(revParse(localCommitRepo, "HEAD").oid, revParse(localCommitRepo, "origin/codex/local-commit-pr").oid);
+
+    const detachedPrRepo = path.join(tempRoot, "detached-pr-repo");
+    fs.mkdirSync(detachedPrRepo, { recursive: true });
+    run("git", ["init"], { cwd: detachedPrRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: detachedPrRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: detachedPrRepo });
+    fs.writeFileSync(path.join(detachedPrRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: detachedPrRepo });
+    run("git", ["commit", "-m", "base"], { cwd: detachedPrRepo });
+    run("git", ["checkout", "-b", "codex/detached-pr"], { cwd: detachedPrRepo });
+    run("git", ["update-ref", "refs/remotes/origin/codex/detached-pr", "HEAD"], { cwd: detachedPrRepo });
+    run("git", ["checkout", "--detach", "origin/codex/detached-pr"], { cwd: detachedPrRepo });
+    const detachedState = preparedPrWorkspaceState(detachedPrRepo, "codex/detached-pr");
+    assert.equal(detachedState.ok, true);
+    assert.equal(detachedState.detached, true);
 
     const staleStateWorkspace = path.join(tempRoot, "issue-267-a-stale-title");
     const staleStateRepo = path.join(staleStateWorkspace, "repo");
