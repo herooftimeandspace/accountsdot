@@ -1955,7 +1955,7 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
 }
 
 async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
-  const workspacePath = issueWorkspacePath(issue, dispatchConfig);
+  const workspacePath = findIssueWorkspace(issue, dispatchConfig);
   const repoPath = path.join(workspacePath, "repo");
   const logsPath = path.join(workspacePath, "logs");
   const promptPath = path.join(workspacePath, "prompt.md");
@@ -2001,6 +2001,9 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     }
     const status = cleanStatus(repoPath);
     if (!status.clean) {
+      if (status.blocker !== "worktree has local edits") {
+        return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
+      }
       dirtyStatus = status;
     }
   } else {
@@ -3675,6 +3678,37 @@ async function selfTest() {
     assert.deepEqual(dirtyIssueDispatch.dirty_files, ["README.md"]);
     assert.match(fs.readFileSync(path.join(dirtyIssueWorkspace, "prompt.md"), "utf8"), /Existing Workspace State/);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dirtyIssueWorkspace, "state.json"), "utf8")).dirty_files_at_start, ["README.md"]);
+    const renamedIssue = { ...phaseIssue, number: 900268, title: "P0-0A-005: New renamed issue title" };
+    const renamedWorkspace = path.join(tempRoot, "issue-900268-old-issue-title");
+    const renamedRepo = path.join(renamedWorkspace, "repo");
+    fs.mkdirSync(renamedRepo, { recursive: true });
+    run("git", ["init"], { cwd: renamedRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: renamedRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: renamedRepo });
+    run("git", ["checkout", "-b", issueBranchName(renamedIssue, dispatchConfig)], { cwd: renamedRepo });
+    run("git", ["commit", "--allow-empty", "-m", "old slug workspace"], { cwd: renamedRepo });
+    const renamedDispatch = await ensureDispatchWorkspace({
+      issue: renamedIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(renamedDispatch.status, "prepared");
+    assert.equal(renamedDispatch.workspace, renamedWorkspace);
+    assert.equal(renamedDispatch.repo, renamedRepo);
+    const unhealthyIssue = { ...phaseIssue, number: 900269, title: "P0-0A-006: Unhealthy workspace blocks dispatch" };
+    const unhealthyWorkspace = issueWorkspacePath(unhealthyIssue, dispatchConfig);
+    fs.mkdirSync(path.join(unhealthyWorkspace, "repo"), { recursive: true });
+    const unhealthyDispatch = await ensureDispatchWorkspace({
+      issue: unhealthyIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(unhealthyDispatch.status, "blocked");
+    assert.notEqual(unhealthyDispatch.reason, "worktree has local edits");
     assert.deepEqual(splitCommandLine("codex --ask-for-approval never exec --cd {repo} -"), [
       "codex",
       "--ask-for-approval",
