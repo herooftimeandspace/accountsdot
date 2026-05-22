@@ -2,7 +2,7 @@
 
 This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `docs/product/product-requirements.md`, `docs/planning/implementation-plan.md`, and `docs/testing/test-matrix.md`.
 
-This matrix is current DEV implementation documentation plus the checked-in production authorization contract. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/planning/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher. Issue #188 adds the production evaluator for verified Google identity data, the same-URL route authorization helper, the environment configuration contract, and the persistent database table for site-scope mappings; live production SAML assertion validation and session issuance still require approved Google Workspace metadata and runtime middleware wiring before staging promotion can treat SAML as live.
+This matrix is current DEV implementation documentation. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/planning/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher. Issue #188 remains open for live production SAML assertion validation, production session issuance, approved Google Workspace metadata/group/attribute decisions, and persistent manual site-scope administration.
 
 ## Source Order
 
@@ -10,7 +10,6 @@ This matrix is current DEV implementation documentation plus the checked-in prod
 - `docs/planning/implementation-plan.md` defines the implementation contract, staged rollout constraints, Phase 2 live-write pilot gate, route registry, and follow-up work still required before production SAML is live.
 - `docs/planning/route-api-authorization-inventory.md` records the route-by-route frontend, DEV API, direct-navigation, feature-flag, and static-page exception audit for issue #185.
 - `internal/auth/production.go` contains the current checked-in evaluator for verified Google identity data.
-- `internal/db/schema.sql` contains the persistent `auth_site_scope_mappings` table used when Google groups or SAML attributes do not fully carry site scope.
 - `internal/web` contains the DEV persona-switcher route and API authorization behavior.
 - `docs/testing/test-matrix.md` defines the scenarios that must be evidenced in dev and staging.
 
@@ -33,8 +32,7 @@ This matrix is current DEV implementation documentation plus the checked-in prod
 7. The application maps Google groups and SAML attributes to stable role ids.
 8. A user with no mapped role is authenticated but not authorized and must receive access denied.
 9. The application maps current Google groups and SAML attributes to site scopes on each authorization evaluation so changed assignments do not leave stale cross-site access.
-10. `internal/auth.AuthorizeRoute` checks the evaluated role decision against the protected route inventory so a user hitting the same URL receives access denied when the role lacks that route.
-11. Route and API handlers must enforce the resulting role and scope server-side. Frontend hiding is not a production authorization control.
+10. Route and API handlers must enforce the resulting role and scope server-side. Frontend hiding is not a production authorization control.
 
 ## Stable Role IDs
 
@@ -66,8 +64,6 @@ The checked-in environment contract is:
 - `BREAKGLASS_ALLOWED_CIDRS`: optional comma-separated allowed source networks. Default: `10.23.0.0/16,10.19.100.0/24`.
 
 Deployment operators may override `AUTH_ALLOWED_EMAIL_DOMAINS` or `AUTH_DENIED_EMAIL_DOMAINS`, but doing so changes the Phase 0 staff-domain gate and must be recorded with the deployment configuration and promotion evidence. The repository default remains the baseline for both development and staging checks.
-
-The checked-in SAML assertion consumer service configuration target is `GOOGLE_SAML_ACS_URL`. Runtime SAML middleware must validate Google signatures and conditions before it constructs the verified identity input for `internal/auth.EvaluateGoogleIdentity`; the DEV persona cookie and terminal mock-session override are never accepted as production identity inputs.
 
 Example mapping shape:
 
@@ -133,7 +129,7 @@ Example mapping shape:
 
 | Surface | Allowed personas | Server-side behavior | Site and field notes | Status | Test coverage |
 | --- | --- | --- | --- | --- | --- |
-| `/api/v1/dev/session`, `/api/v1/dev/login`, `/api/v1/dev/logout` | DEV persona switcher users and local Codex tooling in `APP_ENV=development` | Session payload reflects the selected DEV persona and feature-filtered routes; `POST /api/v1/dev/login` with `activate_mock_session=true` also updates the shared in-process DEV mock session consumed by `/api/v1/dev/session` after Browser refresh/navigation | Normal login/logout write only the local DEV session cookie; tooling activation is development-only, supports all DEV personas including `no_access`, preserves default/current site context, and forces anonymous readback after invalid persona ids | Implemented | `TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment`, `TestDevSharedMockPersonaToolingSwitchesFrontendSessionReadback`, `TestDevSharedMockPersonaToolingInvalidPersonaFailsClosed`, `TestDevSharedMockPersonaToolingDeniedOutsideDevelopment` |
+| `/api/v1/dev/session`, `/api/v1/dev/login`, `/api/v1/dev/logout` | DEV persona switcher users and local Codex tooling in `APP_ENV=development` | Session payload reflects the selected DEV persona and feature-filtered routes; `POST /api/v1/dev/login` with `activate_mock_session=true` also updates the shared in-process DEV mock session consumed by `/api/v1/dev/session` after Browser refresh/navigation | Normal login/logout write only the local DEV session cookie; tooling activation is development-only, supports all DEV personas including `no_access`, preserves default/current site context, and forces anonymous readback after invalid persona ids | Implemented | `TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment` including staging breakglass separation subcoverage, `TestDevSharedMockPersonaToolingSwitchesFrontendSessionReadback`, `TestDevSharedMockPersonaToolingSupportsNoAccessAndAllPersonas`, `TestDevSharedMockPersonaToolingInvalidPersonaFailsClosed`, `TestDevSharedMockPersonaToolingDeniedOutsideDevelopment` |
 | `/api/v1/dev/pages/data-quality` | IT Admin | `401` signed out, `403` non-IT | IT Admin-only data-quality awareness surface | Implemented | Data Quality auth tests |
 | `/api/v1/dev/search` | Personas with `/search` | Requires authenticated persona and filters by accessible route groups | Employee IDs remain visible/searchable only for IT Admin and HR where the owning payload exposes them | Partially implemented | Global search tests |
 | `/api/v1/dev/pages/onboarding` | IT Admin, HR, Site Admin, Site Secretary | Requires `/onboarding` route | IT Admin and HR can manage manual drafts; Site Admin and Site Secretary receive active-site-scoped rows, counts, drawer details, and room options | Implemented | Onboarding page and scope tests |
@@ -244,9 +240,9 @@ The current row for Local breakglass records the implemented local route only. I
 
 ### Production Authorization Boundary
 
-Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method. The persistent `auth_site_scope_mappings` table is now defined, but the operator administration UI and database write path for maintaining it are follow-up work. Until that write path exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs, with the database table available for migrations and future audited administration.
+Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method. Persistent manual site-scope administration is also follow-up work. Until it exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs.
 
-Issue #188 establishes the production authorization boundary that follows SAML validation: staff-domain gate, Google group/attribute role mapping, site-scope mapping, route authorization, and a persistent database table for manual site-scope mappings. A follow-up runtime integration is still required before production can accept live SAML assertions, create production session cookies from verified identity data, and handle SSO sign-in/sign-out flows. The DEV persona cookie, feature-flag target editor, and mock persona payloads are useful for local route/API testing only and are not acceptable production auth sources.
+Issue #188 should remain open until the production path validates Google SAML assertions, creates production session cookies from verified identity data, handles configured SAML/SSO sign-in and sign-out flows, and proves that current Google group or attribute inputs recalculate roles and site scopes on every authorization evaluation. The DEV persona cookie, feature-flag target editor, and mock persona payloads are useful for local route/API testing only and are not acceptable production auth sources.
 
 The durable product target remains:
 
