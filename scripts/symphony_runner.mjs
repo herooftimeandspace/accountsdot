@@ -2733,14 +2733,14 @@ function syncStatusFromResults({
   if (reviewRemediations.some((result) => result.status === "blocked")) return "review_remediation_blocked";
   if (reviewRemediations.some((result) => result.status === "succeeded")) return "review_remediation_complete";
   if (prReviewThreadRemediations.some((result) => result.status === "resolved")) return "review_threads_resolved";
-  if (prMergeQueue.some((entry) => entry.status === "blocked")) return "pr_queue_blocked";
-  if (prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")) return "waiting_for_codex_review";
   if (dispatches.some((dispatch) => dispatch.status === "blocked")) return "blocked";
   if (dispatches.some((dispatch) => dispatch.status === "failed")) return "agent_runner_failed";
   if (dispatches.some((dispatch) => dispatch.status === "succeeded")) return "agent_runner_complete";
   if (dispatches.some((dispatch) => dispatch.status === "prepared")) {
     return dispatchConfig.agentRunnerCommand ? "prepared" : "prepared_needs_agent_runner";
   }
+  if (prMergeQueue.some((entry) => entry.status === "blocked")) return "pr_queue_blocked";
+  if (prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")) return "waiting_for_codex_review";
   return selected.length === 0 ? "idle" : "dry-run";
 }
 
@@ -3107,6 +3107,30 @@ async function selfTest() {
         dispatchConfig: { agentRunnerCommand: "codex" },
       }),
       "review_remediation_failed",
+    );
+    assert.equal(
+      syncStatusFromResults({
+        prMergeResults: [],
+        prReviewThreadRemediations: [],
+        reviewRemediations: [],
+        prMergeQueue: [{ number: 311, status: "waiting_for_codex_review" }],
+        dispatches: [{ status: "succeeded" }],
+        selected: [{ number: 900264 }],
+        dispatchConfig: { agentRunnerCommand: "codex" },
+      }),
+      "agent_runner_complete",
+    );
+    assert.equal(
+      syncStatusFromResults({
+        prMergeResults: [],
+        prReviewThreadRemediations: [],
+        reviewRemediations: [],
+        prMergeQueue: [{ number: 311, status: "waiting_for_codex_review" }],
+        dispatches: [],
+        selected: [],
+        dispatchConfig: { agentRunnerCommand: "codex" },
+      }),
+      "waiting_for_codex_review",
     );
     assert.deepEqual(
       parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
