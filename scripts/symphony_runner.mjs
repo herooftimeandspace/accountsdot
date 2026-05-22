@@ -624,9 +624,9 @@ function fetchMergedReviewThreads(baseRef, { limit = 50, windowHours = 168 } = {
   const { owner, repo } = githubRepositoryParts();
   const boundedLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
   const query = [
-    "query($owner:String!,$repo:String!,$base:String!,$limit:Int!){",
+    "query($owner:String!,$repo:String!,$base:String!){",
     "repository(owner:$owner,name:$repo){",
-    "pullRequests(first:$limit, states:MERGED, baseRefName:$base, orderBy:{field:UPDATED_AT,direction:DESC}) {",
+    "pullRequests(first:100, states:MERGED, baseRefName:$base, orderBy:{field:UPDATED_AT,direction:DESC}) {",
     "nodes {",
     "number title url mergedAt headRefName baseRefName",
     "mergeCommit { oid }",
@@ -654,12 +654,12 @@ function fetchMergedReviewThreads(baseRef, { limit = 50, windowHours = 168 } = {
     `repo=${repo}`,
     "-F",
     `base=${baseRef}`,
-    "-F",
-    `limit=${boundedLimit}`,
   ]);
   const cutoffMs = windowHours > 0 ? Date.now() - Number(windowHours) * 60 * 60 * 1000 : 0;
   return result.data.repository.pullRequests.nodes
     .filter((pr) => !cutoffMs || timestampMs(pr.mergedAt) >= cutoffMs)
+    .sort((a, b) => timestampMs(b.mergedAt) - timestampMs(a.mergedAt))
+    .slice(0, boundedLimit)
     .map((pr) => ({
       number: pr.number,
       title: pr.title || "",
@@ -894,7 +894,29 @@ function materializePostMergeReviewThreads({
     for (const thread of pr.unresolved_threads || []) {
       if (!isCodexReviewThread(thread, { codexReviewAuthors: config.codexReviewAuthors })) continue;
       const summary = summarizeReviewThread(thread);
-      if (labelNames === null) labelNames = listGitHubIssueLabels();
+      if (labelNames === null) {
+        try {
+          labelNames = listGitHubIssueLabels();
+        } catch (error) {
+          results.push({
+            source_pr: pr.number,
+            source_pr_url: pr.url || "",
+            merge_commit: pr.mergeCommitOid || "",
+            thread_id: summary.thread_id,
+            thread_url: summary.url || "",
+            path: summary.path,
+            line: summary.line,
+            severity: "bug",
+            labels: [],
+            issue_number: null,
+            issue_url: "",
+            action: "list-labels",
+            status: "blocked",
+            reason: error.stderr || error.message || String(error),
+          });
+          continue;
+        }
+      }
       const labels = phaseLabelsForPostMergeIssue(pr, labelNames);
       const phaseLabel = labels.find((label) => /^phase[-_ ]?\d+/.test(label)) || "";
       const title = postMergeReviewIssueTitle({ pr, thread });
@@ -3816,7 +3838,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
             .filter((result) => result.status === "resolved")
             .map((result) => `resolved outdated Codex Review thread on PR #${result.number}`),
           ...postMergeIssueMaterializations
-            .filter((result) => result.status === "created" || result.status === "updated")
+            .filter((result) => ["created", "updated", "reopened-updated"].includes(result.status))
             .map((result) => `${result.status} post-merge Codex Review issue for PR #${result.source_pr}`),
           ...reviewRemediations
             .filter((result) => ["prepared", "succeeded", "failed"].includes(result.status))
