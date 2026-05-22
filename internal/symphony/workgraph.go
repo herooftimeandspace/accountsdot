@@ -70,6 +70,8 @@ func pullRequestItems(legacy map[string]any) []WorkItem {
 		status := stringAt(item, "status")
 		number := intAt(item, "number")
 		title := stringAt(item, "title")
+		workspace := stringAt(item, "workspace")
+		logPath := stringAt(item, "log_path")
 		state := WorkStateSkippedWithReason
 		reason := strings.Join(stringArrayAt(item, "notes"), "; ")
 		switch status {
@@ -84,6 +86,8 @@ func pullRequestItems(legacy map[string]any) []WorkItem {
 		case "blocked":
 			if remediation, ok := remediations[number]; ok {
 				state, reason = remediationWorkState(remediation)
+				workspace = firstNonEmpty(stringAt(remediation, "workspace"), workspace)
+				logPath = firstNonEmpty(stringAt(remediation, "log_path"), stringAt(remediation, "state_path"), logPath)
 			} else if intAt(item, "unresolved_codex_review_threads") > 0 {
 				state = WorkStateRunnable
 				reason = "Codex Review remediation is actionable"
@@ -99,8 +103,8 @@ func pullRequestItems(legacy map[string]any) []WorkItem {
 			Number:    number,
 			Title:     title,
 			Branch:    stringAt(item, "head_ref"),
-			Workspace: stringAt(item, "workspace"),
-			LogPath:   stringAt(item, "log_path"),
+			Workspace: workspace,
+			LogPath:   logPath,
 			Reason:    reason,
 			Source:    "legacy.pull_request_queue.items",
 			Priority:  100 + index,

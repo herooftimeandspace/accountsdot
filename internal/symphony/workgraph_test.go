@@ -164,6 +164,45 @@ func TestBuildWorkGraphKeepsBlockedPRRemediationOutOfCapacity(t *testing.T) {
 	}
 }
 
+func TestBuildWorkGraphCopiesPRRemediationWorkspaceDiagnostics(t *testing.T) {
+	legacy := map[string]any{
+		"pull_request_queue": map[string]any{
+			"items": []any{
+				map[string]any{
+					"number":                          328.0,
+					"title":                           "TUI diagnostics",
+					"head_ref":                        "codex/issue-327-symphony-tui-diagnostics",
+					"status":                          "blocked",
+					"unresolved_codex_review_threads": 1.0,
+				},
+			},
+			"review_remediations": []any{
+				map[string]any{
+					"number":     328.0,
+					"status":     "would-remediate",
+					"workspace":  "/private/tmp/accountsdot-symphony/pr-328",
+					"state_path": "/private/tmp/accountsdot-symphony/pr-328/state.json",
+				},
+			},
+		},
+	}
+
+	graph, capacity, status := symphony.BuildWorkGraph(legacy, symphony.SourceCorpus{TotalFiles: 1}, 6)
+	if status != "dispatches_available" {
+		t.Fatalf("expected runnable remediation status, got %q", status)
+	}
+	if len(capacity.RunnableWork) != 1 {
+		t.Fatalf("expected one runnable remediation, got %#v", capacity.RunnableWork)
+	}
+	item := graph.Items[0]
+	if item.Workspace != "/private/tmp/accountsdot-symphony/pr-328" {
+		t.Fatalf("expected remediation workspace on PR item, got %#v", item)
+	}
+	if item.LogPath != "/private/tmp/accountsdot-symphony/pr-328/state.json" {
+		t.Fatalf("expected remediation state path as log pointer, got %#v", item)
+	}
+}
+
 func TestBuildWorkGraphPromotesSelfHealingBlockers(t *testing.T) {
 	legacy := map[string]any{
 		"pull_request_queue": map[string]any{
