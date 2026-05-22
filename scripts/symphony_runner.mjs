@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -726,6 +726,7 @@ function readDispatchConfig(workflowConfig) {
     agentRunnerCodexHomeRoot:
       dispatch.agent_runner_codex_home_root || path.join(workspaceRoot, ".codex-agent-homes"),
     agentRunnerTimeoutMs: Number(dispatch.agent_runner_timeout_ms || 6 * 60 * 60 * 1000),
+    agentRunnerIdleTimeoutMs: Number(dispatch.agent_runner_idle_timeout_ms || 120000),
   };
 }
 
@@ -1173,7 +1174,84 @@ function prepareAgentCodexHome({ codexHomeRoot, workspacePath }) {
   return codexHome;
 }
 
-function runAgentRunner({
+function terminateChildProcess(child) {
+  if (!child || child.killed) return;
+  try {
+    if (process.platform === "win32") {
+      child.kill("SIGTERM");
+    } else {
+      process.kill(-child.pid, "SIGTERM");
+    }
+  } catch {
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      // The child may have exited between timeout handling and termination.
+    }
+  }
+}
+
+function forceKillChildProcess(child) {
+  if (!child || child.killed) return;
+  try {
+    if (process.platform === "win32") {
+      child.kill("SIGKILL");
+    } else {
+      process.kill(-child.pid, "SIGKILL");
+    }
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // The child may have exited after the graceful termination attempt.
+    }
+  }
+}
+
+function stdoutHasCompletedCodexTurn(stdout) {
+  return String(stdout || "")
+    .split(/\r?\n/)
+    .some((line) => {
+      if (!line.trim()) return false;
+      try {
+        return JSON.parse(line).type === "turn.completed";
+      } catch {
+        return line.includes('"type":"turn.completed"') || line.includes('"type": "turn.completed"');
+      }
+    });
+}
+
+function writeAgentRunnerLogs(logsPath, stdout, stderr) {
+  const stdoutPath = path.join(logsPath, "agent-stdout.log");
+  const stderrPath = path.join(logsPath, "agent-stderr.log");
+  fs.writeFileSync(stdoutPath, stdout || "");
+  fs.writeFileSync(stderrPath, stderr || "");
+  return { stdoutPath, stderrPath };
+}
+
+function classifyAgentRunnerFailure({ error, stdout, stderr, timedOut, idleTimedOut }) {
+  if (idleTimedOut && stdoutHasCompletedCodexTurn(stdout)) {
+    return {
+      status: "succeeded",
+      runner_status: "completed",
+      reason: "agent runner emitted turn.completed and was reaped after idle timeout",
+    };
+  }
+  if (idleTimedOut) {
+    const reason = stdout || stderr ? "agent runner idle timeout without completion" : "agent runner produced no output before idle timeout";
+    return { status: "failed", runner_status: "failed", reason };
+  }
+  if (timedOut) {
+    return { status: "failed", runner_status: "failed", reason: "agent runner exceeded timeout" };
+  }
+  return {
+    status: "failed",
+    runner_status: "failed",
+    reason: String(stderr || error?.message || "agent runner failed").trim(),
+  };
+}
+
+async function runAgentRunner({
   commandLine,
   repoPath,
   promptPath,
@@ -1183,6 +1261,7 @@ function runAgentRunner({
   targetBranch,
   logsPath,
   timeoutMs,
+  idleTimeoutMs,
   codexHomeRoot,
   workspacePath,
 }) {
@@ -1201,39 +1280,14 @@ function runAgentRunner({
   const [cmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
   const startedAt = new Date().toISOString();
   let codexHome = "";
+  fs.mkdirSync(logsPath, { recursive: true });
+  const stdoutPath = path.join(logsPath, "agent-stdout.log");
+  const stderrPath = path.join(logsPath, "agent-stderr.log");
   try {
     codexHome = prepareAgentCodexHome({ codexHomeRoot, workspacePath }) || "";
-    const stdout = execFileSync(cmd, args, {
-      cwd: repoPath,
-      input: prompt,
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: timeoutMs,
-      maxBuffer: 50 * 1024 * 1024,
-      env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
-    });
-    const completedAt = new Date().toISOString();
-    const stdoutPath = path.join(logsPath, "agent-stdout.log");
-    const stderrPath = path.join(logsPath, "agent-stderr.log");
-    fs.writeFileSync(stdoutPath, stdout || "");
-    fs.writeFileSync(stderrPath, "");
-    return {
-      status: "succeeded",
-      runner_status: "completed",
-      command: [cmd, ...args],
-      codex_home_path: codexHome,
-      started_at: startedAt,
-      completed_at: completedAt,
-      stdout_path: stdoutPath,
-      stderr_path: stderrPath,
-      reason: "agent runner completed successfully",
-    };
   } catch (error) {
     const completedAt = new Date().toISOString();
-    const stdoutPath = path.join(logsPath, "agent-stdout.log");
-    const stderrPath = path.join(logsPath, "agent-stderr.log");
-    fs.writeFileSync(stdoutPath, String(error.stdout || ""));
-    fs.writeFileSync(stderrPath, String(error.stderr || error.message || ""));
+    writeAgentRunnerLogs(logsPath, "", String(error.message || error));
     return {
       status: "failed",
       runner_status: "failed",
@@ -1243,10 +1297,110 @@ function runAgentRunner({
       completed_at: completedAt,
       stdout_path: stdoutPath,
       stderr_path: stderrPath,
-      exit_status: error.status ?? null,
-      reason: String(error.stderr || error.message || "agent runner failed").trim(),
+      exit_status: null,
+      reason: String(error.message || "failed to prepare agent runner").trim(),
     };
   }
+
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let exitStatus = null;
+    let exitSignal = null;
+    let timedOut = false;
+    let idleTimedOut = false;
+    let settled = false;
+    let idleTimer = null;
+    let timeoutTimer = null;
+    let forceTimer = null;
+
+    const child = spawn(cmd, args, {
+      cwd: repoPath,
+      stdio: ["pipe", "pipe", "pipe"],
+      detached: process.platform !== "win32",
+      env: codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env,
+    });
+
+    const finish = ({ error = null } = {}) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(idleTimer);
+      clearTimeout(timeoutTimer);
+      clearTimeout(forceTimer);
+      const completedAt = new Date().toISOString();
+      writeAgentRunnerLogs(logsPath, stdout, stderr);
+      if (!error && exitStatus === 0 && !exitSignal) {
+        resolve({
+          status: "succeeded",
+          runner_status: "completed",
+          command: [cmd, ...args],
+          codex_home_path: codexHome,
+          started_at: startedAt,
+          completed_at: completedAt,
+          stdout_path: stdoutPath,
+          stderr_path: stderrPath,
+          reason: "agent runner completed successfully",
+        });
+        return;
+      }
+      const classification = classifyAgentRunnerFailure({ error, stdout, stderr, timedOut, idleTimedOut });
+      resolve({
+        ...classification,
+        command: [cmd, ...args],
+        codex_home_path: codexHome,
+        started_at: startedAt,
+        completed_at: completedAt,
+        stdout_path: stdoutPath,
+        stderr_path: stderrPath,
+        exit_status: exitStatus,
+        exit_signal: exitSignal,
+      });
+    };
+
+    const terminate = ({ idle = false, total = false }) => {
+      if (settled) return;
+      idleTimedOut = idleTimedOut || idle;
+      timedOut = timedOut || total;
+      terminateChildProcess(child);
+      forceTimer = setTimeout(() => {
+        forceKillChildProcess(child);
+        finish();
+      }, 5000);
+    };
+
+    const resetIdleTimer = () => {
+      clearTimeout(idleTimer);
+      if (!idleTimeoutMs || idleTimeoutMs <= 0) return;
+      idleTimer = setTimeout(() => terminate({ idle: true }), idleTimeoutMs);
+    };
+
+    child.on("error", (error) => finish({ error }));
+    child.on("close", (status, signal) => {
+      exitStatus = status;
+      exitSignal = signal;
+      finish();
+    });
+    child.stdout.on("data", (chunk) => {
+      const text = chunk.toString();
+      stdout += text;
+      fs.appendFileSync(stdoutPath, text);
+      resetIdleTimer();
+    });
+    child.stderr.on("data", (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      fs.appendFileSync(stderrPath, text);
+      resetIdleTimer();
+    });
+
+    fs.writeFileSync(stdoutPath, "");
+    fs.writeFileSync(stderrPath, "");
+    child.stdin.end(prompt);
+    resetIdleTimer();
+    if (timeoutMs && timeoutMs > 0) {
+      timeoutTimer = setTimeout(() => terminate({ total: true }), timeoutMs);
+    }
+  });
 }
 
 // Review remediation may run after the source issue is closed, so this parser
@@ -1426,7 +1580,7 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
   ].join("\n");
 }
 
-function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun }) {
+async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun }) {
   const issue = issueForPullRequest(pr, issues);
   const targetBranch = pr.target_branch || dispatchConfig.defaultTargetBranch;
   const workspacePath = workspaceForReviewRemediation({ pr, issue, dispatchConfig });
@@ -1507,7 +1661,7 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
   });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
-    ? runAgentRunner({
+    ? await runAgentRunner({
         commandLine: dispatchConfig.agentRunnerCommand,
         repoPath,
         promptPath,
@@ -1517,6 +1671,7 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
         targetBranch: result.target_branch,
         logsPath,
         timeoutMs: dispatchConfig.agentRunnerTimeoutMs,
+        idleTimeoutMs: dispatchConfig.agentRunnerIdleTimeoutMs,
         codexHomeRoot: dispatchConfig.agentRunnerCodexHomeRoot,
         workspacePath,
       })
@@ -1555,7 +1710,7 @@ function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow,
   };
 }
 
-function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
+async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
   const workspacePath = issueWorkspacePath(issue, dispatchConfig);
   const repoPath = path.join(workspacePath, "repo");
   const logsPath = path.join(workspacePath, "logs");
@@ -1626,7 +1781,7 @@ function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryR
   const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
-    ? runAgentRunner({
+    ? await runAgentRunner({
         commandLine: dispatchConfig.agentRunnerCommand,
         repoPath,
         promptPath,
@@ -1636,6 +1791,7 @@ function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryR
         targetBranch,
         logsPath,
         timeoutMs: dispatchConfig.agentRunnerTimeoutMs,
+        idleTimeoutMs: dispatchConfig.agentRunnerIdleTimeoutMs,
         codexHomeRoot: dispatchConfig.agentRunnerCodexHomeRoot,
         workspacePath,
       })
@@ -2136,10 +2292,16 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const reviewRemediationCandidates = prConfig.remediateBlockedPrs
     ? prMergeQueue.filter((entry) => shouldRemediateBlockedPullRequest(entry))
     : [];
-  const reviewRemediations = reviewRemediationCandidates
-    .slice(0, Math.min(maxSelected, prConfig.maxReviewRemediationsPerTick))
-    .map((entry) => ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }));
-  const remediationSlotsUsed = reviewRemediations.filter((entry) => remediationConsumesDispatchSlot(entry)).length;
+  const selectedReviewRemediationCandidates = reviewRemediationCandidates.slice(
+    0,
+    Math.min(maxSelected, prConfig.maxReviewRemediationsPerTick),
+  );
+  const reviewRemediationPromises = selectedReviewRemediationCandidates.map((entry) =>
+    ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }),
+  );
+  const remediationSlotsUsed = selectedReviewRemediationCandidates.filter((entry) =>
+    shouldRemediateBlockedPullRequest(entry),
+  ).length;
   const remainingDispatchSlots = Math.max(0, maxSelected - remediationSlotsUsed);
   const readyToMergeRemaining = hasUnattemptedReadyToMergePr(prMergeQueue, prMergeResults);
   const shouldPauseDispatchForPrQueue =
@@ -2147,12 +2309,14 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     readyToMergeRemaining;
   const queue = rankedDispatchQueue(issues, prs, mergedPrs, dispatchConfig);
   const selected = shouldPauseDispatchForPrQueue ? [] : queue.filter((entry) => entry.eligible).slice(0, remainingDispatchSlots);
-  const dispatches = [];
-
-  for (const entry of selected) {
+  const dispatchPromises = selected.map((entry) => {
     const issue = issues.find((candidate) => candidate.number === entry.number);
-    dispatches.push(ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }));
-  }
+    return ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun });
+  });
+  const [reviewRemediations, dispatches] = await Promise.all([
+    Promise.all(reviewRemediationPromises),
+    Promise.all(dispatchPromises),
+  ]);
 
   const status = {
     command: "sync",
@@ -2490,7 +2654,7 @@ async function selfTest() {
     fs.mkdirSync(runnerLogsPath, { recursive: true });
     const invalidCodexHomeRoot = path.join(tempRoot, "not-a-directory");
     fs.writeFileSync(invalidCodexHomeRoot, "");
-    const prepFailure = runAgentRunner({
+    const prepFailure = await runAgentRunner({
       commandLine: `${process.execPath} --version`,
       repoPath: tempRoot,
       promptPath: path.join(tempRoot, "prompt.md"),
@@ -2500,12 +2664,56 @@ async function selfTest() {
       targetBranch: "phase-0-platform-foundation",
       logsPath: runnerLogsPath,
       timeoutMs: 1000,
+      idleTimeoutMs: 1000,
       codexHomeRoot: invalidCodexHomeRoot,
       workspacePath: path.join(tempRoot, "issue-1-test"),
     });
     assert.equal(prepFailure.status, "failed");
     assert.equal(prepFailure.runner_status, "failed");
     assert.match(prepFailure.reason, /ENOTDIR|not a directory/i);
+    const completedHangScript = path.join(tempRoot, "completed-hang.mjs");
+    fs.writeFileSync(
+      completedHangScript,
+      `process.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\\n"); setInterval(() => {}, 1000);\n`,
+    );
+    const completedHangLogs = path.join(tempRoot, "completed-hang-logs");
+    const completedHang = await runAgentRunner({
+      commandLine: `${process.execPath} ${completedHangScript}`,
+      repoPath: tempRoot,
+      promptPath: path.join(tempRoot, "prompt.md"),
+      prompt: "",
+      issue: { number: 2, url: "https://example.invalid/2" },
+      branchName: "codex/issue-2-test",
+      targetBranch: "phase-0-platform-foundation",
+      logsPath: completedHangLogs,
+      timeoutMs: 5000,
+      idleTimeoutMs: 100,
+      codexHomeRoot: "",
+      workspacePath: path.join(tempRoot, "issue-2-test"),
+    });
+    assert.equal(completedHang.status, "succeeded");
+    assert.equal(completedHang.runner_status, "completed");
+    assert.match(completedHang.reason, /reaped after idle timeout/);
+    assert.match(fs.readFileSync(path.join(completedHangLogs, "agent-stdout.log"), "utf8"), /turn.completed/);
+    const silentHangScript = path.join(tempRoot, "silent-hang.mjs");
+    fs.writeFileSync(silentHangScript, `setInterval(() => {}, 1000);\n`);
+    const silentHang = await runAgentRunner({
+      commandLine: `${process.execPath} ${silentHangScript}`,
+      repoPath: tempRoot,
+      promptPath: path.join(tempRoot, "prompt.md"),
+      prompt: "",
+      issue: { number: 3, url: "https://example.invalid/3" },
+      branchName: "codex/issue-3-test",
+      targetBranch: "phase-0-platform-foundation",
+      logsPath: path.join(tempRoot, "silent-hang-logs"),
+      timeoutMs: 5000,
+      idleTimeoutMs: 100,
+      codexHomeRoot: "",
+      workspacePath: path.join(tempRoot, "issue-3-test"),
+    });
+    assert.equal(silentHang.status, "failed");
+    assert.equal(silentHang.runner_status, "failed");
+    assert.match(silentHang.reason, /no output before idle timeout/);
     const prConfig = readPullRequestConfig(
       {
         tracker: { blocked_labels: ["blocked"] },
@@ -2783,7 +2991,7 @@ async function selfTest() {
     run("git", ["init"], { cwd: oldSlugRepo });
     run("git", ["checkout", "-b", "codex/issue-267-review-remediation"], { cwd: oldSlugRepo });
     assert.equal(findIssueWorkspace({ number: 267, title: "New title" }, dispatchConfig), oldSlugWorkspace);
-    const slugDriftResult = ensureReviewRemediationDispatch({
+    const slugDriftResult = await ensureReviewRemediationDispatch({
       pr: {
         number: 288,
         title: "Fixes #267",
@@ -2806,7 +3014,7 @@ async function selfTest() {
     fs.mkdirSync(closedIssueRepo, { recursive: true });
     run("git", ["init"], { cwd: closedIssueRepo });
     run("git", ["checkout", "-b", "codex/closed-issue-review"], { cwd: closedIssueRepo });
-    const closedIssueResult = ensureReviewRemediationDispatch({
+    const closedIssueResult = await ensureReviewRemediationDispatch({
       pr: {
         number: 289,
         title: "Fix closed source issue review feedback",
@@ -2856,7 +3064,8 @@ async function selfTest() {
     run("git", ["init"], { cwd: wrongBranchRepo });
     run("git", ["checkout", "-b", "codex/wrong-branch"], { cwd: wrongBranchRepo });
     assert.match(
-      ensureReviewRemediationDispatch({
+      (
+        await ensureReviewRemediationDispatch({
         pr: {
           number: 290,
           title: "Fixes #267",
@@ -2869,11 +3078,13 @@ async function selfTest() {
         workflow: reviewWorkflow,
         skills: fakeSkills,
         dryRun: true,
-      }).reason,
+        })
+      ).reason,
       /expected codex\/expected-branch/,
     );
     assert.equal(
-      ensureReviewRemediationDispatch({
+      (
+        await ensureReviewRemediationDispatch({
         pr: {
           number: 291,
           title: "No prepared workspace",
@@ -2886,11 +3097,13 @@ async function selfTest() {
         workflow: reviewWorkflow,
         skills: fakeSkills,
         dryRun: true,
-      }).status,
+        })
+      ).status,
       "blocked",
     );
     assert.equal(
-      ensureReviewRemediationDispatch({
+      (
+        await ensureReviewRemediationDispatch({
         pr: {
           number: 292,
           title: "Unsafe branch",
@@ -2903,7 +3116,8 @@ async function selfTest() {
         workflow: reviewWorkflow,
         skills: fakeSkills,
         dryRun: true,
-      }).status,
+        })
+      ).status,
       "blocked",
     );
 
