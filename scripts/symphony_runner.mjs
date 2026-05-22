@@ -2346,6 +2346,7 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
   const localOnlyCommits = needsRefresh ? localOnlyCommitCount(repoPath, remoteBranch) : 0;
   const needsTargetMerge = prNeedsTargetMergePreflight(pr);
   const needsCleanTargetMergeBase = needsTargetMerge && !status.clean;
+  const canReuseExistingConflicts = needsTargetMerge && status.has_unmerged && !needsRefresh && !wrongUpstream;
   const preparation = {
     reason: "",
     local_head: localHead.oid,
@@ -2358,7 +2359,7 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
   };
 
   if (dryRun) {
-    if (needsTargetMerge && status.has_unmerged) {
+    if (canReuseExistingConflicts) {
       return {
         ok: true,
         status: "would-dispatch-existing-conflicts",
@@ -2392,7 +2393,7 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
     return { ok: true, status: "current", preparation };
   }
 
-  if (needsTargetMerge && status.has_unmerged) {
+  if (canReuseExistingConflicts) {
     const statusManifestPath = writeDirtyWorkspaceManifest({ repoPath, logsPath });
     return {
       ok: true,
@@ -2421,14 +2422,38 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
       }
       Object.assign(preparation, preservedHead);
     }
-    if (!status.clean) {
+    let refreshStatus = status;
+    if (refreshStatus.has_unmerged) {
+      const statusManifestPath = writeDirtyWorkspaceManifest({ repoPath, logsPath });
+      const aborted = run("git", ["merge", "--abort"], { cwd: repoPath, allowFailure: true });
+      if (aborted.failed) {
+        return {
+          ok: false,
+          status: "blocked",
+          reason: aborted.stderr || aborted.stdout || "failed to abort stale unresolved merge before refresh",
+          dirty_files: refreshStatus.dirty_files,
+          preparation: {
+            ...preparation,
+            target_merge_status: "failed-to-abort-stale-conflicts-before-refresh",
+            status_manifest_path: statusManifestPath,
+          },
+        };
+      }
+      Object.assign(preparation, {
+        reason: "stale unresolved merge state was recorded and aborted before refreshing to the current PR head",
+        status_manifest_path: statusManifestPath,
+        target_merge_status: "stale-conflicts-aborted-before-refresh",
+      });
+      refreshStatus = cleanStatus(repoPath);
+    }
+    if (!refreshStatus.clean) {
       const preserved = preserveDirtyWorkspaceBeforeRefresh({ repoPath, logsPath, prNumber: pr.number });
       if (!preserved.ok) {
         return {
           ok: false,
           status: "blocked",
           reason: preserved.reason,
-          dirty_files: status.dirty_files,
+          dirty_files: refreshStatus.dirty_files,
           preparation: { ...preparation, ...preserved },
         };
       }
@@ -2658,6 +2683,31 @@ async function report({ json = false } = {}) {
   return status;
 }
 
+function syncStatusFromResults({
+  prMergeResults,
+  prReviewThreadRemediations,
+  reviewRemediations,
+  prMergeQueue,
+  dispatches,
+  selected,
+  dispatchConfig,
+}) {
+  if (prMergeResults.some((result) => result.status === "merged")) return "merged_prs";
+  if (reviewRemediations.some((result) => result.status === "failed")) return "review_remediation_failed";
+  if (reviewRemediations.some((result) => result.status === "blocked")) return "review_remediation_blocked";
+  if (reviewRemediations.some((result) => result.status === "succeeded")) return "review_remediation_complete";
+  if (prReviewThreadRemediations.some((result) => result.status === "resolved")) return "review_threads_resolved";
+  if (prMergeQueue.some((entry) => entry.status === "blocked")) return "pr_queue_blocked";
+  if (prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")) return "waiting_for_codex_review";
+  if (dispatches.some((dispatch) => dispatch.status === "blocked")) return "blocked";
+  if (dispatches.some((dispatch) => dispatch.status === "failed")) return "agent_runner_failed";
+  if (dispatches.some((dispatch) => dispatch.status === "succeeded")) return "agent_runner_complete";
+  if (dispatches.some((dispatch) => dispatch.status === "prepared")) {
+    return dispatchConfig.agentRunnerCommand ? "prepared" : "prepared_needs_agent_runner";
+  }
+  return selected.length === 0 ? "idle" : "dry-run";
+}
+
 async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const workflow = readWorkflow();
   const dispatchConfig = readDispatchConfig(workflow.config);
@@ -2756,33 +2806,15 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     issue_queue: queue.map(({ priority_score, ...entry }) => entry),
     selected_issues: selected.map(({ priority_score, ...entry }) => entry),
     dispatches,
-    status: prMergeResults.some((result) => result.status === "merged")
-      ? "merged_prs"
-      : prReviewThreadRemediations.some((result) => result.status === "resolved")
-        ? "review_threads_resolved"
-      : reviewRemediations.some((result) => result.status === "succeeded")
-        ? "review_remediation_complete"
-      : reviewRemediations.some((result) => result.status === "failed")
-        ? "review_remediation_failed"
-      : reviewRemediations.some((result) => result.status === "blocked")
-        ? "review_remediation_blocked"
-      : prMergeQueue.some((entry) => entry.status === "blocked")
-        ? "pr_queue_blocked"
-      : prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")
-        ? "waiting_for_codex_review"
-      : dispatches.some((dispatch) => dispatch.status === "blocked")
-      ? "blocked"
-      : dispatches.some((dispatch) => dispatch.status === "failed")
-        ? "agent_runner_failed"
-      : dispatches.some((dispatch) => dispatch.status === "succeeded")
-        ? "agent_runner_complete"
-      : dispatches.some((dispatch) => dispatch.status === "prepared")
-        ? dispatchConfig.agentRunnerCommand
-          ? "prepared"
-          : "prepared_needs_agent_runner"
-        : selected.length === 0
-          ? "idle"
-          : "dry-run",
+    status: syncStatusFromResults({
+      prMergeResults,
+      prReviewThreadRemediations,
+      reviewRemediations,
+      prMergeQueue,
+      dispatches,
+      selected,
+      dispatchConfig,
+    }),
     mutations_performed: dryRun
       ? []
       : [
@@ -3027,6 +3059,18 @@ async function selfTest() {
         dryRun: true,
       }).map((result) => ({ number: result.number, action: result.action, status: result.status })),
       [{ number: 244, action: "would-resolve-outdated-thread", status: "dry-run" }],
+    );
+    assert.equal(
+      syncStatusFromResults({
+        prMergeResults: [],
+        prReviewThreadRemediations: [{ status: "resolved" }],
+        reviewRemediations: [{ status: "failed" }],
+        prMergeQueue: [],
+        dispatches: [],
+        selected: [],
+        dispatchConfig: { agentRunnerCommand: "codex" },
+      }),
+      "review_remediation_failed",
     );
     assert.deepEqual(
       parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
@@ -3583,6 +3627,50 @@ async function selfTest() {
     assert.equal(existingConflictPrep.status, "conflicts-left-for-remediation-worker");
     assert.equal(existingConflictPrep.preparation.target_merge_status, "existing-conflicts-left-for-remediation-worker");
     assert.equal(fs.existsSync(existingConflictPrep.preparation.status_manifest_path), true);
+
+    const staleConflictRepo = path.join(tempRoot, "stale-conflict-pr-repo");
+    fs.mkdirSync(staleConflictRepo, { recursive: true });
+    run("git", ["init"], { cwd: staleConflictRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: staleConflictRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: staleConflictRepo });
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "base"], { cwd: staleConflictRepo });
+    run("git", ["checkout", "-b", "codex/stale-conflict-pr"], { cwd: staleConflictRepo });
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "stale pr edit\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "stale pr edit"], { cwd: staleConflictRepo });
+    const staleLocalHead = revParse(staleConflictRepo, "HEAD").oid;
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "current pr edit\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "current pr edit"], { cwd: staleConflictRepo });
+    const staleRemoteHead = revParse(staleConflictRepo, "HEAD").oid;
+    run("git", ["update-ref", "refs/remotes/origin/codex/stale-conflict-pr", "HEAD"], { cwd: staleConflictRepo });
+    run("git", ["checkout", "-b", "phase-0-platform-foundation", "HEAD~2"], { cwd: staleConflictRepo });
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "target edit\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "target edit"], { cwd: staleConflictRepo });
+    run("git", ["update-ref", "refs/remotes/origin/phase-0-platform-foundation", "HEAD"], { cwd: staleConflictRepo });
+    run("git", ["checkout", "codex/stale-conflict-pr"], { cwd: staleConflictRepo });
+    run("git", ["reset", "--hard", staleLocalHead], { cwd: staleConflictRepo });
+    run("git", ["merge", "--no-edit", "origin/phase-0-platform-foundation"], {
+      cwd: staleConflictRepo,
+      allowFailure: true,
+    });
+    assert.equal(mergeFailureHasConflicts(staleConflictRepo), true);
+    const staleConflictPrep = prepareReviewRemediationWorkspace({
+      repoPath: staleConflictRepo,
+      logsPath: path.join(tempRoot, "stale-conflict-pr-logs"),
+      pr: { number: 296, head_ref: "codex/stale-conflict-pr", merge_state: "DIRTY", blockers: ["merge state DIRTY"] },
+      targetBranch: "phase-0-platform-foundation",
+      dryRun: false,
+    });
+    assert.equal(staleConflictPrep.ok, true);
+    assert.equal(staleConflictPrep.status, "prepared");
+    assert.equal(staleConflictPrep.preparation.target_merge_status, "conflicts-left-for-remediation-worker");
+    assert.equal(staleConflictPrep.preparation.local_head, staleLocalHead);
+    assert.equal(revParse(staleConflictRepo, "HEAD").oid, staleRemoteHead);
+    assert.equal(fs.existsSync(staleConflictPrep.preparation.status_manifest_path), true);
 
     const detachedPrRepo = path.join(tempRoot, "detached-pr-repo");
     fs.mkdirSync(detachedPrRepo, { recursive: true });
