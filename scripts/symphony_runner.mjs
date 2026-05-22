@@ -897,13 +897,14 @@ function mergedPullRequestForIssueWithWorkspace(issue, mergedPrs, targetBranch, 
 }
 
 function activeWorkspaceForIssue(issue, dispatchConfig) {
-  const workspacePath = issueWorkspacePath(issue, dispatchConfig);
+  const workspacePath = findIssueWorkspace(issue, dispatchConfig);
   const statePath = path.join(workspacePath, "state.json");
   const promptPath = path.join(workspacePath, "prompt.md");
+  const repoPath = path.join(workspacePath, "repo");
   if (fs.existsSync(statePath)) {
     try {
       const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-      const activeStatuses = new Set(["prepared", "running", "waiting_retry", "human_review", "succeeded", "failed"]);
+      const activeStatuses = new Set(["prepared", "running", "waiting_retry", "human_review"]);
       if (activeStatuses.has(state.status)) {
         const attempts = Number(state.attempts || 1);
         return {
@@ -915,6 +916,21 @@ function activeWorkspaceForIssue(issue, dispatchConfig) {
           retryable: state.status === "failed" && attempts < dispatchConfig.maxAttempts,
         };
       }
+      if (state.status === "failed") {
+        const attempts = Number(state.attempts || 1);
+        if (attempts >= dispatchConfig.maxAttempts) {
+          return {
+            workspace: workspacePath,
+            prompt_path: promptPath,
+            state_path: statePath,
+            status: state.status,
+            attempts,
+            retryable: false,
+          };
+        }
+        return null;
+      }
+      if (state.status === "succeeded") return null;
     } catch (error) {
       return { workspace: workspacePath, prompt_path: promptPath, state_path: statePath, status: "unreadable_state", blocker: error.message };
     }
@@ -922,6 +938,7 @@ function activeWorkspaceForIssue(issue, dispatchConfig) {
   const branchName = issueBranchName(issue, dispatchConfig);
   const existingWorktree = worktreeForBranch(branchName);
   if (existingWorktree) {
+    if (path.resolve(existingWorktree.path) === path.resolve(repoPath)) return null;
     return { workspace: path.dirname(existingWorktree.path), prompt_path: promptPath, state_path: statePath, status: "branch_checked_out" };
   }
   return null;
@@ -1132,7 +1149,7 @@ function hasUnattemptedReadyToMergePr(prMergeQueue, prMergeResults) {
   );
 }
 
-function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
+function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus = null, workspaceState = null }) {
   const routedSkills = routeSkills(`${issue.title}\n${issue.body || ""}`, skills);
   const skillSection =
     routedSkills.length === 0
@@ -1147,6 +1164,27 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
           .join("\n\n");
   const targetBranch = issueTargetBranch(issue, dispatchConfig);
   const branchName = issueBranchName(issue, dispatchConfig);
+  const existingWorkspaceSection =
+    dirtyStatus?.dirty_files?.length > 0 || workspaceState?.status
+      ? [
+          "## Existing Workspace State",
+          "",
+          workspaceState?.status ? `Previous runner state: ${workspaceState.status}` : "",
+          workspaceState?.runner_status ? `Previous runner status: ${workspaceState.runner_status}` : "",
+          dirtyStatus?.dirty_files?.length > 0
+            ? [
+                "The prepared issue worktree already contains local edits for this same issue branch. Treat them as previous automation work for this issue.",
+                "Inspect them before changing code, preserve in-scope work, repair or finish anything incomplete, then commit, push, and open/update the PR.",
+                "",
+                "Dirty files at dispatch start:",
+                dirtyStatus.dirty_files.map((file) => `- ${file}`).join("\n"),
+              ].join("\n")
+            : "",
+          "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "";
   return [
     "# Symphony Issue Dispatch Prompt",
     "",
@@ -1168,6 +1206,7 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
     "",
     skillSection,
     "",
+    existingWorkspaceSection,
     "## Dispatcher Contract",
     "",
     "- Work only in the prepared issue worktree and branch.",
@@ -1943,17 +1982,26 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
   }
 
   fs.mkdirSync(logsPath, { recursive: true });
-  if (fs.existsSync(repoPath)) {
-    const status = cleanStatus(repoPath);
-    if (!status.clean) {
-      return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
+  let priorState = {};
+  if (fs.existsSync(statePath)) {
+    try {
+      priorState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    } catch (error) {
+      return { ...result, status: "blocked", reason: `failed to parse existing state.json: ${error.message}` };
     }
+  }
+  let dirtyStatus = null;
+  if (fs.existsSync(repoPath)) {
     const branch = currentBranch(repoPath);
     if (!branch.ok) {
       return { ...result, status: "blocked", reason: branch.reason };
     }
     if (branch.branch !== branchName) {
       return { ...result, status: "blocked", reason: `prepared issue workspace is on ${branch.branch || "(detached)"}, expected ${branchName}` };
+    }
+    const status = cleanStatus(repoPath);
+    if (!status.clean) {
+      dirtyStatus = status;
     }
   } else {
     run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
@@ -1975,15 +2023,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     }
   }
 
-  let priorState = {};
-  if (fs.existsSync(statePath)) {
-    try {
-      priorState = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    } catch (error) {
-      return { ...result, status: "blocked", reason: `failed to parse existing state.json: ${error.message}` };
-    }
-  }
-  const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills });
+  const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus, workspaceState: priorState });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
     ? await runAgentRunner({
@@ -2017,6 +2057,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     created_at: priorState.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
     runner,
+    dirty_files_at_start: dirtyStatus?.dirty_files || [],
     last_event:
       runner.runner_status === "completed"
         ? "workspace prepared and agent runner completed"
@@ -2025,7 +2066,15 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
           : "workspace prepared; no repo-owned agent runner command is configured yet",
   };
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
-  return { ...result, status: runner.status, runner_status: runner.runner_status, reason: runner.reason };
+  return {
+    ...result,
+    status: runner.status,
+    runner_status: runner.runner_status,
+    reason:
+      runner.reason ||
+      (dirtyStatus?.dirty_files?.length > 0 ? "launched issue runner with existing local workspace edits preserved" : ""),
+    dirty_files: dirtyStatus?.dirty_files || [],
+  };
 }
 
 function readMonitorConfig(workflowConfig) {
@@ -2249,7 +2298,7 @@ function cleanStatus(cwd) {
       ? status
           .split(/\r?\n/)
           .filter(Boolean)
-          .map((line) => line.slice(3))
+          .map((line) => line.match(/^.. ?(.+)$/)?.[1] || line.slice(3))
       : [],
     has_unmerged: mergeFailureHasConflicts(cwd),
   };
@@ -3524,6 +3573,12 @@ async function selfTest() {
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, true);
     fs.writeFileSync(retryStatePath, JSON.stringify({ status: "failed", attempts: 4 }));
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, false);
+    fs.writeFileSync(retryStatePath, JSON.stringify({ status: "succeeded", attempts: 1 }));
+    const succeededWorkspaceClassification = classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig);
+    assert.equal(succeededWorkspaceClassification.eligible, true);
+    assert.equal(succeededWorkspaceClassification.status, "eligible");
+    fs.rmSync(retryStatePath, { force: true });
+    assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, true);
     assert.equal(
       classifyIssueForDispatch(
         phaseIssue,
@@ -3586,6 +3641,40 @@ async function selfTest() {
       900264,
     );
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
+    const dirtyPrompt = renderIssuePrompt({
+      issue: phaseIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dirtyStatus: { dirty_files: ["docs/product/permissions-matrix.md"] },
+      workspaceState: { status: "succeeded", runner_status: "completed" },
+    });
+    assert.match(dirtyPrompt, /Existing Workspace State/);
+    assert.match(dirtyPrompt, /Previous runner state: succeeded/);
+    assert.match(dirtyPrompt, /docs\/product\/permissions-matrix\.md/);
+    const dirtyIssue = { ...phaseIssue, number: 900267, title: "P0-0A-004: Dirty stale issue workspace recovery" };
+    const dirtyIssueWorkspace = issueWorkspacePath(dirtyIssue, dispatchConfig);
+    const dirtyIssueRepo = path.join(dirtyIssueWorkspace, "repo");
+    fs.mkdirSync(dirtyIssueRepo, { recursive: true });
+    run("git", ["init"], { cwd: dirtyIssueRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: dirtyIssueRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: dirtyIssueRepo });
+    run("git", ["checkout", "-b", issueBranchName(dirtyIssue, dispatchConfig)], { cwd: dirtyIssueRepo });
+    fs.writeFileSync(path.join(dirtyIssueRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: dirtyIssueRepo });
+    run("git", ["commit", "-m", "base"], { cwd: dirtyIssueRepo });
+    fs.writeFileSync(path.join(dirtyIssueRepo, "README.md"), "dirty\n");
+    const dirtyIssueDispatch = await ensureDispatchWorkspace({
+      issue: dirtyIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(dirtyIssueDispatch.status, "prepared");
+    assert.deepEqual(dirtyIssueDispatch.dirty_files, ["README.md"]);
+    assert.match(fs.readFileSync(path.join(dirtyIssueWorkspace, "prompt.md"), "utf8"), /Existing Workspace State/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dirtyIssueWorkspace, "state.json"), "utf8")).dirty_files_at_start, ["README.md"]);
     assert.deepEqual(splitCommandLine("codex --ask-for-approval never exec --cd {repo} -"), [
       "codex",
       "--ask-for-approval",
