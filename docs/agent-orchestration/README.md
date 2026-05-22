@@ -8,10 +8,9 @@ For this repository, the tracker is GitHub Issues rather than Linear. The safety
 
 ## Files
 
-- `SPEC.md` defines the local service contract, domain model, state policy, workspace layout, retry behavior, observability, and safety boundaries for a future long-running runner.
+- `SPEC.md` defines the local service contract, domain model, state policy, workspace layout, retry behavior, observability, local daemon, TUI, watchdog, and safety boundaries.
 - `../../.agents/WORKFLOW.md` is the repo-owned workflow prompt and front matter a runner should load before dispatching an issue to Codex.
 
 ## Current Status
 
-This is a spec-first slice. It creates the durable contract needed by future automation, but it does not start a background daemon or grant any new credentials. A future implementation should treat this directory and `.agents/WORKFLOW.md` as the source of truth for runner behavior.
-
+Symphony now has a Go-backed one-shot runner and a local daemon/control surface. Use `npm run symphony:sync` for one tick, `npm run symphony:daemon` for continuous local operation, `npm run symphony:status -- --watch` for script-friendly monitoring, and `npm run symphony:tui` for a terminal operator panel. Codex automations should act only as watchdog/backstop jobs for this path.

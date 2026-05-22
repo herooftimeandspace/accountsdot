@@ -31,6 +31,15 @@ dispatch:
   agent_runner_codex_home_root: /private/tmp/accountsdot-symphony/.codex-agent-homes
   agent_runner_timeout_ms: 21600000
   agent_runner_idle_timeout_ms: 120000
+daemon:
+  enabled: true
+  state_dir: /private/tmp/accountsdot-symphony
+  default_tick_interval_seconds: 300
+  shutdown_mode: drain
+  control_transport: file
+  status_retention_events: 5000
+  watchdog_stale_after_seconds: 900
+  watchdog_fallback_sync: true
 source_corpus:
   include_markdown:
     - README.md
@@ -283,6 +292,13 @@ The following rules capture operational failures that previously required manual
 - The wrapper should not serialize independent work. It should fetch/prune, prepare the clean runner worktree, invoke `npm run symphony:sync -- --json --max-runs <capacity>`, summarize JSON, and exit.
 - The wrapper must not duplicate PR merge policy, review signal interpretation, issue-dispatch eligibility, remediation policy, or worker concurrency rules. Those belong in this checked-in workflow and runner code.
 - If the runner reports no active dispatches while eligible `agent-ready` issues exist and worker slots are free, that is a bug to investigate, not an acceptable idle state.
+
+### Local Daemon And Watchdog
+
+- The preferred continuous runner is the local Go daemon, invoked with `npm run symphony:daemon -- --phase <phase-id> --phase-branch <branch>`. The daemon owns repeated ticks, local state, the singleton lock, pause/resume/drain/stop control, and worker-capacity changes.
+- The daemon writes operator-readable state under `daemon.state_dir`, including `controller.json`, `status.json`, `status.md`, `runs.jsonl`, and worker state. `npm run symphony:status -- --watch` and `npm run symphony:tui` must read that state instead of rebuilding queue policy.
+- The terminal TUI is only a client. It may queue pause, resume, drain, stop, cancel, and concurrency commands, but it must not duplicate issue ranking, review-thread interpretation, merge policy, workspace recovery, or self-healing classification.
+- Codex automations are optional watchdog/backstop jobs for this path. A watchdog should check whether `controller.json` and the daemon lock are fresh. If the daemon is active and healthy, it reports status and exits. If the daemon is inactive or stale and `daemon.watchdog_fallback_sync` is true, it may run one non-overlapping `npm run symphony:sync -- --json --max-runs <capacity>` tick. It must not start a second daemon or reimplement scheduling decisions in the automation prompt.
 
 ## Phase 0 Pull Request Queue Runtime
 

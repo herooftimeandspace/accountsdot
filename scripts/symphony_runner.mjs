@@ -376,18 +376,70 @@ function listMergedPullRequestsForBases(baseRefs) {
   return prs;
 }
 
-function listOpenIssuesForArgs(extraArgs = []) {
-  return ghJson([
-    "issue",
-    "list",
-    "--state",
-    "open",
-    "--json",
-    "number,title,body,comments,labels,url,updatedAt,assignees",
-    "--limit",
-    "200",
-    ...extraArgs,
-  ]);
+function listOpenIssuesForLabel(label = "") {
+  const issues = [];
+  for (let page = 1; ; page += 1) {
+    const args = [
+      "api",
+      "--method",
+      "GET",
+      "repos/herooftimeandspace/accountsdot/issues",
+      "-f",
+      "state=open",
+      "-f",
+      "per_page=100",
+      "-f",
+      `page=${page}`,
+    ];
+    if (label) {
+      args.push("-f", `labels=${label}`);
+    }
+    const pageItems = ghJson(args).filter((issue) => !issue.pull_request);
+    issues.push(...pageItems.map(normalizeIssueFromApi));
+    if (pageItems.length < 100) break;
+  }
+  return issues;
+}
+
+function normalizeIssueFromApi(issue) {
+  return {
+    number: issue.number,
+    title: issue.title || "",
+    body: issue.body || "",
+    comments: hydrateIssueComments(issue.number),
+    labels: Array.isArray(issue.labels) ? issue.labels.map((label) => ({ name: label.name || String(label) })) : [],
+    url: issue.html_url || issue.url || "",
+    updatedAt: issue.updated_at || "",
+    assignees: issue.assignees || [],
+  };
+}
+
+function hydrateIssueComments(issueNumber) {
+  const comments = [];
+  for (let page = 1; ; page += 1) {
+    const pageItems = ghJson([
+      "api",
+      "--method",
+      "GET",
+      `repos/herooftimeandspace/accountsdot/issues/${issueNumber}/comments`,
+      "-f",
+      "per_page=100",
+      "-f",
+      `page=${page}`,
+    ]);
+    comments.push(
+      ...pageItems.map((comment) => ({
+        id: comment.id,
+        author: comment.user ? { login: comment.user.login } : null,
+        body: comment.body || "",
+        createdAt: comment.created_at || "",
+        updatedAt: comment.updated_at || "",
+        url: comment.html_url || "",
+      })),
+    );
+    if (pageItems.length < 100) break;
+  }
+  return comments;
 }
 
 function mergeIssuesByNumber(issueLists) {
@@ -401,9 +453,9 @@ function mergeIssuesByNumber(issueLists) {
 }
 
 function listOpenIssues(activeLabels = []) {
-  const issueLists = [listOpenIssuesForArgs()];
+  const issueLists = [listOpenIssuesForLabel()];
   for (const label of activeLabels) {
-    issueLists.push(listOpenIssuesForArgs(["--label", label]));
+    issueLists.push(listOpenIssuesForLabel(label));
   }
   return mergeIssuesByNumber(issueLists);
 }

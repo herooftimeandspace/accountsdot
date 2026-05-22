@@ -63,6 +63,7 @@ func WrapLegacySyncResult(legacy map[string]any, corpus SourceCorpus, maxRuns in
 func pullRequestItems(legacy map[string]any) []WorkItem {
 	queue := objectAt(legacy, "pull_request_queue")
 	items := arrayAt(queue, "items")
+	remediations := reviewRemediationsByPRNumber(queue)
 	work := make([]WorkItem, 0, len(items))
 	for index, raw := range items {
 		item := rawObject(raw)
@@ -81,7 +82,9 @@ func pullRequestItems(legacy map[string]any) []WorkItem {
 				reason = "waiting for external Codex Review"
 			}
 		case "blocked":
-			if intAt(item, "unresolved_codex_review_threads") > 0 {
+			if remediation, ok := remediations[number]; ok {
+				state, reason = remediationWorkState(remediation)
+			} else if intAt(item, "unresolved_codex_review_threads") > 0 {
 				state = WorkStateRunnable
 				reason = "Codex Review remediation is actionable"
 			} else {
@@ -104,6 +107,44 @@ func pullRequestItems(legacy map[string]any) []WorkItem {
 	return work
 }
 
+func reviewRemediationsByPRNumber(queue map[string]any) map[int]map[string]any {
+	results := map[int]map[string]any{}
+	for _, raw := range arrayAt(queue, "review_remediations") {
+		remediation := rawObject(raw)
+		number := intAt(remediation, "number")
+		if number != 0 {
+			results[number] = remediation
+		}
+	}
+	return results
+}
+
+func remediationWorkState(remediation map[string]any) (WorkState, string) {
+	reason := stringAt(remediation, "reason")
+	switch stringAt(remediation, "status") {
+	case "would-remediate", "prepared":
+		if reason == "" {
+			reason = "review remediation prerequisites are satisfied"
+		}
+		return WorkStateRunnable, reason
+	case "succeeded":
+		if reason == "" {
+			reason = "review remediation already completed"
+		}
+		return WorkStateMerged, reason
+	case "blocked", "failed":
+		if reason == "" {
+			reason = "review remediation prerequisites are blocked"
+		}
+		return WorkStateBlockedActionable, reason
+	default:
+		if reason == "" {
+			reason = "review remediation is not currently runnable"
+		}
+		return WorkStateBlockedActionable, reason
+	}
+}
+
 func issueItems(legacy map[string]any) []WorkItem {
 	selected := arrayAt(legacy, "selected_issues")
 	dispatchesByNumber := dispatchesByIssueNumber(legacy)
@@ -124,8 +165,13 @@ func issueItems(legacy map[string]any) []WorkItem {
 		state := WorkStateRunnable
 		reason := stringAt(item, "reason")
 		switch status {
-		case "", "eligible", "would-prepare", "prepared", "succeeded":
+		case "", "eligible", "would-prepare", "prepared":
 			state = WorkStateRunnable
+		case "succeeded":
+			state = WorkStateMerged
+			if reason == "" {
+				reason = "dispatch already completed"
+			}
 		case "blocked", "failed":
 			state = WorkStateBlockedActionable
 		default:
@@ -204,11 +250,11 @@ func topLevelStatus(graph WorkGraph, capacity CapacityPlan, corpus SourceCorpus)
 	if len(capacity.RunnableWork) > 0 {
 		return "dispatches_available"
 	}
-	if len(capacity.ExternalWaits) > 0 {
-		return "waiting_for_codex_review"
-	}
 	if len(extractByState(graph, WorkStateBlockedActionable)) > 0 {
 		return "blocked_actionable"
+	}
+	if len(capacity.ExternalWaits) > 0 {
+		return "waiting_for_codex_review"
 	}
 	if corpus.TotalFiles == 0 {
 		return "blocked_no_markdown_corpus"

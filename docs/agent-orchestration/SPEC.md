@@ -174,6 +174,16 @@ On each tick, it should:
 
 The orchestrator should keep a single authoritative local state file. A database is not required for the first version.
 
+### 5.5.1 Local Daemon, Control Plane, And TUI
+
+Continuous Symphony operation is owned by the Go CLI, not by a long-running Codex automation prompt. `symphony daemon` runs a local tick loop, enforces a singleton lock under `/private/tmp/accountsdot-symphony`, persists `controller.json`, `status.json`, `status.md`, `runs.jsonl`, and worker state, and applies local operator controls between ticks.
+
+The daemon supports pause, resume, drain, stop, cancel-worker, and set-concurrency commands. Pause keeps observing local state but does not dispatch new workers. Drain stops new dispatch and exits after active work can be handed off safely. Stop requests graceful shutdown. Cancel records the worker cancellation and leaves the workspace inspectable for recovery.
+
+`symphony status --watch` and `symphony tui` are read/control clients over daemon state. The TUI may display lifecycle, worker capacity, runnable work, review waits, blocked actionable items, PR/review lanes, and recent logs, but it must not contain separate scheduling, issue-ranking, review-thread, merge, or self-healing policy.
+
+Codex automations are optional watchdog/backstop jobs. A watchdog checks whether the daemon status is fresh and exits when the daemon is healthy. If the daemon is inactive or stale and the workflow config allows fallback, the watchdog may run one `symphony sync` tick. It must never start a second daemon or duplicate orchestration policy in prompt text.
+
 ### 5.6 Agent Runner
 
 The agent runner launches Codex in the prepared workspace. A future implementation may use Codex App Server mode when available, or a CLI-compatible runner if that is the available local interface.
@@ -485,7 +495,7 @@ The first runnable implementation should stay small:
 7. Require a human to push branches or open PRs until the review packet is trusted.
 8. Provide a maintenance mode for the existing `ui-improvements` monitor that is lock-protected, emits Browser evaluation requests, and stops on dirty latest-code worktrees instead of discarding local edits.
 
-This keeps the service useful while avoiding a premature always-on daemon.
+This keeps the service useful while avoiding premature hidden background behavior. Continuous operation should now be introduced through the explicit local daemon and TUI control surface described above, with Codex automation limited to watchdog/backstop duties.
 
 ## 18. Acceptance Criteria For This Contract
 

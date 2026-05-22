@@ -9,8 +9,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/symphony"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/symphony/control"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/symphony/daemon"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/symphony/state"
+	symphonytui "github.com/herooftimeandspace/go-employee-provisioner/internal/symphony/tui"
 )
 
 // main is the Go entrypoint for the repo-owned Symphony automation. It keeps
@@ -25,13 +30,21 @@ func main() {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: symphony <report|sync|ui-monitor|record-browser-results|test> [options]")
+		return fmt.Errorf("usage: symphony <daemon|status|control|tui|report|sync|ui-monitor|record-browser-results|test> [options]")
 	}
 	repoRoot, err := findRepoRoot()
 	if err != nil {
 		return err
 	}
 	switch args[0] {
+	case "daemon":
+		return runDaemon(ctx, repoRoot, args[1:])
+	case "status":
+		return runStatus(ctx, args[1:])
+	case "control":
+		return runControl(args[1:])
+	case "tui":
+		return runTUI(args[1:])
 	case "sync":
 		return runSync(ctx, repoRoot, args[1:])
 	case "report", "ui-monitor", "record-browser-results":
@@ -54,42 +67,16 @@ func runSync(ctx context.Context, repoRoot string, args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *phaseBranch != "" && *phaseID == "" {
-		return fmt.Errorf("--phase-branch requires --phase so the override applies only to phase materialization")
-	}
-	if *phaseBranch != "" && !*dryRun {
-		return fmt.Errorf("--phase-branch is supported for dry-run phase materialization only until native Go dispatch replaces the legacy adapter")
-	}
-
-	corpus, err := symphony.ScanMarkdownCorpus(repoRoot)
-	if err != nil {
-		return fmt.Errorf("scan markdown source corpus: %w", err)
-	}
-	legacyArgs := []string{"sync"}
-	if *dryRun {
-		legacyArgs = append(legacyArgs, "--dry-run")
-	}
-	legacyArgs = append(legacyArgs, "--json")
-	if *maxRuns > 0 {
-		legacyArgs = append(legacyArgs, "--max-runs", strconv.Itoa(*maxRuns))
-	}
-	legacy, _, err := symphony.RunLegacyNodeRunner(ctx, repoRoot, legacyArgs...)
+	result, err := symphony.RunSyncTick(ctx, repoRoot, symphony.SyncOptions{
+		DryRun:      *dryRun,
+		PhaseID:     *phaseID,
+		PhaseBranch: *phaseBranch,
+		MaxRuns:     *maxRuns,
+	})
 	if err != nil {
 		return err
 	}
-	effectiveMaxRuns := *maxRuns
-	if effectiveMaxRuns <= 0 {
-		effectiveMaxRuns = intFromLegacy(legacy, "dispatcher", "max_concurrent_runs")
-		if effectiveMaxRuns <= 0 {
-			effectiveMaxRuns = 1
-		}
-	}
-	result := symphony.WrapLegacySyncResult(legacy, corpus, effectiveMaxRuns, *dryRun)
-	result.IssueMaterialization = symphony.ExtractPhaseSlices(corpus, *phaseID, *phaseBranch)
-	if *phaseBranch != "" {
-		result.LegacyStatus["phase_branch_override"] = *phaseBranch
-	}
-	encoded, err := json.MarshalIndent(result, "", "  ")
+	encoded, err := symphony.MarshalTickResult(result)
 	if err != nil {
 		return err
 	}
@@ -99,6 +86,130 @@ func runSync(ctx context.Context, repoRoot string, args []string) error {
 	}
 	fmt.Println(string(encoded))
 	return nil
+}
+
+func runDaemon(ctx context.Context, repoRoot string, args []string) error {
+	flags := flag.NewFlagSet("daemon", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	dryRun := flags.Bool("dry-run", false, "do not mutate git, GitHub, or daemon state")
+	jsonOnly := flags.Bool("json", false, "print JSON")
+	phaseID := flags.String("phase", "", "implementation phase id")
+	phaseBranch := flags.String("phase-branch", "", "phase branch override")
+	maxWorkers := flags.Int("max-workers", 0, "maximum runnable workers")
+	maxRuns := flags.Int("max-runs", 0, "compatibility alias for --max-workers")
+	maxTicks := flags.Int("max-ticks", 0, "stop after this many daemon ticks")
+	stateDir := flags.String("state-dir", daemon.DefaultStateDir, "daemon state directory")
+	interval := flags.Duration("interval", 5*time.Minute, "daemon tick interval")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	workers := *maxWorkers
+	if workers <= 0 {
+		workers = *maxRuns
+	}
+	snapshot, err := daemon.Run(ctx, daemon.Options{
+		RepoRoot:    repoRoot,
+		StateDir:    *stateDir,
+		Phase:       *phaseID,
+		PhaseBranch: *phaseBranch,
+		Interval:    *interval,
+		MaxWorkers:  workers,
+		MaxTicks:    *maxTicks,
+		DryRun:      *dryRun,
+		JSON:        *jsonOnly,
+	})
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return err
+	}
+	if *jsonOnly {
+		fmt.Println(string(encoded))
+		return nil
+	}
+	fmt.Println(string(encoded))
+	return nil
+}
+
+func runStatus(ctx context.Context, args []string) error {
+	flags := flag.NewFlagSet("status", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	jsonOnly := flags.Bool("json", false, "print JSON")
+	watch := flags.Bool("watch", false, "watch status once per second")
+	stateDir := flags.String("state-dir", daemon.DefaultStateDir, "daemon state directory")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	for {
+		snapshot, err := state.ReadSnapshot(*stateDir)
+		if err != nil {
+			return err
+		}
+		encoded, err := json.MarshalIndent(snapshot, "", "  ")
+		if err != nil {
+			return err
+		}
+		if *jsonOnly {
+			fmt.Println(string(encoded))
+		} else {
+			fmt.Printf("Symphony %s: %s\n", snapshot.Controller.Lifecycle, snapshot.Controller.LastStatus)
+		}
+		if !*watch {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+func runControl(args []string) error {
+	flags := flag.NewFlagSet("control", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	stateDir := flags.String("state-dir", daemon.DefaultStateDir, "daemon state directory")
+	concurrency := flags.Int("concurrency", 0, "worker count for set-concurrency")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() == 0 {
+		return fmt.Errorf("usage: symphony control <pause|resume|drain|stop|cancel|set-concurrency> [target]")
+	}
+	action := flags.Arg(0)
+	target := ""
+	if action == "cancel" && flags.NArg() > 1 {
+		target = flags.Arg(1)
+	}
+	if action == "set-concurrency" && *concurrency == 0 && flags.NArg() > 1 {
+		value, err := strconv.Atoi(flags.Arg(1))
+		if err != nil {
+			return err
+		}
+		*concurrency = value
+	}
+	command, err := control.New(action, target, *concurrency)
+	if err != nil {
+		return err
+	}
+	path, err := control.WriteCommand(*stateDir, command)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("queued %s command at %s\n", action, path)
+	return nil
+}
+
+func runTUI(args []string) error {
+	flags := flag.NewFlagSet("tui", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	stateDir := flags.String("state-dir", daemon.DefaultStateDir, "daemon state directory")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	return symphonytui.Run(*stateDir)
 }
 
 func runLegacyPassthrough(ctx context.Context, repoRoot string, args []string) error {
@@ -167,24 +278,5 @@ func findRepoRoot() (string, error) {
 			return "", fmt.Errorf("could not find repository root from current directory")
 		}
 		dir = parent
-	}
-}
-
-func intFromLegacy(value map[string]any, path ...string) int {
-	current := any(value)
-	for _, key := range path {
-		object, ok := current.(map[string]any)
-		if !ok {
-			return 0
-		}
-		current = object[key]
-	}
-	switch typed := current.(type) {
-	case float64:
-		return int(typed)
-	case int:
-		return typed
-	default:
-		return 0
 	}
 }
