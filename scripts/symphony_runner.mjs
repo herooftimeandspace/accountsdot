@@ -1601,6 +1601,8 @@ function renderCommandToken(token, replacements) {
 const DEFAULT_AGENT_RUNNER_FALLBACKS = {
   codex: ["/Applications/Codex.app/Contents/Resources/codex"],
 };
+const DEFAULT_UNIX_EXECUTABLE_PATH = "/usr/bin:/bin";
+const DEFAULT_WINDOWS_PATHEXT = ".COM;.EXE;.BAT;.CMD";
 
 function isExecutableFile(filePath) {
   try {
@@ -1615,21 +1617,28 @@ function commandHasPathSegment(command) {
   return command.includes("/") || (process.platform === "win32" && /[\\/]/.test(command));
 }
 
-function commandExecutableNames(command, { platform = process.platform, pathExt = process.env.PATHEXT || "" } = {}) {
+function commandExecutableNames(command, { platform = process.platform, pathExt = process.env.PATHEXT } = {}) {
   if (platform !== "win32" || path.extname(command)) return [command];
-  const extensions = pathExt
+  const effectivePathExt = pathExt === undefined || pathExt === null || pathExt === "" ? DEFAULT_WINDOWS_PATHEXT : pathExt;
+  const extensions = effectivePathExt
     .split(";")
     .map((extension) => extension.trim())
     .filter(Boolean);
   return [command, ...extensions.map((extension) => `${command}${extension.startsWith(".") ? extension : `.${extension}`}`)];
 }
 
+function commandSearchPath({ envPath, platform = process.platform } = {}) {
+  if (envPath !== undefined && envPath !== null) return envPath;
+  if (platform === "win32") return process.env.PATH ?? process.env.Path ?? "";
+  return process.env.PATH ?? DEFAULT_UNIX_EXECUTABLE_PATH;
+}
+
 function resolveCommandExecutable(command, {
-  envPath = process.env.PATH || "",
+  envPath,
   cwd = process.cwd(),
   fallbackPaths = DEFAULT_AGENT_RUNNER_FALLBACKS,
   platform = process.platform,
-  pathExt = process.env.PATHEXT || "",
+  pathExt = process.env.PATHEXT,
 } = {}) {
   if (!command) return { ok: false, command, reason: "agent runner command is empty" };
   if (commandHasPathSegment(command)) {
@@ -1639,7 +1648,8 @@ function resolveCommandExecutable(command, {
       : { ok: false, command, reason: `agent runner executable ${command} is not executable or does not exist at ${resolved}` };
   }
   const executableNames = commandExecutableNames(command, { platform, pathExt });
-  const pathCandidates = envPath
+  const effectivePath = commandSearchPath({ envPath, platform });
+  const pathCandidates = effectivePath
     .split(path.delimiter)
     .flatMap((directory) => {
       const resolvedDirectory = directory === "" ? cwd : directory;
@@ -4361,6 +4371,39 @@ async function selfTest() {
         command: windowsRunner,
       },
     );
+    const windowsDefaultSuffixRunner = path.join(tempRoot, "windows-default-runner.EXE");
+    fs.writeFileSync(windowsDefaultSuffixRunner, "@echo off\r\nexit /b 0\r\n", { mode: 0o755 });
+    assert.deepEqual(
+      resolveCommandExecutable("windows-default-runner", {
+        envPath: tempRoot,
+        cwd: tempRoot,
+        fallbackPaths: {},
+        platform: "win32",
+        pathExt: "",
+      }),
+      {
+        ok: true,
+        command: windowsDefaultSuffixRunner,
+      },
+    );
+    const originalPath = process.env.PATH;
+    try {
+      delete process.env.PATH;
+      const defaultPathRunner = resolveCommandExecutable("sh", {
+        envPath: undefined,
+        cwd: tempRoot,
+        fallbackPaths: {},
+        platform: "linux",
+      });
+      assert.equal(defaultPathRunner.ok, true);
+      assert.match(defaultPathRunner.command, /\/sh$/);
+    } finally {
+      if (originalPath === undefined) {
+        delete process.env.PATH;
+      } else {
+        process.env.PATH = originalPath;
+      }
+    }
     assert.match(agentRunnerLastEvent({ runnerStatus: "blocked", workKind: "issue" }), /blocked by runner configuration/);
     assert.match(
       agentRunnerLastEvent({ runnerStatus: "blocked", workKind: "review_remediation" }),
