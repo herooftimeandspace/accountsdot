@@ -1598,6 +1598,52 @@ function renderCommandToken(token, replacements) {
   });
 }
 
+const DEFAULT_AGENT_RUNNER_FALLBACKS = {
+  codex: ["/Applications/Codex.app/Contents/Resources/codex"],
+};
+
+function isExecutableFile(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function commandHasPathSegment(command) {
+  return command.includes("/") || (process.platform === "win32" && /[\\/]/.test(command));
+}
+
+function resolveCommandExecutable(command, {
+  envPath = process.env.PATH || "",
+  fallbackPaths = DEFAULT_AGENT_RUNNER_FALLBACKS,
+} = {}) {
+  if (!command) return { ok: false, command, reason: "agent runner command is empty" };
+  if (commandHasPathSegment(command)) {
+    return isExecutableFile(command)
+      ? { ok: true, command }
+      : { ok: false, command, reason: `agent runner executable ${command} is not executable or does not exist` };
+  }
+  const pathCandidates = envPath
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map((directory) => path.join(directory, command));
+  for (const candidate of pathCandidates) {
+    if (isExecutableFile(candidate)) return { ok: true, command: candidate };
+  }
+  for (const candidate of fallbackPaths[command] || []) {
+    if (isExecutableFile(candidate)) return { ok: true, command: candidate };
+  }
+  const searched = [...pathCandidates, ...(fallbackPaths[command] || [])];
+  const suffix = searched.length > 0 ? `; searched ${searched.join(", ")}` : "";
+  return {
+    ok: false,
+    command,
+    reason: `agent runner executable "${command}" was not found in PATH or fallback locations${suffix}`,
+  };
+}
+
 function ensureSymlink(target, linkPath) {
   try {
     const existing = fs.lstatSync(linkPath);
@@ -1745,12 +1791,31 @@ async function runAgentRunner({
     branch: branchName,
     target_branch: targetBranch,
   };
-  const [cmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
+  const [configuredCmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
+  const resolvedCommand = resolveCommandExecutable(configuredCmd);
+  const cmd = resolvedCommand.command;
   const startedAt = new Date().toISOString();
   let codexHome = "";
   fs.mkdirSync(logsPath, { recursive: true });
   const stdoutPath = path.join(logsPath, "agent-stdout.log");
   const stderrPath = path.join(logsPath, "agent-stderr.log");
+  if (!resolvedCommand.ok) {
+    const completedAt = new Date().toISOString();
+    writeAgentRunnerLogs(logsPath, "", resolvedCommand.reason);
+    return {
+      status: "blocked",
+      runner_status: "blocked",
+      command: [configuredCmd, ...args],
+      resolved_command: cmd,
+      codex_home_path: codexHome,
+      started_at: startedAt,
+      completed_at: completedAt,
+      stdout_path: stdoutPath,
+      stderr_path: stderrPath,
+      exit_status: null,
+      reason: resolvedCommand.reason,
+    };
+  }
   try {
     codexHome = prepareAgentCodexHome({ codexHomeRoot, workspacePath }) || "";
   } catch (error) {
@@ -4232,6 +4297,29 @@ async function selfTest() {
       "-",
     ]);
     assert.equal(renderCommandToken("{repo}/prompt.md", { repo: "/tmp/example" }), "/tmp/example/prompt.md");
+    const fakeCodexPath = path.join(tempRoot, "fake-codex");
+    fs.writeFileSync(fakeCodexPath, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    assert.deepEqual(resolveCommandExecutable("codex", { envPath: "", fallbackPaths: { codex: [fakeCodexPath] } }), {
+      ok: true,
+      command: fakeCodexPath,
+    });
+    const missingRunner = await runAgentRunner({
+      commandLine: "definitely-missing-symphony-runner --version",
+      repoPath: tempRoot,
+      promptPath: path.join(tempRoot, "prompt.md"),
+      prompt: "",
+      issue: { number: 4, url: "https://example.invalid/4" },
+      branchName: "codex/issue-4-test",
+      targetBranch: "phase-0-platform-foundation",
+      logsPath: path.join(tempRoot, "missing-runner-logs"),
+      timeoutMs: 1000,
+      idleTimeoutMs: 1000,
+      codexHomeRoot: "",
+      workspacePath: path.join(tempRoot, "issue-4-test"),
+    });
+    assert.equal(missingRunner.status, "blocked");
+    assert.equal(missingRunner.runner_status, "blocked");
+    assert.match(missingRunner.reason, /not found in PATH or fallback locations/);
     assert.equal(
       issueForPullRequest({ title: "Ship v2 remediation", head_ref: "codex/v2-review-remediation" }, [
         { number: 2, title: "Unrelated issue" },
