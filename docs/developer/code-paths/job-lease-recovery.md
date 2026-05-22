@@ -29,9 +29,17 @@ and the active status list as SQL literals so PostgreSQL can use the
 `internal/db.ClaimNextJob` is the worker claim boundary.
 
 1. The caller starts a transaction through `internal/db.WithRetry`.
-2. `ClaimNextJob` selects the oldest eligible `queued` job by `global_tick` with `FOR UPDATE SKIP LOCKED`.
-3. The same statement moves the row to `running`, writes the lease owner, expiry, heartbeat, and `updated_at`, then returns the claimed job.
-4. If no row is available, the function returns `ErrNoJobAvailable` so an idle worker can sleep without treating the empty queue as a failure.
+2. `ClaimNextJob` reads `system_controls.global_pause` before it touches `jobs`.
+3. If the global pause row is enabled, the function returns
+   `ErrGlobalPauseActive` without selecting or mutating a job row, so the
+   emergency cutoff stops new claims while diagnostics and read paths can stay
+   online.
+4. If global pause is not active, `ClaimNextJob` selects the oldest eligible
+   `queued` job by `global_tick` with `FOR UPDATE SKIP LOCKED`.
+5. The same statement moves the row to `running`, writes the lease owner,
+   expiry, heartbeat, and `updated_at`, then returns the claimed job.
+6. If no row is available, the function returns `ErrNoJobAvailable` so an idle
+   worker can sleep without treating the empty queue as a failure.
 
 This keeps duplicate claims out of normal worker execution. Concurrent workers lock different rows, and ordering depends on `global_tick` rather than UUIDs or timestamps.
 
