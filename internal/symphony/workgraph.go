@@ -93,15 +93,17 @@ func pullRequestItems(legacy map[string]any) []WorkItem {
 			}
 		}
 		work = append(work, WorkItem{
-			ID:       fmt.Sprintf("pr-%d", number),
-			Kind:     "pull_request",
-			State:    state,
-			Number:   number,
-			Title:    title,
-			Branch:   stringAt(item, "head_ref"),
-			Reason:   reason,
-			Source:   "legacy.pull_request_queue.items",
-			Priority: 100 + index,
+			ID:        fmt.Sprintf("pr-%d", number),
+			Kind:      "pull_request",
+			State:     state,
+			Number:    number,
+			Title:     title,
+			Branch:    stringAt(item, "head_ref"),
+			Workspace: stringAt(item, "workspace"),
+			LogPath:   stringAt(item, "log_path"),
+			Reason:    reason,
+			Source:    "legacy.pull_request_queue.items",
+			Priority:  100 + index,
 		})
 	}
 	return work
@@ -161,6 +163,11 @@ func issueItems(legacy map[string]any) []WorkItem {
 			if stringAt(dispatch, "reason") != "" {
 				item["reason"] = stringAt(dispatch, "reason")
 			}
+			for _, key := range []string{"workspace", "log_path", "state_path"} {
+				if value := stringAt(dispatch, key); value != "" {
+					item[key] = value
+				}
+			}
 		}
 		state := WorkStateRunnable
 		reason := stringAt(item, "reason")
@@ -178,15 +185,17 @@ func issueItems(legacy map[string]any) []WorkItem {
 			state = WorkStateSkippedWithReason
 		}
 		work = append(work, WorkItem{
-			ID:       fmt.Sprintf("issue-%d", number),
-			Kind:     "issue",
-			State:    state,
-			Number:   number,
-			Title:    stringAt(item, "title"),
-			Branch:   stringAt(item, "branch"),
-			Reason:   reason,
-			Source:   "legacy.selected_issues",
-			Priority: 1000 + index,
+			ID:        fmt.Sprintf("issue-%d", number),
+			Kind:      "issue",
+			State:     state,
+			Number:    number,
+			Title:     stringAt(item, "title"),
+			Branch:    stringAt(item, "branch"),
+			Workspace: stringAt(item, "workspace"),
+			LogPath:   firstNonEmpty(stringAt(item, "log_path"), stringAt(item, "state_path")),
+			Reason:    reason,
+			Source:    "legacy.selected_issues",
+			Priority:  1000 + index,
 		})
 	}
 	return work
@@ -203,6 +212,15 @@ func dispatchesByIssueNumber(legacy map[string]any) map[int]map[string]any {
 		}
 	}
 	return byNumber
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func selfHealingWorkItems(legacy map[string]any) []WorkItem {
