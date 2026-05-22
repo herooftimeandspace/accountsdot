@@ -20,6 +20,7 @@ func NewAppHandler(deps HealthDependencies) http.Handler {
 		handleMetrics(w, r, deps)
 	}))
 	mux.Handle("/events/stream", http.HandlerFunc(handleEventStream))
+	mux.Handle("/api/v1/openapi.json", http.HandlerFunc(handleOpenAPISpec))
 	mux.Handle("/api/v1/session/me", http.HandlerFunc(handleSessionMe))
 	mux.Handle("/api/v1/workflows", http.HandlerFunc(handleWorkflowList))
 	mux.Handle("/api/v1/workflows/", http.HandlerFunc(handleWorkflowRoutes))
