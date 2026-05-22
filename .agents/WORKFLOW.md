@@ -31,6 +31,46 @@ dispatch:
   agent_runner_codex_home_root: /private/tmp/accountsdot-symphony/.codex-agent-homes
   agent_runner_timeout_ms: 21600000
   agent_runner_idle_timeout_ms: 120000
+source_corpus:
+  include_markdown:
+    - README.md
+    - AGENTS.md
+    - .agents/**/*.md
+    - docs/**/*.md
+  priority_roots:
+    - .agents/
+    - docs/
+  exclude_roots:
+    - .git/
+    - node_modules/
+    - frontend/dist/
+    - tmp/
+    - .vite/
+    - .gocache/
+    - .gomodcache/
+    - artifacts/
+    - coverage/
+  generated_markers:
+    - /generated/
+phase_planning:
+  issue_chunk_limit: 6
+  require_acceptance_criteria: true
+  require_safety_context: true
+  require_verification_context: true
+self_healing:
+  enabled: true
+  labels:
+    - agent-ready
+    - bug
+    - symphony
+  priority: top
+  fingerprint_prefix: symphony-self-heal
+review_loops:
+  max_review_requests_per_pr: 4
+  review_request_comment: "@codex"
+  allowed_phase_branch_prefixes:
+    - phase-
+    - codex/
 pull_requests:
   target_branch: phase-0-platform-foundation
   inspect_before_dispatch: true
@@ -150,6 +190,14 @@ The Symphony runner treats checked-in `.agents` skills as runtime guidance. It s
 - When both apply, route UI classification first through `wizard-ui-hardening`, then apply code documentation/update obligations through `wizard-code-documentation`.
 - Prefer these checked-in repo skills over global memory or chat-only guidance when they apply.
 
+## Markdown Source Corpus Runtime
+
+The public Symphony runner is the Go CLI at `cmd/symphony`. It must scan repo-authored Markdown before planning a tick, with `.agents/**/*.md` and `docs/**/*.md` treated as priority sources. The source corpus must include root Markdown such as `README.md` and `AGENTS.md` when present, `.agents/AGENTS.md`, `.agents/WORKFLOW.md`, repo-local skill `SKILL.md` files, and the planning, product, testing, operations, and agent-orchestration docs under `docs/`.
+
+The scanner must exclude vendored, generated, dependency, cache, build, and evidence-output paths such as `.git/`, `node_modules/`, `frontend/dist/`, `.vite/`, `.gocache/`, `.gomodcache/`, `artifacts/`, and generated Markdown unless a checked-in source explicitly marks the path authoritative. The Go runner exposes `source_corpus` in JSON so operators can audit which checked-in docs influenced issue materialization, prompt context, conflict decisions, verification selection, and self-healing bug reports.
+
+If Markdown sources disagree about target branches, safety constraints, verification commands, or phase scope, the runner must follow the documented source-of-truth order and report the conflict in structured output instead of silently choosing. Phase issue materialization must use this indexed Markdown corpus rather than reading only `docs/planning/implementation-plan.md`.
+
 ## UI Monitor And Browser Evaluation Runtime
 
 The `ui_improvements_monitor` maintenance runner replaces the old long prompt-based heartbeat. It owns GitHub queue reporting, safe branch/worktree reconciliation, and latest-code health checks. It must emit `browser_evaluations[]` when UI/runtime validation needs the Codex in-app Browser.
@@ -266,7 +314,7 @@ Dirty prepared PR-remediation workspaces are not terminal blockers when the work
 
 ## Issue Dispatcher Runtime
 
-The repo-owned issue dispatcher is `npm run symphony:sync`. It is the checked-in entrypoint for turning `agent-ready` GitHub issues into deterministic workspaces and branch prompts. It reads the same `.agents/WORKFLOW.md` front matter as the monitor, uses `tracker.active_labels` and `tracker.blocked_labels` for eligibility, derives each issue target branch from the issue body, and honors the `phase-0-platform-foundation` target branch when that line is present in Phase 0 issues.
+The repo-owned issue dispatcher is `npm run symphony:sync`, backed by the Go CLI in `cmd/symphony`. It is the checked-in entrypoint for turning `agent-ready` GitHub issues into deterministic workspaces and branch prompts. During the Go migration, the CLI may call `scripts/symphony_runner.mjs` as a legacy adapter for side-effect paths that have not yet been ported, but source scanning, work-graph construction, capacity accounting, and top-level status decisions belong in Go. It reads the same `.agents/WORKFLOW.md` front matter as the monitor, uses `tracker.active_labels` and `tracker.blocked_labels` for eligibility, derives each issue target branch from the issue body, and honors the `phase-0-platform-foundation` target branch when that line is present in Phase 0 issues.
 
 The dispatcher is conservative by design:
 
