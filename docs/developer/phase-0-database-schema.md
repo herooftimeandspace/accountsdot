@@ -88,6 +88,7 @@ uses a small set of explicit schema patterns:
 | `room_mapping_overrides` | `id`, `school_year`, `source_room`, `normalized_room`, `incident_iq_room_id`, `incident_iq_room_name`, `actor_id`, `created_at`, `updated_at` | Primary key on `id`; unique `school_year`, `source_room` | Operator-approved room mapping override. Actor and room identifiers are internal operational data. |
 | `manual_overrides` | `id`, `people_uuid`, `target_user_type`, `target_user_id`, `school_year`, `actor_id`, `reason`, `diff`, `created_at` | Primary key on `id`; nullable foreign key to `people` | Durable operator override record. `diff` must not include raw secrets, personal phone numbers, private notes beyond the required reason, or unredacted provider payloads. |
 | `audit_log` | `id`, `actor_id`, `actor_type`, `request_id`, `target_entity`, `target_id`, `reason`, `diff`, `created_at` | Primary key on `id` | Audit trail. `diff` should be sanitized and limited to fields needed to understand the change. Breakglass audit rows use sanitized account, source, and outcome metadata only. |
+| `auth_site_scope_mappings` | `id`, `source_type`, `source_value`, `attribute_values`, `site_codes`, `actor_id`, `reason`, `created_at`, `updated_at` | Primary key on `id`; unique `source_type`, `source_value`; check constraint limiting `source_type` to `group` or `attribute`; index `auth_site_scope_mappings_source_idx` on `source_type`, `source_value` | Audited production-auth site-scope mapping table for Google group or SAML attribute signals that cannot fully express site scope by themselves. `source_value`, `attribute_values`, and `site_codes` are authorization inputs; do not copy unredacted identity-provider group names, attribute values, or site-scope details into public tickets. |
 | `record_backups` | `id`, `target_table`, `target_id`, `snapshot`, `created_at` | Primary key on `id` | Recovery snapshot store. `snapshot` must follow the same masking and omission rules as source payloads and audit diffs. |
 
 ### Workflow Runs, Jobs, Approvals, And Outbox
@@ -154,6 +155,11 @@ uses a small set of explicit schema patterns:
   - `workflow_runs.deferred_from_run_id`
   - `workflow_runs.overlap_state`
   - `workflow_runs.overlap_count`
+- Authorization mapping fields:
+  - `auth_site_scope_mappings.source_type`
+  - `auth_site_scope_mappings.source_value`
+  - `auth_site_scope_mappings.attribute_values`
+  - `auth_site_scope_mappings.site_codes`
 
 ## Direct SQL Review Queries
 
@@ -173,10 +179,10 @@ where table_schema = 'public'
     'source_records', 'known_identifiers', 'user_sync_status',
     'room_mapping_overrides', 'import_batches', 'workflow_runs',
     'jobs', 'approval_requests', 'manual_overrides', 'audit_log',
-    'record_backups', 'external_request_log', 'provider_circuit_breakers',
-    'resource_registry', 'extension_inventory', 'event_outbox',
-    'sheet_publish_log', 'system_controls', 'feature_flags',
-    'feature_flag_targets'
+    'auth_site_scope_mappings', 'record_backups', 'external_request_log',
+    'provider_circuit_breakers', 'resource_registry',
+    'extension_inventory', 'event_outbox', 'sheet_publish_log',
+    'system_controls', 'feature_flags', 'feature_flag_targets'
   )
 order by table_name;
 ```
@@ -221,7 +227,8 @@ from information_schema.columns
 where table_schema = 'public'
   and table_name in (
     'workflow_runs', 'jobs', 'event_outbox', 'external_request_log',
-    'system_controls', 'feature_flags', 'feature_flag_targets'
+    'system_controls', 'feature_flags', 'feature_flag_targets',
+    'auth_site_scope_mappings'
   )
   and (
     column_name like '%state%'
@@ -230,7 +237,8 @@ where table_schema = 'public'
       'lease_owner', 'lease_expires_at', 'lease_heartbeat_at',
       'job_family', 'scheduled_for', 'deferred_from_run_id',
       'overlap_count', 'payload', 'desired_snapshot', 'response_summary',
-      'enabled', 'default_enabled'
+      'enabled', 'default_enabled', 'source_type', 'source_value',
+      'attribute_values', 'site_codes'
     )
   )
 order by table_name, column_name;
@@ -248,6 +256,7 @@ from pg_indexes
 where schemaname = 'public'
   and indexname in (
     'known_identifiers_source_unique',
+    'auth_site_scope_mappings_source_idx',
     'workflow_runs_scheduled_family_active_idx',
     'workflow_runs_scheduled_family_overlap_idx',
     'jobs_claimable_global_tick_idx',
@@ -256,6 +265,22 @@ where schemaname = 'public'
     'external_request_log_job_outcome_idx'
   )
 order by tablename, indexname;
+```
+
+### Review Auth Site-Scope Mappings Without Reading Raw Attribute Values
+
+```sql
+select
+  id,
+  source_type,
+  left(source_value, 24) || case when length(source_value) > 24 then '...' else '' end as source_value_prefix,
+  jsonb_array_length(attribute_values) as attribute_value_count,
+  jsonb_array_length(site_codes) as site_count,
+  actor_id,
+  reason,
+  updated_at
+from auth_site_scope_mappings
+order by source_type, source_value;
 ```
 
 ### Summarize Workflow, Job, And Approval State Counts
