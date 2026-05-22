@@ -54,6 +54,20 @@ func TestRunControlQueuesCommand(t *testing.T) {
 	}
 }
 
+func TestRunControlAcceptsActionLocalConcurrencyFlag(t *testing.T) {
+	dir := t.TempDir()
+	if err := runControl([]string{"--state-dir", dir, "set-concurrency", "--concurrency", "4"}); err != nil {
+		t.Fatalf("runControl returned error: %v", err)
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, "control", "*.json"))
+	if err != nil {
+		t.Fatalf("glob command files: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected one command file, got %#v", matches)
+	}
+}
+
 func containsEnv(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

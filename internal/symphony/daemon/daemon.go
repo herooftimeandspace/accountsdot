@@ -54,6 +54,9 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 		UpdatedAt:           time.Now().UTC(),
 	}
 	snapshot := state.Snapshot{Controller: controller}
+	if options.PhaseBranch != "" && !options.DryRun {
+		return snapshot, fmt.Errorf("--phase-branch is supported for daemon dry-run only until native Go dispatch replaces the legacy adapter")
+	}
 	var lock *os.File
 	var err error
 	if !options.DryRun {

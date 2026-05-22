@@ -171,7 +171,6 @@ func runControl(args []string) error {
 	flags := flag.NewFlagSet("control", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	stateDir := flags.String("state-dir", daemon.DefaultStateDir, "daemon state directory")
-	concurrency := flags.Int("concurrency", 0, "worker count for set-concurrency")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -179,12 +178,20 @@ func runControl(args []string) error {
 		return fmt.Errorf("usage: symphony control <pause|resume|drain|stop|cancel|set-concurrency> [target]")
 	}
 	action := flags.Arg(0)
-	target := ""
-	if action == "cancel" && flags.NArg() > 1 {
-		target = flags.Arg(1)
+	actionArgs := flags.Args()[1:]
+	actionFlags := flag.NewFlagSet("control "+action, flag.ContinueOnError)
+	actionFlags.SetOutput(os.Stderr)
+	concurrency := actionFlags.Int("concurrency", 0, "worker count for set-concurrency")
+	if err := actionFlags.Parse(actionArgs); err != nil {
+		return err
 	}
-	if action == "set-concurrency" && *concurrency == 0 && flags.NArg() > 1 {
-		value, err := strconv.Atoi(flags.Arg(1))
+	remaining := actionFlags.Args()
+	target := ""
+	if action == "cancel" && len(remaining) > 0 {
+		target = remaining[0]
+	}
+	if action == "set-concurrency" && *concurrency == 0 && len(remaining) > 0 {
+		value, err := strconv.Atoi(remaining[0])
 		if err != nil {
 			return err
 		}

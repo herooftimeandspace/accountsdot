@@ -313,17 +313,34 @@ function ghJson(args) {
 
 let cachedGitHubRepository = null;
 
+function normalizeGitHubRepositorySlug(value) {
+  if (!value) return "";
+  const parts = String(value)
+    .trim()
+    .split("/")
+    .filter(Boolean);
+  if (parts.length === 2 && parts.every((part) => /^[^\s/]+$/.test(part))) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  if (parts.length === 3 && parts.every((part) => /^[^\s/]+$/.test(part))) {
+    return `${parts[1]}/${parts[2]}`;
+  }
+  return "";
+}
+
 function githubRepositorySlug() {
   if (cachedGitHubRepository) return cachedGitHubRepository;
-  if (process.env.GH_REPO && /^[^/\s]+\/[^/\s]+$/.test(process.env.GH_REPO)) {
-    cachedGitHubRepository = process.env.GH_REPO;
+  const envRepository = normalizeGitHubRepositorySlug(process.env.GH_REPO);
+  if (envRepository) {
+    cachedGitHubRepository = envRepository;
     return cachedGitHubRepository;
   }
   const repository = ghJson(["repo", "view", "--json", "nameWithOwner"]);
-  if (!repository?.nameWithOwner || !/^[^/\s]+\/[^/\s]+$/.test(repository.nameWithOwner)) {
+  const viewedRepository = normalizeGitHubRepositorySlug(repository?.nameWithOwner);
+  if (!viewedRepository) {
     throw new Error("Could not resolve GitHub repository from GH_REPO or gh repo view");
   }
-  cachedGitHubRepository = repository.nameWithOwner;
+  cachedGitHubRepository = viewedRepository;
   return cachedGitHubRepository;
 }
 
@@ -431,7 +448,7 @@ function normalizeIssueFromApi(issue, comments = null) {
     number: issue.number,
     title: issue.title || "",
     body: issue.body || "",
-    comments: comments || hydrateIssueComments(issue.number),
+    comments: comments || [],
     labels: Array.isArray(issue.labels) ? issue.labels.map((label) => ({ name: label.name || String(label) })) : [],
     url: issue.html_url || issue.url || "",
     updatedAt: issue.updated_at || "",
@@ -477,12 +494,14 @@ function mergeIssuesByNumber(issueLists) {
   return [...merged.values()];
 }
 
-function listOpenIssues(activeLabels = []) {
+function listOpenIssues(activeLabels = [], { hydrateComments = false } = {}) {
   const issueLists = [listOpenIssuesForLabel()];
   for (const label of activeLabels) {
     issueLists.push(listOpenIssuesForLabel(label));
   }
-  return mergeIssuesByNumber(issueLists).map((issue) => normalizeIssueFromApi(issue, hydrateIssueComments(issue.number)));
+  return mergeIssuesByNumber(issueLists).map((issue) =>
+    normalizeIssueFromApi(issue, hydrateComments ? hydrateIssueComments(issue.number) : []),
+  );
 }
 
 function fetchReviewThreads(baseRef) {
@@ -3340,6 +3359,13 @@ async function selfTest() {
     const workflow = readWorkflow();
     assert.equal(workflow.config.name, "wizard-symphony-workflow");
     assert.ok(workflow.promptTemplate.includes("WIZARD Symphony Agent Workflow"));
+    assert.equal(normalizeGitHubRepositorySlug("herooftimeandspace/accountsdot"), "herooftimeandspace/accountsdot");
+    assert.equal(
+      normalizeGitHubRepositorySlug("github.example.com/herooftimeandspace/accountsdot"),
+      "herooftimeandspace/accountsdot",
+    );
+    assert.equal(normalizeGitHubRepositorySlug("invalid"), "");
+    assert.deepEqual(normalizeIssueFromApi({ number: 1, title: "No comment hydration" }).comments, []);
 
     const fakeSkillsRoot = path.join(tempRoot, "skills");
     fs.mkdirSync(path.join(fakeSkillsRoot, "wizard-ui-hardening"), { recursive: true });

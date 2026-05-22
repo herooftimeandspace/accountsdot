@@ -99,6 +99,28 @@ func TestDaemonDryRunDoesNotConsumeControlCommands(t *testing.T) {
 	}
 }
 
+func TestDaemonRejectsNonDryRunPhaseBranchBeforeLoop(t *testing.T) {
+	dir := t.TempDir()
+	snapshot, err := daemon.Run(context.Background(), daemon.Options{
+		RepoRoot:     t.TempDir(),
+		StateDir:     dir,
+		Interval:     time.Millisecond,
+		MaxTicks:     1,
+		Phase:        "phase 0",
+		PhaseBranch:  "phase-0-platform-foundation",
+		InitialState: "running",
+	})
+	if err == nil {
+		t.Fatal("expected daemon to reject unsupported non-dry-run phase branch")
+	}
+	if snapshot.Controller.LastStatus != "" {
+		t.Fatalf("expected validation before tick loop, got %#v", snapshot.Controller)
+	}
+	if _, readErr := state.ReadSnapshot(dir); readErr == nil {
+		t.Fatal("did not expect daemon state to be written for invalid startup config")
+	}
+}
+
 func TestDaemonRejectsSecondActiveLock(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
