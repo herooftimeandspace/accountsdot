@@ -725,8 +725,8 @@ function readDispatchConfig(workflowConfig) {
     agentRunnerCommand: dispatch.agent_runner_command || "",
     agentRunnerCodexHomeRoot:
       dispatch.agent_runner_codex_home_root || path.join(workspaceRoot, ".codex-agent-homes"),
-    agentRunnerTimeoutMs: Number(dispatch.agent_runner_timeout_ms || 6 * 60 * 60 * 1000),
-    agentRunnerIdleTimeoutMs: Number(dispatch.agent_runner_idle_timeout_ms || 120000),
+    agentRunnerTimeoutMs: Number(dispatch.agent_runner_timeout_ms ?? 6 * 60 * 60 * 1000),
+    agentRunnerIdleTimeoutMs: Number(dispatch.agent_runner_idle_timeout_ms ?? 120000),
   };
 }
 
@@ -1192,7 +1192,7 @@ function terminateChildProcess(child) {
 }
 
 function forceKillChildProcess(child) {
-  if (!child || child.killed) return;
+  if (!child || !child.pid) return;
   try {
     if (process.platform === "win32") {
       child.kill("SIGKILL");
@@ -1208,17 +1208,29 @@ function forceKillChildProcess(child) {
   }
 }
 
-function stdoutHasCompletedCodexTurn(stdout) {
-  return String(stdout || "")
-    .split(/\r?\n/)
-    .some((line) => {
-      if (!line.trim()) return false;
-      try {
-        return JSON.parse(line).type === "turn.completed";
-      } catch {
-        return line.includes('"type":"turn.completed"') || line.includes('"type": "turn.completed"');
-      }
-    });
+function appendBoundedTail(current, text, maxChars = 64 * 1024) {
+  const next = `${current || ""}${text || ""}`;
+  return next.length > maxChars ? next.slice(-maxChars) : next;
+}
+
+function isCompletedCodexTurnLine(line) {
+  const trimmed = String(line || "").trim();
+  if (!trimmed) return false;
+  try {
+    return JSON.parse(trimmed).type === "turn.completed";
+  } catch {
+    return false;
+  }
+}
+
+function consumeCodexStdoutEvents({ chunk, remainder }) {
+  const combined = `${remainder || ""}${chunk || ""}`;
+  const lines = combined.split(/\r?\n/);
+  const nextRemainder = lines.pop() || "";
+  return {
+    completedCodexTurn: lines.some((line) => isCompletedCodexTurnLine(line)),
+    remainder: nextRemainder,
+  };
 }
 
 function writeAgentRunnerLogs(logsPath, stdout, stderr) {
@@ -1229,8 +1241,8 @@ function writeAgentRunnerLogs(logsPath, stdout, stderr) {
   return { stdoutPath, stderrPath };
 }
 
-function classifyAgentRunnerFailure({ error, stdout, stderr, timedOut, idleTimedOut }) {
-  if (idleTimedOut && stdoutHasCompletedCodexTurn(stdout)) {
+function classifyAgentRunnerFailure({ error, stdoutTail, stderrTail, hasOutput, timedOut, idleTimedOut, completedCodexTurn }) {
+  if (idleTimedOut && completedCodexTurn) {
     return {
       status: "succeeded",
       runner_status: "completed",
@@ -1238,7 +1250,7 @@ function classifyAgentRunnerFailure({ error, stdout, stderr, timedOut, idleTimed
     };
   }
   if (idleTimedOut) {
-    const reason = stdout || stderr ? "agent runner idle timeout without completion" : "agent runner produced no output before idle timeout";
+    const reason = hasOutput ? "agent runner idle timeout without completion" : "agent runner produced no output before idle timeout";
     return { status: "failed", runner_status: "failed", reason };
   }
   if (timedOut) {
@@ -1247,7 +1259,7 @@ function classifyAgentRunnerFailure({ error, stdout, stderr, timedOut, idleTimed
   return {
     status: "failed",
     runner_status: "failed",
-    reason: String(stderr || error?.message || "agent runner failed").trim(),
+    reason: String(stderrTail || stdoutTail || error?.message || "agent runner failed").trim(),
   };
 }
 
@@ -1303,8 +1315,11 @@ async function runAgentRunner({
   }
 
   return new Promise((resolve) => {
-    let stdout = "";
-    let stderr = "";
+    let stdoutTail = "";
+    let stderrTail = "";
+    let stdoutRemainder = "";
+    let completedCodexTurn = false;
+    let hasOutput = false;
     let exitStatus = null;
     let exitSignal = null;
     let timedOut = false;
@@ -1328,7 +1343,7 @@ async function runAgentRunner({
       clearTimeout(timeoutTimer);
       clearTimeout(forceTimer);
       const completedAt = new Date().toISOString();
-      writeAgentRunnerLogs(logsPath, stdout, stderr);
+      completedCodexTurn = completedCodexTurn || isCompletedCodexTurnLine(stdoutRemainder);
       if (!error && exitStatus === 0 && !exitSignal) {
         resolve({
           status: "succeeded",
@@ -1343,7 +1358,15 @@ async function runAgentRunner({
         });
         return;
       }
-      const classification = classifyAgentRunnerFailure({ error, stdout, stderr, timedOut, idleTimedOut });
+      const classification = classifyAgentRunnerFailure({
+        error,
+        stdoutTail,
+        stderrTail,
+        hasOutput,
+        timedOut,
+        idleTimedOut,
+        completedCodexTurn,
+      });
       resolve({
         ...classification,
         command: [cmd, ...args],
@@ -1382,13 +1405,18 @@ async function runAgentRunner({
     });
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
-      stdout += text;
+      hasOutput = hasOutput || text.length > 0;
+      stdoutTail = appendBoundedTail(stdoutTail, text);
+      const parsed = consumeCodexStdoutEvents({ chunk: text, remainder: stdoutRemainder });
+      stdoutRemainder = parsed.remainder;
+      completedCodexTurn = completedCodexTurn || parsed.completedCodexTurn;
       fs.appendFileSync(stdoutPath, text);
       resetIdleTimer();
     });
     child.stderr.on("data", (chunk) => {
       const text = chunk.toString();
-      stderr += text;
+      hasOutput = hasOutput || text.length > 0;
+      stderrTail = appendBoundedTail(stderrTail, text);
       fs.appendFileSync(stderrPath, text);
       resetIdleTimer();
     });
@@ -2299,8 +2327,9 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const reviewRemediationPromises = selectedReviewRemediationCandidates.map((entry) =>
     ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }),
   );
-  const remediationSlotsUsed = selectedReviewRemediationCandidates.filter((entry) =>
-    shouldRemediateBlockedPullRequest(entry),
+  const reviewRemediations = await Promise.all(reviewRemediationPromises);
+  const remediationSlotsUsed = reviewRemediations.filter(
+    (entry) => !["blocked", "skipped"].includes(entry.status),
   ).length;
   const remainingDispatchSlots = Math.max(0, maxSelected - remediationSlotsUsed);
   const readyToMergeRemaining = hasUnattemptedReadyToMergePr(prMergeQueue, prMergeResults);
@@ -2313,10 +2342,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     const issue = issues.find((candidate) => candidate.number === entry.number);
     return ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun });
   });
-  const [reviewRemediations, dispatches] = await Promise.all([
-    Promise.all(reviewRemediationPromises),
-    Promise.all(dispatchPromises),
-  ]);
+  const dispatches = await Promise.all(dispatchPromises);
 
   const status = {
     command: "sync",
@@ -2687,7 +2713,7 @@ async function selfTest() {
       targetBranch: "phase-0-platform-foundation",
       logsPath: completedHangLogs,
       timeoutMs: 5000,
-      idleTimeoutMs: 100,
+      idleTimeoutMs: 1000,
       codexHomeRoot: "",
       workspacePath: path.join(tempRoot, "issue-2-test"),
     });
