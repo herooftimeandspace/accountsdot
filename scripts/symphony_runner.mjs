@@ -467,6 +467,13 @@ function normalizeIssueFromApi(issue, comments = null) {
   };
 }
 
+function issueTextWithComments(issue) {
+  return [
+    String(issue.body || ""),
+    ...(Array.isArray(issue.comments) ? issue.comments.map((comment) => String(comment.body || "")) : []),
+  ].join("\n");
+}
+
 function hydrateIssueComments(issueNumber) {
   const comments = [];
   for (let page = 1; ; page += 1) {
@@ -525,11 +532,32 @@ function hydrateIssuesForEntries(issues, entries, hydrateComments = hydrateIssue
       .filter((number) => Number.isInteger(number) && number > 0),
   );
   if (selectedNumbers.size === 0) return issues;
-  return issues.map((issue) =>
-    selectedNumbers.has(issue.number)
-      ? { ...issue, comments: hydrateComments(issue.number), comments_hydrated: true }
-      : issue,
-  );
+  return issues.map((issue) => {
+    if (!selectedNumbers.has(issue.number)) return issue;
+    try {
+      return { ...issue, comments: hydrateComments(issue.number), comments_hydrated: true };
+    } catch (error) {
+      return {
+        ...issue,
+        comments: [],
+        comments_hydrated: false,
+        comments_hydration_error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+}
+
+function issueCommentHydrationCandidates(issues, dispatchConfig) {
+  return issues
+    .filter((issue) => {
+      const labels = new Set(issueLabelNames(issue));
+      if (dispatchConfig.requireExplicitAgentReadyLabel && !dispatchConfig.activeLabels.some((label) => labels.has(label))) {
+        return false;
+      }
+      if ([...labels].some((label) => dispatchConfig.blockedLabels.includes(label))) return false;
+      return true;
+    })
+    .map((issue) => ({ number: issue.number }));
 }
 
 function fetchReviewThreads(baseRef) {
@@ -1009,12 +1037,12 @@ function readPullRequestConfig(workflowConfig, dispatchConfig) {
 }
 
 function issueHasAcceptanceCriteria(issue) {
-  const body = String(issue.body || "");
+  const body = issueTextWithComments(issue);
   return /acceptance criteria/i.test(body) || /-\s+\[[ xX]\]/.test(body);
 }
 
 function issueTargetBranch(issue, dispatchConfig) {
-  const body = String(issue.body || "");
+  const body = issueTextWithComments(issue);
   for (const line of body.split(/\r?\n/)) {
     const match = line.match(/^\s*Target branch:\s*`?([A-Za-z0-9._/-]+)`?(?=[.,;)]|\s|$)/i);
     if (match) return match[1].replace(/[.`]+$/g, "");
@@ -1169,6 +1197,7 @@ function classifyIssueForDispatch(issue, prs, mergedPrs, dispatchConfig) {
     const hasActiveLabel = dispatchConfig.activeLabels.some((label) => labels.has(label));
     if (!hasActiveLabel) reasons.push(`missing active label (${dispatchConfig.activeLabels.join(", ")})`);
   }
+  if (issue.comments_hydration_error) reasons.push(`failed to hydrate issue comments: ${issue.comments_hydration_error}`);
   if (blockedBy.length > 0) reasons.push(`blocked by label: ${blockedBy.join(", ")}`);
   if (!issueHasAcceptanceCriteria(issue)) reasons.push("missing acceptance criteria");
   if (openPr) reasons.push(`open PR already references issue (#${openPr.number})`);
@@ -3128,7 +3157,11 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const dispatchConfig = readDispatchConfig(workflow.config);
   const prConfig = readPullRequestConfig(workflow.config, dispatchConfig);
   const skills = discoverSkills();
-  const issues = listOpenIssues(dispatchConfig.activeLabels);
+  const discoveredIssues = listOpenIssues(dispatchConfig.activeLabels);
+  const issues = hydrateIssuesForEntries(
+    discoveredIssues,
+    issueCommentHydrationCandidates(discoveredIssues, dispatchConfig),
+  );
   const targetBranches = [
     dispatchConfig.defaultTargetBranch,
     prConfig.targetBranch,
@@ -3183,9 +3216,8 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     readyToMergeRemaining;
   const queue = rankedDispatchQueue(issues, prs, mergedPrs, dispatchConfig);
   const selected = shouldPauseDispatchForPrQueue ? [] : queue.filter((entry) => entry.eligible).slice(0, remainingDispatchSlots);
-  const dispatchIssues = hydrateIssuesForEntries(issues, selected);
   const dispatchPromises = selected.map((entry) => {
-    const issue = dispatchIssues.find((candidate) => candidate.number === entry.number);
+    const issue = issues.find((candidate) => candidate.number === entry.number);
     return ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun });
   });
   const dispatches = await Promise.all(dispatchPromises);
@@ -4058,6 +4090,38 @@ async function selfTest() {
         [900269, 0, false],
       ],
     );
+    assert.match(
+      classifyIssueForDispatch(
+        hydrateIssuesForEntries(
+          [normalizeIssueFromApi({ number: 900270, title: "comment fetch failure", labels: [{ name: "agent-ready" }] })],
+          [{ number: 900270 }],
+          () => {
+            throw new Error("secondary rate limit");
+          },
+        )[0],
+        [],
+        [],
+        dispatchConfig,
+      ).reason,
+      /failed to hydrate issue comments: secondary rate limit/,
+    );
+    const commentOnlyCriteriaIssue = normalizeIssueFromApi({
+      number: 900271,
+      title: "comment acceptance criteria",
+      body: "Implementation details live in comments.",
+      labels: [{ name: "agent-ready" }],
+    });
+    const hydratedCommentOnlyIssue = hydrateIssuesForEntries(
+      [commentOnlyCriteriaIssue],
+      issueCommentHydrationCandidates([commentOnlyCriteriaIssue], dispatchConfig),
+      () => [
+        {
+          body: ["Target branch: phase-0-platform-foundation", "", "Acceptance criteria", "- [ ] Use comment criteria"].join("\n"),
+        },
+      ],
+    )[0];
+    assert.equal(issueTargetBranch(hydratedCommentOnlyIssue, dispatchConfig), "phase-0-platform-foundation");
+    assert.equal(classifyIssueForDispatch(hydratedCommentOnlyIssue, [], [], dispatchConfig).eligible, true);
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
     assert.match(
       renderIssuePrompt({

@@ -18,7 +18,7 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/symphony/state"
 )
 
-const DefaultStateDir = "/private/tmp/accountsdot-symphony"
+var DefaultStateDir = filepath.Join(os.TempDir(), "accountsdot-symphony")
 
 const daemonLockMaxAge = 30 * time.Minute
 
@@ -74,6 +74,9 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 			return snapshot, err
 		}
 		defer releaseLock(lock, options.StateDir)
+		if err := touchDaemonLock(lock); err != nil {
+			return snapshot, err
+		}
 		if err := state.AppendEvent(options.StateDir, state.Event{Kind: "daemon.started", Message: "local Symphony daemon started"}); err != nil {
 			return snapshot, err
 		}
@@ -128,6 +131,9 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 			snapshot.Controller.Message = fmt.Sprintf("unsupported daemon lifecycle %q", snapshot.Controller.Lifecycle)
 		}
 		if !options.DryRun {
+			if err := touchDaemonLock(lock); err != nil {
+				return snapshot, err
+			}
 			if err := state.WriteSnapshot(options.StateDir, snapshot); err != nil {
 				return snapshot, err
 			}
@@ -342,9 +348,17 @@ func staleDaemonLock(path string) (bool, string) {
 		return true, fmt.Sprintf("removed stale daemon lock for inactive pid %d", pid)
 	}
 	if time.Since(info.ModTime()) > daemonLockMaxAge {
-		return false, ""
+		return true, fmt.Sprintf("removed stale daemon lock for unrefreshed live pid %d", pid)
 	}
 	return false, ""
+}
+
+func touchDaemonLock(file *os.File) error {
+	if file == nil {
+		return nil
+	}
+	now := time.Now()
+	return os.Chtimes(file.Name(), now, now)
 }
 
 func releaseLock(file *os.File, stateDir string) {
