@@ -206,10 +206,13 @@ func observedWorkers(result symphony.TickResult, now time.Time) []state.WorkerSt
 			WorkItemID:  item.ID,
 			Kind:        item.Kind,
 			Number:      item.Number,
+			Title:       item.Title,
 			Branch:      item.Branch,
+			Workspace:   item.Workspace,
 			Status:      string(item.State),
 			StartedAt:   now,
 			LatestEvent: item.Reason,
+			LogPath:     item.LogPath,
 		})
 	}
 	return workers

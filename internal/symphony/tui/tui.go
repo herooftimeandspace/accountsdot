@@ -2,6 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,14 +17,25 @@ import (
 
 type tickMsg time.Time
 
+type ProcessSample struct {
+	CPUPercent float64
+	Available  bool
+	Reason     string
+}
+
+type ProcessSampler func(pid int) ProcessSample
+
 // Model is the Bubble Tea read model for Symphony's local daemon. It treats the
 // daemon's status files as truth and sends operator actions through the same
 // control command files used by the CLI.
 type Model struct {
-	StateDir string
-	Snapshot state.Snapshot
-	Message  string
-	Err      error
+	StateDir       string
+	Snapshot       state.Snapshot
+	Message        string
+	Err            error
+	Now            time.Time
+	ProcessSamples map[int]ProcessSample
+	Sampler        ProcessSampler
 }
 
 // NewModel loads initial daemon state for tests and the interactive program.
@@ -30,7 +44,10 @@ func NewModel(stateDir string) Model {
 		stateDir = daemon.DefaultStateDir
 	}
 	snapshot, err := state.ReadSnapshot(stateDir)
-	return Model{StateDir: stateDir, Snapshot: snapshot, Err: err}
+	now := time.Now().UTC()
+	model := Model{StateDir: stateDir, Snapshot: snapshot, Err: err, Now: now, Sampler: sampleProcess}
+	model.refreshProcessSamples()
+	return model
 }
 
 // Run starts the interactive terminal monitor.
@@ -74,6 +91,8 @@ func (model Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		snapshot, err := state.ReadSnapshot(model.StateDir)
 		model.Snapshot = snapshot
 		model.Err = err
+		model.Now = time.Time(msg).UTC()
+		model.refreshProcessSamples()
 		return model, tick()
 	}
 	return model, nil
@@ -93,7 +112,7 @@ func (model Model) View() string {
 		fmt.Sprintf("PID: %d", controller.PID),
 		fmt.Sprintf("Phase: %s", valueOrDash(controller.Phase)),
 		fmt.Sprintf("Phase branch: %s", valueOrDash(controller.PhaseBranch)),
-		fmt.Sprintf("Workers: %d/%d", len(model.Snapshot.Workers), controller.EffectiveWorkers),
+		fmt.Sprintf("Workers: %d/%d active", len(model.Snapshot.Workers), controller.EffectiveWorkers),
 		fmt.Sprintf("Last tick: %s", formatTime(controller.LastTick)),
 		fmt.Sprintf("Next tick: %s", formatTime(controller.NextTick)),
 	}
@@ -104,11 +123,73 @@ func (model Model) View() string {
 	if len(model.Snapshot.Workers) == 0 {
 		lines = append(lines, "  none")
 	}
-	for _, worker := range model.Snapshot.Workers {
-		lines = append(lines, fmt.Sprintf("  %s %s #%d %s %s", worker.ID, worker.Kind, worker.Number, worker.Status, worker.Branch))
+	for _, worker := range sortedWorkers(model.Snapshot.Workers) {
+		lines = append(lines, model.renderWorker(worker)...)
 	}
-	lines = append(lines, "", "Controls: p pause | r resume | d drain | s stop | +/- concurrency | q quit")
+	lines = append(lines, "", "Controls: p pause | r resume | d drain | s stop | +/- concurrency | cancel via symphony control cancel <worker-id> | q quit")
 	return strings.Join(lines, "\n") + "\n"
+}
+
+func (model Model) renderWorker(worker state.WorkerState) []string {
+	ref := worker.Kind
+	if worker.Number != 0 {
+		ref = fmt.Sprintf("%s #%d", worker.Kind, worker.Number)
+	}
+	header := fmt.Sprintf("  %s  %s  %s  elapsed=%s  cpu=%s  retry=%d",
+		valueOrDash(worker.ID),
+		ref,
+		valueOrDash(worker.Status),
+		formatElapsed(model.Now, worker.StartedAt, worker.EndedAt),
+		model.formatCPU(worker.PID),
+		worker.RetryCount,
+	)
+	lines := []string{header}
+	if worker.Title != "" {
+		lines = append(lines, fmt.Sprintf("    title: %s", worker.Title))
+	}
+	if worker.LatestEvent != "" {
+		lines = append(lines, fmt.Sprintf("    latest: %s", worker.LatestEvent))
+	}
+	lines = append(lines,
+		fmt.Sprintf("    branch: %s", valueOrDash(worker.Branch)),
+		fmt.Sprintf("    workspace: %s", valueOrDash(worker.Workspace)),
+		fmt.Sprintf("    log: %s", valueOrDash(worker.LogPath)),
+	)
+	if worker.PID != 0 {
+		lines = append(lines, fmt.Sprintf("    pid: %d", worker.PID))
+	}
+	return lines
+}
+
+func (model Model) formatCPU(pid int) string {
+	if pid == 0 {
+		return "n/a"
+	}
+	sample, ok := model.ProcessSamples[pid]
+	if !ok || !sample.Available {
+		if sample.Reason != "" {
+			return "n/a"
+		}
+		return "n/a"
+	}
+	return fmt.Sprintf("%.1f%%", sample.CPUPercent)
+}
+
+func (model *Model) refreshProcessSamples() {
+	samples := map[int]ProcessSample{}
+	if model.Sampler == nil {
+		model.Sampler = sampleProcess
+	}
+	for _, worker := range model.Snapshot.Workers {
+		if worker.PID == 0 {
+			continue
+		}
+		if _, seen := samples[worker.PID]; seen {
+			continue
+		}
+		samples[worker.PID] = model.Sampler(worker.PID)
+	}
+	model.ProcessSamples = samples
 }
 
 func (model Model) send(action string, target string, concurrency int) string {
@@ -140,4 +221,48 @@ func formatTime(value time.Time) string {
 		return "-"
 	}
 	return value.Format(time.RFC3339)
+}
+
+func formatElapsed(now time.Time, started time.Time, ended time.Time) string {
+	if started.IsZero() {
+		return "-"
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	end := now
+	if !ended.IsZero() {
+		end = ended
+	}
+	if end.Before(started) {
+		return "0s"
+	}
+	return end.Sub(started).Round(time.Second).String()
+}
+
+func sortedWorkers(workers []state.WorkerState) []state.WorkerState {
+	sorted := append([]state.WorkerState(nil), workers...)
+	sort.SliceStable(sorted, func(left, right int) bool {
+		if sorted[left].StartedAt.Equal(sorted[right].StartedAt) {
+			return sorted[left].ID < sorted[right].ID
+		}
+		return sorted[left].StartedAt.Before(sorted[right].StartedAt)
+	})
+	return sorted
+}
+
+func sampleProcess(pid int) ProcessSample {
+	output, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "%cpu=").Output()
+	if err != nil {
+		return ProcessSample{Available: false, Reason: err.Error()}
+	}
+	text := strings.TrimSpace(string(output))
+	if text == "" {
+		return ProcessSample{Available: false, Reason: "process not found"}
+	}
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return ProcessSample{Available: false, Reason: err.Error()}
+	}
+	return ProcessSample{CPUPercent: value, Available: true}
 }

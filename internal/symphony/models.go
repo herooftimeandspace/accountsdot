@@ -69,15 +69,17 @@ type PhaseSlice struct {
 // issue implementation, PR remediation, merge action, workspace repair, or
 // self-healing bug fix.
 type WorkItem struct {
-	ID       string    `json:"id"`
-	Kind     string    `json:"kind"`
-	State    WorkState `json:"state"`
-	Number   int       `json:"number,omitempty"`
-	Title    string    `json:"title,omitempty"`
-	Branch   string    `json:"branch,omitempty"`
-	Reason   string    `json:"reason,omitempty"`
-	Source   string    `json:"source,omitempty"`
-	Priority int       `json:"priority"`
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	State     WorkState `json:"state"`
+	Number    int       `json:"number,omitempty"`
+	Title     string    `json:"title,omitempty"`
+	Branch    string    `json:"branch,omitempty"`
+	Workspace string    `json:"workspace,omitempty"`
+	LogPath   string    `json:"log_path,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	Source    string    `json:"source,omitempty"`
+	Priority  int       `json:"priority"`
 }
 
 // WorkGraph is recomputed every sync tick. Capacity is selected from this graph

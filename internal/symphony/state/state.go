@@ -45,8 +45,10 @@ type WorkerState struct {
 	WorkItemID  string    `json:"work_item_id"`
 	Kind        string    `json:"kind"`
 	Number      int       `json:"number,omitempty"`
+	Title       string    `json:"title,omitempty"`
 	Branch      string    `json:"branch,omitempty"`
 	Workspace   string    `json:"workspace,omitempty"`
+	PID         int       `json:"pid,omitempty"`
 	Status      string    `json:"status"`
 	StartedAt   time.Time `json:"started_at"`
 	EndedAt     time.Time `json:"ended_at,omitempty"`
