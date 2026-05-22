@@ -209,9 +209,10 @@ Use the most specific checked-in source that applies. If code and docs disagree,
 The Symphony runner treats checked-in `.agents` skills as runtime guidance. It should discover skill directories automatically, include only the relevant skill summaries in prompts, and report missing expected skills as `agent-blocked`.
 
 - Use `wizard-ui-hardening` for The WIZARD UI, design, `.pen`, generated implemented-page, shared-shell, dashboard, browser-evidence, or route-visual work.
-- Use `wizard-code-documentation` for implemented code, route/API, handler, docs, inline-comment, external-write, or provider-surface work.
+- Use `wizard-code-documentation` for implemented code, route/API, handler, docs, inline-comment, external-write, provider-surface, Symphony orchestration, runtime-contract, or promotion-validator work.
 - When both apply, route UI classification first through `wizard-ui-hardening`, then apply code documentation/update obligations through `wizard-code-documentation`.
 - Prefer these checked-in repo skills over global memory or chat-only guidance when they apply.
+- For Symphony changes, the code documentation skill should push the worker toward five recurring checks before completion: queue-state invariants, workspace-recovery safety, review-thread lifecycle handling, handler-derived API contract fidelity, and exhaustive coverage of safety-critical validation surfaces.
 
 ## Markdown Source Corpus Runtime
 
@@ -277,19 +278,23 @@ The following rules capture operational failures that previously required manual
 ### Worker Concurrency And Issue Dispatch
 
 - `dispatch.max_concurrent_runs` is a real capacity target. The runner should fill available slots with independent remediation and issue work whenever safety prerequisites allow it.
+- Capacity must come from actual outcomes, not pre-dispatch intent. A candidate that ends the tick as `blocked`, `failed`, `waiting_for_codex_review`, or otherwise non-runnable must not be counted as runnable capacity or hide real blockers.
 - A PR waiting on Codex Review is not a reason to skip open `agent-ready` issues. If there are free slots and eligible issues, dispatch them.
 - Review remediation has priority over new issue work only when the remediation worker can actually be prepared or run. A blocked remediation prerequisite should not consume a worker slot.
 - Open issues with `agent-ready`, acceptance criteria, and no blocking labels should not be hidden behind stale state from old PRs, old workspaces, or unrelated review waits. If a candidate is skipped, the queue output must state the concrete reason.
 - Workers should be split by issue or PR branch and by non-overlapping file ownership. The dispatcher should maximize independent work while preserving branch isolation and avoiding shared-file conflicts.
+- Top-level status must prefer actionable blockers over passive waits and must never report `idle` when only blocked-actionable work remains.
 
 ### Workspace Recovery
 
 - Dirty state is not automatically fatal. If a prepared issue or PR remediation workspace is already on the correct branch, local edits are usually previous automation work for that same unit. Pass the dirty file list to the worker prompt and require the worker to inspect, finish, verify, commit, and push the in-scope edits.
 - Dirty state is fatal when the workspace is on the wrong branch, detached unexpectedly, tied to an unsafe branch name, missing its remote, or otherwise ambiguous. In those cases the runner must report the exact blocker instead of resetting, deleting, or silently skipping.
+- Refreshing a stale remediation workspace must distinguish behind vs ahead state. Do not hard-reset away clean local-only commits or preserved recovery evidence just because the local and remote OIDs differ.
 - A stale issue workspace must not permanently consume a worker slot. Missing `state.json`, unreadable state, succeeded state without an open PR, or branch/workspace slug drift should be handled explicitly.
 - Issue title changes can make old slug-derived workspace paths stale. Reuse a resolved old-slug workspace only when its repo or state still matches the current issue branch. If the branch slug changed, create or use the current branch/workspace instead of repeatedly blocking on the old checkout.
 - Worker prompts must render the actual prepared workspace path, repo path, target branch, and working branch. They must not mix a resolved legacy workspace with a newly derived slug path.
 - Malformed legacy state must fail closed. Invalid `attempts`, unreadable state, or inconsistent state should not create infinite retry loops.
+- Shared git stash state is global to the repository. When preserving dirty edits before refresh, record a stable stash identifier or equivalent evidence rather than a reflog slot like `stash@{0}`.
 - Merged-workspace teardown should normalize generated cache permissions before declaring cleanup blocked. If a clean merged workspace cannot be removed because `.gomodcache`, `.gocache`, or `node_modules/.cache` contains permission-protected files, make those generated cache trees user-writable and retry once.
 - Clean teardown recovery is limited to generated cache directories. Do not chmod arbitrary source paths, do not delete dirty workspaces, and do not discard local edits.
 
@@ -335,7 +340,7 @@ For every open non-draft PR targeting `phase-0-platform-foundation`, the Synchro
 - Requested-changes reviews from configured Codex Review authors are hard blockers until a later review or thread state makes them non-actionable.
 - If there is no Codex Review response yet, a thumbs-up reaction from `chatgpt-codex-connector[bot]` on the PR conversation or review-request comment is an explicit clean signal. In that case the PR is safe for merge when the other merge gates pass.
 - An eyes reaction from `chatgpt-codex-connector[bot]` on the PR conversation or review-request comment means GitHub Codex Review is actively looking at the PR. It is not a clean signal and not a remediation signal by itself; the Synchronizer should record `waiting_for_codex_review` with an in-progress note and move on to the next tick. If a newer `@codex` comment has a bot eyes reaction, the PR remains pending review even when older Codex Review comments already exist.
-- A missing reaction or pending review request is not a clean signal. The Synchronizer should record `waiting_for_codex_review`, keep the PR out of the merge lane, and use any remaining worker slots for unrelated eligible issues instead of sleeping inside the current tick.
+- A missing reaction or pending review request is not a clean signal. The Synchronizer should record `waiting_for_codex_review`, keep the PR out of the merge lane, and use any remaining worker slots for unrelated eligible issues instead of sleeping inside the current tick. If a newer `@codex` request exists and no newer bot response has arrived yet, keep waiting even when the bot has not reacted at all.
 - Clean PR merging is approved only for PRs targeting `phase-0-platform-foundation`; use the configured GitHub merge method and do not merge PRs for `dev`, `main`, or `ui-improvements` from this dispatcher.
 
 The previous chat-level behavior of sleeping for five minutes inside the automation tick is not allowed. Review waiting is stateful and non-blocking: record when a review was requested or observed, report the wait reason, and let the next scheduled tick re-evaluate. This keeps the `:00`, `:15`, `:30`, and `:45` automation windows available instead of letting one run occupy the next one.
@@ -362,6 +367,7 @@ The dispatcher is conservative by design:
 - The dispatcher skips issues with blocked labels, missing acceptance criteria, missing `agent-ready`, or an already-open PR that references the issue.
 - Skipped issues must not consume worker slots. The dispatcher must keep scanning after non-`agent-ready` candidates and must fetch explicitly labeled `agent-ready` issues in addition to the broad open-issue page so older ready work cannot be hidden behind newer unready issues.
 - Before starting, continuing, or remediating issue work, the dispatcher must gather full open-issue context by reading every comment on each open issue it is evaluating. Issue comments often contain manual decisions, prior remediation attempts, branch or PR references, verification results, and changed acceptance criteria; a worker prompt is incomplete if it includes only the issue body and title. If comment retrieval fails for an otherwise eligible issue, record a concrete blocker instead of launching work with partial context.
+- Open-issue discovery must paginate until the configured search scope is exhausted. Do not let a fixed page limit hide older eligible issues or make the queue appear empty.
 - A stale issue workspace must not permanently consume an issue slot. If the workspace is already checked out on the issue branch but has no readable `state.json`, or the last state is `succeeded` but no PR exists yet, the dispatcher should re-enter that same workspace instead of skipping the issue forever. If the same-issue worktree has local edits, pass the dirty file list to the worker prompt as previous automation work for that issue so the worker can inspect, finish, commit, push, and open or update the PR.
 - When a human manually merges a PR that references an issue, the next dispatcher tick treats that PR as resolved and merged. It must not keep the issue blocked by the old prepared workspace; instead it records `status: merged` in the matching workspace `state.json` when the file exists, removes the clean prepared `repo` worktree checkout, and reports the issue queue entry as `merged`. If the prepared worktree is dirty, it must report the dirty files instead of deleting anything. If `git worktree remove` fails only because generated cache directories such as `.gomodcache`, `.gocache`, or `node_modules/.cache` contain permission-protected files, the dispatcher should make those generated cache trees user-writable and retry teardown once before reporting a blocker.
 - The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.

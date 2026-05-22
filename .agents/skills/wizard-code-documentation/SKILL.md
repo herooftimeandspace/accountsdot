@@ -1,6 +1,6 @@
 ---
 name: wizard-code-documentation
-description: Use for The WIZARD/accountsdot implemented code changes, documentation maintenance, call-path tracing, function comments, external write inventory updates, and pruning stale code documentation. Trigger whenever cmd/, internal/, frontend/src/, tests, routes, schemas, provider operations, or external-write behavior changes.
+description: Use for The WIZARD/accountsdot implemented code changes, documentation maintenance, call-path tracing, function comments, orchestration/runtime contract updates, external write inventory updates, and pruning stale code documentation. Trigger whenever cmd/, internal/, frontend/src/, tests, routes, schemas, provider operations, Symphony automation, or external-write behavior changes.
 ---
 
 # WIZARD Code Documentation
@@ -14,6 +14,7 @@ Use this skill whenever implemented code changes in The WIZARD. The goal is to k
 3. Read the code being changed and every direct caller/callee affected by the change.
 4. Read `docs/code-documentation-guide.md` for the repo's call-path and debugging documentation standard.
 5. Read `docs/planning/external-write-inventory.md` before changing any provider, database, or DEV mock mutation path.
+6. Read `.agents/WORKFLOW.md` and `docs/agent-orchestration/SPEC.md` before changing Symphony queueing, workspace recovery, review remediation, branch orchestration, or daemon behavior.
 
 ## Required Documentation Loop
 
@@ -24,6 +25,7 @@ Use this skill whenever implemented code changes in The WIZARD. The goal is to k
 5. Prune comments and guide sections that describe removed functions, obsolete routes, renamed symbols, superseded workflow behavior, or stale debugging steps.
 6. Search for old symbol names, route paths, provider-operation names, JSON fields, and workflow labels before finishing.
 7. Run `npm run docs:comments:check` after adding or editing comments under `cmd/`, `internal/`, or `frontend/src/`.
+8. When the patch changes orchestration or contract surfaces, update the durable guardrails in `.agents/WORKFLOW.md` and `docs/agent-orchestration/SPEC.md` in the same branch.
 
 ## Inline Documentation Standard
 
@@ -33,6 +35,14 @@ Use this skill whenever implemented code changes in The WIZARD. The goal is to k
 - Keep comments accurate and maintainable. Do not narrate obvious syntax.
 - Do not introduce placeholder templates such as generic data-flow summaries, UI-surface summaries, request-path summaries, frontend event-handler summaries, signature-placeholder wording, or vague side-effect warnings. The repo-local quality gate flags these phrases unless they are inherited entries in `scripts/doc_comment_quality_baseline.json`.
 - Keep generated files, dist output, caches, vendored assets, and `.pen`-generated artboards out of manual documentation edits.
+
+## Symphony And Contract Surfaces
+
+- For Symphony queueing or daemon work, document the exact invariant being protected: runnable vs blocked state, slot consumption, status precedence, workspace reuse, issue-comment hydration, or review-thread gating.
+- For remediation workspace changes, document what state is safe to reuse, what state is fatal, what data is preserved, and what evidence must exist before the runner resolves or merges anything.
+- For OpenAPI, route inventory, readiness, or promotion-validator work, derive the contract from actual handlers, workflow files, and execution paths rather than broad heuristics.
+- Presence-only validation is not enough for promotion or safety checks. Comments and docs should name whether all relevant call sites, stages, entries, or environment variables are covered.
+- When a bug came from partial context, stale status, or an over-broad heuristic, capture that failure mode directly in the nearby comment or doc so the next change starts from the real edge case.
 
 ## External Write Rule
 
