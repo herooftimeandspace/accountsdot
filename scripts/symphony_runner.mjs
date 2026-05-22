@@ -311,6 +311,58 @@ function ghJson(args) {
   throw lastError;
 }
 
+let cachedGitHubRepository = null;
+
+function parseGitHubRepository(value) {
+  if (!value) return null;
+  const parts = String(value)
+    .trim()
+    .split("/")
+    .filter(Boolean);
+  if (parts.length === 2 && parts.every((part) => /^[^\s/]+$/.test(part))) {
+    return { host: "", owner: parts[0], repo: parts[1] };
+  }
+  if (parts.length === 3 && parts.every((part) => /^[^\s/]+$/.test(part))) {
+    return { host: parts[0], owner: parts[1], repo: parts[2] };
+  }
+  return null;
+}
+
+function githubRepository() {
+  if (cachedGitHubRepository) return cachedGitHubRepository;
+  const envRepository = parseGitHubRepository(process.env.GH_REPO);
+  if (envRepository) {
+    cachedGitHubRepository = envRepository;
+    return cachedGitHubRepository;
+  }
+  const repository = ghJson(["repo", "view", "--json", "nameWithOwner"]);
+  const viewedRepository = parseGitHubRepository(repository?.nameWithOwner);
+  if (!viewedRepository) {
+    throw new Error("Could not resolve GitHub repository from GH_REPO or gh repo view");
+  }
+  cachedGitHubRepository = viewedRepository;
+  return cachedGitHubRepository;
+}
+
+function githubRepositorySlug() {
+  const repository = githubRepository();
+  return `${repository.owner}/${repository.repo}`;
+}
+
+function githubRepositoryParts() {
+  const { owner, repo } = githubRepository();
+  return { owner, repo };
+}
+
+function githubApiHostArgs() {
+  const { host } = githubRepository();
+  return host ? ["--hostname", host] : [];
+}
+
+function githubRepoApiPath(suffix) {
+  return `repos/${githubRepositorySlug()}/${suffix}`;
+}
+
 function isTransientGhError(error) {
   const text = `${error?.stdout || ""}\n${error?.stderr || ""}\n${error?.message || ""}`;
   return /\b(502|503|504)\b/i.test(text) || /Bad Gateway|Service Unavailable|Gateway Timeout|timed out/i.test(text);
@@ -376,31 +428,152 @@ function listMergedPullRequestsForBases(baseRefs) {
   return prs;
 }
 
-function listOpenIssues() {
-  return ghJson([
-    "issue",
-    "list",
-    "--state",
-    "open",
-    "--json",
-    "number,title,body,labels,url,updatedAt,assignees",
-    "--limit",
-    "200",
-  ]);
+function listOpenIssuesForLabel(label = "") {
+  const issues = [];
+  for (let page = 1; ; page += 1) {
+    const args = [
+      "api",
+      ...githubApiHostArgs(),
+      "--method",
+      "GET",
+      githubRepoApiPath("issues"),
+      "-f",
+      "state=open",
+      "-f",
+      "per_page=100",
+      "-f",
+      `page=${page}`,
+    ];
+    if (label) {
+      args.push("-f", `labels=${label}`);
+    }
+    const rawPageItems = ghJson(args);
+    issues.push(...rawPageItems.filter((issue) => !issue.pull_request));
+    if (rawPageItems.length < 100) break;
+  }
+  return issues;
+}
+
+function normalizeIssueFromApi(issue, comments = null) {
+  return {
+    number: issue.number,
+    title: issue.title || "",
+    body: issue.body || "",
+    comments: comments || [],
+    labels: Array.isArray(issue.labels) ? issue.labels.map((label) => ({ name: label.name || String(label) })) : [],
+    url: issue.html_url || issue.url || "",
+    updatedAt: issue.updated_at || "",
+    assignees: issue.assignees || [],
+  };
+}
+
+function issueTextWithComments(issue) {
+  return [
+    String(issue.body || ""),
+    ...(Array.isArray(issue.comments) ? issue.comments.map((comment) => String(comment.body || "")) : []),
+  ].join("\n");
+}
+
+function hydrateIssueComments(issueNumber) {
+  const comments = [];
+  for (let page = 1; ; page += 1) {
+    const pageItems = ghJson([
+      "api",
+      ...githubApiHostArgs(),
+      "--method",
+      "GET",
+      githubRepoApiPath(`issues/${issueNumber}/comments`),
+      "-f",
+      "per_page=100",
+      "-f",
+      `page=${page}`,
+    ]);
+    comments.push(
+      ...pageItems.map((comment) => ({
+        id: comment.id,
+        author: comment.user ? { login: comment.user.login } : null,
+        body: comment.body || "",
+        createdAt: comment.created_at || "",
+        updatedAt: comment.updated_at || "",
+        url: comment.html_url || "",
+      })),
+    );
+    if (pageItems.length < 100) break;
+  }
+  return comments;
+}
+
+function mergeIssuesByNumber(issueLists) {
+  const merged = new Map();
+  for (const issues of issueLists) {
+    for (const issue of issues || []) {
+      merged.set(issue.number, issue);
+    }
+  }
+  return [...merged.values()];
+}
+
+function listOpenIssues(activeLabels = [], { listForLabel = listOpenIssuesForLabel } = {}) {
+  const issueLists = [listForLabel()];
+  for (const label of activeLabels) {
+    try {
+      issueLists.push(listForLabel(label));
+    } catch {
+      issueLists.push([]);
+    }
+  }
+  return mergeIssuesByNumber(issueLists).map((issue) => normalizeIssueFromApi(issue));
+}
+
+function hydrateIssuesForEntries(issues, entries, hydrateComments = hydrateIssueComments) {
+  const selectedNumbers = new Set(
+    entries
+      .map((entry) => entry?.number || entry?.issue_number)
+      .filter((number) => Number.isInteger(number) && number > 0),
+  );
+  if (selectedNumbers.size === 0) return issues;
+  return issues.map((issue) => {
+    if (!selectedNumbers.has(issue.number)) return issue;
+    try {
+      return { ...issue, comments: hydrateComments(issue.number), comments_hydrated: true };
+    } catch (error) {
+      return {
+        ...issue,
+        comments: [],
+        comments_hydrated: false,
+        comments_hydration_error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+}
+
+function issueCommentHydrationCandidates(issues, dispatchConfig) {
+  return issues
+    .filter((issue) => {
+      const labels = new Set(issueLabelNames(issue));
+      if (dispatchConfig.requireExplicitAgentReadyLabel && !dispatchConfig.activeLabels.some((label) => labels.has(label))) {
+        return false;
+      }
+      if ([...labels].some((label) => dispatchConfig.blockedLabels.includes(label))) return false;
+      return true;
+    })
+    .map((issue) => ({ number: issue.number }));
 }
 
 function fetchReviewThreads(baseRef) {
+  const { owner, repo } = githubRepositoryParts();
   const query =
     'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviewThreads(first:100) { nodes { id isResolved isOutdated comments(first:10){ nodes { author { login } body createdAt path line originalLine url } } } } } } } }';
   const result = ghJson([
     "api",
+    ...githubApiHostArgs(),
     "graphql",
     "-f",
     `query=${query}`,
     "-F",
-    "owner=herooftimeandspace",
+    `owner=${owner}`,
     "-F",
-    "repo=accountsdot",
+    `repo=${repo}`,
     "-F",
     `base=${baseRef}`,
   ]);
@@ -413,17 +586,19 @@ function fetchReviewThreads(baseRef) {
 }
 
 function fetchPullRequestReviewSignals(baseRef) {
+  const { owner, repo } = githubRepositoryParts();
   const query =
     'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reactionGroups { content users(first:20){ nodes { login } } } reviews(first:50){ nodes { author { login } state submittedAt } } comments(first:50){ nodes { author { login } body createdAt reactionGroups { content users(first:20){ nodes { login } } } } } } } } }';
   const result = ghJson([
     "api",
+    ...githubApiHostArgs(),
     "graphql",
     "-f",
     `query=${query}`,
     "-F",
-    "owner=herooftimeandspace",
+    `owner=${owner}`,
     "-F",
-    "repo=accountsdot",
+    `repo=${repo}`,
     "-F",
     `base=${baseRef}`,
   ]);
@@ -460,7 +635,7 @@ function queueReason(pr) {
 
 function resolveReviewThread(threadId) {
   const query = "mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}) { thread { id isResolved } } }";
-  return ghJson(["api", "graphql", "-f", `query=${query}`, "-F", `threadId=${threadId}`]);
+  return ghJson(["api", ...githubApiHostArgs(), "graphql", "-f", `query=${query}`, "-F", `threadId=${threadId}`]);
 }
 
 function commentAuthor(comment) {
@@ -862,12 +1037,12 @@ function readPullRequestConfig(workflowConfig, dispatchConfig) {
 }
 
 function issueHasAcceptanceCriteria(issue) {
-  const body = String(issue.body || "");
+  const body = issueTextWithComments(issue);
   return /acceptance criteria/i.test(body) || /-\s+\[[ xX]\]/.test(body);
 }
 
 function issueTargetBranch(issue, dispatchConfig) {
-  const body = String(issue.body || "");
+  const body = issueTextWithComments(issue);
   for (const line of body.split(/\r?\n/)) {
     const match = line.match(/^\s*Target branch:\s*`?([A-Za-z0-9._/-]+)`?(?=[.,;)]|\s|$)/i);
     if (match) return match[1].replace(/[.`]+$/g, "");
@@ -1022,6 +1197,7 @@ function classifyIssueForDispatch(issue, prs, mergedPrs, dispatchConfig) {
     const hasActiveLabel = dispatchConfig.activeLabels.some((label) => labels.has(label));
     if (!hasActiveLabel) reasons.push(`missing active label (${dispatchConfig.activeLabels.join(", ")})`);
   }
+  if (issue.comments_hydration_error) reasons.push(`failed to hydrate issue comments: ${issue.comments_hydration_error}`);
   if (blockedBy.length > 0) reasons.push(`blocked by label: ${blockedBy.join(", ")}`);
   if (!issueHasAcceptanceCriteria(issue)) reasons.push("missing acceptance criteria");
   if (openPr) reasons.push(`open PR already references issue (#${openPr.number})`);
@@ -1299,6 +1475,21 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatu
   const targetBranch = issueTargetBranch(issue, dispatchConfig);
   const branchName = issueBranchName(issue, dispatchConfig);
   const renderedWorkspacePath = workspacePath || issueWorkspacePath(issue, dispatchConfig);
+  const commentSection =
+    Array.isArray(issue.comments) && issue.comments.length > 0
+      ? issue.comments
+          .map((comment) =>
+            [
+              `### ${comment.author?.login || "unknown"} at ${comment.updatedAt || comment.createdAt || "unknown time"}`,
+              comment.url ? `URL: ${comment.url}` : "",
+              "",
+              comment.body || "(No comment body was returned by GitHub.)",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          )
+          .join("\n\n")
+      : "(No issue comments were returned by GitHub.)";
   const existingWorkspaceSection =
     dirtyStatus?.dirty_files?.length > 0 || workspaceState?.status
       ? [
@@ -1332,6 +1523,10 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatu
     "## Issue Body",
     "",
     issue.body || "(No issue body was returned by GitHub.)",
+    "",
+    "## Issue Comments",
+    "",
+    commentSection,
     "",
     "## Repo Workflow Prompt",
     "",
@@ -2893,9 +3088,10 @@ function writeDispatchState(dispatchConfig, status) {
 
 async function report({ json = false } = {}) {
   const workflow = readWorkflow();
+  const dispatchConfig = readDispatchConfig(workflow.config);
   const monitor = readMonitorConfig(workflow.config);
   const prs = listOpenPullRequests(monitor.targetBranch);
-  const issues = listOpenIssues();
+  const issues = listOpenIssues(dispatchConfig.activeLabels);
   const skills = discoverSkills();
   const queued = queuePullRequests(prs).map((pr, index) => ({
     priority: index + 1,
@@ -2961,7 +3157,11 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const dispatchConfig = readDispatchConfig(workflow.config);
   const prConfig = readPullRequestConfig(workflow.config, dispatchConfig);
   const skills = discoverSkills();
-  const issues = listOpenIssues();
+  const discoveredIssues = listOpenIssues(dispatchConfig.activeLabels);
+  const issues = hydrateIssuesForEntries(
+    discoveredIssues,
+    issueCommentHydrationCandidates(discoveredIssues, dispatchConfig),
+  );
   const targetBranches = [
     dispatchConfig.defaultTargetBranch,
     prConfig.targetBranch,
@@ -3241,6 +3441,18 @@ async function selfTest() {
     const workflow = readWorkflow();
     assert.equal(workflow.config.name, "wizard-symphony-workflow");
     assert.ok(workflow.promptTemplate.includes("WIZARD Symphony Agent Workflow"));
+    assert.deepEqual(parseGitHubRepository("herooftimeandspace/accountsdot"), {
+      host: "",
+      owner: "herooftimeandspace",
+      repo: "accountsdot",
+    });
+    assert.deepEqual(parseGitHubRepository("github.example.com/herooftimeandspace/accountsdot"), {
+      host: "github.example.com",
+      owner: "herooftimeandspace",
+      repo: "accountsdot",
+    });
+    assert.equal(parseGitHubRepository("invalid"), null);
+    assert.deepEqual(normalizeIssueFromApi({ number: 1, title: "No comment hydration" }).comments, []);
 
     const fakeSkillsRoot = path.join(tempRoot, "skills");
     fs.mkdirSync(path.join(fakeSkillsRoot, "wizard-ui-hardening"), { recursive: true });
@@ -3844,7 +4056,85 @@ async function selfTest() {
       rankedDispatchQueue([blockedIssue, phaseIssue], [], [], { ...dispatchConfig, workspaceRoot: path.join(tempRoot, "rank") })[0].number,
       900264,
     );
+    assert.deepEqual(
+      mergeIssuesByNumber([
+        [{ number: 1, title: "unready newer issue" }],
+        [{ number: 900264, title: "older agent-ready issue" }],
+        [{ number: 1, title: "unready newer issue with full payload", body: "details" }],
+      ]).map((issue) => [issue.number, issue.title, issue.body || ""]),
+      [
+        [1, "unready newer issue with full payload", "details"],
+        [900264, "older agent-ready issue", ""],
+      ],
+    );
+    assert.deepEqual(
+      listOpenIssues(["agent-ready"], {
+        listForLabel: (label = "") => {
+          if (label === "agent-ready") throw new Error("transient label query failure");
+          return [{ number: 900268, title: "covered by broad issue query", labels: [] }];
+        },
+      }).map((issue) => issue.number),
+      [900268],
+    );
+    assert.deepEqual(
+      hydrateIssuesForEntries(
+        [
+          normalizeIssueFromApi({ number: 900268, title: "selected issue" }),
+          normalizeIssueFromApi({ number: 900269, title: "unselected issue" }),
+        ],
+        [{ number: 900268 }],
+        (number) => [{ body: `comment for ${number}` }],
+      ).map((issue) => [issue.number, issue.comments.length, Boolean(issue.comments_hydrated)]),
+      [
+        [900268, 1, true],
+        [900269, 0, false],
+      ],
+    );
+    assert.match(
+      classifyIssueForDispatch(
+        hydrateIssuesForEntries(
+          [normalizeIssueFromApi({ number: 900270, title: "comment fetch failure", labels: [{ name: "agent-ready" }] })],
+          [{ number: 900270 }],
+          () => {
+            throw new Error("secondary rate limit");
+          },
+        )[0],
+        [],
+        [],
+        dispatchConfig,
+      ).reason,
+      /failed to hydrate issue comments: secondary rate limit/,
+    );
+    const commentOnlyCriteriaIssue = normalizeIssueFromApi({
+      number: 900271,
+      title: "comment acceptance criteria",
+      body: "Implementation details live in comments.",
+      labels: [{ name: "agent-ready" }],
+    });
+    const hydratedCommentOnlyIssue = hydrateIssuesForEntries(
+      [commentOnlyCriteriaIssue],
+      issueCommentHydrationCandidates([commentOnlyCriteriaIssue], dispatchConfig),
+      () => [
+        {
+          body: ["Target branch: phase-0-platform-foundation", "", "Acceptance criteria", "- [ ] Use comment criteria"].join("\n"),
+        },
+      ],
+    )[0];
+    assert.equal(issueTargetBranch(hydratedCommentOnlyIssue, dispatchConfig), "phase-0-platform-foundation");
+    assert.equal(classifyIssueForDispatch(hydratedCommentOnlyIssue, [], [], dispatchConfig).eligible, true);
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
+    assert.match(
+      renderIssuePrompt({
+        issue: {
+          ...phaseIssue,
+          comments: [{ author: { login: "operator" }, body: "Use the phase branch from this comment.", url: "https://example.invalid/comment" }],
+        },
+        dispatchConfig,
+        workflow,
+        skills: fakeSkills,
+      }),
+      /Use the phase branch from this comment\./,
+    );
     const dirtyPrompt = renderIssuePrompt({
       issue: phaseIssue,
       dispatchConfig,
