@@ -53,6 +53,11 @@ const DEFAULT_PULL_REQUESTS = {
   autoResolveOutdatedCodexReviewThreads: true,
   codexReviewBot: "chatgpt-codex-connector[bot]",
   codexReviewSuccessReactions: ["THUMBS_UP", "+1"],
+  codexReviewSuccessComments: [
+    "all PR issues have been addressed",
+    "merge is clean",
+    "no actionable feedback",
+  ],
   codexReviewInProgressReactions: ["EYES"],
   noReviewWithBotThumbsUpIsClean: true,
   remediateBlockedPrs: false,
@@ -791,6 +796,35 @@ function hasBotSuccessReaction(signals, config) {
   return hasBotReaction(signals, botLogin, successReactions);
 }
 
+function normalizedCommentText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function latestCodexReviewRequestTime(signals) {
+  return Math.max(
+    0,
+    ...(signals.comments || [])
+      .filter((comment) => /@codex\b/i.test(String(comment.body || "")))
+      .map((comment) => timestampMs(comment.createdAt)),
+  );
+}
+
+function hasCodexReviewSuccessComment(signals, config) {
+  const successComments = (config.codexReviewSuccessComments || [])
+    .map(normalizedCommentText)
+    .filter(Boolean);
+  if (successComments.length === 0) return false;
+  const latestRequestTime = latestCodexReviewRequestTime(signals);
+  if (latestRequestTime === 0) return false;
+  const authors = config.codexReviewAuthors || [];
+  return (signals.comments || []).some((comment) => {
+    if (!authorMatches(comment.author?.login, authors)) return false;
+    if (timestampMs(comment.createdAt) <= latestRequestTime) return false;
+    const body = normalizedCommentText(comment.body);
+    return successComments.some((successComment) => body.includes(successComment));
+  });
+}
+
 function hasBotInProgressReaction(signals, config) {
   const inProgressReactions = new Set((config.codexReviewInProgressReactions || []).map((reaction) => String(reaction).toUpperCase()));
   const botLogin = config.codexReviewBot || "";
@@ -831,12 +865,36 @@ function hasPendingCodexReviewRequest(signals, config) {
   const successReactions = new Set((config.codexReviewSuccessReactions || []).map((reaction) => String(reaction).toUpperCase()));
   const botLogin = config.codexReviewBot || "";
   const latestReviewTime = latestCodexReviewResponseTime(signals, config);
+  const latestCleanCommentTime = latestCodexReviewSuccessCommentTime(signals, config);
   return (signals.comments || []).some((comment) => {
     if (!/@codex\b/i.test(String(comment.body || ""))) return false;
-    if (timestampMs(comment.createdAt) < latestReviewTime) return false;
+    const requestTime = timestampMs(comment.createdAt);
+    if (requestTime < latestReviewTime) return false;
+    if (requestTime < latestCleanCommentTime) return false;
     if (reactionGroupsHaveBotReaction(comment.reactionGroups, botLogin, successReactions)) return false;
     return true;
   });
+}
+
+function latestCodexReviewSuccessCommentTime(signals, config) {
+  const successComments = (config.codexReviewSuccessComments || [])
+    .map(normalizedCommentText)
+    .filter(Boolean);
+  if (successComments.length === 0) return 0;
+  const authors = config.codexReviewAuthors || [];
+  const latestRequestTime = latestCodexReviewRequestTime(signals);
+  if (latestRequestTime === 0) return 0;
+  return Math.max(
+    0,
+    ...(signals.comments || [])
+      .filter((comment) => authorMatches(comment.author?.login, authors))
+      .filter((comment) => timestampMs(comment.createdAt) > latestRequestTime)
+      .filter((comment) => {
+        const body = normalizedCommentText(comment.body);
+        return successComments.some((successComment) => body.includes(successComment));
+      })
+      .map((comment) => timestampMs(comment.createdAt)),
+  );
 }
 
 function hasCodexReviewResponse({ signals, threadEntry, config }) {
@@ -880,25 +938,29 @@ function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
 
   const codexReviewResponse = hasCodexReviewResponse({ signals, threadEntry, config });
   const botThumbsUp = hasBotSuccessReaction(signals, config);
+  const cleanComment = hasCodexReviewSuccessComment(signals, config);
   const botEyes = hasBotInProgressReaction(signals, config);
   const pendingCodexReviewRequest = hasPendingCodexReviewRequest(signals, config);
   if (pendingCodexReviewRequest) {
     if (botEyes) warnings.push("Codex Review is looking at a newer @codex review request after chatgpt-codex-connector bot eyes reaction");
     else warnings.push("waiting for Codex Review response or bot reaction on a newer @codex review request");
-  } else if (!codexReviewResponse && !botThumbsUp) {
+  } else if (!codexReviewResponse && !botThumbsUp && !cleanComment) {
     if (botEyes) warnings.push("Codex Review is looking at the PR after chatgpt-codex-connector bot eyes reaction");
     else {
-      warnings.push("waiting for Codex Review response or bot thumbs-up reaction");
+      warnings.push("waiting for Codex Review response, bot thumbs-up reaction, or configured clean comment");
     }
   }
   if (!codexReviewResponse && botThumbsUp && config.noReviewWithBotThumbsUpIsClean) {
     warnings.push("no Codex Review response, but chatgpt-codex-connector bot thumbs-up is configured as clean evidence");
   }
+  if (!codexReviewResponse && cleanComment) {
+    warnings.push("no Codex Review response, but configured Codex Review clean comment is clean evidence");
+  }
 
   const ready =
     !pendingCodexReviewRequest &&
     blockers.length === 0 &&
-    (codexReviewResponse || (botThumbsUp && config.noReviewWithBotThumbsUpIsClean));
+    (codexReviewResponse || (botThumbsUp && config.noReviewWithBotThumbsUpIsClean) || cleanComment);
   return {
     number: pr.number,
     title: pr.title,
@@ -909,6 +971,7 @@ function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
     check_state: checkState,
     codex_review_response: codexReviewResponse,
     bot_thumbs_up: botThumbsUp,
+    codex_review_clean_comment: cleanComment,
     bot_eyes: botEyes,
     pending_codex_review_request: pendingCodexReviewRequest,
     unresolved_codex_review_threads: threadEntry.unresolved_threads.filter((thread) =>
@@ -1015,6 +1078,8 @@ function readPullRequestConfig(workflowConfig, dispatchConfig) {
     codexReviewBot: configured.codex_review_bot || DEFAULT_PULL_REQUESTS.codexReviewBot,
     codexReviewSuccessReactions:
       configured.codex_review_success_reactions || DEFAULT_PULL_REQUESTS.codexReviewSuccessReactions,
+    codexReviewSuccessComments:
+      configured.codex_review_success_comments || DEFAULT_PULL_REQUESTS.codexReviewSuccessComments,
     codexReviewInProgressReactions:
       configured.codex_review_in_progress_reactions || DEFAULT_PULL_REQUESTS.codexReviewInProgressReactions,
     noReviewWithBotThumbsUpIsClean:
@@ -3825,6 +3890,11 @@ async function selfTest() {
           auto_merge_clean_prs: true,
           codex_review_bot: "chatgpt-codex-connector[bot]",
           codex_review_success_reactions: ["THUMBS_UP"],
+          codex_review_success_comments: [
+            "all PR issues have been addressed",
+            "merge is clean",
+            "no actionable feedback",
+          ],
         },
       },
       dispatchConfig,
@@ -3992,6 +4062,100 @@ async function selfTest() {
     });
     assert.equal(cleanReactionAfterReviewEvaluation.status, "ready_to_merge");
     assert.equal(cleanReactionAfterReviewEvaluation.pending_codex_review_request, false);
+    const cleanCommentAfterReviewRequestEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [
+          {
+            author: { login: "chatgpt-codex-connector" },
+            state: "COMMENTED",
+            submittedAt: "2026-05-22T01:00:00Z",
+          },
+        ],
+        comments: [
+          {
+            body: "@codex",
+            createdAt: "2026-05-22T02:00:00Z",
+            reactionGroups: [],
+          },
+          {
+            author: { login: "chatgpt-codex-connector[bot]" },
+            body: "All PR issues have been addressed. Merge is clean.",
+            createdAt: "2026-05-22T02:05:00Z",
+            reactionGroups: [],
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(cleanCommentAfterReviewRequestEvaluation.status, "ready_to_merge");
+    assert.equal(cleanCommentAfterReviewRequestEvaluation.codex_review_clean_comment, true);
+    assert.equal(cleanCommentAfterReviewRequestEvaluation.pending_codex_review_request, false);
+    const removedEyesWithoutCleanEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [],
+        comments: [
+          {
+            body: "@codex",
+            createdAt: "2026-05-22T02:00:00Z",
+            reactionGroups: [],
+          },
+        ],
+        reactionGroups: [],
+      },
+      config: prConfig,
+    });
+    assert.equal(removedEyesWithoutCleanEvaluation.status, "waiting_for_codex_review");
+    assert.equal(removedEyesWithoutCleanEvaluation.bot_eyes, false);
+    assert.equal(removedEyesWithoutCleanEvaluation.pending_codex_review_request, true);
+    const unresolvedThreadEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [
+        {
+          number: 286,
+          review_threads: [],
+          unresolved_threads: [
+            {
+              id: "PRRT_unresolved",
+              isResolved: false,
+              isOutdated: false,
+              comments: {
+                nodes: [
+                  {
+                    author: { login: "chatgpt-codex-connector[bot]" },
+                    body: "Please fix the review gate.",
+                    path: "scripts/symphony_runner.mjs",
+                    line: 10,
+                    url: "https://example.invalid/thread",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      signals: {
+        reviews: [],
+        comments: [
+          {
+            body: "@codex",
+            createdAt: "2026-05-22T02:00:00Z",
+            reactionGroups: [
+              {
+                content: "THUMBS_UP",
+                users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+              },
+            ],
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(unresolvedThreadEvaluation.status, "blocked");
+    assert.match(unresolvedThreadEvaluation.blockers.join("; "), /unresolved current Codex Review thread/);
     const completedRequestEvaluation = evaluatePullRequestForMerge({
       pr: readyPr,
       reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
