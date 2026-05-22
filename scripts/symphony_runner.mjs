@@ -50,6 +50,7 @@ const DEFAULT_PULL_REQUESTS = {
   autoMergeCleanPrs: false,
   mergeMethod: "squash",
   codexReviewAuthors: ["chatgpt-codex-connector", "chatgpt-codex-connector[bot]", "github-copilot", "codex-review"],
+  autoResolveOutdatedCodexReviewThreads: true,
   codexReviewBot: "chatgpt-codex-connector[bot]",
   codexReviewSuccessReactions: ["THUMBS_UP", "+1"],
   codexReviewInProgressReactions: ["EYES"],
@@ -530,6 +531,17 @@ function remediateReviewThreads({ reviewThreads, config, dryRun }) {
   return results;
 }
 
+function reconcileOutdatedPullRequestReviewThreads({ reviewThreads, config, dryRun }) {
+  return remediateReviewThreads({
+    reviewThreads,
+    config: {
+      codexReviewAuthors: config.codexReviewAuthors,
+      autoResolveOutdatedCodexReviewThreads: config.autoResolveOutdatedCodexReviewThreads,
+    },
+    dryRun,
+  });
+}
+
 function normalizedLogin(login) {
   return String(login || "")
     .toLowerCase()
@@ -745,6 +757,10 @@ function readPullRequestConfig(workflowConfig, dispatchConfig) {
         : Boolean(configured.auto_merge_clean_prs),
     mergeMethod: configured.merge_method || DEFAULT_PULL_REQUESTS.mergeMethod,
     codexReviewAuthors: configured.codex_review_authors || DEFAULT_PULL_REQUESTS.codexReviewAuthors,
+    autoResolveOutdatedCodexReviewThreads:
+      configured.auto_resolve_outdated_codex_review_threads === undefined
+        ? DEFAULT_PULL_REQUESTS.autoResolveOutdatedCodexReviewThreads
+        : Boolean(configured.auto_resolve_outdated_codex_review_threads),
     codexReviewBot: configured.codex_review_bot || DEFAULT_PULL_REQUESTS.codexReviewBot,
     codexReviewSuccessReactions:
       configured.codex_review_success_reactions || DEFAULT_PULL_REQUESTS.codexReviewSuccessReactions,
@@ -1587,6 +1603,7 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
           .map((thread, index) =>
             [
               `### Thread ${index + 1}`,
+              `- Thread ID: ${thread.thread_id || "(missing)"}`,
               `- URL: ${thread.url || "(missing)"}`,
               `- File: ${thread.path || "(missing)"}`,
               `- Line: ${thread.line || "(unknown)"}`,
@@ -1692,7 +1709,8 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
     "- Inspect each active Codex Review thread and decide whether it needs a code, docs, test, or generated-artifact fix.",
     "- Implement only in-scope fixes for this PR and preserve unrelated local or user-authored changes.",
     "- Run the relevant verification for the files touched.",
-    "- Reply to or resolve Codex Review threads only after the branch update makes the comment fixed or obsolete.",
+    "- After committing and pushing fixes, revisit every listed Codex Review thread. Resolve a thread only when the pushed branch makes the feedback fixed or obsolete; otherwise leave it open and explain the remaining blocker.",
+    "- Prefer resolving obsolete GitHub review conversations with the listed Thread ID. If resolution is unavailable, leave a concise thread reply with the fixing commit and verification evidence so the conversation can be closed manually.",
     "- Do not perform production writes, provider writeback, secret disclosure, destructive git, or manual merges.",
     "- Finish with changed files, verification evidence, safety notes, and thread actions taken.",
     "",
@@ -2620,7 +2638,13 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const prs = listOpenPullRequestsForBases(targetBranches);
   const mergedPrs = listMergedPullRequestsForBases(targetBranches);
   const mergedWorkspaceStates = markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dryRun });
-  const prReviewThreads = prConfig.inspectBeforeDispatch ? fetchReviewThreads(prConfig.targetBranch) : [];
+  let prReviewThreads = prConfig.inspectBeforeDispatch ? fetchReviewThreads(prConfig.targetBranch) : [];
+  const prReviewThreadRemediations = prConfig.inspectBeforeDispatch
+    ? reconcileOutdatedPullRequestReviewThreads({ reviewThreads: prReviewThreads, config: prConfig, dryRun })
+    : [];
+  if (!dryRun && prReviewThreadRemediations.some((remediation) => remediation.status === "resolved")) {
+    prReviewThreads = fetchReviewThreads(prConfig.targetBranch);
+  }
   const prSignals = prConfig.inspectBeforeDispatch ? fetchPullRequestReviewSignals(prConfig.targetBranch) : new Map();
   const targetPrs = prs.filter((pr) => pr.baseRefName === prConfig.targetBranch);
   const prMergeQueue = queuePullRequests(targetPrs).map((pr) =>
@@ -2688,6 +2712,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
       merge_method: prConfig.mergeMethod,
       review_wait_policy: prConfig.reviewWaitPolicy,
       items: prMergeQueue,
+      review_thread_remediations: prReviewThreadRemediations,
       merge_results: prMergeResults,
       review_remediations: reviewRemediations,
       merged_workspace_states: mergedWorkspaceStates,
@@ -2699,6 +2724,8 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     dispatches,
     status: prMergeResults.some((result) => result.status === "merged")
       ? "merged_prs"
+      : prReviewThreadRemediations.some((result) => result.status === "resolved")
+        ? "review_threads_resolved"
       : reviewRemediations.some((result) => result.status === "succeeded")
         ? "review_remediation_complete"
       : reviewRemediations.some((result) => result.status === "failed")
@@ -2728,6 +2755,9 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
           ...prMergeResults
             .filter((result) => result.status === "merged")
             .map((result) => `merged PR #${result.number} with ${result.merge_method}`),
+          ...prReviewThreadRemediations
+            .filter((result) => result.status === "resolved")
+            .map((result) => `resolved outdated Codex Review thread on PR #${result.number}`),
           ...reviewRemediations
             .filter((result) => ["prepared", "succeeded", "failed"].includes(result.status))
             .map((result) => `review remediation ${result.status} for PR #${result.number} in ${result.repo}`),
@@ -2955,6 +2985,14 @@ async function selfTest() {
         dryRun: true,
       })[0].status,
       "blocked",
+    );
+    assert.deepEqual(
+      reconcileOutdatedPullRequestReviewThreads({
+        reviewThreads: [{ number: 244, review_threads: [codexThread] }],
+        config: DEFAULT_PULL_REQUESTS,
+        dryRun: true,
+      }).map((result) => ({ number: result.number, action: result.action, status: result.status })),
+      [{ number: 244, action: "would-resolve-outdated-thread", status: "dry-run" }],
     );
     assert.deepEqual(
       parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
