@@ -192,7 +192,7 @@ The Symphony runner treats checked-in `.agents` skills as runtime guidance. It s
 
 ## Markdown Source Corpus Runtime
 
-The public Symphony runner is the Go CLI at `cmd/symphony`. It must scan repo-authored Markdown before planning a tick, with `.agents/**/*.md` and `docs/**/*.md` treated as priority sources. The source corpus must include root Markdown such as `README.md` and `AGENTS.md` when present, `.agents/AGENTS.md`, `.agents/WORKFLOW.md`, repo-local skill `SKILL.md` files, and the planning, product, testing, operations, and agent-orchestration docs under `docs/`.
+The Go Symphony `sync` runner at `cmd/symphony` must scan repo-authored Markdown before planning a tick, with `.agents/**/*.md` and `docs/**/*.md` treated as priority sources. The source corpus must include root Markdown such as `README.md` and `AGENTS.md` when present, `.agents/AGENTS.md`, `.agents/WORKFLOW.md`, repo-local skill `SKILL.md` files, and the planning, product, testing, operations, and agent-orchestration docs under `docs/`.
 
 The scanner must exclude vendored, generated, dependency, cache, build, and evidence-output paths such as `.git/`, `node_modules/`, `frontend/dist/`, `.vite/`, `.gocache/`, `.gomodcache/`, `artifacts/`, and generated Markdown unless a checked-in source explicitly marks the path authoritative. The Go runner exposes `source_corpus` in JSON so operators can audit which checked-in docs influenced issue materialization, prompt context, conflict decisions, verification selection, and self-healing bug reports.
 
@@ -314,7 +314,7 @@ Dirty prepared PR-remediation workspaces are not terminal blockers when the work
 
 ## Issue Dispatcher Runtime
 
-The repo-owned issue dispatcher is `npm run symphony:sync`, backed by the Go CLI in `cmd/symphony`. It is the checked-in entrypoint for turning `agent-ready` GitHub issues into deterministic workspaces and branch prompts. During the Go migration, the CLI may call `scripts/symphony_runner.mjs` as a legacy adapter for side-effect paths that have not yet been ported, but source scanning, work-graph construction, capacity accounting, and top-level status decisions belong in Go. It reads the same `.agents/WORKFLOW.md` front matter as the monitor, uses `tracker.active_labels` and `tracker.blocked_labels` for eligibility, derives each issue target branch from the issue body, and honors the `phase-0-platform-foundation` target branch when that line is present in Phase 0 issues.
+The repo-owned issue dispatcher is `npm run symphony:sync`, backed by the Go CLI in `cmd/symphony`. It is the checked-in entrypoint for turning `agent-ready` GitHub issues into deterministic workspaces and branch prompts. During the Go migration, Node-backed `report` and `ui-monitor` remain direct `scripts/symphony_runner.mjs` commands, and the Go sync CLI may call that script as a legacy adapter for side-effect paths that have not yet been ported. Source scanning, work-graph construction, capacity accounting, and top-level sync status decisions belong in Go. It reads the same `.agents/WORKFLOW.md` front matter as the monitor, uses `tracker.active_labels` and `tracker.blocked_labels` for eligibility, derives each issue target branch from the issue body, and honors the `phase-0-platform-foundation` target branch when that line is present in Phase 0 issues.
 
 The dispatcher is conservative by design:
 

@@ -16,6 +16,7 @@ func TestScanMarkdownCorpusPrioritizesAgentsAndDocs(t *testing.T) {
 	writeFile(t, root, "docs/planning/implementation-plan.md", "# Phase 0\n## Acceptance Criteria\n- [ ] Ship\n`npm run symphony:test`\n")
 	writeFile(t, root, "node_modules/pkg/README.md", "# ignored\n")
 	writeFile(t, root, "frontend/dist/generated.md", "# ignored\n")
+	writeFile(t, root, "generated/report.md", "# ignored\n")
 
 	corpus, err := symphony.ScanMarkdownCorpus(root)
 	if err != nil {
@@ -72,6 +73,19 @@ func TestExtractPhaseSlicesRequiresAcceptanceCriteria(t *testing.T) {
 	}
 	if slices[0].SourcePath != "docs/planning/implementation-plan.md" {
 		t.Fatalf("unexpected slice source: %s", slices[0].SourcePath)
+	}
+}
+
+func TestExtractPhaseSlicesAppliesBranchOverride(t *testing.T) {
+	corpus := symphony.SourceCorpus{Sources: []symphony.MarkdownSource{
+		{Path: "docs/planning/implementation-plan.md", Headings: []string{"Phase 0"}, PhaseReferences: []string{"phase 0"}, HasAcceptanceCriteria: true, TargetBranches: []string{"phase-0-platform-foundation"}},
+	}}
+	slices := symphony.ExtractPhaseSlices(corpus, "Phase 0", "phase-1-next")
+	if len(slices) != 1 {
+		t.Fatalf("expected materialized slice, got %d", len(slices))
+	}
+	if slices[0].TargetBranch != "phase-1-next" {
+		t.Fatalf("expected branch override, got %q", slices[0].TargetBranch)
 	}
 }
 

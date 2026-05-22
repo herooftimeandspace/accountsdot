@@ -383,7 +383,7 @@ function listOpenIssuesForArgs(extraArgs = []) {
     "--state",
     "open",
     "--json",
-    "number,title,body,labels,url,updatedAt,assignees",
+    "number,title,body,comments,labels,url,updatedAt,assignees",
     "--limit",
     "200",
     ...extraArgs,

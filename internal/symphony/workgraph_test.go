@@ -37,6 +37,49 @@ func TestBuildWorkGraphDoesNotLetReviewWaitConsumeRunnableIssueSlots(t *testing.
 	}
 }
 
+func TestBuildWorkGraphUsesDispatchOutcomeForSelectedIssues(t *testing.T) {
+	legacy := map[string]any{
+		"selected_issues": []any{
+			map[string]any{"number": 292.0, "title": "Fix Symphony", "branch": "codex/issue-292-fix-symphony", "status": "eligible"},
+		},
+		"dispatches": []any{
+			map[string]any{"number": 292.0, "status": "failed", "reason": "agent runner failed"},
+		},
+	}
+
+	_, capacity, status := symphony.BuildWorkGraph(legacy, symphony.SourceCorpus{TotalFiles: 1}, 6)
+	if status != "blocked_actionable" {
+		t.Fatalf("expected failed dispatch to produce actionable blocker status, got %q", status)
+	}
+	if len(capacity.RunnableWork) != 0 {
+		t.Fatalf("expected failed dispatch not to remain runnable, got %#v", capacity.RunnableWork)
+	}
+}
+
+func TestBuildWorkGraphReportsBlockedActionableInsteadOfIdle(t *testing.T) {
+	legacy := map[string]any{
+		"pull_request_queue": map[string]any{
+			"items": []any{
+				map[string]any{
+					"number":   319.0,
+					"title":    "Blocked PR",
+					"head_ref": "codex/blocked",
+					"status":   "blocked",
+					"blockers": []any{"merge state DIRTY"},
+				},
+			},
+		},
+	}
+
+	_, capacity, status := symphony.BuildWorkGraph(legacy, symphony.SourceCorpus{TotalFiles: 1}, 6)
+	if status != "blocked_actionable" {
+		t.Fatalf("expected blocked actionable status, got %q", status)
+	}
+	if len(capacity.RunnableWork) != 0 || len(capacity.ExternalWaits) != 0 {
+		t.Fatalf("expected no runnable or external waits, got %#v", capacity)
+	}
+}
+
 func TestBuildWorkGraphPromotesSelfHealingBlockers(t *testing.T) {
 	legacy := map[string]any{
 		"pull_request_queue": map[string]any{

@@ -5,7 +5,7 @@ import "strings"
 // ExtractPhaseSlices returns documented phase sections that are specific enough
 // to become issue materialization candidates. The first Go implementation keeps
 // extraction conservative: no acceptance criteria means no automatic issue.
-func ExtractPhaseSlices(corpus SourceCorpus, phaseID string) []PhaseSlice {
+func ExtractPhaseSlices(corpus SourceCorpus, phaseID string, branchOverride ...string) []PhaseSlice {
 	if phaseID == "" {
 		return nil
 	}
@@ -22,6 +22,9 @@ func ExtractPhaseSlices(corpus SourceCorpus, phaseID string) []PhaseSlice {
 		targetBranch := ""
 		if len(source.TargetBranches) > 0 {
 			targetBranch = source.TargetBranches[0]
+		}
+		if len(branchOverride) > 0 && branchOverride[0] != "" {
+			targetBranch = branchOverride[0]
 		}
 		slices = append(slices, PhaseSlice{
 			ID:                 normalized,

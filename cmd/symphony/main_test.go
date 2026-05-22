@@ -25,6 +25,16 @@ func TestGoCacheEnvSetsRepoLocalDefaults(t *testing.T) {
 	}
 }
 
+func TestHasEnvKeyDetectsExistingCache(t *testing.T) {
+	env := goCacheEnv([]string{"GOCACHE=/custom", "GOMODCACHE=/mods"}, "/repo")
+	if !containsEnv(env, "GOCACHE=/custom") || !containsEnv(env, "GOMODCACHE=/mods") {
+		t.Fatalf("expected existing cache env to be preserved: %#v", env)
+	}
+	if containsEnv(env, "GOCACHE=/repo/.gocache") {
+		t.Fatalf("did not expect default GOCACHE when custom value exists: %#v", env)
+	}
+}
+
 func containsEnv(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {

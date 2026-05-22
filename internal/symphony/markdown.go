@@ -183,6 +183,7 @@ func shouldSkipMarkdownDir(rel string) bool {
 		".gomodcache",
 		"artifacts",
 		"coverage",
+		"generated",
 		"accountsdot-symphony",
 		"accountsdot-symphony-prs",
 	}
@@ -195,7 +196,7 @@ func shouldSkipMarkdownDir(rel string) bool {
 }
 
 func shouldSkipMarkdownFile(rel string) bool {
-	return strings.Contains(rel, "/generated/") || strings.Contains(rel, "/node_modules/") || strings.Contains(rel, "/frontend/dist/")
+	return rel == "generated" || strings.HasPrefix(rel, "generated/") || strings.Contains(rel, "/generated/") || strings.Contains(rel, "/node_modules/") || strings.Contains(rel, "/frontend/dist/")
 }
 
 func detectTargetBranchConflicts(sources []MarkdownSource) []SourceConflict {

@@ -132,14 +132,14 @@ The workspace manager must not delete workspaces automatically on success. Reten
 
 The orchestrator owns the poll loop, runtime state, dispatch queue, retry queue, and reconciliation logic.
 
-The public checked-in implementation is the Go CLI in `cmd/symphony`, with `scripts/symphony_runner.mjs` retained as a legacy adapter while GitHub mutation paths are ported. The Go entrypoint owns Markdown source-corpus scanning, work-graph construction, capacity accounting, and top-level status decisions; the legacy adapter may still produce the underlying issue/PR queue report, dispatch eligible GitHub issues into deterministic workspaces and issue branches, render issue-specific Codex prompts, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, inspect thread-aware Codex Review feedback, resolve outdated Codex Review threads that were left unresolved after the reviewed line became obsolete, evaluate Phase 0 pull request merge readiness, emit Browser evaluation requests, and record Browser results. It does not run production/provider writeback, resolve current actionable review threads without an in-scope fix, or bypass documented review gates.
+The public checked-in sync implementation is the Go CLI in `cmd/symphony`, with `scripts/symphony_runner.mjs` retained for direct Node-backed `report` and `ui-monitor` commands plus legacy adapter behavior while GitHub mutation paths are ported. The Go sync entrypoint owns Markdown source-corpus scanning, work-graph construction, capacity accounting, and top-level status decisions; the legacy adapter may still produce the underlying issue/PR queue report, dispatch eligible GitHub issues into deterministic workspaces and issue branches, render issue-specific Codex prompts, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, inspect thread-aware Codex Review feedback, resolve outdated Codex Review threads that were left unresolved after the reviewed line became obsolete, evaluate Phase 0 pull request merge readiness, emit Browser evaluation requests, and record Browser results. It does not run production/provider writeback, resolve current actionable review threads without an in-scope fix, or bypass documented review gates.
 
 The package scripts are:
 
-- `npm run symphony:report`: read-only queue and eligibility report.
-- `npm run symphony:sync`: repo-owned issue dispatcher for `agent-ready` GitHub issues.
-- `npm run symphony:ui-monitor`: lock-protected monitor for `origin/ui-improvements`.
-- `npm run symphony:test`: parser, lock, queue, dispatcher, skill-routing, Browser-result, and status-output self-tests.
+- `npm run symphony:report`: direct Node read-only queue and eligibility report while report remains Node-backed.
+- `npm run symphony:sync`: Go-backed repo-owned issue dispatcher and work-graph planner for `agent-ready` GitHub issues.
+- `npm run symphony:ui-monitor`: direct Node lock-protected monitor for `origin/ui-improvements` while monitor remains Node-backed.
+- `npm run symphony:test`: Go entrypoint that runs both the legacy Node self-test and Go Symphony tests.
 
 The Go runner must scan repo-authored `*.md` files before phase planning or dispatch. It prioritizes `README.md`, repo-level `AGENTS.md`, `.agents/**/*.md`, and `docs/**/*.md`; extracts headings, phase references, issue references, acceptance criteria, target branch mentions, safety rules, and verification commands; and exposes the result as `source_corpus` in JSON. Vendored, generated, dependency, cache, build, and evidence-output paths are excluded unless a checked-in document explicitly marks them authoritative.
 

@@ -106,6 +106,7 @@ func pullRequestItems(legacy map[string]any) []WorkItem {
 
 func issueItems(legacy map[string]any) []WorkItem {
 	selected := arrayAt(legacy, "selected_issues")
+	dispatchesByNumber := dispatchesByIssueNumber(legacy)
 	if len(selected) == 0 {
 		selected = arrayAt(legacy, "dispatches")
 	}
@@ -114,9 +115,20 @@ func issueItems(legacy map[string]any) []WorkItem {
 		item := rawObject(raw)
 		number := intAt(item, "number")
 		status := stringAt(item, "status")
+		if dispatch, ok := dispatchesByNumber[number]; ok {
+			status = stringAt(dispatch, "status")
+			if stringAt(dispatch, "reason") != "" {
+				item["reason"] = stringAt(dispatch, "reason")
+			}
+		}
 		state := WorkStateRunnable
 		reason := stringAt(item, "reason")
-		if status != "" && status != "eligible" && status != "would-prepare" && status != "prepared" && status != "succeeded" {
+		switch status {
+		case "", "eligible", "would-prepare", "prepared", "succeeded":
+			state = WorkStateRunnable
+		case "blocked", "failed":
+			state = WorkStateBlockedActionable
+		default:
 			state = WorkStateSkippedWithReason
 		}
 		work = append(work, WorkItem{
@@ -132,6 +144,19 @@ func issueItems(legacy map[string]any) []WorkItem {
 		})
 	}
 	return work
+}
+
+func dispatchesByIssueNumber(legacy map[string]any) map[int]map[string]any {
+	dispatches := arrayAt(legacy, "dispatches")
+	byNumber := make(map[int]map[string]any, len(dispatches))
+	for _, raw := range dispatches {
+		dispatch := rawObject(raw)
+		number := intAt(dispatch, "number")
+		if number != 0 {
+			byNumber[number] = dispatch
+		}
+	}
+	return byNumber
 }
 
 func selfHealingWorkItems(legacy map[string]any) []WorkItem {
@@ -182,10 +207,23 @@ func topLevelStatus(graph WorkGraph, capacity CapacityPlan, corpus SourceCorpus)
 	if len(capacity.ExternalWaits) > 0 {
 		return "waiting_for_codex_review"
 	}
+	if len(extractByState(graph, WorkStateBlockedActionable)) > 0 {
+		return "blocked_actionable"
+	}
 	if corpus.TotalFiles == 0 {
 		return "blocked_no_markdown_corpus"
 	}
 	return "idle"
+}
+
+func extractByState(graph WorkGraph, state WorkState) []WorkItem {
+	items := []WorkItem{}
+	for _, item := range graph.Items {
+		if item.State == state {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func extractRunnableByKind(graph WorkGraph, kind string) []WorkItem {

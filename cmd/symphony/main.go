@@ -54,6 +54,12 @@ func runSync(ctx context.Context, repoRoot string, args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	if *phaseBranch != "" && *phaseID == "" {
+		return fmt.Errorf("--phase-branch requires --phase so the override applies only to phase materialization")
+	}
+	if *phaseBranch != "" && !*dryRun {
+		return fmt.Errorf("--phase-branch is supported for dry-run phase materialization only until native Go dispatch replaces the legacy adapter")
+	}
 
 	corpus, err := symphony.ScanMarkdownCorpus(repoRoot)
 	if err != nil {
@@ -79,7 +85,7 @@ func runSync(ctx context.Context, repoRoot string, args []string) error {
 		}
 	}
 	result := symphony.WrapLegacySyncResult(legacy, corpus, effectiveMaxRuns, *dryRun)
-	result.IssueMaterialization = symphony.ExtractPhaseSlices(corpus, *phaseID)
+	result.IssueMaterialization = symphony.ExtractPhaseSlices(corpus, *phaseID, *phaseBranch)
 	if *phaseBranch != "" {
 		result.LegacyStatus["phase_branch_override"] = *phaseBranch
 	}
@@ -105,6 +111,14 @@ func runLegacyPassthrough(ctx context.Context, repoRoot string, args []string) e
 }
 
 func runTests(ctx context.Context, repoRoot string) error {
+	legacy := exec.CommandContext(ctx, "node", "scripts/symphony_runner.mjs", "test")
+	legacy.Dir = repoRoot
+	legacy.Stdout = os.Stdout
+	legacy.Stderr = os.Stderr
+	legacy.Stdin = os.Stdin
+	if err := legacy.Run(); err != nil {
+		return fmt.Errorf("legacy symphony self-test: %w", err)
+	}
 	packages := []string{"test", "./internal/symphony/...", "./cmd/symphony"}
 	command := exec.CommandContext(ctx, "go", packages...)
 	command.Dir = repoRoot
