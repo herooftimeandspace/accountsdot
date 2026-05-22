@@ -1430,6 +1430,21 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatu
   const targetBranch = issueTargetBranch(issue, dispatchConfig);
   const branchName = issueBranchName(issue, dispatchConfig);
   const renderedWorkspacePath = workspacePath || issueWorkspacePath(issue, dispatchConfig);
+  const commentSection =
+    Array.isArray(issue.comments) && issue.comments.length > 0
+      ? issue.comments
+          .map((comment) =>
+            [
+              `### ${comment.author?.login || "unknown"} at ${comment.updatedAt || comment.createdAt || "unknown time"}`,
+              comment.url ? `URL: ${comment.url}` : "",
+              "",
+              comment.body || "(No comment body was returned by GitHub.)",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          )
+          .join("\n\n")
+      : "(No issue comments were returned by GitHub.)";
   const existingWorkspaceSection =
     dirtyStatus?.dirty_files?.length > 0 || workspaceState?.status
       ? [
@@ -1463,6 +1478,10 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatu
     "## Issue Body",
     "",
     issue.body || "(No issue body was returned by GitHub.)",
+    "",
+    "## Issue Comments",
+    "",
+    commentSection,
     "",
     "## Repo Workflow Prompt",
     "",
@@ -3093,7 +3112,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const dispatchConfig = readDispatchConfig(workflow.config);
   const prConfig = readPullRequestConfig(workflow.config, dispatchConfig);
   const skills = discoverSkills();
-  const issues = listOpenIssues(dispatchConfig.activeLabels);
+  const issues = listOpenIssues(dispatchConfig.activeLabels, { hydrateComments: true });
   const targetBranches = [
     dispatchConfig.defaultTargetBranch,
     prConfig.targetBranch,
@@ -4000,6 +4019,18 @@ async function selfTest() {
       ],
     );
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
+    assert.match(
+      renderIssuePrompt({
+        issue: {
+          ...phaseIssue,
+          comments: [{ author: { login: "operator" }, body: "Use the phase branch from this comment.", url: "https://example.invalid/comment" }],
+        },
+        dispatchConfig,
+        workflow,
+        skills: fakeSkills,
+      }),
+      /Use the phase branch from this comment\./,
+    );
     const dirtyPrompt = renderIssuePrompt({
       issue: phaseIssue,
       dispatchConfig,

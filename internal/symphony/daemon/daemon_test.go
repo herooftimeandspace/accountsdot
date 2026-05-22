@@ -2,6 +2,8 @@ package daemon_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -127,7 +129,7 @@ func TestDaemonDryRunDoesNotConsumeControlCommands(t *testing.T) {
 	}
 }
 
-func TestDaemonRejectsNonDryRunPhaseBranchBeforeLoop(t *testing.T) {
+func TestDaemonAllowsNonDryRunPhaseBranchStartup(t *testing.T) {
 	dir := t.TempDir()
 	snapshot, err := daemon.Run(context.Background(), daemon.Options{
 		RepoRoot:     t.TempDir(),
@@ -136,16 +138,36 @@ func TestDaemonRejectsNonDryRunPhaseBranchBeforeLoop(t *testing.T) {
 		MaxTicks:     1,
 		Phase:        "phase 0",
 		PhaseBranch:  "phase-0-platform-foundation",
-		InitialState: "running",
+		InitialState: "paused",
 	})
-	if err == nil {
-		t.Fatal("expected daemon to reject unsupported non-dry-run phase branch")
+	if err != nil {
+		t.Fatalf("daemon run: %v", err)
 	}
 	if snapshot.Controller.LastStatus != "" {
-		t.Fatalf("expected validation before tick loop, got %#v", snapshot.Controller)
+		t.Fatalf("paused daemon should not tick while validating phase branch startup, got %#v", snapshot.Controller)
 	}
-	if _, readErr := state.ReadSnapshot(dir); readErr == nil {
-		t.Fatal("did not expect daemon state to be written for invalid startup config")
+}
+
+func TestDaemonRecoversStaleLockForInactivePID(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "daemon.lock"), []byte("old-daemon\n999999999\n"), 0o644); err != nil {
+		t.Fatalf("write lock: %v", err)
+	}
+	snapshot, err := daemon.Run(context.Background(), daemon.Options{
+		RepoRoot:     t.TempDir(),
+		StateDir:     dir,
+		Interval:     time.Millisecond,
+		MaxTicks:     1,
+		InitialState: "paused",
+	})
+	if err != nil {
+		t.Fatalf("daemon run: %v", err)
+	}
+	if snapshot.Controller.Lifecycle != "stopped" {
+		t.Fatalf("expected recovered daemon to run, got %#v", snapshot.Controller)
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -104,7 +106,7 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 			} else {
 				snapshot.Controller.LastStatus = result.TopLevelStatus
 				snapshot.Controller.Message = ""
-				snapshot.Workers = mergeWorkerObservations(snapshot.Workers, observedWorkers(result, now))
+				snapshot.Workers = mergeWorkerObservations(snapshot.Workers, observedWorkers(result, now), now, options.Interval)
 			}
 		case "paused":
 			now := time.Now().UTC()
@@ -205,9 +207,18 @@ func observedWorkers(result symphony.TickResult, now time.Time) []state.WorkerSt
 	return workers
 }
 
-func mergeWorkerObservations(existing []state.WorkerState, observed []state.WorkerState) []state.WorkerState {
+func mergeWorkerObservations(existing []state.WorkerState, observed []state.WorkerState, now time.Time, staleAfter time.Duration) []state.WorkerState {
+	if staleAfter <= 0 {
+		staleAfter = 5 * time.Minute
+	}
 	if len(observed) == 0 {
-		return existing
+		fresh := make([]state.WorkerState, 0, len(existing))
+		for _, worker := range existing {
+			if worker.StartedAt.IsZero() || now.Sub(worker.StartedAt) <= staleAfter {
+				fresh = append(fresh, worker)
+			}
+		}
+		return fresh
 	}
 	merged := append([]state.WorkerState{}, existing...)
 	indexByWorkItem := map[string]int{}
@@ -275,9 +286,19 @@ func acquireLock(stateDir string, daemonID string) (*os.File, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return nil, fmt.Errorf("symphony daemon lock already exists at %s", path)
+			if stale, reason := staleDaemonLock(path); stale {
+				_ = os.Remove(path)
+				file, err = os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+				if err == nil {
+					_ = state.AppendEvent(stateDir, state.Event{Kind: "daemon.lock_recovered", Message: reason})
+				}
+			}
+			if err != nil {
+				return nil, fmt.Errorf("symphony daemon lock already exists at %s", path)
+			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 	if _, err := file.WriteString(fmt.Sprintf("%s\n%d\n", daemonID, os.Getpid())); err != nil {
 		_ = file.Close()
@@ -285,6 +306,32 @@ func acquireLock(stateDir string, daemonID string) (*os.File, error) {
 		return nil, err
 	}
 	return file, nil
+}
+
+func staleDaemonLock(path string) (bool, string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false, ""
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) < 2 {
+		return false, ""
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(lines[1]))
+	if err != nil || pid <= 0 {
+		return false, ""
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return true, fmt.Sprintf("removed stale daemon lock for missing pid %d", pid)
+	}
+	if err := process.Signal(syscall.Signal(0)); err != nil {
+		if errors.Is(err, syscall.EPERM) {
+			return false, ""
+		}
+		return true, fmt.Sprintf("removed stale daemon lock for inactive pid %d", pid)
+	}
+	return false, ""
 }
 
 func releaseLock(file *os.File, stateDir string) {

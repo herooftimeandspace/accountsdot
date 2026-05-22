@@ -61,14 +61,10 @@ func RunSyncTick(ctx context.Context, repoRoot string, options SyncOptions) (Tic
 }
 
 // ValidateSyncOptions centralizes mode checks that callers need before they
-// enter a long-running loop. The daemon uses this to fail fast on unsupported
-// phase-branch mutation instead of repeatedly recording tick failures.
+// enter a long-running loop.
 func ValidateSyncOptions(options SyncOptions) error {
 	if options.PhaseBranch != "" && options.PhaseID == "" {
 		return fmt.Errorf("--phase-branch requires --phase so the override applies only to phase materialization")
-	}
-	if options.PhaseBranch != "" && !options.DryRun {
-		return fmt.Errorf("--phase-branch is supported for dry-run phase materialization only until native Go dispatch replaces the legacy adapter")
 	}
 	return nil
 }
