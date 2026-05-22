@@ -585,14 +585,46 @@ function hasBotInProgressReaction(signals, config) {
   return hasBotReaction(signals, botLogin, inProgressReactions);
 }
 
+function reactionGroupsHaveBotReaction(reactionGroups, botLogin, allowedReactions) {
+  return (reactionGroups || []).some((group) => {
+    if (!allowedReactions.has(String(group.content || "").toUpperCase())) return false;
+    return (group.users?.nodes || []).some((user) => authorMatches(user.login, [botLogin]));
+  });
+}
+
 function hasBotReaction(signals, botLogin, allowedReactions) {
-  const hasMatchingReaction = (reactionGroups) =>
-    (reactionGroups || []).some((group) => {
-      if (!allowedReactions.has(String(group.content || "").toUpperCase())) return false;
-      return (group.users?.nodes || []).some((user) => authorMatches(user.login, [botLogin]));
-    });
-  if (hasMatchingReaction(signals.reactionGroups)) return true;
-  return (signals.comments || []).some((comment) => hasMatchingReaction(comment.reactionGroups));
+  if (reactionGroupsHaveBotReaction(signals.reactionGroups, botLogin, allowedReactions)) return true;
+  return (signals.comments || []).some((comment) =>
+    reactionGroupsHaveBotReaction(comment.reactionGroups, botLogin, allowedReactions),
+  );
+}
+
+function timestampMs(value) {
+  const parsed = Date.parse(value || "");
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function latestCodexReviewResponseTime(signals, config) {
+  const authors = config.codexReviewAuthors || [];
+  return Math.max(
+    0,
+    ...(signals.reviews || [])
+      .filter((review) => authorMatches(review.author?.login, authors))
+      .map((review) => timestampMs(review.submittedAt)),
+  );
+}
+
+function hasPendingCodexReviewRequest(signals, config) {
+  const inProgressReactions = new Set((config.codexReviewInProgressReactions || []).map((reaction) => String(reaction).toUpperCase()));
+  const successReactions = new Set((config.codexReviewSuccessReactions || []).map((reaction) => String(reaction).toUpperCase()));
+  const botLogin = config.codexReviewBot || "";
+  const latestReviewTime = latestCodexReviewResponseTime(signals, config);
+  return (signals.comments || []).some((comment) => {
+    if (!/@codex\b/i.test(String(comment.body || ""))) return false;
+    if (timestampMs(comment.createdAt) < latestReviewTime) return false;
+    if (reactionGroupsHaveBotReaction(comment.reactionGroups, botLogin, successReactions)) return false;
+    return true;
+  });
 }
 
 function hasCodexReviewResponse({ signals, threadEntry, config }) {
@@ -637,10 +669,13 @@ function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
   const codexReviewResponse = hasCodexReviewResponse({ signals, threadEntry, config });
   const botThumbsUp = hasBotSuccessReaction(signals, config);
   const botEyes = hasBotInProgressReaction(signals, config);
-  if (!codexReviewResponse && !botThumbsUp) {
-    if (botEyes) {
-      warnings.push("Codex Review is looking at the PR after chatgpt-codex-connector bot eyes reaction");
-    } else {
+  const pendingCodexReviewRequest = hasPendingCodexReviewRequest(signals, config);
+  if (pendingCodexReviewRequest) {
+    if (botEyes) warnings.push("Codex Review is looking at a newer @codex review request after chatgpt-codex-connector bot eyes reaction");
+    else warnings.push("waiting for Codex Review response or bot reaction on a newer @codex review request");
+  } else if (!codexReviewResponse && !botThumbsUp) {
+    if (botEyes) warnings.push("Codex Review is looking at the PR after chatgpt-codex-connector bot eyes reaction");
+    else {
       warnings.push("waiting for Codex Review response or bot thumbs-up reaction");
     }
   }
@@ -648,7 +683,10 @@ function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
     warnings.push("no Codex Review response, but chatgpt-codex-connector bot thumbs-up is configured as clean evidence");
   }
 
-  const ready = blockers.length === 0 && (codexReviewResponse || (botThumbsUp && config.noReviewWithBotThumbsUpIsClean));
+  const ready =
+    !pendingCodexReviewRequest &&
+    blockers.length === 0 &&
+    (codexReviewResponse || (botThumbsUp && config.noReviewWithBotThumbsUpIsClean));
   return {
     number: pr.number,
     title: pr.title,
@@ -660,6 +698,7 @@ function evaluatePullRequestForMerge({ pr, reviewThreads, signals, config }) {
     codex_review_response: codexReviewResponse,
     bot_thumbs_up: botThumbsUp,
     bot_eyes: botEyes,
+    pending_codex_review_request: pendingCodexReviewRequest,
     unresolved_codex_review_threads: threadEntry.unresolved_threads.filter((thread) =>
       isCodexReviewThread(thread, { codexReviewAuthors: config.codexReviewAuthors }),
     ).length,
@@ -2346,6 +2385,7 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
   const localOnlyCommits = needsRefresh ? localOnlyCommitCount(repoPath, remoteBranch) : 0;
   const needsTargetMerge = prNeedsTargetMergePreflight(pr);
   const needsCleanTargetMergeBase = needsTargetMerge && !status.clean;
+  const canReuseExistingConflicts = needsTargetMerge && status.has_unmerged && !needsRefresh && !wrongUpstream;
   const preparation = {
     reason: "",
     local_head: localHead.oid,
@@ -2358,7 +2398,7 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
   };
 
   if (dryRun) {
-    if (needsTargetMerge && status.has_unmerged) {
+    if (canReuseExistingConflicts) {
       return {
         ok: true,
         status: "would-dispatch-existing-conflicts",
@@ -2392,7 +2432,7 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
     return { ok: true, status: "current", preparation };
   }
 
-  if (needsTargetMerge && status.has_unmerged) {
+  if (canReuseExistingConflicts) {
     const statusManifestPath = writeDirtyWorkspaceManifest({ repoPath, logsPath });
     return {
       ok: true,
@@ -2421,14 +2461,38 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
       }
       Object.assign(preparation, preservedHead);
     }
-    if (!status.clean) {
+    let refreshStatus = status;
+    if (refreshStatus.has_unmerged) {
+      const statusManifestPath = writeDirtyWorkspaceManifest({ repoPath, logsPath });
+      const aborted = run("git", ["merge", "--abort"], { cwd: repoPath, allowFailure: true });
+      if (aborted.failed) {
+        return {
+          ok: false,
+          status: "blocked",
+          reason: aborted.stderr || aborted.stdout || "failed to abort stale unresolved merge before refresh",
+          dirty_files: refreshStatus.dirty_files,
+          preparation: {
+            ...preparation,
+            target_merge_status: "failed-to-abort-stale-conflicts-before-refresh",
+            status_manifest_path: statusManifestPath,
+          },
+        };
+      }
+      Object.assign(preparation, {
+        reason: "stale unresolved merge state was recorded and aborted before refreshing to the current PR head",
+        status_manifest_path: statusManifestPath,
+        target_merge_status: "stale-conflicts-aborted-before-refresh",
+      });
+      refreshStatus = cleanStatus(repoPath);
+    }
+    if (!refreshStatus.clean) {
       const preserved = preserveDirtyWorkspaceBeforeRefresh({ repoPath, logsPath, prNumber: pr.number });
       if (!preserved.ok) {
         return {
           ok: false,
           status: "blocked",
           reason: preserved.reason,
-          dirty_files: status.dirty_files,
+          dirty_files: refreshStatus.dirty_files,
           preparation: { ...preparation, ...preserved },
         };
       }
@@ -2658,6 +2722,31 @@ async function report({ json = false } = {}) {
   return status;
 }
 
+function syncStatusFromResults({
+  prMergeResults,
+  prReviewThreadRemediations,
+  reviewRemediations,
+  prMergeQueue,
+  dispatches,
+  selected,
+  dispatchConfig,
+}) {
+  if (prMergeResults.some((result) => result.status === "merged")) return "merged_prs";
+  if (reviewRemediations.some((result) => result.status === "failed")) return "review_remediation_failed";
+  if (reviewRemediations.some((result) => result.status === "blocked")) return "review_remediation_blocked";
+  if (reviewRemediations.some((result) => result.status === "succeeded")) return "review_remediation_complete";
+  if (prReviewThreadRemediations.some((result) => result.status === "resolved")) return "review_threads_resolved";
+  if (dispatches.some((dispatch) => dispatch.status === "blocked")) return "blocked";
+  if (dispatches.some((dispatch) => dispatch.status === "failed")) return "agent_runner_failed";
+  if (dispatches.some((dispatch) => dispatch.status === "succeeded")) return "agent_runner_complete";
+  if (dispatches.some((dispatch) => dispatch.status === "prepared")) {
+    return dispatchConfig.agentRunnerCommand ? "prepared" : "prepared_needs_agent_runner";
+  }
+  if (prMergeQueue.some((entry) => entry.status === "blocked")) return "pr_queue_blocked";
+  if (prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")) return "waiting_for_codex_review";
+  return selected.length === 0 ? "idle" : "dry-run";
+}
+
 async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const workflow = readWorkflow();
   const dispatchConfig = readDispatchConfig(workflow.config);
@@ -2756,33 +2845,15 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     issue_queue: queue.map(({ priority_score, ...entry }) => entry),
     selected_issues: selected.map(({ priority_score, ...entry }) => entry),
     dispatches,
-    status: prMergeResults.some((result) => result.status === "merged")
-      ? "merged_prs"
-      : prReviewThreadRemediations.some((result) => result.status === "resolved")
-        ? "review_threads_resolved"
-      : reviewRemediations.some((result) => result.status === "succeeded")
-        ? "review_remediation_complete"
-      : reviewRemediations.some((result) => result.status === "failed")
-        ? "review_remediation_failed"
-      : reviewRemediations.some((result) => result.status === "blocked")
-        ? "review_remediation_blocked"
-      : prMergeQueue.some((entry) => entry.status === "blocked")
-        ? "pr_queue_blocked"
-      : prMergeQueue.some((entry) => entry.status === "waiting_for_codex_review")
-        ? "waiting_for_codex_review"
-      : dispatches.some((dispatch) => dispatch.status === "blocked")
-      ? "blocked"
-      : dispatches.some((dispatch) => dispatch.status === "failed")
-        ? "agent_runner_failed"
-      : dispatches.some((dispatch) => dispatch.status === "succeeded")
-        ? "agent_runner_complete"
-      : dispatches.some((dispatch) => dispatch.status === "prepared")
-        ? dispatchConfig.agentRunnerCommand
-          ? "prepared"
-          : "prepared_needs_agent_runner"
-        : selected.length === 0
-          ? "idle"
-          : "dry-run",
+    status: syncStatusFromResults({
+      prMergeResults,
+      prReviewThreadRemediations,
+      reviewRemediations,
+      prMergeQueue,
+      dispatches,
+      selected,
+      dispatchConfig,
+    }),
     mutations_performed: dryRun
       ? []
       : [
@@ -3028,6 +3099,42 @@ async function selfTest() {
       }).map((result) => ({ number: result.number, action: result.action, status: result.status })),
       [{ number: 244, action: "would-resolve-outdated-thread", status: "dry-run" }],
     );
+    assert.equal(
+      syncStatusFromResults({
+        prMergeResults: [],
+        prReviewThreadRemediations: [{ status: "resolved" }],
+        reviewRemediations: [{ status: "failed" }],
+        prMergeQueue: [],
+        dispatches: [],
+        selected: [],
+        dispatchConfig: { agentRunnerCommand: "codex" },
+      }),
+      "review_remediation_failed",
+    );
+    assert.equal(
+      syncStatusFromResults({
+        prMergeResults: [],
+        prReviewThreadRemediations: [],
+        reviewRemediations: [],
+        prMergeQueue: [{ number: 311, status: "waiting_for_codex_review" }],
+        dispatches: [{ status: "succeeded" }],
+        selected: [{ number: 900264 }],
+        dispatchConfig: { agentRunnerCommand: "codex" },
+      }),
+      "agent_runner_complete",
+    );
+    assert.equal(
+      syncStatusFromResults({
+        prMergeResults: [],
+        prReviewThreadRemediations: [],
+        reviewRemediations: [],
+        prMergeQueue: [{ number: 311, status: "waiting_for_codex_review" }],
+        dispatches: [],
+        selected: [],
+        dispatchConfig: { agentRunnerCommand: "codex" },
+      }),
+      "waiting_for_codex_review",
+    );
     assert.deepEqual(
       parseWorktreeList("worktree /tmp/repo\nHEAD abc123\nbranch refs/heads/codex/example\n\n")[0],
       { path: "/tmp/repo", head: "abc123", branch: "codex/example" },
@@ -3227,6 +3334,115 @@ async function selfTest() {
     assert.equal(inProgressReactionEvaluation.status, "waiting_for_codex_review");
     assert.equal(inProgressReactionEvaluation.bot_eyes, true);
     assert.match(inProgressReactionEvaluation.notes.join("; "), /looking at the PR/);
+    const pendingRequestAfterReviewEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [
+          {
+            author: { login: "chatgpt-codex-connector" },
+            state: "COMMENTED",
+            submittedAt: "2026-05-22T01:00:00Z",
+          },
+        ],
+        comments: [
+          {
+            body: "@codex",
+            createdAt: "2026-05-22T02:00:00Z",
+            reactionGroups: [
+              {
+                content: "EYES",
+                users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+              },
+            ],
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(pendingRequestAfterReviewEvaluation.status, "waiting_for_codex_review");
+    assert.equal(pendingRequestAfterReviewEvaluation.pending_codex_review_request, true);
+    assert.match(pendingRequestAfterReviewEvaluation.notes.join("; "), /newer @codex review request/);
+    const unacknowledgedRequestAfterReviewEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [
+          {
+            author: { login: "chatgpt-codex-connector" },
+            state: "COMMENTED",
+            submittedAt: "2026-05-22T01:00:00Z",
+          },
+        ],
+        comments: [
+          {
+            body: "@codex",
+            createdAt: "2026-05-22T02:00:00Z",
+            reactionGroups: [],
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(unacknowledgedRequestAfterReviewEvaluation.status, "waiting_for_codex_review");
+    assert.equal(unacknowledgedRequestAfterReviewEvaluation.pending_codex_review_request, true);
+    assert.match(unacknowledgedRequestAfterReviewEvaluation.notes.join("; "), /bot reaction on a newer @codex review request/);
+    const cleanReactionAfterReviewEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [
+          {
+            author: { login: "chatgpt-codex-connector" },
+            state: "COMMENTED",
+            submittedAt: "2026-05-22T01:00:00Z",
+          },
+        ],
+        comments: [
+          {
+            body: "@codex",
+            createdAt: "2026-05-22T02:00:00Z",
+            reactionGroups: [
+              {
+                content: "THUMBS_UP",
+                users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+              },
+            ],
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(cleanReactionAfterReviewEvaluation.status, "ready_to_merge");
+    assert.equal(cleanReactionAfterReviewEvaluation.pending_codex_review_request, false);
+    const completedRequestEvaluation = evaluatePullRequestForMerge({
+      pr: readyPr,
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signals: {
+        reviews: [
+          {
+            author: { login: "chatgpt-codex-connector" },
+            state: "COMMENTED",
+            submittedAt: "2026-05-22T03:00:00Z",
+          },
+        ],
+        comments: [
+          {
+            body: "@codex",
+            createdAt: "2026-05-22T02:00:00Z",
+            reactionGroups: [
+              {
+                content: "EYES",
+                users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+              },
+            ],
+          },
+        ],
+      },
+      config: prConfig,
+    });
+    assert.equal(completedRequestEvaluation.status, "ready_to_merge");
+    assert.equal(completedRequestEvaluation.pending_codex_review_request, false);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["merge state DIRTY"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["draft PR"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["check state FAILURE"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), false);
@@ -3583,6 +3799,50 @@ async function selfTest() {
     assert.equal(existingConflictPrep.status, "conflicts-left-for-remediation-worker");
     assert.equal(existingConflictPrep.preparation.target_merge_status, "existing-conflicts-left-for-remediation-worker");
     assert.equal(fs.existsSync(existingConflictPrep.preparation.status_manifest_path), true);
+
+    const staleConflictRepo = path.join(tempRoot, "stale-conflict-pr-repo");
+    fs.mkdirSync(staleConflictRepo, { recursive: true });
+    run("git", ["init"], { cwd: staleConflictRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: staleConflictRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: staleConflictRepo });
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "base"], { cwd: staleConflictRepo });
+    run("git", ["checkout", "-b", "codex/stale-conflict-pr"], { cwd: staleConflictRepo });
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "stale pr edit\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "stale pr edit"], { cwd: staleConflictRepo });
+    const staleLocalHead = revParse(staleConflictRepo, "HEAD").oid;
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "current pr edit\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "current pr edit"], { cwd: staleConflictRepo });
+    const staleRemoteHead = revParse(staleConflictRepo, "HEAD").oid;
+    run("git", ["update-ref", "refs/remotes/origin/codex/stale-conflict-pr", "HEAD"], { cwd: staleConflictRepo });
+    run("git", ["checkout", "-b", "phase-0-platform-foundation", "HEAD~2"], { cwd: staleConflictRepo });
+    fs.writeFileSync(path.join(staleConflictRepo, "README.md"), "target edit\n");
+    run("git", ["add", "README.md"], { cwd: staleConflictRepo });
+    run("git", ["commit", "-m", "target edit"], { cwd: staleConflictRepo });
+    run("git", ["update-ref", "refs/remotes/origin/phase-0-platform-foundation", "HEAD"], { cwd: staleConflictRepo });
+    run("git", ["checkout", "codex/stale-conflict-pr"], { cwd: staleConflictRepo });
+    run("git", ["reset", "--hard", staleLocalHead], { cwd: staleConflictRepo });
+    run("git", ["merge", "--no-edit", "origin/phase-0-platform-foundation"], {
+      cwd: staleConflictRepo,
+      allowFailure: true,
+    });
+    assert.equal(mergeFailureHasConflicts(staleConflictRepo), true);
+    const staleConflictPrep = prepareReviewRemediationWorkspace({
+      repoPath: staleConflictRepo,
+      logsPath: path.join(tempRoot, "stale-conflict-pr-logs"),
+      pr: { number: 296, head_ref: "codex/stale-conflict-pr", merge_state: "DIRTY", blockers: ["merge state DIRTY"] },
+      targetBranch: "phase-0-platform-foundation",
+      dryRun: false,
+    });
+    assert.equal(staleConflictPrep.ok, true);
+    assert.equal(staleConflictPrep.status, "prepared");
+    assert.equal(staleConflictPrep.preparation.target_merge_status, "conflicts-left-for-remediation-worker");
+    assert.equal(staleConflictPrep.preparation.local_head, staleLocalHead);
+    assert.equal(revParse(staleConflictRepo, "HEAD").oid, staleRemoteHead);
+    assert.equal(fs.existsSync(staleConflictPrep.preparation.status_manifest_path), true);
 
     const detachedPrRepo = path.join(tempRoot, "detached-pr-repo");
     fs.mkdirSync(detachedPrRepo, { recursive: true });
