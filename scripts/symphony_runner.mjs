@@ -2212,6 +2212,7 @@ function cleanStatus(cwd) {
           .filter(Boolean)
           .map((line) => line.slice(3))
       : [],
+    has_unmerged: mergeFailureHasConflicts(cwd),
   };
 }
 
@@ -2271,12 +2272,18 @@ function preserveLocalHeadBeforeRefresh({ repoPath, prNumber }) {
   };
 }
 
-function preserveDirtyWorkspaceBeforeRefresh({ repoPath, logsPath, prNumber }) {
+function writeDirtyWorkspaceManifest({ repoPath, logsPath }) {
   const timestamp = gitTimestamp();
   fs.mkdirSync(logsPath, { recursive: true });
   const statusManifestPath = path.join(logsPath, `pre-refresh-dirty-status-${timestamp}.txt`);
   const status = run("git", ["status", "--porcelain=v1", "-uall"], { cwd: repoPath, allowFailure: true });
   fs.writeFileSync(statusManifestPath, status.failed ? status.stderr || status.stdout || "" : `${status}\n`);
+  return statusManifestPath;
+}
+
+function preserveDirtyWorkspaceBeforeRefresh({ repoPath, logsPath, prNumber }) {
+  const timestamp = gitTimestamp();
+  const statusManifestPath = writeDirtyWorkspaceManifest({ repoPath, logsPath });
   const stashMessage = `symphony-pr-${prNumber}-pre-refresh-${timestamp}`;
   const stash = run("git", ["stash", "push", "--include-untracked", "-m", stashMessage], {
     cwd: repoPath,
@@ -2347,9 +2354,21 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
     remote_branch: remoteBranch,
     local_only_commits: localOnlyCommits,
     dirty_files: status.dirty_files,
+    has_unmerged: status.has_unmerged,
   };
 
   if (dryRun) {
+    if (needsTargetMerge && status.has_unmerged) {
+      return {
+        ok: true,
+        status: "would-dispatch-existing-conflicts",
+        preparation: {
+          ...preparation,
+          reason: "dry-run would dispatch the existing unresolved merge state to the remediation worker",
+          target_merge_status: "existing-conflicts-left-for-remediation-worker",
+        },
+      };
+    }
     if (needsRefresh || wrongUpstream || needsCleanTargetMergeBase) {
       return {
         ok: true,
@@ -2371,6 +2390,21 @@ function prepareReviewRemediationWorkspace({ repoPath, logsPath, pr, targetBranc
       };
     }
     return { ok: true, status: "current", preparation };
+  }
+
+  if (needsTargetMerge && status.has_unmerged) {
+    const statusManifestPath = writeDirtyWorkspaceManifest({ repoPath, logsPath });
+    return {
+      ok: true,
+      status: "conflicts-left-for-remediation-worker",
+      dirty_files: status.dirty_files,
+      preparation: {
+        ...preparation,
+        reason: "existing unresolved merge state left for the remediation worker",
+        target_merge_status: "existing-conflicts-left-for-remediation-worker",
+        status_manifest_path: statusManifestPath,
+      },
+    };
   }
 
   if (needsRefresh || wrongUpstream || needsCleanTargetMergeBase) {
@@ -3513,6 +3547,42 @@ async function selfTest() {
     assert.equal(localCommitPrep.preparation.preserved_head_oid, localOnlyHead);
     assert.equal(revParse(localCommitRepo, localCommitPrep.preparation.preserved_head_ref).oid, localOnlyHead);
     assert.equal(revParse(localCommitRepo, "HEAD").oid, revParse(localCommitRepo, "origin/codex/local-commit-pr").oid);
+
+    const existingConflictRepo = path.join(tempRoot, "existing-conflict-pr-repo");
+    fs.mkdirSync(existingConflictRepo, { recursive: true });
+    run("git", ["init"], { cwd: existingConflictRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: existingConflictRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: existingConflictRepo });
+    fs.writeFileSync(path.join(existingConflictRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: existingConflictRepo });
+    run("git", ["commit", "-m", "base"], { cwd: existingConflictRepo });
+    run("git", ["checkout", "-b", "codex/existing-conflict-pr"], { cwd: existingConflictRepo });
+    fs.writeFileSync(path.join(existingConflictRepo, "README.md"), "pr edit\n");
+    run("git", ["add", "README.md"], { cwd: existingConflictRepo });
+    run("git", ["commit", "-m", "pr edit"], { cwd: existingConflictRepo });
+    run("git", ["update-ref", "refs/remotes/origin/codex/existing-conflict-pr", "HEAD"], { cwd: existingConflictRepo });
+    run("git", ["checkout", "-b", "phase-0-platform-foundation", "HEAD~1"], { cwd: existingConflictRepo });
+    fs.writeFileSync(path.join(existingConflictRepo, "README.md"), "target edit\n");
+    run("git", ["add", "README.md"], { cwd: existingConflictRepo });
+    run("git", ["commit", "-m", "target edit"], { cwd: existingConflictRepo });
+    run("git", ["update-ref", "refs/remotes/origin/phase-0-platform-foundation", "HEAD"], { cwd: existingConflictRepo });
+    run("git", ["checkout", "codex/existing-conflict-pr"], { cwd: existingConflictRepo });
+    run("git", ["merge", "--no-edit", "origin/phase-0-platform-foundation"], {
+      cwd: existingConflictRepo,
+      allowFailure: true,
+    });
+    assert.equal(mergeFailureHasConflicts(existingConflictRepo), true);
+    const existingConflictPrep = prepareReviewRemediationWorkspace({
+      repoPath: existingConflictRepo,
+      logsPath: path.join(tempRoot, "existing-conflict-pr-logs"),
+      pr: { number: 295, head_ref: "codex/existing-conflict-pr", merge_state: "DIRTY", blockers: ["merge state DIRTY"] },
+      targetBranch: "phase-0-platform-foundation",
+      dryRun: false,
+    });
+    assert.equal(existingConflictPrep.ok, true);
+    assert.equal(existingConflictPrep.status, "conflicts-left-for-remediation-worker");
+    assert.equal(existingConflictPrep.preparation.target_merge_status, "existing-conflicts-left-for-remediation-worker");
+    assert.equal(fs.existsSync(existingConflictPrep.preparation.status_manifest_path), true);
 
     const detachedPrRepo = path.join(tempRoot, "detached-pr-repo");
     fs.mkdirSync(detachedPrRepo, { recursive: true });
