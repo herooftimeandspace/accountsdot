@@ -122,6 +122,7 @@ func loadProviderReadinessConfig() []provider.ReadinessConfig {
 			UseMock:            getEnvBool("USE_MOCK_SFTP", true),
 			ReadOnly:           true,
 			Endpoint:           getEnv("SFTP_HOST", ""),
+			EndpointEnv:        "SFTP_HOST",
 			CredentialLabel:    getEnv("SFTP_USERNAME", ""),
 			CredentialLabelEnv: "SFTP_USERNAME",
 		},

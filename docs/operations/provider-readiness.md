@@ -83,7 +83,8 @@ That focused test command simulates:
 
 - `USE_MOCK_ZOOM=false` with the non-secret credential label omitted,
 - `USE_MOCK_ZOOM=false` with an `http://` endpoint,
-- `USE_MOCK_AERIES=false` with a file that is not a PEM certificate.
+- `USE_MOCK_AERIES=false` with a file that is not a PEM certificate,
+- `USE_MOCK_SFTP=false` with `SFTP_USERNAME` set but `SFTP_HOST` omitted.
 
 Expected result: provider configuration diagnostics start with `blocked:`, `/health/ready` returns `503`, `/health/live` remains `200`, and diagnostics name only environment labels.
 

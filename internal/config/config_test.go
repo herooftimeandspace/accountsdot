@@ -124,6 +124,15 @@ func TestP000D002ProviderReadinessConfigFailureSurfacing(t *testing.T) {
 			providerName: provider.ProviderNameAeries,
 			wantContains: "AERIES_CERT_FILE must contain a PEM certificate",
 		},
+		{
+			name: "missing sftp host",
+			env: map[string]string{
+				"USE_MOCK_SFTP": "false",
+				"SFTP_USERNAME": "sftp-staging-label",
+			},
+			providerName: provider.ProviderNameSFTP,
+			wantContains: "SFTP_HOST",
+		},
 	}
 
 	for _, tc := range tests {
