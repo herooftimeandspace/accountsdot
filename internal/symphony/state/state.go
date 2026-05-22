@@ -83,7 +83,7 @@ func WriteSnapshot(dir string, snapshot Snapshot) error {
 	if err := writeJSON(filepath.Join(dir, StatusFilename), snapshot); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, StatusMarkdown), []byte(renderMarkdown(snapshot)), 0o644)
+	return writeFileAtomic(filepath.Join(dir, StatusMarkdown), []byte(renderMarkdown(snapshot)), 0o644)
 }
 
 // ReadSnapshot loads the daemon status file. Missing status is reported as a
@@ -128,7 +128,34 @@ func writeJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writeFileAtomic(path, append(data, '\n'), 0o644)
+}
+
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	temp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer func() {
+		_ = os.Remove(tempPath)
+	}()
+	if _, err := temp.Write(data); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Chmod(perm); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tempPath, path)
 }
 
 func renderMarkdown(snapshot Snapshot) string {

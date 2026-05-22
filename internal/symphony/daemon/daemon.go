@@ -323,9 +323,6 @@ func staleDaemonLock(path string) (bool, string) {
 	if statErr != nil {
 		return false, ""
 	}
-	if time.Since(info.ModTime()) > daemonLockMaxAge {
-		return true, "removed stale daemon lock older than max age"
-	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) < 2 {
 		return true, "removed malformed daemon lock without pid metadata"
@@ -343,6 +340,9 @@ func staleDaemonLock(path string) (bool, string) {
 			return false, ""
 		}
 		return true, fmt.Sprintf("removed stale daemon lock for inactive pid %d", pid)
+	}
+	if time.Since(info.ModTime()) > daemonLockMaxAge {
+		return false, ""
 	}
 	return false, ""
 }

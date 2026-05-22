@@ -506,13 +506,29 @@ function mergeIssuesByNumber(issueLists) {
   return [...merged.values()];
 }
 
-function listOpenIssues(activeLabels = [], { hydrateComments = false } = {}) {
-  const issueLists = [listOpenIssuesForLabel()];
+function listOpenIssues(activeLabels = [], { listForLabel = listOpenIssuesForLabel } = {}) {
+  const issueLists = [listForLabel()];
   for (const label of activeLabels) {
-    issueLists.push(listOpenIssuesForLabel(label));
+    try {
+      issueLists.push(listForLabel(label));
+    } catch {
+      issueLists.push([]);
+    }
   }
-  return mergeIssuesByNumber(issueLists).map((issue) =>
-    normalizeIssueFromApi(issue, hydrateComments ? hydrateIssueComments(issue.number) : []),
+  return mergeIssuesByNumber(issueLists).map((issue) => normalizeIssueFromApi(issue));
+}
+
+function hydrateIssuesForEntries(issues, entries, hydrateComments = hydrateIssueComments) {
+  const selectedNumbers = new Set(
+    entries
+      .map((entry) => entry?.number || entry?.issue_number)
+      .filter((number) => Number.isInteger(number) && number > 0),
+  );
+  if (selectedNumbers.size === 0) return issues;
+  return issues.map((issue) =>
+    selectedNumbers.has(issue.number)
+      ? { ...issue, comments: hydrateComments(issue.number), comments_hydrated: true }
+      : issue,
   );
 }
 
@@ -3112,7 +3128,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
   const dispatchConfig = readDispatchConfig(workflow.config);
   const prConfig = readPullRequestConfig(workflow.config, dispatchConfig);
   const skills = discoverSkills();
-  const issues = listOpenIssues(dispatchConfig.activeLabels, { hydrateComments: true });
+  const issues = listOpenIssues(dispatchConfig.activeLabels);
   const targetBranches = [
     dispatchConfig.defaultTargetBranch,
     prConfig.targetBranch,
@@ -3167,8 +3183,9 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     readyToMergeRemaining;
   const queue = rankedDispatchQueue(issues, prs, mergedPrs, dispatchConfig);
   const selected = shouldPauseDispatchForPrQueue ? [] : queue.filter((entry) => entry.eligible).slice(0, remainingDispatchSlots);
+  const dispatchIssues = hydrateIssuesForEntries(issues, selected);
   const dispatchPromises = selected.map((entry) => {
-    const issue = issues.find((candidate) => candidate.number === entry.number);
+    const issue = dispatchIssues.find((candidate) => candidate.number === entry.number);
     return ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun });
   });
   const dispatches = await Promise.all(dispatchPromises);
@@ -4016,6 +4033,29 @@ async function selfTest() {
       [
         [1, "unready newer issue with full payload", "details"],
         [900264, "older agent-ready issue", ""],
+      ],
+    );
+    assert.deepEqual(
+      listOpenIssues(["agent-ready"], {
+        listForLabel: (label = "") => {
+          if (label === "agent-ready") throw new Error("transient label query failure");
+          return [{ number: 900268, title: "covered by broad issue query", labels: [] }];
+        },
+      }).map((issue) => issue.number),
+      [900268],
+    );
+    assert.deepEqual(
+      hydrateIssuesForEntries(
+        [
+          normalizeIssueFromApi({ number: 900268, title: "selected issue" }),
+          normalizeIssueFromApi({ number: 900269, title: "unselected issue" }),
+        ],
+        [{ number: 900268 }],
+        (number) => [{ body: `comment for ${number}` }],
+      ).map((issue) => [issue.number, issue.comments.length, Boolean(issue.comments_hydrated)]),
+      [
+        [900268, 1, true],
+        [900269, 0, false],
       ],
     );
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
