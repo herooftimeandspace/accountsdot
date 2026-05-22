@@ -542,6 +542,43 @@ function reconcileOutdatedPullRequestReviewThreads({ reviewThreads, config, dryR
   });
 }
 
+function resolveRemediatedReviewThreads({ pr, config, dryRun, branchUpdated, resolveThread = resolveReviewThread }) {
+  const threadSummaries = pr.unresolved_codex_review_thread_summaries || [];
+  if (threadSummaries.length === 0) return [];
+  return threadSummaries.map((thread) => {
+    const result = {
+      number: pr.number,
+      action: dryRun ? "would-resolve-remediated-thread" : "resolve-remediated-thread",
+      status: dryRun ? "dry-run" : "skipped",
+      reason: "",
+      ...thread,
+    };
+    if (dryRun) {
+      result.reason = "dry-run performs no review-thread mutations";
+      return result;
+    }
+    if (!config.autoResolveOutdatedCodexReviewThreads) {
+      result.status = "blocked";
+      result.reason = "auto_resolve_outdated_codex_review_threads is disabled";
+      return result;
+    }
+    if (!branchUpdated) {
+      result.status = "blocked";
+      result.reason = "review remediation completed without a branch update, so the automation did not resolve active review feedback";
+      return result;
+    }
+    try {
+      resolveThread(thread.thread_id);
+      result.status = "resolved";
+      result.reason = "review remediation succeeded and updated the PR branch, so the handed-off Codex Review thread was resolved";
+    } catch (error) {
+      result.status = "blocked";
+      result.reason = error.stderr || error.message || String(error);
+    }
+    return result;
+  });
+}
+
 function normalizedLogin(login) {
   return String(login || "")
     .toLowerCase()
@@ -897,13 +934,14 @@ function mergedPullRequestForIssueWithWorkspace(issue, mergedPrs, targetBranch, 
 }
 
 function activeWorkspaceForIssue(issue, dispatchConfig) {
-  const workspacePath = issueWorkspacePath(issue, dispatchConfig);
+  const workspacePath = findIssueWorkspace(issue, dispatchConfig);
   const statePath = path.join(workspacePath, "state.json");
   const promptPath = path.join(workspacePath, "prompt.md");
+  const repoPath = path.join(workspacePath, "repo");
   if (fs.existsSync(statePath)) {
     try {
       const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-      const activeStatuses = new Set(["prepared", "running", "waiting_retry", "human_review", "succeeded", "failed"]);
+      const activeStatuses = new Set(["prepared", "running", "waiting_retry", "human_review"]);
       if (activeStatuses.has(state.status)) {
         const attempts = Number(state.attempts || 1);
         return {
@@ -915,6 +953,22 @@ function activeWorkspaceForIssue(issue, dispatchConfig) {
           retryable: state.status === "failed" && attempts < dispatchConfig.maxAttempts,
         };
       }
+      if (state.status === "failed") {
+        const parsedAttempts = Number(state.attempts || 1);
+        const attempts = Number.isFinite(parsedAttempts) ? parsedAttempts : dispatchConfig.maxAttempts;
+        if (attempts >= dispatchConfig.maxAttempts) {
+          return {
+            workspace: workspacePath,
+            prompt_path: promptPath,
+            state_path: statePath,
+            status: state.status,
+            attempts,
+            retryable: false,
+          };
+        }
+        return null;
+      }
+      if (state.status === "succeeded") return null;
     } catch (error) {
       return { workspace: workspacePath, prompt_path: promptPath, state_path: statePath, status: "unreadable_state", blocker: error.message };
     }
@@ -922,6 +976,7 @@ function activeWorkspaceForIssue(issue, dispatchConfig) {
   const branchName = issueBranchName(issue, dispatchConfig);
   const existingWorktree = worktreeForBranch(branchName);
   if (existingWorktree) {
+    if (path.resolve(existingWorktree.path) === path.resolve(repoPath)) return null;
     return { workspace: path.dirname(existingWorktree.path), prompt_path: promptPath, state_path: statePath, status: "branch_checked_out" };
   }
   return null;
@@ -1007,6 +1062,89 @@ function issueWorkspacePath(issue, dispatchConfig) {
   return path.join(dispatchConfig.workspaceRoot, `issue-${issue.number}-${issueSlug(issue)}`);
 }
 
+function issueDispatchWorkspacePath(issue, dispatchConfig) {
+  const currentPath = issueWorkspacePath(issue, dispatchConfig);
+  const resolvedPath = findIssueWorkspace(issue, dispatchConfig);
+  if (path.resolve(currentPath) === path.resolve(resolvedPath)) return currentPath;
+  const branchName = issueBranchName(issue, dispatchConfig);
+  if (workspaceRepoMatchesBranch(resolvedPath, branchName)) return resolvedPath;
+  const statePath = path.join(resolvedPath, "state.json");
+  if (fs.existsSync(statePath)) {
+    try {
+      const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      if (String(state.branch || "") === branchName) return resolvedPath;
+    } catch {
+      return resolvedPath;
+    }
+  }
+  return currentPath;
+}
+
+const WORKTREE_TEARDOWN_GENERATED_CACHE_DIRS = [".gomodcache", ".gocache", path.join("node_modules", ".cache")];
+
+function worktreeRemoveFailureNeedsGeneratedCachePermissionRetry(reason) {
+  return /permission denied/i.test(reason || "") && /(?:failed to remove|\.gomodcache|\.gocache|node_modules[/\\]\.cache)/i.test(reason || "");
+}
+
+function makeTreeUserWritable(targetPath) {
+  const stat = fs.lstatSync(targetPath);
+  if (stat.isSymbolicLink()) return;
+  const writableMode = stat.mode | (stat.isDirectory() ? 0o700 : 0o600);
+  fs.chmodSync(targetPath, writableMode);
+  if (!stat.isDirectory()) return;
+  for (const entry of fs.readdirSync(targetPath)) {
+    makeTreeUserWritable(path.join(targetPath, entry));
+  }
+}
+
+function normalizeGeneratedCachePermissionsForTeardown(repoPath) {
+  const fixes = [];
+  for (const relativePath of WORKTREE_TEARDOWN_GENERATED_CACHE_DIRS) {
+    const targetPath = path.join(repoPath, relativePath);
+    if (!fs.existsSync(targetPath)) continue;
+    try {
+      makeTreeUserWritable(targetPath);
+      fixes.push({ path: relativePath, status: "made-user-writable" });
+    } catch (error) {
+      fixes.push({ path: relativePath, status: "blocked", reason: error.message });
+    }
+  }
+  return fixes;
+}
+
+function removeCleanWorktreeForMergedIssue(repoPath) {
+  const firstAttempt = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
+  if (!firstAttempt.failed) return { ok: true, retried_after_cache_permission_fix: false };
+  const firstReason = firstAttempt.stderr || firstAttempt.stdout || `git worktree remove failed with status ${firstAttempt.status}`;
+  if (!worktreeRemoveFailureNeedsGeneratedCachePermissionRetry(firstReason)) {
+    return { ok: false, reason: firstReason, retried_after_cache_permission_fix: false };
+  }
+  const permissionFixes = normalizeGeneratedCachePermissionsForTeardown(repoPath);
+  if (permissionFixes.some((fix) => fix.status === "blocked")) {
+    return {
+      ok: false,
+      reason: firstReason,
+      retried_after_cache_permission_fix: true,
+      teardown_permission_fixes: permissionFixes,
+    };
+  }
+  const secondAttempt = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
+  if (!secondAttempt.failed) {
+    return {
+      ok: true,
+      retried_after_cache_permission_fix: true,
+      teardown_permission_fixes: permissionFixes,
+    };
+  }
+  return {
+    ok: false,
+    reason: secondAttempt.stderr || secondAttempt.stdout || `git worktree remove failed with status ${secondAttempt.status}`,
+    first_reason: firstReason,
+    retried_after_cache_permission_fix: true,
+    teardown_permission_fixes: permissionFixes,
+  };
+}
+
 function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dryRun }) {
   const results = [];
   for (const issue of issues) {
@@ -1073,18 +1211,31 @@ function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dry
           result.workspace_preparation = preserved;
         }
         if (!dryRun) {
-          const removed = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
-          if (removed.failed) {
+          const removed = removeCleanWorktreeForMergedIssue(repoPath);
+          if (!removed.ok) {
             results.push({
               ...result,
               status: "blocked",
               teardown_status: "blocked",
-              reason: removed.stderr || removed.stdout || `git worktree remove failed with status ${removed.status}`,
+              reason: removed.reason,
+              first_reason: removed.first_reason,
+              retried_after_cache_permission_fix: removed.retried_after_cache_permission_fix,
+              teardown_permission_fixes: removed.teardown_permission_fixes,
             });
             continue;
           }
+          if (removed.teardown_permission_fixes) {
+            result.teardown_permission_fixes = removed.teardown_permission_fixes;
+          }
+          if (removed.retried_after_cache_permission_fix) {
+            result.teardown_status = "removed-worktree-after-cache-permission-fix";
+          }
         }
-        result.teardown_status = dryRun ? "would-remove-clean-worktree" : "removed-worktree";
+        if (dryRun) {
+          result.teardown_status = "would-remove-clean-worktree";
+        } else if (result.teardown_status === "not-needed") {
+          result.teardown_status = "removed-worktree";
+        }
       }
       if (current.status === "merged" && current.merged_pr === mergedPr.number) {
         result.status = "already_merged";
@@ -1132,7 +1283,7 @@ function hasUnattemptedReadyToMergePr(prMergeQueue, prMergeResults) {
   );
 }
 
-function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
+function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus = null, workspaceState = null, workspacePath = null }) {
   const routedSkills = routeSkills(`${issue.title}\n${issue.body || ""}`, skills);
   const skillSection =
     routedSkills.length === 0
@@ -1147,6 +1298,28 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
           .join("\n\n");
   const targetBranch = issueTargetBranch(issue, dispatchConfig);
   const branchName = issueBranchName(issue, dispatchConfig);
+  const renderedWorkspacePath = workspacePath || issueWorkspacePath(issue, dispatchConfig);
+  const existingWorkspaceSection =
+    dirtyStatus?.dirty_files?.length > 0 || workspaceState?.status
+      ? [
+          "## Existing Workspace State",
+          "",
+          workspaceState?.status ? `Previous runner state: ${workspaceState.status}` : "",
+          workspaceState?.runner_status ? `Previous runner status: ${workspaceState.runner_status}` : "",
+          dirtyStatus?.dirty_files?.length > 0
+            ? [
+                "The prepared issue worktree already contains local edits for this same issue branch. Treat them as previous automation work for this issue.",
+                "Inspect them before changing code, preserve in-scope work, repair or finish anything incomplete, then commit, push, and open/update the PR.",
+                "",
+                "Dirty files at dispatch start:",
+                dirtyStatus.dirty_files.map((file) => `- ${file}`).join("\n"),
+              ].join("\n")
+            : "",
+          "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "";
   return [
     "# Symphony Issue Dispatch Prompt",
     "",
@@ -1154,7 +1327,7 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
     `Issue URL: ${issue.url}`,
     `Target branch: ${targetBranch}`,
     `Working branch: ${branchName}`,
-    `Workspace root: ${issueWorkspacePath(issue, dispatchConfig)}`,
+    `Workspace root: ${renderedWorkspacePath}`,
     "",
     "## Issue Body",
     "",
@@ -1168,6 +1341,7 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills }) {
     "",
     skillSection,
     "",
+    existingWorkspaceSection,
     "## Dispatcher Contract",
     "",
     "- Work only in the prepared issue worktree and branch.",
@@ -1756,7 +1930,7 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
   ].join("\n");
 }
 
-async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun }) {
+async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun, prConfig = DEFAULT_PULL_REQUESTS }) {
   const issue = issueForPullRequest(pr, issues);
   const targetBranch = pr.target_branch || dispatchConfig.defaultTargetBranch;
   const workspacePath = workspaceForReviewRemediation({ pr, issue, dispatchConfig });
@@ -1877,6 +2051,21 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
         workspacePath,
       })
     : { status: result.status, runner_status: result.runner_status, reason: "no repo-owned agent runner command is configured yet" };
+  const postRunnerHead = revParse(repoPath, "HEAD");
+  const branchUpdated =
+    runner.status === "succeeded" &&
+    postRunnerHead.ok &&
+    preparation.preparation?.local_head &&
+    postRunnerHead.oid !== preparation.preparation.local_head;
+  const reviewThreadResolutions =
+    runner.status === "succeeded"
+      ? resolveRemediatedReviewThreads({
+          pr,
+          config: prConfig,
+          dryRun: false,
+          branchUpdated,
+        })
+      : [];
   const priorState = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
   const state = {
     ...priorState,
@@ -1895,6 +2084,7 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     runner,
     dirty_files_at_start: preparedStatus.dirty_files,
     workspace_preparation: preparation.preparation,
+    review_thread_resolutions: reviewThreadResolutions,
     checkout_mode: result.checkout_mode,
     last_event:
       runner.runner_status === "completed"
@@ -1911,12 +2101,13 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     reason: runner.reason || (preparedStatus.clean ? preparation.preparation?.reason || "" : "launched remediation runner with existing local workspace edits preserved"),
     dirty_files: preparedStatus.dirty_files,
     workspace_preparation: preparation.preparation,
+    review_thread_resolutions: reviewThreadResolutions,
     checkout_mode: result.checkout_mode,
   };
 }
 
 async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
-  const workspacePath = issueWorkspacePath(issue, dispatchConfig);
+  const workspacePath = issueDispatchWorkspacePath(issue, dispatchConfig);
   const repoPath = path.join(workspacePath, "repo");
   const logsPath = path.join(workspacePath, "logs");
   const promptPath = path.join(workspacePath, "prompt.md");
@@ -1943,11 +2134,16 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
   }
 
   fs.mkdirSync(logsPath, { recursive: true });
-  if (fs.existsSync(repoPath)) {
-    const status = cleanStatus(repoPath);
-    if (!status.clean) {
-      return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
+  let priorState = {};
+  if (fs.existsSync(statePath)) {
+    try {
+      priorState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    } catch (error) {
+      return { ...result, status: "blocked", reason: `failed to parse existing state.json: ${error.message}` };
     }
+  }
+  let dirtyStatus = null;
+  if (fs.existsSync(repoPath)) {
     const branch = currentBranch(repoPath);
     if (!branch.ok) {
       return { ...result, status: "blocked", reason: branch.reason };
@@ -1955,6 +2151,11 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     if (branch.branch !== branchName) {
       return { ...result, status: "blocked", reason: `prepared issue workspace is on ${branch.branch || "(detached)"}, expected ${branchName}` };
     }
+    const dirtyInspection = dispatchableDirtyStatus(repoPath);
+    if (!dirtyInspection.ok) {
+      return { ...result, status: "blocked", reason: dirtyInspection.reason, dirty_files: dirtyInspection.dirty_files };
+    }
+    dirtyStatus = dirtyInspection.dirtyStatus;
   } else {
     run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
     const existingWorktree = worktreeForBranch(branchName);
@@ -1975,15 +2176,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     }
   }
 
-  let priorState = {};
-  if (fs.existsSync(statePath)) {
-    try {
-      priorState = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    } catch (error) {
-      return { ...result, status: "blocked", reason: `failed to parse existing state.json: ${error.message}` };
-    }
-  }
-  const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills });
+  const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus, workspaceState: priorState, workspacePath });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
     ? await runAgentRunner({
@@ -2017,6 +2210,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     created_at: priorState.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
     runner,
+    dirty_files_at_start: dirtyStatus?.dirty_files || [],
     last_event:
       runner.runner_status === "completed"
         ? "workspace prepared and agent runner completed"
@@ -2025,7 +2219,15 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
           : "workspace prepared; no repo-owned agent runner command is configured yet",
   };
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
-  return { ...result, status: runner.status, runner_status: runner.runner_status, reason: runner.reason };
+  return {
+    ...result,
+    status: runner.status,
+    runner_status: runner.runner_status,
+    reason:
+      runner.reason ||
+      (dirtyStatus?.dirty_files?.length > 0 ? "launched issue runner with existing local workspace edits preserved" : ""),
+    dirty_files: dirtyStatus?.dirty_files || [],
+  };
 }
 
 function readMonitorConfig(workflowConfig) {
@@ -2249,10 +2451,17 @@ function cleanStatus(cwd) {
       ? status
           .split(/\r?\n/)
           .filter(Boolean)
-          .map((line) => line.slice(3))
+          .map((line) => line.match(/^.. ?(.+)$/)?.[1] || line.slice(3))
       : [],
     has_unmerged: mergeFailureHasConflicts(cwd),
   };
+}
+
+function dispatchableDirtyStatus(cwd) {
+  const status = cleanStatus(cwd);
+  if (status.clean) return { ok: true, dirtyStatus: null, status };
+  if (status.blocker === "worktree has local edits") return { ok: true, dirtyStatus: status, status };
+  return { ok: false, reason: status.blocker, dirty_files: status.dirty_files || [], status };
 }
 
 function currentBranch(cwd) {
@@ -2794,7 +3003,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     Math.min(maxSelected, prConfig.maxReviewRemediationsPerTick),
   );
   const reviewRemediationPromises = selectedReviewRemediationCandidates.map((entry) =>
-    ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }),
+    ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun, prConfig }),
   );
   const reviewRemediations = await Promise.all(reviewRemediationPromises);
   const remediationSlotsUsed = reviewRemediations.filter(
@@ -2866,6 +3075,11 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
           ...reviewRemediations
             .filter((result) => ["prepared", "succeeded", "failed"].includes(result.status))
             .map((result) => `review remediation ${result.status} for PR #${result.number} in ${result.repo}`),
+          ...reviewRemediations.flatMap((result) =>
+            (result.review_thread_resolutions || [])
+              .filter((resolution) => resolution.status === "resolved")
+              .map((resolution) => `resolved remediated Codex Review thread on PR #${resolution.number}`),
+          ),
           ...mergedWorkspaceStates
             .filter((result) => result.status === "merged")
             .map((result) => `marked issue #${result.issue_number} workspace merged by PR #${result.pr_number}`),
@@ -3099,6 +3313,41 @@ async function selfTest() {
       }).map((result) => ({ number: result.number, action: result.action, status: result.status })),
       [{ number: 244, action: "would-resolve-outdated-thread", status: "dry-run" }],
     );
+    const remediatedThreadPr = {
+      number: 245,
+      unresolved_codex_review_thread_summaries: [
+        {
+          thread_id: "thread-2",
+          author: "chatgpt-codex-connector",
+          path: "scripts/symphony_runner.mjs",
+          line: 1,
+          url: "https://example.invalid/thread-2",
+          is_outdated: false,
+          body_excerpt: "Fix this after remediation.",
+        },
+      ],
+    };
+    const resolvedThreadIds = [];
+    const remediatedResolutions = resolveRemediatedReviewThreads({
+      pr: remediatedThreadPr,
+      config: DEFAULT_PULL_REQUESTS,
+      dryRun: false,
+      branchUpdated: true,
+      resolveThread: (threadId) => resolvedThreadIds.push(threadId),
+    });
+    assert.deepEqual(resolvedThreadIds, ["thread-2"]);
+    assert.equal(remediatedResolutions[0].status, "resolved");
+    const noBranchUpdateResolutions = resolveRemediatedReviewThreads({
+      pr: remediatedThreadPr,
+      config: DEFAULT_PULL_REQUESTS,
+      dryRun: false,
+      branchUpdated: false,
+      resolveThread: () => {
+        throw new Error("should not resolve unchanged branch");
+      },
+    });
+    assert.equal(noBranchUpdateResolutions[0].status, "blocked");
+    assert.match(noBranchUpdateResolutions[0].reason, /without a branch update/);
     assert.equal(
       syncStatusFromResults({
         prMergeResults: [],
@@ -3524,6 +3773,16 @@ async function selfTest() {
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, true);
     fs.writeFileSync(retryStatePath, JSON.stringify({ status: "failed", attempts: 4 }));
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, false);
+    fs.writeFileSync(retryStatePath, JSON.stringify({ status: "failed", attempts: "legacy-corrupt" }));
+    const invalidAttemptClassification = classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig);
+    assert.equal(invalidAttemptClassification.eligible, false);
+    assert.match(invalidAttemptClassification.reason, /active workspace already exists/);
+    fs.writeFileSync(retryStatePath, JSON.stringify({ status: "succeeded", attempts: 1 }));
+    const succeededWorkspaceClassification = classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig);
+    assert.equal(succeededWorkspaceClassification.eligible, true);
+    assert.equal(succeededWorkspaceClassification.status, "eligible");
+    fs.rmSync(retryStatePath, { force: true });
+    assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, true);
     assert.equal(
       classifyIssueForDispatch(
         phaseIssue,
@@ -3586,6 +3845,93 @@ async function selfTest() {
       900264,
     );
     assert.ok(renderIssuePrompt({ issue: phaseIssue, dispatchConfig, workflow, skills: fakeSkills }).includes("Target branch: phase-0-platform-foundation"));
+    const dirtyPrompt = renderIssuePrompt({
+      issue: phaseIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dirtyStatus: { dirty_files: ["docs/product/permissions-matrix.md"] },
+      workspaceState: { status: "succeeded", runner_status: "completed" },
+    });
+    assert.match(dirtyPrompt, /Existing Workspace State/);
+    assert.match(dirtyPrompt, /Previous runner state: succeeded/);
+    assert.match(dirtyPrompt, /docs\/product\/permissions-matrix\.md/);
+    const dirtyIssue = { ...phaseIssue, number: 900267, title: "P0-0A-004: Dirty stale issue workspace recovery" };
+    const dirtyIssueWorkspace = issueWorkspacePath(dirtyIssue, dispatchConfig);
+    const dirtyIssueRepo = path.join(dirtyIssueWorkspace, "repo");
+    fs.mkdirSync(dirtyIssueRepo, { recursive: true });
+    run("git", ["init"], { cwd: dirtyIssueRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: dirtyIssueRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: dirtyIssueRepo });
+    run("git", ["checkout", "-b", issueBranchName(dirtyIssue, dispatchConfig)], { cwd: dirtyIssueRepo });
+    fs.writeFileSync(path.join(dirtyIssueRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: dirtyIssueRepo });
+    run("git", ["commit", "-m", "base"], { cwd: dirtyIssueRepo });
+    fs.writeFileSync(path.join(dirtyIssueRepo, "README.md"), "dirty\n");
+    const dirtyIssueDispatch = await ensureDispatchWorkspace({
+      issue: dirtyIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(dirtyIssueDispatch.status, "prepared");
+    assert.deepEqual(dirtyIssueDispatch.dirty_files, ["README.md"]);
+    assert.match(fs.readFileSync(path.join(dirtyIssueWorkspace, "prompt.md"), "utf8"), /Existing Workspace State/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dirtyIssueWorkspace, "state.json"), "utf8")).dirty_files_at_start, ["README.md"]);
+    const renamedIssue = { ...phaseIssue, number: 900268, title: "P0-0A-005: New renamed issue title" };
+    const renamedWorkspace = path.join(tempRoot, "issue-900268-old-issue-title");
+    const renamedRepo = path.join(renamedWorkspace, "repo");
+    fs.mkdirSync(renamedRepo, { recursive: true });
+    run("git", ["init"], { cwd: renamedRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: renamedRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: renamedRepo });
+    run("git", ["checkout", "-b", issueBranchName(renamedIssue, dispatchConfig)], { cwd: renamedRepo });
+    run("git", ["commit", "--allow-empty", "-m", "old slug workspace"], { cwd: renamedRepo });
+    assert.equal(classifyIssueForDispatch(renamedIssue, [], [], dispatchConfig).eligible, true);
+    const renamedDispatch = await ensureDispatchWorkspace({
+      issue: renamedIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(renamedDispatch.status, "prepared");
+    assert.equal(renamedDispatch.workspace, renamedWorkspace);
+    assert.equal(renamedDispatch.repo, renamedRepo);
+    const unhealthyIssue = { ...phaseIssue, number: 900269, title: "P0-0A-006: Unhealthy workspace blocks dispatch" };
+    const unhealthyWorkspace = issueWorkspacePath(unhealthyIssue, dispatchConfig);
+    fs.mkdirSync(path.join(unhealthyWorkspace, "repo"), { recursive: true });
+    const unhealthyDispatch = await ensureDispatchWorkspace({
+      issue: unhealthyIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(unhealthyDispatch.status, "blocked");
+    assert.notEqual(unhealthyDispatch.reason, "worktree has local edits");
+    const failedStatusIssue = { ...phaseIssue, number: 900270, title: "P0-0A-007: Failed status inspection blocks dispatch" };
+    const failedStatusWorkspace = issueWorkspacePath(failedStatusIssue, dispatchConfig);
+    const failedStatusRepo = path.join(failedStatusWorkspace, "repo");
+    fs.mkdirSync(failedStatusRepo, { recursive: true });
+    run("git", ["init"], { cwd: failedStatusRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: failedStatusRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: failedStatusRepo });
+    run("git", ["checkout", "-b", issueBranchName(failedStatusIssue, dispatchConfig)], { cwd: failedStatusRepo });
+    fs.writeFileSync(path.join(failedStatusRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: failedStatusRepo });
+    run("git", ["commit", "-m", "base"], { cwd: failedStatusRepo });
+    fs.writeFileSync(path.join(failedStatusRepo, ".git", "index"), "not a git index\n");
+    const failedStatusDispatch = await ensureDispatchWorkspace({
+      issue: failedStatusIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(failedStatusDispatch.status, "blocked");
+    assert.notEqual(failedStatusDispatch.reason, "worktree has local edits");
     assert.deepEqual(splitCommandLine("codex --ask-for-approval never exec --cd {repo} -"), [
       "codex",
       "--ask-for-approval",
@@ -3650,6 +3996,23 @@ async function selfTest() {
     });
     assert.equal(dirtyMergedDryRun[0].status, "would-mark-merged");
     assert.equal(dirtyMergedDryRun[0].teardown_status, "would-preserve-dirty-worktree-and-remove");
+    assert.equal(
+      worktreeRemoveFailureNeedsGeneratedCachePermissionRetry(
+        "warning: failed to remove .gomodcache/golang.org/x/text@v0.21.0/file.go: Permission denied",
+      ),
+      true,
+    );
+    const generatedCacheRepo = path.join(tempRoot, "generated-cache-permissions");
+    const generatedCacheLeaf = path.join(generatedCacheRepo, ".gomodcache", "golang.org", "x", "text@v0.21.0");
+    const generatedCacheFile = path.join(generatedCacheLeaf, "tables.go");
+    fs.mkdirSync(generatedCacheLeaf, { recursive: true });
+    fs.writeFileSync(generatedCacheFile, "package text\n");
+    fs.chmodSync(generatedCacheFile, 0o400);
+    fs.chmodSync(generatedCacheLeaf, 0o500);
+    const cachePermissionFixes = normalizeGeneratedCachePermissionsForTeardown(generatedCacheRepo);
+    assert.deepEqual(cachePermissionFixes, [{ path: ".gomodcache", status: "made-user-writable" }]);
+    assert.ok((fs.statSync(generatedCacheFile).mode & 0o600) === 0o600);
+    assert.ok((fs.statSync(generatedCacheLeaf).mode & 0o700) === 0o700);
 
     const oldSlugWorkspace = path.join(tempRoot, "issue-267-old-title");
     const oldSlugRepo = path.join(oldSlugWorkspace, "repo");
@@ -3661,6 +4024,19 @@ async function selfTest() {
     run("git", ["commit", "--allow-empty", "-m", "old slug workspace"], { cwd: oldSlugRepo });
     run("git", ["update-ref", "refs/remotes/origin/codex/issue-267-review-remediation", "HEAD"], { cwd: oldSlugRepo });
     assert.equal(findIssueWorkspace({ number: 267, title: "New title" }, dispatchConfig), oldSlugWorkspace);
+    assert.equal(
+      issueDispatchWorkspacePath({ number: 267, title: "New title" }, dispatchConfig),
+      issueWorkspacePath({ number: 267, title: "New title" }, dispatchConfig),
+    );
+    const legacyWorkspacePrompt = renderIssuePrompt({
+      issue: { number: 267, title: "New title", body: "", url: "https://example.invalid/issues/267" },
+      dispatchConfig,
+      workflow: reviewWorkflow,
+      skills: fakeSkills,
+      workspacePath: oldSlugWorkspace,
+    });
+    assert.match(legacyWorkspacePrompt, new RegExp(`Workspace root: ${oldSlugWorkspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.doesNotMatch(legacyWorkspacePrompt, /Workspace root: .*issue-267-new-title/);
     const slugDriftResult = await ensureReviewRemediationDispatch({
       pr: {
         number: 288,

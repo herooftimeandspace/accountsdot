@@ -179,6 +179,62 @@ The Codex automation wrapper should stay small:
 6. Write results back with `node scripts/symphony_runner.mjs record-browser-results --browser-results <path> --json`.
 7. Summarize the queue, blockers, Browser evidence, and next recommended PR without manually merging PRs.
 
+## Symphony Remediation Lessons And Non-Regressions
+
+The following rules capture operational failures that previously required manual human prompting. Treat them as durable acceptance criteria for future Synchronizer changes, not as optional implementation notes.
+
+### Codex Review Signals
+
+- A `THUMBS_UP` or `+1` reaction from `chatgpt-codex-connector[bot]` on the main PR conversation, an `@codex` review request comment, or the active review request surface means Codex Review found no actionable feedback for that request. When all other merge gates pass, the PR should move toward automatic clean merge instead of waiting for manual confirmation.
+- An `EYES` reaction from `chatgpt-codex-connector[bot]` on the main PR conversation or an `@codex` review request comment means GitHub Codex Review is currently inspecting the code. It is a pending-review signal, not a pass, failure, or remediation instruction.
+- A newer `@codex` comment with a bot `EYES` reaction supersedes older Codex Review state. Even if an earlier review exists, the PR remains `waiting_for_codex_review` until a later bot response, thumbs-up reaction, or review thread state resolves that newer request.
+- Review detection must be thread-aware. Flat PR comments, review bodies, or reaction summaries are not enough to decide whether feedback is resolved. The runner must inspect GitHub review threads, `isResolved`, `isOutdated`, author, path, line, and the request/reaction timeline before deciding merge, remediation, or wait state.
+- Current unresolved Codex Review threads are actionable work. They should start a remediation worker when the branch is safe to modify. They should not permanently block unrelated issue workers from using available capacity.
+- Outdated unresolved Codex Review threads should be resolved automatically when GitHub reports the thread as obsolete. After resolving them, the runner must refetch thread state before evaluating merge readiness.
+- If a remediation commit makes a thread obsolete or directly fixes the feedback, the runner should resolve or reply to that exact conversation before requesting another manual Codex Review round. Do not leave remediated conversations open and then wait for a human to notice.
+- If the runner cannot prove that a branch update addressed a thread, it must leave the thread open and report the missing evidence. It must not resolve active feedback just to clear the queue.
+
+### PR Queue And Merge Behavior
+
+- Human-merged PRs are terminal for their referenced issue work. On the next tick, the runner must mark the matching issue workspace state as `merged`, remove or preserve the prepared workspace according to cleanliness, and stop reporting that issue as blocked by the old PR or workspace.
+- A clean, non-draft Phase 0 PR that satisfies merge state, label, check, and Codex Review acceptance criteria should be merged automatically with the configured merge method. Waiting for a manual merge after all gates pass is a runner bug.
+- Automatic merge should happen only after verification responsibility has been satisfied. If the workflow requires another agent or verification pass before merge, schedule that work with an available worker slot instead of leaving the PR idle.
+- Merge-conflicted, dirty, draft, or review-blocked PRs should be remediated when possible, but they must not become global queue stops. Report the blocker, schedule remediation if safe, and continue filling unused worker slots with unrelated eligible issues.
+- The top-level status should distinguish `waiting_for_codex_review`, `review_remediation_blocked`, `merge_conflict_blocked`, and `dispatches_started`. Do not let one waiting PR make the whole tick look inactive when issue workers were available.
+
+### Worker Concurrency And Issue Dispatch
+
+- `dispatch.max_concurrent_runs` is a real capacity target. The runner should fill available slots with independent remediation and issue work whenever safety prerequisites allow it.
+- A PR waiting on Codex Review is not a reason to skip open `agent-ready` issues. If there are free slots and eligible issues, dispatch them.
+- Review remediation has priority over new issue work only when the remediation worker can actually be prepared or run. A blocked remediation prerequisite should not consume a worker slot.
+- Open issues with `agent-ready`, acceptance criteria, and no blocking labels should not be hidden behind stale state from old PRs, old workspaces, or unrelated review waits. If a candidate is skipped, the queue output must state the concrete reason.
+- Workers should be split by issue or PR branch and by non-overlapping file ownership. The dispatcher should maximize independent work while preserving branch isolation and avoiding shared-file conflicts.
+
+### Workspace Recovery
+
+- Dirty state is not automatically fatal. If a prepared issue or PR remediation workspace is already on the correct branch, local edits are usually previous automation work for that same unit. Pass the dirty file list to the worker prompt and require the worker to inspect, finish, verify, commit, and push the in-scope edits.
+- Dirty state is fatal when the workspace is on the wrong branch, detached unexpectedly, tied to an unsafe branch name, missing its remote, or otherwise ambiguous. In those cases the runner must report the exact blocker instead of resetting, deleting, or silently skipping.
+- A stale issue workspace must not permanently consume a worker slot. Missing `state.json`, unreadable state, succeeded state without an open PR, or branch/workspace slug drift should be handled explicitly.
+- Issue title changes can make old slug-derived workspace paths stale. Reuse a resolved old-slug workspace only when its repo or state still matches the current issue branch. If the branch slug changed, create or use the current branch/workspace instead of repeatedly blocking on the old checkout.
+- Worker prompts must render the actual prepared workspace path, repo path, target branch, and working branch. They must not mix a resolved legacy workspace with a newly derived slug path.
+- Malformed legacy state must fail closed. Invalid `attempts`, unreadable state, or inconsistent state should not create infinite retry loops.
+- Merged-workspace teardown should normalize generated cache permissions before declaring cleanup blocked. If a clean merged workspace cannot be removed because `.gomodcache`, `.gocache`, or `node_modules/.cache` contains permission-protected files, make those generated cache trees user-writable and retry once.
+- Clean teardown recovery is limited to generated cache directories. Do not chmod arbitrary source paths, do not delete dirty workspaces, and do not discard local edits.
+
+### Worker Runtime Environment
+
+- `dispatch.agent_runner_command` must launch Codex with a writable per-workspace `CODEX_HOME`. Automation-launched workers must not share or write the desktop app's `~/.codex` state database.
+- The per-workspace Codex home should reuse authentication and configuration by symlink or equivalent safe reference, but writable runtime state such as SQLite databases must live under `dispatch.agent_runner_codex_home_root`.
+- Worker stdout and stderr must be streamed and persisted under the workspace `logs/` directory so failures can be debugged without rerunning the task.
+- Idle workers must be reaped according to `dispatch.agent_runner_idle_timeout_ms`. A worker that has already emitted a durable `turn.completed` event may be recorded as completed even if the process needs cleanup.
+
+### Scheduler And Wrapper Cadence
+
+- The scheduled wrapper should run every 15 minutes on the configured cadence and must not sleep or poll long enough to overlap the next tick.
+- The wrapper should not serialize independent work. It should fetch/prune, prepare the clean runner worktree, invoke `npm run symphony:sync -- --json --max-runs <capacity>`, summarize JSON, and exit.
+- The wrapper must not duplicate PR merge policy, review signal interpretation, issue-dispatch eligibility, remediation policy, or worker concurrency rules. Those belong in this checked-in workflow and runner code.
+- If the runner reports no active dispatches while eligible `agent-ready` issues exist and worker slots are free, that is a bug to investigate, not an acceptable idle state.
+
 ## Phase 0 Pull Request Queue Runtime
 
 The Synchronizer owns the Phase 0 pull request queue before it starts more issue work. The automation wrapper should not carry this policy in a long heartbeat prompt; it should invoke the repo command and summarize the structured result.
@@ -201,6 +257,8 @@ If a PR is merge-conflicted, draft, or has actionable Codex Review feedback, the
 
 Actionable Codex Review feedback is agent work, not a terminal blocker. When the Synchronizer sees current unresolved Codex Review threads on an open Phase 0 PR, it must launch a review-remediation agent in the PR's existing workspace before considering unrelated new issue dispatch. The linked issue may already be closed, so remediation must not depend on the issue still appearing in the open-issue queue. The Synchronizer should match issues only from explicit PR references such as `#123` or `issue-123`, reuse a stable prepared workspace even if the issue title slug changed, preserve the PR's actual target branch in prompts and state, and verify that the prepared repo is checked out on the PR head branch before launching the agent. That agent receives the PR URL, target branch, working branch, review-thread URLs, comment excerpts, file paths, and any available original issue context. The agent must inspect the feedback, plan and implement the in-scope fix, run relevant verification, commit and push the PR branch, and reply to or resolve threads only when the branch update makes the feedback fixed or obsolete. If the PR workspace is missing, dirty, on the wrong branch, or ambiguous, the Synchronizer records a concrete remediation blocker instead of silently pausing the queue. Dry-run output must report those same live-run blockers without writing prompts, state, branches, or comments.
 
+When a review-remediation worker succeeds and advances the PR branch, the Synchronizer should resolve the Codex Review threads that it handed to that worker before requesting or waiting on another Codex Review round. If the worker reports success without changing the branch, the runner must leave the threads open and report that no branch update was available to justify resolution.
+
 If a PR does not have a prepared issue workspace but its branch uses an approved automation prefix, the runner may create a dedicated PR remediation workspace under `dispatch.workspace_root` from the remote PR branch. This is intended for manual or out-of-band PRs that still need Codex Review, draft, or merge-conflict remediation. Dry-run and live runs must evaluate the same safety prerequisites. The runner must still refuse unsafe branch names and missing remote branches. If the PR branch is already checked out elsewhere but the dedicated workspace is missing, the runner may create a detached worktree from `origin/<branch>` and require the worker to push with `git push --force-with-lease origin HEAD:<branch>`.
 
 Dirty prepared PR-remediation workspaces are not terminal blockers when the workspace is already on the PR head branch. They are usually previous automation work for that same PR. The Synchronizer should pass the dirty file list into the remediation prompt, launch the remediation worker, and require the worker to inspect, finish, verify, commit, and push the in-scope edits. It must still block wrong-branch workspaces, unsafe branch names, missing remotes, and ambiguous worktrees that are not tied to the PR branch. The runner should report the dirty file list in JSON so humans can audit what was handed to the worker.
@@ -215,7 +273,8 @@ The dispatcher is conservative by design:
 - A non-dry-run tick creates or reuses one workspace per selected issue under `dispatch.workspace_root`, creates a branch using `branching.branch_template`, and writes `prompt.md` plus `state.json` for the assigned run.
 - A failed issue workspace may be retried automatically until `dispatch.max_attempts` is reached, provided the worktree is clean. This prevents a transient agent crash from making the issue permanently inactive.
 - The dispatcher skips issues with blocked labels, missing acceptance criteria, missing `agent-ready`, or an already-open PR that references the issue.
-- When a human manually merges a PR that references an issue, the next dispatcher tick treats that PR as resolved and merged. It must not keep the issue blocked by the old prepared workspace; instead it records `status: merged` in the matching workspace `state.json` when the file exists, removes the clean prepared `repo` worktree checkout, and reports the issue queue entry as `merged`. If the prepared worktree is dirty, it must report the dirty files instead of deleting anything.
+- A stale issue workspace must not permanently consume an issue slot. If the workspace is already checked out on the issue branch but has no readable `state.json`, or the last state is `succeeded` but no PR exists yet, the dispatcher should re-enter that same workspace instead of skipping the issue forever. If the same-issue worktree has local edits, pass the dirty file list to the worker prompt as previous automation work for that issue so the worker can inspect, finish, commit, push, and open or update the PR.
+- When a human manually merges a PR that references an issue, the next dispatcher tick treats that PR as resolved and merged. It must not keep the issue blocked by the old prepared workspace; instead it records `status: merged` in the matching workspace `state.json` when the file exists, removes the clean prepared `repo` worktree checkout, and reports the issue queue entry as `merged`. If the prepared worktree is dirty, it must report the dirty files instead of deleting anything. If `git worktree remove` fails only because generated cache directories such as `.gomodcache`, `.gocache`, or `node_modules/.cache` contain permission-protected files, the dispatcher should make those generated cache trees user-writable and retry teardown once before reporting a blocker.
 - The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.
 - The dispatcher treats only a clean PR that is ready to merge as a reason to pause ordinary issue dispatch. Blocked, dirty, draft, or waiting-for-review PRs must be reported and remediated when possible, but they should not prevent unrelated eligible issues from using remaining worker capacity. If issue work is dispatched while a PR remains in `waiting_for_codex_review`, the top-level sync status should report the issue dispatch result instead of making the PR wait look like a global queue stop.
 - `dispatch.agent_runner_command` is approved for this repo and launches `codex exec` from the prepared worktree with the rendered issue prompt on stdin. The dispatcher sets `CODEX_HOME` to a per-workspace directory under `dispatch.agent_runner_codex_home_root`, symlinks the operator's existing Codex auth/config/plugin references into that writable home, and keeps worker state databases out of the desktop app's `~/.codex` directory. This prevents automation-launched workers from failing on readonly `state_5.sqlite` or app-server state writes while still using the authenticated Codex installation. The dispatcher writes runner stdout and stderr to the issue workspace `logs/` directory and records completion or failure in `state.json`.
