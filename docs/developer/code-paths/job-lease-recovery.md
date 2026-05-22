@@ -1,6 +1,10 @@
 # Job Lease Recovery And Scheduled Overlap Protection
 
-This walkthrough explains the Phase 0 worker-crash recovery primitive for `P0-0B-001`, the scheduled job-family overlap primitive for `P0-0B-003`, and the global-pause claim cutoff for `P0-0C-006`. It covers local database state only. Provider read-before-write checks remain required before any later live provider worker mutates an upstream system.
+This walkthrough explains the Phase 0 worker-crash recovery primitive for `P0-0B-001` and the scheduled job-family overlap primitive for `P0-0B-003`. It covers local database state only. Provider read-before-write checks remain required before any later live provider worker mutates an upstream system.
+
+For full Phase 0 table, column, index, constraint, sensitive-field, and direct
+SQL review guidance, use
+[`docs/developer/phase-0-database-schema.md`](../phase-0-database-schema.md).
 
 ## Tables
 
@@ -12,7 +16,6 @@ This walkthrough explains the Phase 0 worker-crash recovery primitive for `P0-0B
 - `workflow_runs.deferred_from_run_id` points from an overlap-deferred run to the active run that blocked it.
 - `workflow_runs.overlap_state` records `none` for active scheduled runs and `deferred_due_to_active_run` for suppressed duplicate starts.
 - `workflow_runs.overlap_count` records the family-scoped overlap sequence used by later cadence-adjustment ticket work.
-- `system_controls` stores operator emergency controls. The `global_pause` row is the Phase 0 emergency cutoff that stops new job claims without taking down diagnostics, health routes, or the staff UI.
 
 Existing dev and staging databases that were created before these overlap fields
 must apply `internal/db/migrations/202605200001_workflow_run_overlap.sql`. New
@@ -26,21 +29,11 @@ and the active status list as SQL literals so PostgreSQL can use the
 `internal/db.ClaimNextJob` is the worker claim boundary.
 
 1. The caller starts a transaction through `internal/db.WithRetry`.
-2. `ClaimNextJob` calls `internal/db.IsGlobalPauseActive`, which reads `system_controls.global_pause`.
-3. If the pause row is enabled, `ClaimNextJob` returns `ErrGlobalPauseActive` before it touches `jobs`. Worker loops should sleep, surface the paused state in their own diagnostics, and retry after the normal poll interval.
-4. If the pause row is missing or disabled, `ClaimNextJob` selects the oldest eligible `queued` job by `global_tick` with `FOR UPDATE SKIP LOCKED`.
-5. The same statement moves the row to `running`, writes the lease owner, expiry, heartbeat, and `updated_at`, then returns the claimed job.
-6. If no row is available, the function returns `ErrNoJobAvailable` so an idle worker can sleep without treating the empty queue as a failure.
+2. `ClaimNextJob` selects the oldest eligible `queued` job by `global_tick` with `FOR UPDATE SKIP LOCKED`.
+3. The same statement moves the row to `running`, writes the lease owner, expiry, heartbeat, and `updated_at`, then returns the claimed job.
+4. If no row is available, the function returns `ErrNoJobAvailable` so an idle worker can sleep without treating the empty queue as a failure.
 
 This keeps duplicate claims out of normal worker execution. Concurrent workers lock different rows, and ordering depends on `global_tick` rather than UUIDs or timestamps.
-
-## Global Pause Claim Cutoff
-
-The global pause is intentionally a claim cutoff, not a process shutdown. Existing UI and diagnostic handlers can continue to serve requests because `ClaimNextJob` is the only Phase 0 primitive that consults the `global_pause` row before mutating job leases.
-
-Dev evidence for `P0-0C-006` should enable `system_controls.global_pause`, call the worker claim path, and show `ErrGlobalPauseActive` with no `jobs` update or new lease fields. The same evidence set should include a lightweight health or UI/diagnostic read proving the service process remains online. A focused unit proof lives in `internal/db/jobs_test.go` and asserts the paused claim path never issues the SQL update against `jobs`.
-
-Staging evidence should use the same database control row against staging infrastructure and show the pause acts as an emergency cutoff without requiring a deployment rollback. Do not store staging credentials, raw provider responses, production-derived rows, or secret headers in repository artifacts; file the runtime evidence in the external IncidentIQ testing ticket and reference the scenario id.
 
 ## Crash Recovery Path
 
@@ -89,7 +82,6 @@ The focused tests are in `internal/db/jobs_test.go`:
 - idle scheduled family creates one running workflow run
 - overlapping scheduled family creates a deferred workflow run tied to the active run
 - claim writes the running lease fields
-- global pause returns `ErrGlobalPauseActive` before any claim update
 - an empty queue returns `ErrNoJobAvailable`
 - expired running jobs move to `recovering`
 - interrupted `recovering` rows are returned for reconciliation on the next pass
@@ -99,5 +91,3 @@ The focused tests are in `internal/db/jobs_test.go`:
 Staging evidence for `P0-0B-001` should run the same state transitions against the staging database and record before/after `jobs` and `external_request_log` rows in the external IncidentIQ evidence ticket.
 
 Staging evidence for `P0-0B-003` should run two schedule-start attempts for the same `job_family` against staging. The evidence should show the first row as active, the second row as `deferred`, `deferred_from_run_id` pointing to the first row, `overlap_state = deferred_due_to_active_run`, and no provider write or active-row clobber. The repository must not store staging credentials, raw provider responses, or production-derived snapshots.
-
-Staging evidence for `P0-0C-006` should enable `system_controls.global_pause` for the staging control plane, attempt a worker claim, and record that no new lease is created while a health or diagnostic endpoint still responds. This proves the emergency cutoff can be used without rolling back the deployed revision. The external evidence should also record the cleanup step that restores the prior pause value after the verification window.
