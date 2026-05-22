@@ -1615,20 +1615,36 @@ function commandHasPathSegment(command) {
   return command.includes("/") || (process.platform === "win32" && /[\\/]/.test(command));
 }
 
+function commandExecutableNames(command, { platform = process.platform, pathExt = process.env.PATHEXT || "" } = {}) {
+  if (platform !== "win32" || path.extname(command)) return [command];
+  const extensions = pathExt
+    .split(";")
+    .map((extension) => extension.trim())
+    .filter(Boolean);
+  return [command, ...extensions.map((extension) => `${command}${extension.startsWith(".") ? extension : `.${extension}`}`)];
+}
+
 function resolveCommandExecutable(command, {
   envPath = process.env.PATH || "",
+  cwd = process.cwd(),
   fallbackPaths = DEFAULT_AGENT_RUNNER_FALLBACKS,
+  platform = process.platform,
+  pathExt = process.env.PATHEXT || "",
 } = {}) {
   if (!command) return { ok: false, command, reason: "agent runner command is empty" };
   if (commandHasPathSegment(command)) {
-    return isExecutableFile(command)
-      ? { ok: true, command }
-      : { ok: false, command, reason: `agent runner executable ${command} is not executable or does not exist` };
+    const resolved = path.isAbsolute(command) ? command : path.resolve(cwd, command);
+    return isExecutableFile(resolved)
+      ? { ok: true, command: resolved }
+      : { ok: false, command, reason: `agent runner executable ${command} is not executable or does not exist at ${resolved}` };
   }
+  const executableNames = commandExecutableNames(command, { platform, pathExt });
   const pathCandidates = envPath
     .split(path.delimiter)
-    .filter(Boolean)
-    .map((directory) => path.join(directory, command));
+    .flatMap((directory) => {
+      const resolvedDirectory = directory === "" ? cwd : directory;
+      return executableNames.map((name) => path.join(resolvedDirectory, name));
+    });
   for (const candidate of pathCandidates) {
     if (isExecutableFile(candidate)) return { ok: true, command: candidate };
   }
@@ -1642,6 +1658,31 @@ function resolveCommandExecutable(command, {
     command,
     reason: `agent runner executable "${command}" was not found in PATH or fallback locations${suffix}`,
   };
+}
+
+function agentRunnerLastEvent({ runnerStatus, workKind }) {
+  if (workKind === "review_remediation") {
+    switch (runnerStatus) {
+      case "completed":
+        return "review remediation agent completed";
+      case "failed":
+        return "review remediation agent failed";
+      case "blocked":
+        return "review remediation agent blocked by runner configuration";
+      default:
+        return "review remediation prompt prepared; no repo-owned agent runner command is configured yet";
+    }
+  }
+  switch (runnerStatus) {
+    case "completed":
+      return "workspace prepared and agent runner completed";
+    case "failed":
+      return "workspace prepared and agent runner failed";
+    case "blocked":
+      return "workspace prepared and agent runner blocked by runner configuration";
+    default:
+      return "workspace prepared; no repo-owned agent runner command is configured yet";
+  }
 }
 
 function ensureSymlink(target, linkPath) {
@@ -1792,7 +1833,7 @@ async function runAgentRunner({
     target_branch: targetBranch,
   };
   const [configuredCmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
-  const resolvedCommand = resolveCommandExecutable(configuredCmd);
+  const resolvedCommand = resolveCommandExecutable(configuredCmd, { cwd: repoPath });
   const cmd = resolvedCommand.command;
   const startedAt = new Date().toISOString();
   let codexHome = "";
@@ -2346,12 +2387,7 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     workspace_preparation: preparation.preparation,
     review_thread_resolutions: reviewThreadResolutions,
     checkout_mode: result.checkout_mode,
-    last_event:
-      runner.runner_status === "completed"
-        ? "review remediation agent completed"
-        : runner.runner_status === "failed"
-          ? "review remediation agent failed"
-          : "review remediation prompt prepared; no repo-owned agent runner command is configured yet",
+    last_event: agentRunnerLastEvent({ runnerStatus: runner.runner_status, workKind: "review_remediation" }),
   };
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
   return {
@@ -2471,12 +2507,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     updated_at: new Date().toISOString(),
     runner,
     dirty_files_at_start: dirtyStatus?.dirty_files || [],
-    last_event:
-      runner.runner_status === "completed"
-        ? "workspace prepared and agent runner completed"
-        : runner.runner_status === "failed"
-          ? "workspace prepared and agent runner failed"
-          : "workspace prepared; no repo-owned agent runner command is configured yet",
+    last_event: agentRunnerLastEvent({ runnerStatus: runner.runner_status, workKind: "issue" }),
   };
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
   return {
@@ -4303,6 +4334,38 @@ async function selfTest() {
       ok: true,
       command: fakeCodexPath,
     });
+    const repoLocalRunner = path.join(tempRoot, "repo-local-runner");
+    fs.writeFileSync(repoLocalRunner, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    assert.deepEqual(resolveCommandExecutable("./repo-local-runner", { cwd: tempRoot }), {
+      ok: true,
+      command: repoLocalRunner,
+    });
+    const pathCurrentDirectoryRunner = path.join(tempRoot, "workspace-runner");
+    fs.writeFileSync(pathCurrentDirectoryRunner, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    assert.deepEqual(resolveCommandExecutable("workspace-runner", { envPath: "", cwd: tempRoot, fallbackPaths: {} }), {
+      ok: true,
+      command: pathCurrentDirectoryRunner,
+    });
+    const windowsRunner = path.join(tempRoot, "windows-runner.CMD");
+    fs.writeFileSync(windowsRunner, "@echo off\r\nexit /b 0\r\n", { mode: 0o755 });
+    assert.deepEqual(
+      resolveCommandExecutable("windows-runner", {
+        envPath: tempRoot,
+        cwd: tempRoot,
+        fallbackPaths: {},
+        platform: "win32",
+        pathExt: ".EXE;.CMD;.BAT",
+      }),
+      {
+        ok: true,
+        command: windowsRunner,
+      },
+    );
+    assert.match(agentRunnerLastEvent({ runnerStatus: "blocked", workKind: "issue" }), /blocked by runner configuration/);
+    assert.match(
+      agentRunnerLastEvent({ runnerStatus: "blocked", workKind: "review_remediation" }),
+      /blocked by runner configuration/,
+    );
     const missingRunner = await runAgentRunner({
       commandLine: "definitely-missing-symphony-runner --version",
       repoPath: tempRoot,
