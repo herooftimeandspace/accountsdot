@@ -301,7 +301,7 @@ The following rules capture operational failures that previously required manual
 
 ### Worker Runtime Environment
 
-- `dispatch.agent_runner_command` must launch Codex with a writable per-workspace `CODEX_HOME`. Automation-launched workers must not share or write the desktop app's `~/.codex` state database.
+- `dispatch.agent_runner_command` must launch Codex with a writable per-workspace `CODEX_HOME`. Automation-launched workers must not share or write the desktop app's `~/.codex` state database. Before dispatching a worker, the runner must resolve the configured executable through `PATH` and known local Codex app fallback locations. If the executable cannot be found, the issue or PR remediation must become an actionable runner-configuration blocker instead of failing with a low-level spawn error.
 - The per-workspace Codex home should reuse authentication and configuration by symlink or equivalent safe reference, but writable runtime state such as SQLite databases must live under `dispatch.agent_runner_codex_home_root`.
 - Worker stdout and stderr must be streamed and persisted under the workspace `logs/` directory so failures can be debugged without rerunning the task.
 - Idle workers must be reaped according to `dispatch.agent_runner_idle_timeout_ms`. A worker that has already emitted a durable `turn.completed` event may be recorded as completed even if the process needs cleanup.

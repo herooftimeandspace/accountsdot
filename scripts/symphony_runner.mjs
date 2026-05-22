@@ -1598,6 +1598,103 @@ function renderCommandToken(token, replacements) {
   });
 }
 
+const DEFAULT_AGENT_RUNNER_FALLBACKS = {
+  codex: ["/Applications/Codex.app/Contents/Resources/codex"],
+};
+const DEFAULT_UNIX_EXECUTABLE_PATH = "/usr/bin:/bin";
+const DEFAULT_WINDOWS_PATHEXT = ".COM;.EXE;.BAT;.CMD";
+
+function isExecutableFile(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function commandHasPathSegment(command) {
+  return command.includes("/") || (process.platform === "win32" && /[\\/]/.test(command));
+}
+
+function commandExecutableNames(command, { platform = process.platform, pathExt = process.env.PATHEXT } = {}) {
+  if (platform !== "win32" || path.extname(command)) return [command];
+  const effectivePathExt = pathExt === undefined || pathExt === null || pathExt === "" ? DEFAULT_WINDOWS_PATHEXT : pathExt;
+  const extensions = effectivePathExt
+    .split(";")
+    .map((extension) => extension.trim())
+    .filter(Boolean);
+  return [command, ...extensions.map((extension) => `${command}${extension.startsWith(".") ? extension : `.${extension}`}`)];
+}
+
+function commandSearchPath({ envPath, platform = process.platform } = {}) {
+  if (envPath !== undefined && envPath !== null) return envPath;
+  if (platform === "win32") return process.env.PATH ?? process.env.Path ?? "";
+  return process.env.PATH ?? DEFAULT_UNIX_EXECUTABLE_PATH;
+}
+
+function resolveCommandExecutable(command, {
+  envPath,
+  cwd = process.cwd(),
+  fallbackPaths = DEFAULT_AGENT_RUNNER_FALLBACKS,
+  platform = process.platform,
+  pathExt = process.env.PATHEXT,
+} = {}) {
+  if (!command) return { ok: false, command, reason: "agent runner command is empty" };
+  if (commandHasPathSegment(command)) {
+    const resolved = path.isAbsolute(command) ? command : path.resolve(cwd, command);
+    return isExecutableFile(resolved)
+      ? { ok: true, command: resolved }
+      : { ok: false, command, reason: `agent runner executable ${command} is not executable or does not exist at ${resolved}` };
+  }
+  const executableNames = commandExecutableNames(command, { platform, pathExt });
+  const effectivePath = commandSearchPath({ envPath, platform });
+  const pathCandidates = effectivePath
+    .split(path.delimiter)
+    .flatMap((directory) => {
+      const resolvedDirectory = directory === "" ? cwd : directory;
+      return executableNames.map((name) => path.join(resolvedDirectory, name));
+    });
+  for (const candidate of pathCandidates) {
+    if (isExecutableFile(candidate)) return { ok: true, command: candidate };
+  }
+  for (const candidate of fallbackPaths[command] || []) {
+    if (isExecutableFile(candidate)) return { ok: true, command: candidate };
+  }
+  const searched = [...pathCandidates, ...(fallbackPaths[command] || [])];
+  const suffix = searched.length > 0 ? `; searched ${searched.join(", ")}` : "";
+  return {
+    ok: false,
+    command,
+    reason: `agent runner executable "${command}" was not found in PATH or fallback locations${suffix}`,
+  };
+}
+
+function agentRunnerLastEvent({ runnerStatus, workKind }) {
+  if (workKind === "review_remediation") {
+    switch (runnerStatus) {
+      case "completed":
+        return "review remediation agent completed";
+      case "failed":
+        return "review remediation agent failed";
+      case "blocked":
+        return "review remediation agent blocked by runner configuration";
+      default:
+        return "review remediation prompt prepared; no repo-owned agent runner command is configured yet";
+    }
+  }
+  switch (runnerStatus) {
+    case "completed":
+      return "workspace prepared and agent runner completed";
+    case "failed":
+      return "workspace prepared and agent runner failed";
+    case "blocked":
+      return "workspace prepared and agent runner blocked by runner configuration";
+    default:
+      return "workspace prepared; no repo-owned agent runner command is configured yet";
+  }
+}
+
 function ensureSymlink(target, linkPath) {
   try {
     const existing = fs.lstatSync(linkPath);
@@ -1745,12 +1842,31 @@ async function runAgentRunner({
     branch: branchName,
     target_branch: targetBranch,
   };
-  const [cmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
+  const [configuredCmd, ...args] = tokens.map((token) => renderCommandToken(token, replacements));
+  const resolvedCommand = resolveCommandExecutable(configuredCmd, { cwd: repoPath });
+  const cmd = resolvedCommand.command;
   const startedAt = new Date().toISOString();
   let codexHome = "";
   fs.mkdirSync(logsPath, { recursive: true });
   const stdoutPath = path.join(logsPath, "agent-stdout.log");
   const stderrPath = path.join(logsPath, "agent-stderr.log");
+  if (!resolvedCommand.ok) {
+    const completedAt = new Date().toISOString();
+    writeAgentRunnerLogs(logsPath, "", resolvedCommand.reason);
+    return {
+      status: "blocked",
+      runner_status: "blocked",
+      command: [configuredCmd, ...args],
+      resolved_command: cmd,
+      codex_home_path: codexHome,
+      started_at: startedAt,
+      completed_at: completedAt,
+      stdout_path: stdoutPath,
+      stderr_path: stderrPath,
+      exit_status: null,
+      reason: resolvedCommand.reason,
+    };
+  }
   try {
     codexHome = prepareAgentCodexHome({ codexHomeRoot, workspacePath }) || "";
   } catch (error) {
@@ -2281,12 +2397,7 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     workspace_preparation: preparation.preparation,
     review_thread_resolutions: reviewThreadResolutions,
     checkout_mode: result.checkout_mode,
-    last_event:
-      runner.runner_status === "completed"
-        ? "review remediation agent completed"
-        : runner.runner_status === "failed"
-          ? "review remediation agent failed"
-          : "review remediation prompt prepared; no repo-owned agent runner command is configured yet",
+    last_event: agentRunnerLastEvent({ runnerStatus: runner.runner_status, workKind: "review_remediation" }),
   };
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
   return {
@@ -2406,12 +2517,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     updated_at: new Date().toISOString(),
     runner,
     dirty_files_at_start: dirtyStatus?.dirty_files || [],
-    last_event:
-      runner.runner_status === "completed"
-        ? "workspace prepared and agent runner completed"
-        : runner.runner_status === "failed"
-          ? "workspace prepared and agent runner failed"
-          : "workspace prepared; no repo-owned agent runner command is configured yet",
+    last_event: agentRunnerLastEvent({ runnerStatus: runner.runner_status, workKind: "issue" }),
   };
   fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
   return {
@@ -4232,6 +4338,94 @@ async function selfTest() {
       "-",
     ]);
     assert.equal(renderCommandToken("{repo}/prompt.md", { repo: "/tmp/example" }), "/tmp/example/prompt.md");
+    const fakeCodexPath = path.join(tempRoot, "fake-codex");
+    fs.writeFileSync(fakeCodexPath, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    assert.deepEqual(resolveCommandExecutable("codex", { envPath: "", fallbackPaths: { codex: [fakeCodexPath] } }), {
+      ok: true,
+      command: fakeCodexPath,
+    });
+    const repoLocalRunner = path.join(tempRoot, "repo-local-runner");
+    fs.writeFileSync(repoLocalRunner, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    assert.deepEqual(resolveCommandExecutable("./repo-local-runner", { cwd: tempRoot }), {
+      ok: true,
+      command: repoLocalRunner,
+    });
+    const pathCurrentDirectoryRunner = path.join(tempRoot, "workspace-runner");
+    fs.writeFileSync(pathCurrentDirectoryRunner, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    assert.deepEqual(resolveCommandExecutable("workspace-runner", { envPath: "", cwd: tempRoot, fallbackPaths: {} }), {
+      ok: true,
+      command: pathCurrentDirectoryRunner,
+    });
+    const windowsRunner = path.join(tempRoot, "windows-runner.CMD");
+    fs.writeFileSync(windowsRunner, "@echo off\r\nexit /b 0\r\n", { mode: 0o755 });
+    assert.deepEqual(
+      resolveCommandExecutable("windows-runner", {
+        envPath: tempRoot,
+        cwd: tempRoot,
+        fallbackPaths: {},
+        platform: "win32",
+        pathExt: ".EXE;.CMD;.BAT",
+      }),
+      {
+        ok: true,
+        command: windowsRunner,
+      },
+    );
+    const windowsDefaultSuffixRunner = path.join(tempRoot, "windows-default-runner.EXE");
+    fs.writeFileSync(windowsDefaultSuffixRunner, "@echo off\r\nexit /b 0\r\n", { mode: 0o755 });
+    assert.deepEqual(
+      resolveCommandExecutable("windows-default-runner", {
+        envPath: tempRoot,
+        cwd: tempRoot,
+        fallbackPaths: {},
+        platform: "win32",
+        pathExt: "",
+      }),
+      {
+        ok: true,
+        command: windowsDefaultSuffixRunner,
+      },
+    );
+    const originalPath = process.env.PATH;
+    try {
+      delete process.env.PATH;
+      const defaultPathRunner = resolveCommandExecutable("sh", {
+        envPath: undefined,
+        cwd: tempRoot,
+        fallbackPaths: {},
+        platform: "linux",
+      });
+      assert.equal(defaultPathRunner.ok, true);
+      assert.match(defaultPathRunner.command, /\/sh$/);
+    } finally {
+      if (originalPath === undefined) {
+        delete process.env.PATH;
+      } else {
+        process.env.PATH = originalPath;
+      }
+    }
+    assert.match(agentRunnerLastEvent({ runnerStatus: "blocked", workKind: "issue" }), /blocked by runner configuration/);
+    assert.match(
+      agentRunnerLastEvent({ runnerStatus: "blocked", workKind: "review_remediation" }),
+      /blocked by runner configuration/,
+    );
+    const missingRunner = await runAgentRunner({
+      commandLine: "definitely-missing-symphony-runner --version",
+      repoPath: tempRoot,
+      promptPath: path.join(tempRoot, "prompt.md"),
+      prompt: "",
+      issue: { number: 4, url: "https://example.invalid/4" },
+      branchName: "codex/issue-4-test",
+      targetBranch: "phase-0-platform-foundation",
+      logsPath: path.join(tempRoot, "missing-runner-logs"),
+      timeoutMs: 1000,
+      idleTimeoutMs: 1000,
+      codexHomeRoot: "",
+      workspacePath: path.join(tempRoot, "issue-4-test"),
+    });
+    assert.equal(missingRunner.status, "blocked");
+    assert.equal(missingRunner.runner_status, "blocked");
+    assert.match(missingRunner.reason, /not found in PATH or fallback locations/);
     assert.equal(
       issueForPullRequest({ title: "Ship v2 remediation", head_ref: "codex/v2-review-remediation" }, [
         { number: 2, title: "Unrelated issue" },
