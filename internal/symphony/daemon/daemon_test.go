@@ -67,6 +67,38 @@ func TestDaemonAppliesSetConcurrencyWhilePaused(t *testing.T) {
 	}
 }
 
+func TestDaemonDryRunDoesNotConsumeControlCommands(t *testing.T) {
+	dir := t.TempDir()
+	command, err := control.New("pause", "", 0)
+	if err != nil {
+		t.Fatalf("build command: %v", err)
+	}
+	if _, err := control.WriteCommand(dir, command); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+	snapshot, err := daemon.Run(context.Background(), daemon.Options{
+		RepoRoot:     t.TempDir(),
+		StateDir:     dir,
+		Interval:     time.Millisecond,
+		MaxTicks:     1,
+		DryRun:       true,
+		InitialState: "paused",
+	})
+	if err != nil {
+		t.Fatalf("daemon dry-run: %v", err)
+	}
+	if snapshot.Controller.DryRun != true {
+		t.Fatalf("expected dry-run snapshot, got %#v", snapshot.Controller)
+	}
+	commands, err := control.ReadPending(dir)
+	if err != nil {
+		t.Fatalf("read pending commands: %v", err)
+	}
+	if len(commands) != 1 {
+		t.Fatalf("expected dry-run to leave queued control command untouched, got %#v", commands)
+	}
+}
+
 func TestDaemonRejectsSecondActiveLock(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())

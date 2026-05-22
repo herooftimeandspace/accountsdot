@@ -73,8 +73,10 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 	defer ticker.Stop()
 
 	for tick := 0; ; tick++ {
-		if err := applyControl(options.StateDir, &snapshot.Controller); err != nil && !options.DryRun {
-			_ = state.AppendEvent(options.StateDir, state.Event{Kind: "control.error", Message: err.Error()})
+		if !options.DryRun {
+			if err := applyControl(options.StateDir, &snapshot.Controller); err != nil {
+				_ = state.AppendEvent(options.StateDir, state.Event{Kind: "control.error", Message: err.Error()})
+			}
 		}
 		if snapshot.Controller.Lifecycle != "paused" {
 			result, err := symphony.RunSyncTick(ctx, options.RepoRoot, symphony.SyncOptions{

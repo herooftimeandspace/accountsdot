@@ -311,6 +311,31 @@ function ghJson(args) {
   throw lastError;
 }
 
+let cachedGitHubRepository = null;
+
+function githubRepositorySlug() {
+  if (cachedGitHubRepository) return cachedGitHubRepository;
+  if (process.env.GH_REPO && /^[^/\s]+\/[^/\s]+$/.test(process.env.GH_REPO)) {
+    cachedGitHubRepository = process.env.GH_REPO;
+    return cachedGitHubRepository;
+  }
+  const repository = ghJson(["repo", "view", "--json", "nameWithOwner"]);
+  if (!repository?.nameWithOwner || !/^[^/\s]+\/[^/\s]+$/.test(repository.nameWithOwner)) {
+    throw new Error("Could not resolve GitHub repository from GH_REPO or gh repo view");
+  }
+  cachedGitHubRepository = repository.nameWithOwner;
+  return cachedGitHubRepository;
+}
+
+function githubRepositoryParts() {
+  const [owner, repo] = githubRepositorySlug().split("/");
+  return { owner, repo };
+}
+
+function githubRepoApiPath(suffix) {
+  return `repos/${githubRepositorySlug()}/${suffix}`;
+}
+
 function isTransientGhError(error) {
   const text = `${error?.stdout || ""}\n${error?.stderr || ""}\n${error?.message || ""}`;
   return /\b(502|503|504)\b/i.test(text) || /Bad Gateway|Service Unavailable|Gateway Timeout|timed out/i.test(text);
@@ -383,7 +408,7 @@ function listOpenIssuesForLabel(label = "") {
       "api",
       "--method",
       "GET",
-      "repos/herooftimeandspace/accountsdot/issues",
+      githubRepoApiPath("issues"),
       "-f",
       "state=open",
       "-f",
@@ -394,19 +419,19 @@ function listOpenIssuesForLabel(label = "") {
     if (label) {
       args.push("-f", `labels=${label}`);
     }
-    const pageItems = ghJson(args).filter((issue) => !issue.pull_request);
-    issues.push(...pageItems.map(normalizeIssueFromApi));
-    if (pageItems.length < 100) break;
+    const rawPageItems = ghJson(args);
+    issues.push(...rawPageItems.filter((issue) => !issue.pull_request));
+    if (rawPageItems.length < 100) break;
   }
   return issues;
 }
 
-function normalizeIssueFromApi(issue) {
+function normalizeIssueFromApi(issue, comments = null) {
   return {
     number: issue.number,
     title: issue.title || "",
     body: issue.body || "",
-    comments: hydrateIssueComments(issue.number),
+    comments: comments || hydrateIssueComments(issue.number),
     labels: Array.isArray(issue.labels) ? issue.labels.map((label) => ({ name: label.name || String(label) })) : [],
     url: issue.html_url || issue.url || "",
     updatedAt: issue.updated_at || "",
@@ -421,7 +446,7 @@ function hydrateIssueComments(issueNumber) {
       "api",
       "--method",
       "GET",
-      `repos/herooftimeandspace/accountsdot/issues/${issueNumber}/comments`,
+      githubRepoApiPath(`issues/${issueNumber}/comments`),
       "-f",
       "per_page=100",
       "-f",
@@ -457,10 +482,11 @@ function listOpenIssues(activeLabels = []) {
   for (const label of activeLabels) {
     issueLists.push(listOpenIssuesForLabel(label));
   }
-  return mergeIssuesByNumber(issueLists);
+  return mergeIssuesByNumber(issueLists).map((issue) => normalizeIssueFromApi(issue, hydrateIssueComments(issue.number)));
 }
 
 function fetchReviewThreads(baseRef) {
+  const { owner, repo } = githubRepositoryParts();
   const query =
     'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviewThreads(first:100) { nodes { id isResolved isOutdated comments(first:10){ nodes { author { login } body createdAt path line originalLine url } } } } } } } }';
   const result = ghJson([
@@ -469,9 +495,9 @@ function fetchReviewThreads(baseRef) {
     "-f",
     `query=${query}`,
     "-F",
-    "owner=herooftimeandspace",
+    `owner=${owner}`,
     "-F",
-    "repo=accountsdot",
+    `repo=${repo}`,
     "-F",
     `base=${baseRef}`,
   ]);
@@ -484,6 +510,7 @@ function fetchReviewThreads(baseRef) {
 }
 
 function fetchPullRequestReviewSignals(baseRef) {
+  const { owner, repo } = githubRepositoryParts();
   const query =
     'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reactionGroups { content users(first:20){ nodes { login } } } reviews(first:50){ nodes { author { login } state submittedAt } } comments(first:50){ nodes { author { login } body createdAt reactionGroups { content users(first:20){ nodes { login } } } } } } } } }';
   const result = ghJson([
@@ -492,9 +519,9 @@ function fetchPullRequestReviewSignals(baseRef) {
     "-f",
     `query=${query}`,
     "-F",
-    "owner=herooftimeandspace",
+    `owner=${owner}`,
     "-F",
-    "repo=accountsdot",
+    `repo=${repo}`,
     "-F",
     `base=${baseRef}`,
   ]);
