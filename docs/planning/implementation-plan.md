@@ -472,7 +472,7 @@
   - repo-local reference inputs and authoritative docs
 - Success gates:
   - `dev`, `staging`, and `main` are treated as separate datasets with documented refresh procedures
-  - `/health/live` and `/health/ready` validate required dependencies without manual DB repair
+  - `/health/live` and `/health/ready` validate required dependencies without manual DB repair, and `/health/ready` fails closed when required DB, sequence, import-staging storage, or Google service-account readiness checks are missing or failing
   - job overlap protection, recovery, and audit trails exist before automation writes are enabled
   - staff-only domain gate and breakglass logic are working in non-production
   - IT Admin can stop the system quickly through global pause/cadence controls before bad data propagates to downstream systems
@@ -535,6 +535,8 @@
     - `P0-0D-004` Provider Access Modes Classified Before Implementation
   - `0E` health checks, metrics, and promotion plumbing
     - `P0-0E-001` Readiness Fails Closed on Missing Dependency
+      - focused dev verification: `go test ./internal/web -run 'TestHealth(ReadyFailsClosedOnMissingRequiredDependency|ReadyFailsDependency|ReadyAllowsMissingOptionalSFTPCheck|Routes)$'`
+      - `/health/ready` must return `503 Service Unavailable` for missing required DB, sequence, import-staging storage, or Google service-account checks while `/health/live` continues to return a process-level `200 OK`
     - `P0-0E-002` Health Endpoints Reflect Pause and Dependency State
     - `P0-0E-003` Promotion Gate Requires Named Scenario Passes
 
@@ -2615,6 +2617,7 @@
   - `/health/ready`
   - `/health`
 - `/health/ready` must validate DB connectivity, sequence access, local import-staging path read/write access, configured SFTP reachability in integration mode, and Google service-account token acquisition.
+- Missing required DB, sequence, import-staging path, or Google service-account readiness checks must be treated as degraded readiness rather than skipped checks. Unwired SFTP remains `not_configured` until integration-mode configuration provides a check, but a configured SFTP failure must also degrade readiness.
 - `/health/live` stays online during `system_controls.global_pause` and does not execute DB-backed dependency or control checks, so diagnostics remain reachable even when the database is slow or unavailable. `/health/ready` and `/health` must return `503` with `status:"paused"` when global pause is active and dependencies are otherwise healthy. If global pause and a dependency failure are both present, readiness must return `status:"degraded"` so the pause signal does not hide the outage.
 - `/metrics` must expose bounded, non-secret gauges for process liveness, readiness, global pause, and named dependency readiness. The checked-in health-observability runbook is `docs/operations/health-observability.md`.
 

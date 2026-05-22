@@ -30,8 +30,12 @@ Readiness JSON uses three top-level fields:
 Dependency values are intentionally plain diagnostic states:
 
 - `ok` means the callback passed.
-- `not_configured` means the current process has no callback for that dependency.
-  This keeps local smoke checks usable before all integrations are wired.
+- `not_configured` means the current process has no callback for an optional dependency.
+  In Phase 0 this is valid for unwired SFTP before integration-mode configuration
+  provides a concrete reachability check.
+- `missing_required_check` means the current process has no callback for required
+  DB, sequence, import-staging storage, or Google service-account readiness. This
+  fails readiness closed so missing wiring cannot report false safety.
 - `unavailable` means the callback failed and makes readiness fail. The
   response deliberately does not expose raw driver, provider, hostname,
   credential, SQL, or context error text.
@@ -57,8 +61,9 @@ does not hide the dependency outage.
 - `app_ready`: `1` only when readiness would return `ok`; `0` when paused or
   degraded.
 - `app_global_pause`: `1` when global pause is active; `0` otherwise.
-- `app_dependency_ready{name="<dependency>"}`: `1` for `ok` or
-  `not_configured`; `0` for concrete dependency failures.
+- `app_dependency_ready{name="<dependency>"}`: `1` for `ok` or optional
+  `not_configured`; `0` for `missing_required_check` and concrete dependency
+  failures.
 
 Metric labels are bounded and non-secret. Do not add provider URLs, tenant names,
 credential labels, email addresses, user IDs, raw error text, or service-account
@@ -88,7 +93,14 @@ promotion evidence.
 
 ## Verification
 
-For the Phase 0 `P0-0E-002` scenario, use:
+For the Phase 0 `P0-0E-001` missing-dependency scenario, use:
+
+```bash
+go test ./internal/web -run 'TestHealth(ReadyFailsClosedOnMissingRequiredDependency|ReadyFailsDependency|ReadyAllowsMissingOptionalSFTPCheck|Routes)$'
+git diff --check
+```
+
+For the Phase 0 `P0-0E-002` pause and observability scenario, use:
 
 ```bash
 go test ./internal/web ./cmd/provisioner -run 'TestHealth|TestMetrics|TestNewServerReportsInvalidHealthDatabaseConfig|TestHealthProbeErrorsAreBounded'
@@ -101,10 +113,13 @@ the deployed staging revision:
 1. Confirm `/health/live` remains `200 OK` while global pause is active.
 2. Confirm `/health/ready` and `/health` return `503` with `status:"paused"`
    when global pause is active and dependencies are otherwise healthy.
-3. Confirm a dependency drill returns `status:"degraded"` and
-   `app_ready 0`.
-4. Confirm `/metrics` includes `app_global_pause 1` while paused and clears the
-   affected `app_dependency_ready` gauge during the dependency drill.
+3. Confirm a missing required dependency drill returns `status:"degraded"`,
+   `missing_required_check`, `app_ready 0`, and `app_dependency_ready 0` for the
+   affected required dependency.
+4. Confirm a configured dependency failure drill returns `status:"degraded"`
+   and clears the affected `app_dependency_ready` gauge without exposing raw
+   provider or driver error text.
+5. Confirm `/metrics` includes `app_global_pause 1` while paused.
 
 Store live dev or staging evidence in the external IncidentIQ testing ticket or
 promotion runbook. Do not commit transient curl output, screenshots, raw
