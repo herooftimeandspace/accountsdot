@@ -32,6 +32,14 @@ func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: symphony <daemon|status|control|tui|report|sync|ui-monitor|record-browser-results|test> [options]")
 	}
+	switch args[0] {
+	case "status":
+		return runStatus(ctx, args[1:])
+	case "control":
+		return runControl(args[1:])
+	case "tui":
+		return runTUI(args[1:])
+	}
 	repoRoot, err := findRepoRoot()
 	if err != nil {
 		return err
@@ -39,12 +47,6 @@ func run(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "daemon":
 		return runDaemon(ctx, repoRoot, args[1:])
-	case "status":
-		return runStatus(ctx, args[1:])
-	case "control":
-		return runControl(args[1:])
-	case "tui":
-		return runTUI(args[1:])
 	case "sync":
 		return runSync(ctx, repoRoot, args[1:])
 	case "report", "ui-monitor", "record-browser-results":
@@ -175,7 +177,7 @@ func runControl(args []string) error {
 		return err
 	}
 	if flags.NArg() == 0 {
-		return fmt.Errorf("usage: symphony control <pause|resume|drain|stop|cancel|set-concurrency> [target]")
+		return fmt.Errorf("usage: symphony control <pause|resume|drain|stop|cancel|cancel-worker|set-concurrency> [target]")
 	}
 	action := flags.Arg(0)
 	actionArgs := flags.Args()[1:]
@@ -187,7 +189,7 @@ func runControl(args []string) error {
 	}
 	remaining := actionFlags.Args()
 	target := ""
-	if action == "cancel" && len(remaining) > 0 {
+	if (action == "cancel" || action == "cancel-worker") && len(remaining) > 0 {
 		target = remaining[0]
 	}
 	if action == "set-concurrency" && *concurrency == 0 && len(remaining) > 0 {

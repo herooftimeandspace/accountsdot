@@ -35,10 +35,11 @@ func New(action string, target string, concurrency int) (Command, error) {
 		if target != "" {
 			return Command{}, fmt.Errorf("%s does not accept a worker target", action)
 		}
-	case "cancel":
+	case "cancel", "cancel-worker":
 		if target == "" {
 			return Command{}, fmt.Errorf("cancel requires a worker id")
 		}
+		action = "cancel"
 	case "set-concurrency":
 		if concurrency <= 0 {
 			return Command{}, fmt.Errorf("set-concurrency requires a positive worker count")

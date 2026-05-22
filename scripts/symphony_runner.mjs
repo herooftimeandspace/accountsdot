@@ -313,30 +313,30 @@ function ghJson(args) {
 
 let cachedGitHubRepository = null;
 
-function normalizeGitHubRepositorySlug(value) {
-  if (!value) return "";
+function parseGitHubRepository(value) {
+  if (!value) return null;
   const parts = String(value)
     .trim()
     .split("/")
     .filter(Boolean);
   if (parts.length === 2 && parts.every((part) => /^[^\s/]+$/.test(part))) {
-    return `${parts[0]}/${parts[1]}`;
+    return { host: "", owner: parts[0], repo: parts[1] };
   }
   if (parts.length === 3 && parts.every((part) => /^[^\s/]+$/.test(part))) {
-    return `${parts[1]}/${parts[2]}`;
+    return { host: parts[0], owner: parts[1], repo: parts[2] };
   }
-  return "";
+  return null;
 }
 
-function githubRepositorySlug() {
+function githubRepository() {
   if (cachedGitHubRepository) return cachedGitHubRepository;
-  const envRepository = normalizeGitHubRepositorySlug(process.env.GH_REPO);
+  const envRepository = parseGitHubRepository(process.env.GH_REPO);
   if (envRepository) {
     cachedGitHubRepository = envRepository;
     return cachedGitHubRepository;
   }
   const repository = ghJson(["repo", "view", "--json", "nameWithOwner"]);
-  const viewedRepository = normalizeGitHubRepositorySlug(repository?.nameWithOwner);
+  const viewedRepository = parseGitHubRepository(repository?.nameWithOwner);
   if (!viewedRepository) {
     throw new Error("Could not resolve GitHub repository from GH_REPO or gh repo view");
   }
@@ -344,9 +344,19 @@ function githubRepositorySlug() {
   return cachedGitHubRepository;
 }
 
+function githubRepositorySlug() {
+  const repository = githubRepository();
+  return `${repository.owner}/${repository.repo}`;
+}
+
 function githubRepositoryParts() {
-  const [owner, repo] = githubRepositorySlug().split("/");
+  const { owner, repo } = githubRepository();
   return { owner, repo };
+}
+
+function githubApiHostArgs() {
+  const { host } = githubRepository();
+  return host ? ["--hostname", host] : [];
 }
 
 function githubRepoApiPath(suffix) {
@@ -423,6 +433,7 @@ function listOpenIssuesForLabel(label = "") {
   for (let page = 1; ; page += 1) {
     const args = [
       "api",
+      ...githubApiHostArgs(),
       "--method",
       "GET",
       githubRepoApiPath("issues"),
@@ -461,6 +472,7 @@ function hydrateIssueComments(issueNumber) {
   for (let page = 1; ; page += 1) {
     const pageItems = ghJson([
       "api",
+      ...githubApiHostArgs(),
       "--method",
       "GET",
       githubRepoApiPath(`issues/${issueNumber}/comments`),
@@ -510,6 +522,7 @@ function fetchReviewThreads(baseRef) {
     'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reviewThreads(first:100) { nodes { id isResolved isOutdated comments(first:10){ nodes { author { login } body createdAt path line originalLine url } } } } } } } }';
   const result = ghJson([
     "api",
+    ...githubApiHostArgs(),
     "graphql",
     "-f",
     `query=${query}`,
@@ -534,6 +547,7 @@ function fetchPullRequestReviewSignals(baseRef) {
     'query($owner:String!,$repo:String!,$base:String!){ repository(owner:$owner,name:$repo){ pullRequests(first:100, states:OPEN, baseRefName:$base) { nodes { number reactionGroups { content users(first:20){ nodes { login } } } reviews(first:50){ nodes { author { login } state submittedAt } } comments(first:50){ nodes { author { login } body createdAt reactionGroups { content users(first:20){ nodes { login } } } } } } } } }';
   const result = ghJson([
     "api",
+    ...githubApiHostArgs(),
     "graphql",
     "-f",
     `query=${query}`,
@@ -577,7 +591,7 @@ function queueReason(pr) {
 
 function resolveReviewThread(threadId) {
   const query = "mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}) { thread { id isResolved } } }";
-  return ghJson(["api", "graphql", "-f", `query=${query}`, "-F", `threadId=${threadId}`]);
+  return ghJson(["api", ...githubApiHostArgs(), "graphql", "-f", `query=${query}`, "-F", `threadId=${threadId}`]);
 }
 
 function commentAuthor(comment) {
@@ -3359,12 +3373,17 @@ async function selfTest() {
     const workflow = readWorkflow();
     assert.equal(workflow.config.name, "wizard-symphony-workflow");
     assert.ok(workflow.promptTemplate.includes("WIZARD Symphony Agent Workflow"));
-    assert.equal(normalizeGitHubRepositorySlug("herooftimeandspace/accountsdot"), "herooftimeandspace/accountsdot");
-    assert.equal(
-      normalizeGitHubRepositorySlug("github.example.com/herooftimeandspace/accountsdot"),
-      "herooftimeandspace/accountsdot",
-    );
-    assert.equal(normalizeGitHubRepositorySlug("invalid"), "");
+    assert.deepEqual(parseGitHubRepository("herooftimeandspace/accountsdot"), {
+      host: "",
+      owner: "herooftimeandspace",
+      repo: "accountsdot",
+    });
+    assert.deepEqual(parseGitHubRepository("github.example.com/herooftimeandspace/accountsdot"), {
+      host: "github.example.com",
+      owner: "herooftimeandspace",
+      repo: "accountsdot",
+    });
+    assert.equal(parseGitHubRepository("invalid"), null);
     assert.deepEqual(normalizeIssueFromApi({ number: 1, title: "No comment hydration" }).comments, []);
 
     const fakeSkillsRoot = path.join(tempRoot, "skills");

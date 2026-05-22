@@ -54,8 +54,13 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 		UpdatedAt:           time.Now().UTC(),
 	}
 	snapshot := state.Snapshot{Controller: controller}
-	if options.PhaseBranch != "" && !options.DryRun {
-		return snapshot, fmt.Errorf("--phase-branch is supported for daemon dry-run only until native Go dispatch replaces the legacy adapter")
+	if err := symphony.ValidateSyncOptions(symphony.SyncOptions{
+		DryRun:      options.DryRun,
+		PhaseID:     options.Phase,
+		PhaseBranch: options.PhaseBranch,
+		MaxRuns:     options.MaxWorkers,
+	}); err != nil {
+		return snapshot, err
 	}
 	var lock *os.File
 	var err error
@@ -81,7 +86,8 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 				_ = state.AppendEvent(options.StateDir, state.Event{Kind: "control.error", Message: err.Error()})
 			}
 		}
-		if snapshot.Controller.Lifecycle != "paused" {
+		switch snapshot.Controller.Lifecycle {
+		case "running":
 			result, err := symphony.RunSyncTick(ctx, options.RepoRoot, symphony.SyncOptions{
 				DryRun:      options.DryRun,
 				PhaseID:     options.Phase,
@@ -98,13 +104,24 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 			} else {
 				snapshot.Controller.LastStatus = result.TopLevelStatus
 				snapshot.Controller.Message = ""
-				snapshot.Workers = observedWorkers(result, now)
+				snapshot.Workers = mergeWorkerObservations(snapshot.Workers, observedWorkers(result, now))
 			}
-		} else {
+		case "paused":
 			now := time.Now().UTC()
 			snapshot.Controller.UpdatedAt = now
 			snapshot.Controller.NextTick = now.Add(options.Interval)
 			snapshot.Controller.Message = "paused; no new workers will dispatch"
+		case "draining", "stopping":
+			now := time.Now().UTC()
+			snapshot.Controller.UpdatedAt = now
+			snapshot.Controller.NextTick = now.Add(options.Interval)
+			snapshot.Controller.Message = snapshot.Controller.Lifecycle + "; no new workers will dispatch"
+		default:
+			now := time.Now().UTC()
+			snapshot.Controller.UpdatedAt = now
+			snapshot.Controller.NextTick = now.Add(options.Interval)
+			snapshot.Controller.LastStatus = "invalid_lifecycle"
+			snapshot.Controller.Message = fmt.Sprintf("unsupported daemon lifecycle %q", snapshot.Controller.Lifecycle)
 		}
 		if !options.DryRun {
 			if err := state.WriteSnapshot(options.StateDir, snapshot); err != nil {
@@ -186,6 +203,30 @@ func observedWorkers(result symphony.TickResult, now time.Time) []state.WorkerSt
 		})
 	}
 	return workers
+}
+
+func mergeWorkerObservations(existing []state.WorkerState, observed []state.WorkerState) []state.WorkerState {
+	if len(observed) == 0 {
+		return existing
+	}
+	merged := append([]state.WorkerState{}, existing...)
+	indexByWorkItem := map[string]int{}
+	for index, worker := range merged {
+		if worker.WorkItemID != "" {
+			indexByWorkItem[worker.WorkItemID] = index
+		}
+	}
+	for _, worker := range observed {
+		if index, ok := indexByWorkItem[worker.WorkItemID]; ok {
+			if !merged[index].StartedAt.IsZero() {
+				worker.StartedAt = merged[index].StartedAt
+			}
+			merged[index] = worker
+			continue
+		}
+		merged = append(merged, worker)
+	}
+	return merged
 }
 
 func applyControl(stateDir string, controller *state.ControllerState) error {

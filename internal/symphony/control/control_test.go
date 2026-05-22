@@ -16,6 +16,9 @@ func TestNewValidatesControlCommands(t *testing.T) {
 	if command, err := control.New("pause", "", 0); err != nil || command.Action != "pause" {
 		t.Fatalf("expected pause command, got %#v err=%v", command, err)
 	}
+	if command, err := control.New("cancel-worker", "worker-1", 0); err != nil || command.Action != "cancel" {
+		t.Fatalf("expected cancel-worker alias to queue cancel command, got %#v err=%v", command, err)
+	}
 }
 
 func TestWriteAndReadPendingCommand(t *testing.T) {

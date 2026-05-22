@@ -186,7 +186,7 @@ The orchestrator should keep a single authoritative local state file. A database
 
 Continuous Symphony operation is owned by the Go CLI, not by a long-running Codex automation prompt. `symphony daemon` runs a local tick loop, enforces a singleton lock under `/private/tmp/accountsdot-symphony`, persists `controller.json`, `status.json`, `status.md`, `runs.jsonl`, and worker state, and applies local operator controls between ticks.
 
-The daemon supports pause, resume, drain, stop, cancel-worker, and set-concurrency commands. Pause keeps observing local state but does not dispatch new workers. Drain stops new dispatch and exits after active work can be handed off safely. Stop requests graceful shutdown. Cancel records the worker cancellation and leaves the workspace inspectable for recovery.
+The daemon supports pause, resume, drain, stop, cancel-worker, cancel as a backwards-compatible alias, and set-concurrency commands. Pause keeps observing local state but does not dispatch new workers. Drain stops new dispatch and exits after active work can be handed off safely. Stop requests graceful shutdown. Cancel records the worker cancellation and leaves the workspace inspectable for recovery.
 
 `symphony status --watch` and `symphony tui` are read/control clients over daemon state. The TUI may display lifecycle, worker capacity, runnable work, review waits, blocked actionable items, PR/review lanes, and recent logs, but it must not contain separate scheduling, issue-ranking, review-thread, merge, or self-healing policy.
 

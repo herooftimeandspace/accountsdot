@@ -24,11 +24,8 @@ type SyncOptions struct {
 // then wraps that output with the Go source corpus, work graph, capacity plan,
 // and corrected top-level status.
 func RunSyncTick(ctx context.Context, repoRoot string, options SyncOptions) (TickResult, error) {
-	if options.PhaseBranch != "" && options.PhaseID == "" {
-		return TickResult{}, fmt.Errorf("--phase-branch requires --phase so the override applies only to phase materialization")
-	}
-	if options.PhaseBranch != "" && !options.DryRun {
-		return TickResult{}, fmt.Errorf("--phase-branch is supported for dry-run phase materialization only until native Go dispatch replaces the legacy adapter")
+	if err := ValidateSyncOptions(options); err != nil {
+		return TickResult{}, err
 	}
 
 	corpus, err := ScanMarkdownCorpus(repoRoot)
@@ -61,6 +58,19 @@ func RunSyncTick(ctx context.Context, repoRoot string, options SyncOptions) (Tic
 	}
 	result.GeneratedAt = time.Now().UTC()
 	return result, nil
+}
+
+// ValidateSyncOptions centralizes mode checks that callers need before they
+// enter a long-running loop. The daemon uses this to fail fast on unsupported
+// phase-branch mutation instead of repeatedly recording tick failures.
+func ValidateSyncOptions(options SyncOptions) error {
+	if options.PhaseBranch != "" && options.PhaseID == "" {
+		return fmt.Errorf("--phase-branch requires --phase so the override applies only to phase materialization")
+	}
+	if options.PhaseBranch != "" && !options.DryRun {
+		return fmt.Errorf("--phase-branch is supported for dry-run phase materialization only until native Go dispatch replaces the legacy adapter")
+	}
+	return nil
 }
 
 // MarshalTickResult formats the public status envelope in the same stable

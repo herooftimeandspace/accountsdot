@@ -67,6 +67,34 @@ func TestDaemonAppliesSetConcurrencyWhilePaused(t *testing.T) {
 	}
 }
 
+func TestDaemonDrainControlSkipsDispatchTick(t *testing.T) {
+	dir := t.TempDir()
+	command, err := control.New("drain", "", 0)
+	if err != nil {
+		t.Fatalf("build command: %v", err)
+	}
+	if _, err := control.WriteCommand(dir, command); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+	snapshot, err := daemon.Run(context.Background(), daemon.Options{
+		RepoRoot:     t.TempDir(),
+		StateDir:     dir,
+		Interval:     time.Millisecond,
+		MaxWorkers:   3,
+		MaxTicks:     1,
+		InitialState: "running",
+	})
+	if err != nil {
+		t.Fatalf("daemon run: %v", err)
+	}
+	if snapshot.Controller.LastStatus != "" {
+		t.Fatalf("draining daemon should not run a sync tick, got %#v", snapshot.Controller)
+	}
+	if snapshot.Controller.Lifecycle != "stopped" || !snapshot.Controller.ShutdownRequested {
+		t.Fatalf("expected drain to stop daemon, got %#v", snapshot.Controller)
+	}
+}
+
 func TestDaemonDryRunDoesNotConsumeControlCommands(t *testing.T) {
 	dir := t.TempDir()
 	command, err := control.New("pause", "", 0)

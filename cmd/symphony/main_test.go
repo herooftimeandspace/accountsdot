@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -58,6 +60,30 @@ func TestRunControlAcceptsActionLocalConcurrencyFlag(t *testing.T) {
 	dir := t.TempDir()
 	if err := runControl([]string{"--state-dir", dir, "set-concurrency", "--concurrency", "4"}); err != nil {
 		t.Fatalf("runControl returned error: %v", err)
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, "control", "*.json"))
+	if err != nil {
+		t.Fatalf("glob command files: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected one command file, got %#v", matches)
+	}
+}
+
+func TestRunControlWorksOutsideRepo(t *testing.T) {
+	dir := t.TempDir()
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(previous)
+	})
+	if err := run(context.Background(), []string{"control", "--state-dir", dir, "cancel-worker", "worker-1"}); err != nil {
+		t.Fatalf("control outside repo returned error: %v", err)
 	}
 	matches, err := filepath.Glob(filepath.Join(dir, "control", "*.json"))
 	if err != nil {

@@ -316,7 +316,7 @@ The following rules capture operational failures that previously required manual
 
 - The preferred continuous runner is the local Go daemon, invoked with `npm run symphony:daemon -- --phase <phase-id> --phase-branch <branch>`. The daemon owns repeated ticks, local state, the singleton lock, pause/resume/drain/stop control, and worker-capacity changes.
 - The daemon writes operator-readable state under `daemon.state_dir`, including `controller.json`, `status.json`, `status.md`, `runs.jsonl`, and worker state. `npm run symphony:status -- --watch` and `npm run symphony:tui` must read that state instead of rebuilding queue policy.
-- The terminal TUI is only a client. It may queue pause, resume, drain, stop, cancel, and concurrency commands, but it must not duplicate issue ranking, review-thread interpretation, merge policy, workspace recovery, or self-healing classification.
+- The terminal TUI is only a client. It may queue pause, resume, drain, stop, cancel-worker, cancel as a backwards-compatible alias, and concurrency commands, but it must not duplicate issue ranking, review-thread interpretation, merge policy, workspace recovery, or self-healing classification.
 - Codex automations are optional watchdog/backstop jobs for this path. A watchdog should check whether `controller.json` and the daemon lock are fresh. If the daemon is active and healthy, it reports status and exits. If the daemon is inactive or stale and `daemon.watchdog_fallback_sync` is true, it may run one non-overlapping `npm run symphony:sync -- --json --max-runs <capacity>` tick. It must not start a second daemon or reimplement scheduling decisions in the automation prompt.
 
 ### Escalation Surfaces
