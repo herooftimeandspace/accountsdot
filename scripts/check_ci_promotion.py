@@ -15,6 +15,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+EXPECTED_GO_VERSION = "1.26.3"
 
 
 def _read(relative_path: str) -> str:
@@ -99,6 +100,22 @@ def _validate_local_runner() -> None:
     )
 
 
+def _validate_go_toolchain() -> None:
+    """Keep branch-gate and container Go versions pinned to the patched runtime.
+
+    The staging gate runs govulncheck through `make security`. GO-2026-4971
+    made Go 1.26.2 an unsafe promotion runtime, so the repository-owned
+    promotion validator checks every Go entrypoint used by local gates,
+    container fallbacks, Compose, and the deployment image before a branch can
+    advance through the documented pipeline.
+    """
+
+    _require_contains("go.mod", f"go {EXPECTED_GO_VERSION}")
+    _require_contains("Makefile", f"GO_IMAGE ?= golang:{EXPECTED_GO_VERSION}")
+    _require_contains("compose.yaml", f"image: golang:{EXPECTED_GO_VERSION}")
+    _require_contains("deploy/Dockerfile", f"FROM golang:{EXPECTED_GO_VERSION} AS build")
+
+
 def _validate_release_prep() -> None:
     release_prep = _read(".github/workflows/release-prep-check.yml")
     if "REQUIRED BEFORE MERGE" not in _read(".github/workflows/promotion.yml"):
@@ -120,6 +137,7 @@ def main() -> int:
         _validate_workflows()
         _validate_docs()
         _validate_local_runner()
+        _validate_go_toolchain()
         if args.release_prep:
             _validate_release_prep()
     except AssertionError as exc:
