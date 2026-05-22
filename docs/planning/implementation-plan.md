@@ -513,7 +513,7 @@
     - global-pause runtime evidence showing new claims stop without bringing down diagnostics
   - `0D` provider configuration, read-only connectivity, and dev mock scaffolding
     - provider readiness success evidence against mocks
-    - provider readiness failure evidence for missing or bad credentials/config
+    - provider readiness failure evidence for missing or bad credentials/config; current configuration coverage feeds `/health/ready` with sanitized `provider_<name>` diagnostics and fails closed for blocked live-mode provider setup without opening live network connections
     - safe Aeries previous-year staging configuration evidence
     - evidence that the provider capability classification matrix above documents each provider with the intended `batch-only source`, `projection-backed list/search`, `live detail read`, and `live write-path verification` behavior before implementation begins
     - staging readiness evidence must use the same provider capability classification matrix and freshness expectations rather than a separate staging-only interpretation
