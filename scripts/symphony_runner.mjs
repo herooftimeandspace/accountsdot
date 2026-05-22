@@ -1041,12 +1041,22 @@ function issueHasAcceptanceCriteria(issue) {
   return /acceptance criteria/i.test(body) || /-\s+\[[ xX]\]/.test(body);
 }
 
-function issueTargetBranch(issue, dispatchConfig) {
-  const body = issueTextWithComments(issue);
-  for (const line of body.split(/\r?\n/)) {
+function targetBranchFromText(text) {
+  for (const line of String(text || "").split(/\r?\n/)) {
     const match = line.match(/^\s*Target branch:\s*`?([A-Za-z0-9._/-]+)`?(?=[.,;)]|\s|$)/i);
     if (match) return match[1].replace(/[.`]+$/g, "");
   }
+  return "";
+}
+
+function issueTargetBranch(issue, dispatchConfig) {
+  const comments = Array.isArray(issue.comments) ? issue.comments : [];
+  for (const comment of [...comments].reverse()) {
+    const commentTargetBranch = targetBranchFromText(comment.body);
+    if (commentTargetBranch) return commentTargetBranch;
+  }
+  const bodyTargetBranch = targetBranchFromText(issue.body);
+  if (bodyTargetBranch) return bodyTargetBranch;
   return dispatchConfig.defaultTargetBranch;
 }
 
@@ -4080,6 +4090,35 @@ async function selfTest() {
       dispatchConfig.defaultTargetBranch,
     );
     assert.equal(issueTargetBranch({ ...phaseIssue, body: "Target branch: phase-0-platform-foundation," }, dispatchConfig), "phase-0-platform-foundation");
+    assert.equal(
+      issueTargetBranch(
+        {
+          ...phaseIssue,
+          body: "Target branch: dev\n\n## Acceptance Criteria\n\n- [ ] Use comment target.",
+          comments: [
+            { body: "Target branch: phase-0-platform-foundation" },
+            { body: "Target branch: ui-improvements" },
+          ],
+        },
+        dispatchConfig,
+      ),
+      "ui-improvements",
+    );
+    assert.equal(
+      issueTargetBranch(
+        {
+          ...phaseIssue,
+          body: "Target branch: dev\n\n## Acceptance Criteria\n\n- [ ] Use comment target.",
+          comments: [
+            { body: "Target branch: phase-0-platform-foundation" },
+            { body: "Target branch: https://example.invalid/docs/testing/test-matrix.md" },
+            { body: "Latest note omits a target branch directive." },
+          ],
+        },
+        dispatchConfig,
+      ),
+      "phase-0-platform-foundation",
+    );
     assert.equal(issueBranchName(phaseIssue, dispatchConfig), "codex/issue-900264-reference-input-snapshot-integrity");
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], dispatchConfig).eligible, true);
     assert.equal(classifyIssueForDispatch(blockedIssue, [], [], dispatchConfig).eligible, false);
