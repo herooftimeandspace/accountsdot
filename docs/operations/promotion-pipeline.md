@@ -43,7 +43,13 @@ python3 scripts/check_ci_promotion.py
 python3 scripts/check_ci_promotion.py --release-prep
 ```
 
-It checks only repository-owned workflow and documentation contracts. It does not replace GitHub branch protection, environment protection, external IncidentIQ evidence, or the external promotion runbook.
+It checks only repository-owned workflow and documentation contracts. The check
+also verifies that every Go entrypoint used by branch gates, local/container
+fallbacks, Compose, and the deployment build image is pinned to the patched Go
+toolchain version documented in the repository. That prevents a vulnerable
+toolchain rollback from reaching `make security` and reopening a staging
+govulncheck failure. It does not replace GitHub branch protection, environment
+protection, external IncidentIQ evidence, or the external promotion runbook.
 
 ## GitHub Workflows
 
