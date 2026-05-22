@@ -1061,6 +1061,71 @@ function issueWorkspacePath(issue, dispatchConfig) {
   return path.join(dispatchConfig.workspaceRoot, `issue-${issue.number}-${issueSlug(issue)}`);
 }
 
+const WORKTREE_TEARDOWN_GENERATED_CACHE_DIRS = [".gomodcache", ".gocache", path.join("node_modules", ".cache")];
+
+function worktreeRemoveFailureNeedsGeneratedCachePermissionRetry(reason) {
+  return /permission denied/i.test(reason || "") && /(?:failed to remove|\.gomodcache|\.gocache|node_modules[/\\]\.cache)/i.test(reason || "");
+}
+
+function makeTreeUserWritable(targetPath) {
+  const stat = fs.lstatSync(targetPath);
+  if (stat.isSymbolicLink()) return;
+  const writableMode = stat.mode | (stat.isDirectory() ? 0o700 : 0o600);
+  fs.chmodSync(targetPath, writableMode);
+  if (!stat.isDirectory()) return;
+  for (const entry of fs.readdirSync(targetPath)) {
+    makeTreeUserWritable(path.join(targetPath, entry));
+  }
+}
+
+function normalizeGeneratedCachePermissionsForTeardown(repoPath) {
+  const fixes = [];
+  for (const relativePath of WORKTREE_TEARDOWN_GENERATED_CACHE_DIRS) {
+    const targetPath = path.join(repoPath, relativePath);
+    if (!fs.existsSync(targetPath)) continue;
+    try {
+      makeTreeUserWritable(targetPath);
+      fixes.push({ path: relativePath, status: "made-user-writable" });
+    } catch (error) {
+      fixes.push({ path: relativePath, status: "blocked", reason: error.message });
+    }
+  }
+  return fixes;
+}
+
+function removeCleanWorktreeForMergedIssue(repoPath) {
+  const firstAttempt = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
+  if (!firstAttempt.failed) return { ok: true, retried_after_cache_permission_fix: false };
+  const firstReason = firstAttempt.stderr || firstAttempt.stdout || `git worktree remove failed with status ${firstAttempt.status}`;
+  if (!worktreeRemoveFailureNeedsGeneratedCachePermissionRetry(firstReason)) {
+    return { ok: false, reason: firstReason, retried_after_cache_permission_fix: false };
+  }
+  const permissionFixes = normalizeGeneratedCachePermissionsForTeardown(repoPath);
+  if (permissionFixes.some((fix) => fix.status === "blocked")) {
+    return {
+      ok: false,
+      reason: firstReason,
+      retried_after_cache_permission_fix: true,
+      teardown_permission_fixes: permissionFixes,
+    };
+  }
+  const secondAttempt = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
+  if (!secondAttempt.failed) {
+    return {
+      ok: true,
+      retried_after_cache_permission_fix: true,
+      teardown_permission_fixes: permissionFixes,
+    };
+  }
+  return {
+    ok: false,
+    reason: secondAttempt.stderr || secondAttempt.stdout || `git worktree remove failed with status ${secondAttempt.status}`,
+    first_reason: firstReason,
+    retried_after_cache_permission_fix: true,
+    teardown_permission_fixes: permissionFixes,
+  };
+}
+
 function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dryRun }) {
   const results = [];
   for (const issue of issues) {
@@ -1127,18 +1192,31 @@ function markMergedIssueWorkspaceStates({ issues, mergedPrs, dispatchConfig, dry
           result.workspace_preparation = preserved;
         }
         if (!dryRun) {
-          const removed = run("git", ["worktree", "remove", repoPath], { cwd: repoRoot, allowFailure: true });
-          if (removed.failed) {
+          const removed = removeCleanWorktreeForMergedIssue(repoPath);
+          if (!removed.ok) {
             results.push({
               ...result,
               status: "blocked",
               teardown_status: "blocked",
-              reason: removed.stderr || removed.stdout || `git worktree remove failed with status ${removed.status}`,
+              reason: removed.reason,
+              first_reason: removed.first_reason,
+              retried_after_cache_permission_fix: removed.retried_after_cache_permission_fix,
+              teardown_permission_fixes: removed.teardown_permission_fixes,
             });
             continue;
           }
+          if (removed.teardown_permission_fixes) {
+            result.teardown_permission_fixes = removed.teardown_permission_fixes;
+          }
+          if (removed.retried_after_cache_permission_fix) {
+            result.teardown_status = "removed-worktree-after-cache-permission-fix";
+          }
         }
-        result.teardown_status = dryRun ? "would-remove-clean-worktree" : "removed-worktree";
+        if (dryRun) {
+          result.teardown_status = "would-remove-clean-worktree";
+        } else if (result.teardown_status === "not-needed") {
+          result.teardown_status = "removed-worktree";
+        }
       }
       if (current.status === "merged" && current.merged_pr === mergedPr.number) {
         result.status = "already_merged";
@@ -3894,6 +3972,23 @@ async function selfTest() {
     });
     assert.equal(dirtyMergedDryRun[0].status, "would-mark-merged");
     assert.equal(dirtyMergedDryRun[0].teardown_status, "would-preserve-dirty-worktree-and-remove");
+    assert.equal(
+      worktreeRemoveFailureNeedsGeneratedCachePermissionRetry(
+        "warning: failed to remove .gomodcache/golang.org/x/text@v0.21.0/file.go: Permission denied",
+      ),
+      true,
+    );
+    const generatedCacheRepo = path.join(tempRoot, "generated-cache-permissions");
+    const generatedCacheLeaf = path.join(generatedCacheRepo, ".gomodcache", "golang.org", "x", "text@v0.21.0");
+    const generatedCacheFile = path.join(generatedCacheLeaf, "tables.go");
+    fs.mkdirSync(generatedCacheLeaf, { recursive: true });
+    fs.writeFileSync(generatedCacheFile, "package text\n");
+    fs.chmodSync(generatedCacheFile, 0o400);
+    fs.chmodSync(generatedCacheLeaf, 0o500);
+    const cachePermissionFixes = normalizeGeneratedCachePermissionsForTeardown(generatedCacheRepo);
+    assert.deepEqual(cachePermissionFixes, [{ path: ".gomodcache", status: "made-user-writable" }]);
+    assert.ok((fs.statSync(generatedCacheFile).mode & 0o600) === 0o600);
+    assert.ok((fs.statSync(generatedCacheLeaf).mode & 0o700) === 0o700);
 
     const oldSlugWorkspace = path.join(tempRoot, "issue-267-old-title");
     const oldSlugRepo = path.join(oldSlugWorkspace, "repo");
