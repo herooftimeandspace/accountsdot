@@ -20,6 +20,8 @@
     "route-api-inventory:check": "node scripts/check_route_api_authorization_inventory.mjs",
     "write-inventory:check": "node scripts/check_external_write_inventory.mjs",
     "write-inventory:test": "node scripts/check_external_write_inventory.mjs --self-test",
+    "openapi:generate": "node scripts/generate_openapi_spec.mjs",
+    "openapi:check": "node scripts/generate_openapi_spec.mjs --check",
     "perf:routes:plan": "node scripts/dev_route_performance_matrix.mjs",
     "perf:routes:batch-plan": "node scripts/dev_route_performance_matrix.mjs batch-plan",
     "perf:routes:merge": "node scripts/dev_route_performance_matrix.mjs merge",

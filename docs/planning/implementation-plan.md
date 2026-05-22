@@ -466,6 +466,10 @@
   - production authorization evaluator for verified Google SAML identity inputs, including group/attribute role mapping, site-scope mapping, and same-URL route denial
   - persistent `auth_site_scope_mappings` schema for manual site-scope mappings when Google groups or SAML attributes do not fully express scope
   - provider credential/config plumbing and read-only connectivity checks
+  - generated OpenAPI contract for the current callable API surface, including
+    explicit labels for DEV mock endpoints, accepted no-op placeholders, planned
+    DB-backed runtime APIs, and currently callable DB-backed or conditional
+    runtime APIs
   - IT Admin settings for timezone and sync cadence
   - IT Admin emergency cutoff controls, including immediate global pause before downstream writes can continue
   - masked staging and environment-refresh playbook
@@ -478,6 +482,10 @@
   - IT Admin can stop the system quickly through global pause/cadence controls before bad data propagates to downstream systems
   - new write-capable workflows are proven in `dev` with mocks before any real provider integration is attempted
   - Aeries masked previous-year staging access is proven without touching live production writes
+  - `docs/api/openapi-source.json` remains the editable API-contract source,
+    `docs/api/openapi.json` and `internal/web/openapi_spec_gen.go` are
+    regenerated from it, and `npm run openapi:check` fails when registered
+    `/api/v1` routes, operation coverage, or generated outputs drift
   - checked-in deploy examples for `dev`, `staging`, and `main` declare distinct
     `ENVIRONMENT_ROLE`, `APP_ENV`, `ENVIRONMENT_DATA_MODE`, database targets,
     provider mock settings, and Compose env-file wiring. `npm run
@@ -513,6 +521,9 @@
     - `/health/live` and `/health/ready` evidence under healthy and degraded conditions
     - observability evidence for pause/dependency state
     - promotion-gate evidence showing required scenario checks are enforced
+    - OpenAPI generation evidence showing DEV-only, accepted no-op, planned
+      DB-backed, and callable runtime surfaces stay distinguishable for
+      frontend/runtime clients
 - Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `0A` repo-local safety artifacts and environment playbooks
     - `P0-0A-001` Reference Input Snapshot Integrity
@@ -539,6 +550,7 @@
       - `/health/ready` must return `503 Service Unavailable` for missing required DB, sequence, import-staging storage, or Google service-account checks while `/health/live` continues to return a process-level `200 OK`
     - `P0-0E-002` Health Endpoints Reflect Pause and Dependency State
     - `P0-0E-003` Promotion Gate Requires Named Scenario Passes
+    - `P0-0E-004` OpenAPI Contract Distinguishes Callable And DEV Surfaces
 
 - Rollback triggers for this phase:
   - `0A`: trigger rollback if required repo-local reference inputs are missing, linked docs resolve outside the repo, or environment-role separation is incorrect.

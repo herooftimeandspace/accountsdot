@@ -1,0 +1,2832 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "The WIZARD Callable API",
+    "version": "0.1.0",
+    "summary": "Generated contract for callable runtime, planned DB-backed, accepted no-op, and DEV mock APIs.",
+    "description": "This specification is generated from docs/api/openapi-source.json. DEV mock operations and accepted no-op placeholders are labeled with x-wizard-surface so they are not mistaken for production-ready DB-backed APIs."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "API Contract",
+      "description": "Contract discovery and generated OpenAPI metadata."
+    },
+    {
+      "name": "Session",
+      "description": "Runtime session and permission introspection."
+    },
+    {
+      "name": "Workflow Runtime",
+      "description": "Workflow, approval, retry, and annual-reset boundaries."
+    },
+    {
+      "name": "Sync Status",
+      "description": "Sync-status read and planned override boundaries."
+    },
+    {
+      "name": "Room Mapping",
+      "description": "Room-mapping search and planned persistence boundaries."
+    },
+    {
+      "name": "Breakglass",
+      "description": "Local non-production emergency access boundary."
+    },
+    {
+      "name": "DEV Mock APIs",
+      "description": "Development-only mock endpoints used by the React DEV frontend."
+    }
+  ],
+  "paths": {
+    "/api/v1/openapi.json": {
+      "get": {
+        "tags": [
+          "API Contract"
+        ],
+        "operationId": "getOpenAPISpec",
+        "summary": "Return the generated OpenAPI specification.",
+        "description": "Return the generated OpenAPI specification.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAPISpec"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-wizard-surface": "db-backed-runtime",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "public",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/session/me": {
+      "get": {
+        "tags": [
+          "Session"
+        ],
+        "operationId": "getSessionMe",
+        "summary": "Return the current runtime session introspection payload.",
+        "description": "Return the current runtime session introspection payload.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-wizard-surface": "db-backed-runtime-planned",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "edge-auth-planned",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/workflows": {
+      "get": {
+        "tags": [
+          "Workflow Runtime"
+        ],
+        "operationId": "listWorkflows",
+        "summary": "List workflow run projections once database-backed workflow reads are implemented.",
+        "description": "List workflow run projections once database-backed workflow reads are implemented.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "db-backed-runtime-planned",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/workflows/{workflow_run_id}": {
+      "get": {
+        "tags": [
+          "Workflow Runtime"
+        ],
+        "operationId": "getWorkflow",
+        "summary": "Read a workflow run projection by id once database-backed workflow reads are implemented.",
+        "description": "Read a workflow run projection by id once database-backed workflow reads are implemented.",
+        "parameters": [
+          {
+            "name": "workflow_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "db-backed-runtime-planned",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/workflows/{workflow_run_id}/retry": {
+      "post": {
+        "tags": [
+          "Workflow Runtime"
+        ],
+        "operationId": "retryWorkflow",
+        "summary": "Accept a retry request for a workflow run without enqueueing durable work in this checkout.",
+        "description": "Accept a retry request for a workflow run without enqueueing durable work in this checkout.",
+        "parameters": [
+          {
+            "name": "workflow_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowRetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedWorkflowResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "planned-db-write-boundary"
+      }
+    },
+    "/api/v1/approvals": {
+      "get": {
+        "tags": [
+          "Workflow Runtime"
+        ],
+        "operationId": "listApprovals",
+        "summary": "List approval tasks once database-backed approval reads are implemented.",
+        "description": "List approval tasks once database-backed approval reads are implemented.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "db-backed-runtime-planned",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/approvals/{approval_id}/approve": {
+      "post": {
+        "tags": [
+          "Workflow Runtime"
+        ],
+        "operationId": "approveApproval",
+        "summary": "Accept an approval decision without persisting the decision in this checkout.",
+        "description": "Accept an approval decision without persisting the decision in this checkout.",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDecisionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "planned-db-write-boundary"
+      }
+    },
+    "/api/v1/approvals/{approval_id}/reject": {
+      "post": {
+        "tags": [
+          "Workflow Runtime"
+        ],
+        "operationId": "rejectApproval",
+        "summary": "Accept a rejection decision without persisting the decision in this checkout.",
+        "description": "Accept a rejection decision without persisting the decision in this checkout.",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDecisionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "planned-db-write-boundary"
+      }
+    },
+    "/api/v1/sync-status/{tab}": {
+      "get": {
+        "tags": [
+          "Sync Status"
+        ],
+        "operationId": "getSyncStatusTab",
+        "summary": "Return the legacy sync-status tab placeholder payload.",
+        "description": "Return the legacy sync-status tab placeholder payload.",
+        "parameters": [
+          {
+            "name": "tab",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "site_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "school_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/sync-status/{user_type}/{user_id}/override": {
+      "post": {
+        "tags": [
+          "Sync Status"
+        ],
+        "operationId": "createSyncOverride",
+        "summary": "Accept a sync override request without persisting an override in this checkout.",
+        "description": "Accept a sync override request without persisting an override in this checkout.",
+        "parameters": [
+          {
+            "name": "user_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncOverrideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncOverrideResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "planned-db-write-boundary"
+      }
+    },
+    "/api/v1/room-mappings": {
+      "get": {
+        "tags": [
+          "Room Mapping"
+        ],
+        "operationId": "searchRoomMappings",
+        "summary": "Search room mappings through the legacy placeholder API.",
+        "description": "Search room mappings through the legacy placeholder API.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomMappingSearchResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "read-only"
+      },
+      "post": {
+        "tags": [
+          "Room Mapping"
+        ],
+        "operationId": "createRoomMapping",
+        "summary": "Accept a room mapping request without persisting mappings or writing IncidentIQ.",
+        "description": "Accept a room mapping request without persisting mappings or writing IncidentIQ.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomMappingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedStatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "staff-session-required-planned",
+        "x-wizard-write-boundary": "planned-db-write-boundary"
+      }
+    },
+    "/api/v1/annual-reset": {
+      "post": {
+        "tags": [
+          "Workflow Runtime"
+        ],
+        "operationId": "createAnnualReset",
+        "summary": "Accept an annual reset request without archiving rows in this checkout.",
+        "description": "Accept an annual reset request without archiving rows in this checkout.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnualResetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnualResetResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "accepted-no-op",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required-planned",
+        "x-wizard-write-boundary": "planned-db-write-boundary"
+      }
+    },
+    "/api/v1/breakglass/login": {
+      "post": {
+        "tags": [
+          "Breakglass"
+        ],
+        "operationId": "createBreakglassLogin",
+        "summary": "Issue a local breakglass session after configured account, token, CIDR, and audit checks pass.",
+        "description": "Issue a local breakglass session after configured account, token, CIDR, and audit checks pass.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BreakglassLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [],
+        "x-wizard-surface": "db-backed-runtime-conditional",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "local-breakglass-token",
+        "x-wizard-write-boundary": "session-and-audit-write"
+      }
+    },
+    "/api/v1/dev/session": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevSession",
+        "summary": "Return anonymous or active DEV persona session state.",
+        "description": "Return anonymous or active DEV persona session state.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSessionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-cookie-or-anonymous",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/login": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevLogin",
+        "summary": "Set the local DEV persona cookie and optional process-local tooling persona override.",
+        "description": "Set the local DEV persona cookie and optional process-local tooling persona override.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "security": [],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "development-only",
+        "x-wizard-write-boundary": "cookie-and-dev-memory-write"
+      }
+    },
+    "/api/v1/dev/logout": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevLogout",
+        "summary": "Clear the local DEV persona cookie and shared tooling persona override.",
+        "description": "Clear the local DEV persona cookie and shared tooling persona override.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSessionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "development-only",
+        "x-wizard-write-boundary": "cookie-and-dev-memory-write"
+      }
+    },
+    "/api/v1/dev/my-profile": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevMyProfile",
+        "summary": "Return mock self-service profile fields for the current DEV persona.",
+        "description": "Return mock self-service profile fields for the current DEV persona.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMyProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-staff-session-required",
+        "x-wizard-write-boundary": "read-only"
+      },
+      "put": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "updateDevMyProfile",
+        "summary": "Update allowed mock self-service profile fields for the current DEV persona.",
+        "description": "Update allowed mock self-service profile fields for the current DEV persona.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevMyProfileUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevMyProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-staff-session-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/feature-flags": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "listDevFeatureFlags",
+        "summary": "List DEV feature flags and target rows for IT Admin.",
+        "description": "List DEV feature flags and target rows for IT Admin.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevFeatureFlagsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/feature-flags/{key}": {
+      "put": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "updateDevFeatureFlag",
+        "summary": "Update DEV feature-flag target state in memory or the configured local database.",
+        "description": "Update DEV feature-flag target state in memory or the configured local database.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevFeatureFlagUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevFeatureFlagResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "dev-memory-or-local-db-write"
+      }
+    },
+    "/api/v1/dev/search": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "searchDevGlobal",
+        "summary": "Return route-authorized mock global search results.",
+        "description": "Return route-authorized mock global search results.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-staff-session-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/onboarding": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevOnboardingPage",
+        "summary": "Return the DEV onboarding page payload for authorized personas and site scope.",
+        "description": "Return the DEV onboarding page payload for authorized personas and site scope.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-route-permission-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/offboarding": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevOffboardingPage",
+        "summary": "Return the DEV offboarding page payload with persona-specific field visibility.",
+        "description": "Return the DEV offboarding page payload with persona-specific field visibility.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-route-permission-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/reports/security-issues": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevSecurityIssuesReportPage",
+        "summary": "Return the DEV IT Admin security-issues report payload.",
+        "description": "Return the DEV IT Admin security-issues report payload.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-admin-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/departing-seniors": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevDepartingSeniorsPage",
+        "summary": "Return the DEV departing-seniors page payload inside the retained senior-year window.",
+        "description": "Return the DEV departing-seniors page payload inside the retained senior-year window.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-or-device-wrangler-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/data-quality": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevDataQualityPage",
+        "summary": "Return the DEV IT Admin data-quality page payload.",
+        "description": "Return the DEV IT Admin data-quality page payload.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-admin-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/room-moves": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevRoomMovesPage",
+        "summary": "Return the DEV room-moves page payload with author and site-scope visibility.",
+        "description": "Return the DEV room-moves page payload with author and site-scope visibility.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-route-permission-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/room-moves/bulk-draft": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevRoomMovesBulkDraftPage",
+        "summary": "Return the DEV bulk room-move draft payload for authorized authors.",
+        "description": "Return the DEV bulk room-move draft payload for authorized authors.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-route-permission-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/phone-directory/by-person": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevPhoneDirectoryByPersonPage",
+        "summary": "Return the DEV phone-directory by-person payload with route and site filtering.",
+        "description": "Return the DEV phone-directory by-person payload with route and site filtering.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-staff-session-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/phone-directory/by-room": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevPhoneDirectoryByRoomPage",
+        "summary": "Return the DEV phone-directory by-room payload with route and site filtering.",
+        "description": "Return the DEV phone-directory by-room payload with route and site filtering.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-staff-session-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/phone-directory/by-department": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevPhoneDirectoryByDepartmentPage",
+        "summary": "Return the DEV phone-directory by-department payload with route and site filtering.",
+        "description": "Return the DEV phone-directory by-department payload with route and site filtering.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-staff-session-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/pages/reports/zoom-desk-phone-renames": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevZoomDeskPhoneRenamesReportPage",
+        "summary": "Return the DEV IT Admin Zoom desk-phone renames report payload.",
+        "description": "Return the DEV IT Admin Zoom desk-phone renames report payload.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-admin-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/onboarding/manual-drafts": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevOnboardingManualDraft",
+        "summary": "Create a mock manual Non-Escape onboarding draft.",
+        "description": "Create a mock manual Non-Escape onboarding draft.",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevOnboardingManualDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/onboarding/manual-drafts/{id}": {
+      "put": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "updateDevOnboardingManualDraft",
+        "summary": "Update a mock manual Non-Escape onboarding draft.",
+        "description": "Update a mock manual Non-Escape onboarding draft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevOnboardingManualDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevOnboardingManualDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      },
+      "delete": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "deleteDevOnboardingManualDraft",
+        "summary": "Soft-delete a mock manual Non-Escape onboarding draft.",
+        "description": "Soft-delete a mock manual Non-Escape onboarding draft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevOnboardingManualDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/onboarding/manual-drafts/{id}/finalize": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "finalizeDevOnboardingManualDraft",
+        "summary": "Finalize a mock manual Non-Escape onboarding draft.",
+        "description": "Finalize a mock manual Non-Escape onboarding draft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevOnboardingManualDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/onboarding/rows/{id}/room": {
+      "put": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "updateDevOnboardingRoom",
+        "summary": "Store a DEV-only onboarding room override for an authorized visible row.",
+        "description": "Store a DEV-only onboarding room override for an authorized visible row.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevRoomUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-onboarding-room-permission-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/offboarding/candidates": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "searchDevOffboardingCandidates",
+        "summary": "Search mock offboarding candidates for HR or IT manual actions.",
+        "description": "Search mock offboarding candidates for HR or IT manual actions.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/offboarding/records/{id}/end-date": {
+      "put": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "updateDevOffboardingEndDate",
+        "summary": "Update a mock offboarding record end date.",
+        "description": "Update a mock offboarding record end date.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevEndDateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/offboarding/emergency-deprovision": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevEmergencyDeprovision",
+        "summary": "Schedule a mock emergency deprovision action without provider writeback.",
+        "description": "Schedule a mock emergency deprovision action without provider writeback.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevOffboardingActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/offboarding/contractor-offboarding": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevContractorOffboarding",
+        "summary": "Schedule a mock contractor offboarding action without provider writeback.",
+        "description": "Schedule a mock contractor offboarding action without provider writeback.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevOffboardingActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-hr-or-it-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/departing-seniors/records/{id}/end-date": {
+      "put": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "updateDevDepartingSeniorEndDate",
+        "summary": "Update a mock departing-senior end date inside the retained window.",
+        "description": "Update a mock departing-senior end date inside the retained window.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevEndDateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-or-device-wrangler-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/departing-seniors/records/{id}/deprovision": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevDepartingSeniorDeprovision",
+        "summary": "Mark a mock departing-senior deprovisioning action without provider writeback.",
+        "description": "Mark a mock departing-senior deprovisioning action without provider writeback.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevOffboardingActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-or-device-wrangler-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/room-moves/drafts": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevRoomMoveDraft",
+        "summary": "Create a mock room-move draft for an authorized author and site scope.",
+        "description": "Create a mock room-move draft for an authorized author and site scope.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevRoomMoveDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevRoomMoveDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-room-move-author-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/room-moves/drafts/{id}": {
+      "put": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "updateDevRoomMoveDraft",
+        "summary": "Update an owned or IT-manageable mock room-move draft.",
+        "description": "Update an owned or IT-manageable mock room-move draft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevRoomMoveDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevRoomMoveDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-room-move-author-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      },
+      "delete": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "deleteDevRoomMoveDraft",
+        "summary": "Delete an owned or IT-manageable mock room-move draft.",
+        "description": "Delete an owned or IT-manageable mock room-move draft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful response with no response body."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-room-move-author-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/room-moves/drafts/{id}/cancel": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "cancelDevRoomMoveDraft",
+        "summary": "Cancel an owned or IT-manageable mock room-move draft.",
+        "description": "Cancel an owned or IT-manageable mock room-move draft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevRoomMoveDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-room-move-author-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/room-moves/drafts/{id}/schedule": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "scheduleDevRoomMoveDraft",
+        "summary": "Schedule an owned or IT-manageable mock room-move draft.",
+        "description": "Schedule an owned or IT-manageable mock room-move draft.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevRoomMoveDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-room-move-author-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/room-moves/drafts/{id}/apply": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "applyDevRoomMoveDraft",
+        "summary": "Apply an owned or IT-manageable mock room-move draft without provider writeback.",
+        "description": "Apply an owned or IT-manageable mock room-move draft without provider writeback.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevRoomMoveDraftResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-room-move-author-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    },
+    "/api/v1/dev/room-moves/completed": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "listDevRoomMoveCompleted",
+        "summary": "List mock completed room-move jobs that IT Admin may reverse.",
+        "description": "List mock completed room-move jobs that IT Admin may reverse.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-admin-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
+    "/api/v1/dev/room-moves/completed/{id}/revert": {
+      "post": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "createDevRoomMoveRevert",
+        "summary": "Schedule a mock reversal job for a completed room move.",
+        "description": "Schedule a mock reversal job for a completed room move.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevRoomMoveDraftResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-admin-required",
+        "x-wizard-write-boundary": "dev-memory-write"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "wizard_session",
+        "description": "Local session cookie used by DEV and breakglass flows; production SAML wiring remains environment-managed."
+      }
+    },
+    "schemas": {
+      "AcceptedStatusResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "type": "string",
+            "examples": [
+              "accepted"
+            ]
+          }
+        }
+      },
+      "AcceptedWorkflowResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "type": "string",
+            "examples": [
+              "accepted"
+            ]
+          },
+          "workflow_run_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AnnualResetRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {}
+      },
+      "AnnualResetResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "type": "string",
+            "examples": [
+              "accepted"
+            ]
+          },
+          "workflow_type": {
+            "type": "string",
+            "examples": [
+              "annual_reset_archive"
+            ]
+          }
+        }
+      },
+      "ApprovalDecisionRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ApprovalDecisionResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "type": "string",
+            "examples": [
+              "accepted"
+            ]
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ]
+          }
+        }
+      },
+      "BreakglassLoginRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "format": "password"
+          }
+        }
+      },
+      "CollectionResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "DevEndDateRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "DevFeatureFlagResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "targets": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "DevFeatureFlagsResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "DevFeatureFlagUpdateRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "DevLoginRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "persona_id": {
+            "type": "string"
+          },
+          "activate_mock_session": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DevMyProfileResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "profile": {}
+        }
+      },
+      "DevMyProfileUpdateRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "preferred_first_name": {
+            "type": "string"
+          },
+          "preferred_last_name": {
+            "type": "string"
+          },
+          "pronouns": {
+            "type": "string"
+          }
+        }
+      },
+      "DevOffboardingActionRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "target_id": {
+            "type": "string"
+          },
+          "scheduled_for": {
+            "type": "string"
+          }
+        }
+      },
+      "DevOnboardingManualDraftRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "draft": {}
+        }
+      },
+      "DevOnboardingManualDraftResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "draft": {}
+        }
+      },
+      "DevPageResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "page": {
+            "type": "string"
+          },
+          "payload": {}
+        }
+      },
+      "DevRoomMoveDraftRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "draft": {}
+        }
+      },
+      "DevRoomMoveDraftResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "draft": {}
+        }
+      },
+      "DevRoomMoveRevertRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "DevRoomMoveScheduleRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "scheduled_for": {
+            "type": "string"
+          }
+        }
+      },
+      "DevRoomUpdateRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "room_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DevSessionResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "authorized": {
+            "type": "boolean"
+          },
+          "current_persona": {},
+          "allowed_routes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "OpenAPISpec": {
+        "type": "object",
+        "description": "The generated OpenAPI document."
+      },
+      "RoomMappingRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "mapping": {}
+        }
+      },
+      "RoomMappingSearchResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          }
+        }
+      },
+      "SyncOverrideRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "SyncOverrideResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "type": "string",
+            "examples": [
+              "accepted"
+            ]
+          },
+          "user_type": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SyncStatusResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "tab": {
+            "type": "string"
+          },
+          "filters": {},
+          "items": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "WorkflowResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "workflow_run_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "WorkflowRetryRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request body, query string, or path parameter was invalid for this operation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The caller is not authenticated.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller is authenticated but lacks the required role, site scope, feature flag, or field-level permission.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "The request payload failed validation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource or route was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with the current resource state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request payload is larger than this operation accepts.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "The server could not complete the operation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "The operation is disabled or the required backing service is unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  }
+}

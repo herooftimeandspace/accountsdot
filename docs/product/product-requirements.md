@@ -275,6 +275,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     staging marked as masked production-derived data until a sandbox strategy is
     documented
   - health checks, auditability, global pause, and crash/retry safety exist before automation writes are enabled; readiness and metrics must show paused, degraded, or missing-required-check states without implying the system is ready to claim work
+  - the callable API surface is documented by a generated OpenAPI contract that
+    marks DEV mock endpoints and accepted no-op placeholders separately from
+    planned or currently callable DB-backed runtime APIs
   - job and outbox sequencing uses a shared `global_tick` ordering signal before worker or publisher order can affect downstream workflow behavior
   - IT Admin has emergency cutoff control through global pause and cadence controls before bad data can continue propagating
   - global pause stops new worker job claims at the durable claim boundary while leaving staff UI, health, and diagnostic surfaces online for investigation and recovery

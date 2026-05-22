@@ -27,6 +27,7 @@ The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard is a self-host
 - [docs/operations/provider-readiness.md](docs/operations/provider-readiness.md) defines the Phase 0 provider readiness mock success path, staging read-only probe expectations, and credential-redaction rules for readiness evidence.
 - [docs/testing/test-matrix.md](docs/testing/test-matrix.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
 - [docs/product/permissions-matrix.md](docs/product/permissions-matrix.md) documents the currently implemented DEV route/API permission matrix, field-level visibility, and known authorization gaps for review against the PRD and implementation plan.
+- [docs/api/openapi.md](docs/api/openapi.md) documents the generated OpenAPI source of truth, regeneration command, drift check, and surface labels that distinguish DEV mock routes from accepted no-op, planned DB-backed, and callable runtime APIs.
 - [docs/operations/promotion-pipeline.md](docs/operations/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
 - [docs/agent-orchestration/SPEC.md](docs/agent-orchestration/SPEC.md) defines the repo-local Symphony-style Codex orchestration contract for GitHub issue driven agent work. [.agents/WORKFLOW.md](.agents/WORKFLOW.md) is the runner-readable prompt and configuration contract for that workflow. The checked-in runner is `scripts/symphony_runner.mjs`; use `npm run symphony:report`, `npm run symphony:sync -- --dry-run --json`, `npm run symphony:ui-monitor -- --dry-run`, and `npm run symphony:test` for local queue, dispatcher, and monitor validation.
 - [docs/reference-inputs/VENDORED_INVENTORY.md](docs/reference-inputs/VENDORED_INVENTORY.md) is the authoritative provenance and refresh ledger for the repo-local reference corpus under `docs/reference-inputs/`.
@@ -87,6 +88,8 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `npm run pen:lint`
 - `npm run build:web`
 - `npm run a11y:check`
+- `npm run openapi:generate`
+- `npm run openapi:check`
 - `npm run perf:routes:plan`
 - `npm run perf:routes:batch-plan -- [artifact-input-dir]`
 - `npm run perf:routes:merge -- [artifact-input-dir]`
