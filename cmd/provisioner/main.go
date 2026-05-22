@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/config"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,7 +22,7 @@ var runMain = realMain
 var runApp = run
 var loadConfig = config.Load
 var newServer = func(cfg config.Config) server {
-	deps, closeHealth := newHealthDependenciesFromEnv()
+	deps, closeHealth := newHealthDependenciesFromEnv(cfg)
 	return &stdServer{Server: &http.Server{
 		Addr:              ":" + cfg.AppPort,
 		Handler:           web.NewAppHandler(deps),
@@ -112,18 +113,22 @@ func run(baseCtx context.Context) error {
 // newHealthDependenciesFromEnv wires Phase 0 health checks from DATABASE_URL
 // when a deployment provides one. Invalid or unavailable database configuration
 // is preserved as readiness failure evidence instead of preventing the
-// diagnostics server from starting. Probe callbacks return bounded errors only;
-// /health/ready, /health, and /metrics must never receive raw driver text that
-// could include hostnames, SQL, usernames, or credential fragments.
-func newHealthDependenciesFromEnv() (web.HealthDependencies, func()) {
+// diagnostics server from starting. Provider configuration diagnostics come
+// from sanitized config metadata and never contact provider SDKs. Probe
+// callbacks return bounded errors only; /health/ready, /health, and /metrics
+// must never receive raw driver text that could include hostnames, SQL,
+// usernames, or credential fragments.
+func newHealthDependenciesFromEnv(cfg config.Config) (web.HealthDependencies, func()) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		return web.HealthDependencies{}, nil
+		return web.HealthDependencies{ProviderReady: providerDiagnostics(cfg)}, nil
 	}
 
 	pool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
-		return failedHealthDependencies(errHealthDatabaseConfigInvalid), nil
+		deps := failedHealthDependencies(errHealthDatabaseConfigInvalid)
+		deps.ProviderReady = providerDiagnostics(cfg)
+		return deps, nil
 	}
 
 	deps := web.HealthDependencies{
@@ -154,9 +159,19 @@ func newHealthDependenciesFromEnv() (web.HealthDependencies, func()) {
 			}
 			return paused, sanitizeHealthProbeError(err)
 		},
+		ProviderReady: providerDiagnostics(cfg),
 	}
 
 	return deps, pool.Close
+}
+
+// providerDiagnostics adapts sanitized config metadata into the health callback
+// shape. It intentionally ignores the request context because Phase 0 provider
+// configuration checks are local file/env validation, not network probes.
+func providerDiagnostics(cfg config.Config) func(context.Context) map[string]string {
+	return func(context.Context) map[string]string {
+		return provider.ConfigurationDiagnostics(cfg.ProviderReadiness)
+	}
 }
 
 // sanitizeHealthProbeError converts database driver, SQL, context, and

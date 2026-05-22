@@ -116,6 +116,17 @@ This document defines the required process for creating and refreshing safe deve
     resolved `DatabaseYear` value and the `DatabaseYear=YYYY` query parameter
     in the external IncidentIQ testing ticket or promotion runbook without
     copying credentials, certificates, auth headers, or raw student/staff data
+- Provider readiness rule:
+  - the app's `/health/ready` provider diagnostics must show either `mocked`
+    for intentionally mocked providers or `ok` for live-mode providers whose
+    configuration labels pass the local readiness gate
+  - live-mode readiness failures must return `503` with a `provider_<name>`
+    dependency that names the missing or malformed environment label
+  - readiness failure drills must use staging-safe mock, sandbox, or masked
+    read-only configuration only; do not reuse production credentials to prove
+    a non-production failure path
+  - the detailed provider label list and `P0-0D-002` verification commands live
+    in `docs/operations/provider-readiness.md`
 
 ### Step 6. Validate the Staging Refresh
 - Validate record counts and key relationship counts.

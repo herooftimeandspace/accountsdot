@@ -1,7 +1,10 @@
 package config_test
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/auth"
@@ -76,6 +79,82 @@ func TestP000D001ProviderReadinessConfigDefaults(t *testing.T) {
 	}
 	if !slices.Equal(gotProviders, wantProviders) {
 		t.Fatalf("provider readiness entries = %#v, want %#v", gotProviders, wantProviders)
+	}
+}
+
+// TestP000D002ProviderReadinessConfigFailureSurfacing verifies config.Load
+// carries enough sanitized provider metadata for /health/ready to fail closed
+// when staging disables a mock flag with a missing credential label, malformed
+// URL, or invalid certificate file.
+func TestP000D002ProviderReadinessConfigFailureSurfacing(t *testing.T) {
+	tests := []struct {
+		name         string
+		env          map[string]string
+		providerName string
+		wantContains string
+	}{
+		{
+			name: "missing credential label",
+			env: map[string]string{
+				"USE_MOCK_ZOOM": "false",
+				"ZOOM_BASE_URL": "https://zoom.example.test/v2",
+			},
+			providerName: provider.ProviderNameZoom,
+			wantContains: "ZOOM_ACCOUNT_ID",
+		},
+		{
+			name: "bad url",
+			env: map[string]string{
+				"USE_MOCK_ZOOM":   "false",
+				"ZOOM_ACCOUNT_ID": "zoom-staging-label",
+				"ZOOM_BASE_URL":   "http://zoom.example.test/v2",
+			},
+			providerName: provider.ProviderNameZoom,
+			wantContains: "ZOOM_BASE_URL must use https",
+		},
+		{
+			name: "bad certificate",
+			env: map[string]string{
+				"USE_MOCK_AERIES":  "false",
+				"AERIES_READ_ONLY": "true",
+				"AERIES_BASE_URL":  "https://aeries.example.test/api",
+				"AERIES_CLIENT_ID": "aeries-staging-label",
+				"AERIES_CERT_FILE": writeConfigTempFile(t, "not a certificate"),
+			},
+			providerName: provider.ProviderNameAeries,
+			wantContains: "AERIES_CERT_FILE must contain a PEM certificate",
+		},
+		{
+			name: "missing sftp host",
+			env: map[string]string{
+				"USE_MOCK_SFTP": "false",
+				"SFTP_USERNAME": "sftp-staging-label",
+			},
+			providerName: provider.ProviderNameSFTP,
+			wantContains: "SFTP_HOST",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearProductionAuthEnv(t)
+			clearProviderReadinessEnv(t)
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatalf("Load returned error: %v", err)
+			}
+			got := provider.ConfigurationDiagnostics(cfg.ProviderReadiness)[tc.providerName]
+			if provider.ConfigurationStatusReady(got) {
+				t.Fatalf("expected blocked readiness diagnostic, got %q", got)
+			}
+			if !strings.Contains(got, tc.wantContains) {
+				t.Fatalf("diagnostic %q does not contain %q", got, tc.wantContains)
+			}
+		})
 	}
 }
 
@@ -299,4 +378,13 @@ func clearProviderReadinessEnv(t *testing.T) {
 	} {
 		t.Setenv(key, "")
 	}
+}
+
+func writeConfigTempFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config-readiness-test.pem")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config readiness temp file: %v", err)
+	}
+	return path
 }

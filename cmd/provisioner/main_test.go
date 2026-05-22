@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/config"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 )
 
 // TestMainDelegatesToRunMain exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
@@ -63,6 +64,48 @@ func TestNewServerReportsInvalidHealthDatabaseConfig(t *testing.T) {
 	}
 	if strings.Contains(body, "secret") {
 		t.Fatalf("health body leaked raw DATABASE_URL: %s", body)
+	}
+}
+
+// TestNewServerReportsProviderReadinessFailure verifies cmd/provisioner wires
+// config.Load provider metadata into /health/ready. A blocked live-mode
+// provider must be visible as provider_<name> diagnostics even when the process
+// itself remains reachable through /health/live.
+func TestNewServerReportsProviderReadinessFailure(t *testing.T) {
+	server := newServer(config.Config{
+		AppPort: "8080",
+		ProviderReadiness: []provider.ReadinessConfig{
+			{
+				Provider:           provider.ProviderNameZoom,
+				UseMock:            false,
+				ReadOnly:           true,
+				Endpoint:           "https://zoom.example.test/v2",
+				EndpointEnv:        "ZOOM_BASE_URL",
+				CredentialLabelEnv: "ZOOM_ACCOUNT_ID",
+			},
+		},
+	})
+	std, ok := server.(*stdServer)
+	if !ok {
+		t.Fatalf("newServer returned %T, want *stdServer", server)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec := httptest.NewRecorder()
+	std.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"provider_zoom":"blocked: missing required provider setting ZOOM_ACCOUNT_ID"`) {
+		t.Fatalf("health body = %s, want provider readiness diagnostic", body)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	rec = httptest.NewRecorder()
+	std.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "provider_zoom") {
+		t.Fatalf("live health = %d %s, want process-only ok", rec.Code, rec.Body.String())
 	}
 }
 

@@ -116,6 +116,30 @@ func TestHealthReadyFailsClosedOnMissingRequiredDependency(t *testing.T) {
 	}
 }
 
+// TestHealthReadyFailsProviderReadiness covers the provider configuration
+// failure path for Phase 0 scenario P0-0D-002. The handler receives sanitized
+// provider diagnostics from cmd/config/provider wiring and must return 503
+// while preserving /health/live for process-level investigation.
+func TestHealthReadyFailsProviderReadiness(t *testing.T) {
+	deps := readyDeps()
+	deps.ProviderReady = func(context.Context) map[string]string {
+		return map[string]string{
+			"zoom": "blocked: missing required provider setting ZOOM_ACCOUNT_ID",
+		}
+	}
+	handler := web.NewHealthHandler(deps)
+
+	readyRec := requestHealth(t, handler, "/health/ready", http.StatusServiceUnavailable)
+	if body := readyRec.Body.String(); !strings.Contains(body, `"status":"degraded"`) || !strings.Contains(body, `"provider_zoom":"blocked: missing required provider setting ZOOM_ACCOUNT_ID"`) {
+		t.Fatalf("ready provider failure body = %s, want degraded provider diagnostic", body)
+	}
+
+	liveRec := requestHealth(t, handler, "/health/live", http.StatusOK)
+	if body := liveRec.Body.String(); !strings.Contains(body, `"status":"ok"`) || strings.Contains(body, "provider_zoom") {
+		t.Fatalf("live provider failure body = %s, want process-only ok", body)
+	}
+}
+
 // TestHealthReadyAllowsMissingOptionalSFTPCheck keeps local smoke checks usable
 // before SFTP integration mode wires a concrete readiness callback. Missing
 // optional SFTP is reported as not_configured instead of failing readiness.

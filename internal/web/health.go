@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 )
 
 const missingRequiredReadinessCheck = "missing_required_check"
@@ -14,6 +16,7 @@ type HealthDependencies struct {
 	ImportPathReady func(context.Context) error
 	SFTPReady       func(context.Context) error
 	GoogleReady     func(context.Context) error
+	ProviderReady   func(context.Context) map[string]string
 	GlobalPaused    func(context.Context) (bool, error)
 }
 
@@ -100,6 +103,16 @@ func evaluateHealth(ctx context.Context, deps HealthDependencies) healthSnapshot
 			continue
 		}
 		snapshot.dependencies[dependency.name] = "ok"
+	}
+
+	if deps.ProviderReady != nil {
+		for name, state := range deps.ProviderReady(ctx) {
+			dependencyName := "provider_" + name
+			snapshot.dependencies[dependencyName] = state
+			if !provider.ConfigurationStatusReady(state) {
+				snapshot.ready = false
+			}
+		}
 	}
 
 	if deps.GlobalPaused == nil {
