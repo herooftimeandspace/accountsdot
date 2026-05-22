@@ -93,7 +93,7 @@ The DEV data-quality page payload includes queue rows and mapping-dashboard hots
 
 The legacy `/sync-dashboard`, `/sync-dashboard/mappings`, and `/api/v1/sync-status/...` routes do not currently authenticate or check persona. They are route stubs and HTML/JSON scaffolding.
 
-The implemented DEV data-quality page does enforce persona behavior. `handleDevDataQualityPage` requires DEV mode, `resolveAuthenticatedDevPersona`, and `routeAllowed(config, "/data-quality")`; unauthenticated requests receive `401`, and disallowed personas receive `403`. The frontend receives those errors in `DataQualityPage.loadPage` and calls the app-level unauthorized or forbidden handler.
+The implemented DEV data-quality page does enforce persona behavior. `handleDevDataQualityPage` requires DEV mode, `resolveAuthenticatedDevPersona`, and `routeAllowed(config, "/data-quality")`; unauthenticated requests receive `401`, and disallowed personas receive `403`. The frontend reads the page through `DataQualityPage`'s React Query call to `fetchDevApiJSON`; `handleDevApiAuthError` receives `401` and `403` failures and calls the app-level unauthorized or forbidden handler.
 
 Any future production override mutation must add explicit authorization before it becomes a real write path. Do not rely on the current stub behavior for production.
 
@@ -135,7 +135,7 @@ If the local Go toolchain is unavailable, use `make test-container`.
 Frontend breakpoints:
 
 - `frontend/src/app.jsx`, where `/data-quality` dispatches to `DataQualityPage`.
-- `frontend/src/pages/DataQualityPage.jsx` `loadPage`, `buildDataQualityTextOverrides`, and `DataQualitySemanticContent`.
+- `frontend/src/pages/DataQualityPage.jsx` `fetchDevApiJSON` query setup, `buildDataQualityTextOverrides`, and `DataQualitySemanticContent`.
 - Browser Network tab on `/api/v1/dev/pages/data-quality`; the Data Quality page should not expose a mapping-dashboard navigation control unless a future PRD/plan update documents that route.
 
 Backend breakpoints:

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import {
@@ -8,6 +9,7 @@ import {
   useRuntimeTableData,
 } from "../components/RuntimeTableControls";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
+import { fetchDevApiJSON, handleDevApiAuthError } from "../lib/devApi";
 import { PenArtboard } from "../lib/PenArtboard";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import {
@@ -790,17 +792,40 @@ export function PhoneDirectoryPage({
   onForbidden,
 }) {
   const modeConfig = MODE_CONFIG[mode];
-  const [pageState, setPageState] = useState("loading");
-  const [payload, setPayload] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
   const [selectedResultId, setSelectedResultId] = useState("");
-  const activeRequestKeyRef = useRef("");
   const { artboard: baseArtboard, status: artboardStatus } = useGeneratedArtboard(artboardKey);
 
   useEffect(() => {
     setSelectedResultId("");
   }, [mode]);
 
+  const request = useMemo(() => {
+    const params = new URLSearchParams(currentSearch);
+    return {
+      endpoint: modeConfig?.endpoint ?? "",
+      personaId: session?.current_persona?.id ?? "",
+      q: searchQuery.trim(),
+      siteId: params.get("site_id")?.trim() ?? "",
+    };
+  }, [currentSearch, modeConfig?.endpoint, searchQuery, session?.current_persona?.id]);
+  const directoryQuery = useQuery({
+    queryKey: ["dev-page", "phone-directory", mode, request.personaId, request.q, request.siteId],
+    enabled: Boolean(session?.authenticated && session?.authorized && modeConfig),
+    queryFn: ({ signal }) => {
+      const requestUrl = new URL(request.endpoint, window.location.origin);
+      if (request.q) {
+        requestUrl.searchParams.set("q", request.q);
+      }
+      if (request.siteId) {
+        requestUrl.searchParams.set("site_id", request.siteId);
+      }
+      return fetchDevApiJSON(requestUrl, { signal });
+    },
+  });
+  const payload = directoryQuery.data ?? null;
+  const pageState = directoryQuery.isLoading || directoryQuery.isFetching ? "loading" : directoryQuery.isError ? "error" : "ready";
+  const errorMessage =
+    directoryQuery.error instanceof Error ? directoryQuery.error.message : "Unable to load Phone Directory results.";
   const resultCount = payload?.page?.results?.length ?? 0;
   const artboard = useMemo(() => {
     if (!baseArtboard) {
@@ -811,94 +836,35 @@ export function PhoneDirectoryPage({
     return nextArtboard;
   }, [baseArtboard, resultCount]);
   const nodeIndex = useMemo(() => artboard ? buildNodeIndex(artboard) : new Map(), [artboard]);
-  const requestKey = useMemo(() => {
-    const params = new URLSearchParams(currentSearch);
-    return JSON.stringify({
-      endpoint: modeConfig?.endpoint ?? "",
-      personaId: session?.current_persona?.id ?? "",
-      q: searchQuery.trim(),
-      siteId: params.get("site_id")?.trim() ?? "",
-    });
-  }, [currentSearch, modeConfig?.endpoint, searchQuery, session?.current_persona?.id]);
 
   useEffect(() => {
-    if (!session?.authenticated || !session?.authorized || !modeConfig) {
-      return undefined;
+    if (directoryQuery.isError) {
+      handleDevApiAuthError(directoryQuery.error, { onUnauthorized, onForbidden });
     }
+  }, [directoryQuery.error, directoryQuery.isError, onForbidden, onUnauthorized]);
 
-    const controller = new AbortController();
-    activeRequestKeyRef.current = requestKey;
-    const request = JSON.parse(requestKey);
-
-    /**
-     * loadPage fetches the active directory mode JSON payload and ignores responses that belong to stale mode/site/query requests. It translates authentication failures into shared app navigation callbacks and stores successful payloads for the runtime table overlay.
-     */
-    async function loadPage() {
-      setPageState("loading");
-      setErrorMessage("");
-      try {
-        const requestUrl = new URL(modeConfig.endpoint, window.location.origin);
-        if (request.q) {
-          requestUrl.searchParams.set("q", request.q);
-        }
-        if (request.siteId) {
-          requestUrl.searchParams.set("site_id", request.siteId);
-        }
-
-        const response = await fetch(requestUrl, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-        if (response.status === 401) {
-          onUnauthorized?.();
-          return;
-        }
-        if (response.status === 403) {
-          onForbidden?.();
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`Phone Directory request failed with ${response.status}`);
-        }
-        const nextPayload = await response.json();
-        if (controller.signal.aborted || activeRequestKeyRef.current !== requestKey) {
-          return;
-        }
-        setPayload(nextPayload);
-        setSelectedResultId((current) => {
-          const results = nextPayload?.page?.results ?? [];
-          if (!results.length) {
-            return "";
-          }
-
-          if (current && results.some((result) => result.id === current)) {
-            return current;
-          }
-
-          const preferredResultId = nextPayload?.page?.selected_result?.id ?? "";
-          if (preferredResultId && results.some((result) => result.id === preferredResultId)) {
-            return preferredResultId;
-          }
-
-          return "";
-        });
-        setPageState("ready");
-      } catch (error) {
-        if (controller.signal.aborted || activeRequestKeyRef.current !== requestKey) {
-          return;
-        }
-        setPayload(null);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Unable to load Phone Directory results."
-        );
-        setPageState("error");
+  useEffect(() => {
+    if (!payload) {
+      return;
+    }
+    setSelectedResultId((current) => {
+      const results = payload?.page?.results ?? [];
+      if (!results.length) {
+        return "";
       }
-    }
 
-    void loadPage();
-    return () => controller.abort();
-  }, [modeConfig, onForbidden, onUnauthorized, requestKey, session?.authenticated, session?.authorized]);
+      if (current && results.some((result) => result.id === current)) {
+        return current;
+      }
+
+      const preferredResultId = payload?.page?.selected_result?.id ?? "";
+      if (preferredResultId && results.some((result) => result.id === preferredResultId)) {
+        return preferredResultId;
+      }
+
+      return "";
+    });
+  }, [payload]);
 
   const textOverrides = useMemo(
     () => buildTextOverrides(session, payload, modeConfig, searchQuery),

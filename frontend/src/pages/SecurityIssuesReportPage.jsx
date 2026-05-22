@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
+import { fetchDevApiJSON, handleDevApiAuthError } from "../lib/devApi";
 import { PenArtboard } from "../lib/PenArtboard";
 import { buildArtboardSemanticSummary } from "../lib/artboardSemantics";
 import {
@@ -29,23 +31,6 @@ const SECURITY_ISSUE_COLUMNS = [
   { key: "asset_work", label: "Asset Work", value: (row) => row.asset_work },
   { key: "reference", label: "Reference", value: (row) => row.external_reference || "None" },
 ];
-
-/**
- * readJSON decodes the Security Issues DEV report response used by
- * SecurityIssuesReportPage. Fetch failures keep their HTTP status so the page
- * can route unauthorized users to the shared 401/403 error surfaces instead of
- * showing stale security-review data.
- */
-async function readJSON(response) {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload?.message || `Request failed with ${response.status}`);
-    error.status = response.status;
-    error.payload = payload;
-    throw error;
-  }
-  return payload;
-}
 
 /**
  * collectAllNodeIds recursively collects generated report-pane node ids so this
@@ -265,38 +250,24 @@ function SecurityIssuesOverlay({ payload, selectedRow, onSelect }) {
 export function SecurityIssuesReportPage({ session, onNavigate, onSearch, searchQuery, onUnauthorized, onForbidden }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
-  const [payload, setPayload] = useState(null);
-  const [pageState, setPageState] = useState("loading");
   const [selectedRow, setSelectedRow] = useState(null);
-
-  const loadPage = useCallback(async () => {
-    setPageState("loading");
-    try {
-      const nextPayload = await readJSON(
-        await fetch(SECURITY_ISSUES_ENDPOINT, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        })
-      );
-      setPayload(nextPayload);
-      setPageState("ready");
-    } catch (error) {
-      if (error.status === 401 && onUnauthorized) {
-        onUnauthorized();
-        return;
-      }
-      if (error.status === 403 && onForbidden) {
-        onForbidden();
-        return;
-      }
-      setPageState("error");
-    }
-  }, [onForbidden, onUnauthorized]);
+  const securityIssuesQuery = useQuery({
+    queryKey: ["dev-page", "reports", "security-issues", session?.current_persona?.id ?? ""],
+    enabled: Boolean(session?.authenticated && session?.authorized),
+    queryFn: ({ signal }) => fetchDevApiJSON(SECURITY_ISSUES_ENDPOINT, { signal }),
+  });
+  const payload = securityIssuesQuery.data ?? null;
+  const pageState = securityIssuesQuery.isLoading || securityIssuesQuery.isFetching ? "loading" : securityIssuesQuery.isError ? "error" : "ready";
 
   useEffect(() => {
     setSelectedRow(null);
-    void loadPage();
-  }, [loadPage]);
+  }, [payload]);
+
+  useEffect(() => {
+    if (securityIssuesQuery.isError) {
+      handleDevApiAuthError(securityIssuesQuery.error, { onUnauthorized, onForbidden });
+    }
+  }, [onForbidden, onUnauthorized, securityIssuesQuery.error, securityIssuesQuery.isError]);
 
   const textOverrides = buildSharedShellTextOverrides(session);
   const paneNodeIds = useMemo(() => artboard ? collectPaneNodeIds(artboard) : [], [artboard]);
