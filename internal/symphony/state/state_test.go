@@ -65,6 +65,7 @@ func TestWriteSnapshotReplacesStatusAtomically(t *testing.T) {
 
 func TestReadSnapshotReconcilesStaleControllerWithLiveLock(t *testing.T) {
 	dir := t.TempDir()
+	lockTime := time.Now().UTC()
 	stale := Snapshot{Controller: ControllerState{
 		DaemonID:          "old-daemon",
 		PID:               999999999,
@@ -74,13 +75,16 @@ func TestReadSnapshotReconcilesStaleControllerWithLiveLock(t *testing.T) {
 		ShutdownRequested: true,
 		Phase:             "phase-0",
 		PhaseBranch:       "phase-0-platform-foundation",
-		UpdatedAt:         time.Now().Add(-time.Hour).UTC(),
+		UpdatedAt:         lockTime.Add(-time.Minute),
 	}}
 	if err := WriteSnapshot(dir, stale); err != nil {
 		t.Fatalf("write stale snapshot: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "daemon.lock"), []byte("live-daemon\n"+strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
 		t.Fatalf("write live lock: %v", err)
+	}
+	if err := os.Chtimes(filepath.Join(dir, "daemon.lock"), lockTime, lockTime); err != nil {
+		t.Fatalf("touch live lock: %v", err)
 	}
 
 	loaded, err := ReadSnapshot(dir)
@@ -116,5 +120,68 @@ func TestReadSnapshotCanReportLiveLockBeforeStatusFileExists(t *testing.T) {
 	}
 	if loaded.Controller.LastStatus != "status_snapshot_pending" {
 		t.Fatalf("expected pending projection status, got %#v", loaded.Controller)
+	}
+}
+
+func TestReadSnapshotDoesNotMaskStatusReadErrorsWithLiveLock(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, StatusFilename), 0o755); err != nil {
+		t.Fatalf("make status path unreadable as file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "daemon.lock"), []byte("live-daemon\n"+strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		t.Fatalf("write live lock: %v", err)
+	}
+
+	if _, err := ReadSnapshot(dir); err == nil {
+		t.Fatal("expected status read error to surface instead of lock fallback")
+	}
+}
+
+func TestReadSnapshotDoesNotProjectExpiredLockWithoutStatusFile(t *testing.T) {
+	dir := t.TempDir()
+	lockPath := filepath.Join(dir, "daemon.lock")
+	if err := os.WriteFile(lockPath, []byte("old-daemon\n"+strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		t.Fatalf("write old lock: %v", err)
+	}
+	old := time.Now().Add(-liveLockMaxAge - time.Minute)
+	if err := os.Chtimes(lockPath, old, old); err != nil {
+		t.Fatalf("age lock: %v", err)
+	}
+
+	if _, err := ReadSnapshot(dir); err == nil {
+		t.Fatal("expected missing status error when only lock is expired")
+	}
+}
+
+func TestReadSnapshotDoesNotLetOlderLockOverrideNewerSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	statusTime := time.Now().UTC()
+	snapshot := Snapshot{Controller: ControllerState{
+		DaemonID:          "current-snapshot",
+		PID:               111,
+		StateDir:          dir,
+		Lifecycle:         "stopped",
+		LastStatus:        "tick_failed",
+		ShutdownRequested: true,
+		UpdatedAt:         statusTime,
+	}}
+	if err := WriteSnapshot(dir, snapshot); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+	lockPath := filepath.Join(dir, "daemon.lock")
+	if err := os.WriteFile(lockPath, []byte("older-lock\n"+strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		t.Fatalf("write older lock: %v", err)
+	}
+	lockTime := statusTime.Add(-time.Minute)
+	if err := os.Chtimes(lockPath, lockTime, lockTime); err != nil {
+		t.Fatalf("touch older lock: %v", err)
+	}
+
+	loaded, err := ReadSnapshot(dir)
+	if err != nil {
+		t.Fatalf("read snapshot: %v", err)
+	}
+	if loaded.Controller.DaemonID != "current-snapshot" || loaded.Controller.Lifecycle != "stopped" {
+		t.Fatalf("expected newer status snapshot to win, got %#v", loaded.Controller)
 	}
 }
