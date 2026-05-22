@@ -162,6 +162,69 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 	}
 }
 
+// TestP000C003GoogleGroupAndAttributeRoleMapping is the named Phase 0 dev
+// verification for the production authorization evaluator. It proves current
+// Google group and SAML attribute inputs are the source of roles and same-URL
+// route access, while a staff-domain identity with no mapping receives access
+// denied rather than partial content.
+func TestP000C003GoogleGroupAndAttributeRoleMapping(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
+	}
+	policy.AttributeRoleMappings = []auth.AttributeRoleMapping{
+		{Attribute: "wizard_role", Values: []string{"Device Wrangler"}, Roles: []string{auth.RoleDeviceWrangler}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "group", Source: "wizard-bpl-scope@wusd.org", Sites: []string{"bpl"}},
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"clover-hs"}},
+	}
+
+	secretary := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "secretary@staff.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-bpl-scope@wusd.org"},
+	})
+	if !secretary.Authorized {
+		t.Fatalf("secretary decision denied: %#v", secretary)
+	}
+	if !auth.AuthorizeRoute(secretary, "/student-data-cleanup").Allowed {
+		t.Fatalf("secretary should access student data cleanup: %#v", secretary)
+	}
+	if !auth.AuthorizeRoute(secretary, "/onboarding").Allowed {
+		t.Fatalf("secretary should access onboarding: %#v", secretary)
+	}
+	if route := auth.AuthorizeRoute(secretary, "/data-quality"); route.Allowed || route.Reason != "route_not_allowed" {
+		t.Fatalf("secretary data-quality route decision = %#v, want route_not_allowed", route)
+	}
+
+	wrangler := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email: "wrangler@wusd.org",
+		Attributes: map[string][]string{
+			"wizard_role": {"Device Wrangler"},
+			"wizard_site": {"Clover HS"},
+		},
+	})
+	if !wrangler.Authorized {
+		t.Fatalf("wrangler decision denied: %#v", wrangler)
+	}
+	if !auth.AuthorizeRoute(wrangler, "/frequent-fliers").Allowed {
+		t.Fatalf("wrangler should access frequent fliers: %#v", wrangler)
+	}
+	if route := auth.AuthorizeRoute(wrangler, "/student-data-cleanup"); route.Allowed || route.Reason != "route_not_allowed" {
+		t.Fatalf("wrangler student-data-cleanup route decision = %#v, want route_not_allowed", route)
+	}
+
+	noMapping := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email: "known.staff@it.wusd.org",
+	})
+	if noMapping.Authorized || noMapping.Reason != "no_role_mapping" {
+		t.Fatalf("known staff without mapping decision = %#v, want no_role_mapping denial", noMapping)
+	}
+	if route := auth.AuthorizeRoute(noMapping, "/student-data-cleanup"); route.Allowed || route.Reason != "no_role_mapping" {
+		t.Fatalf("known staff route decision = %#v, want inherited no_role_mapping denial", route)
+	}
+}
+
 func TestEvaluateGoogleIdentityUnionsCanonicalAttributeNames(t *testing.T) {
 	policy := auth.DefaultPolicy()
 	policy.AttributeRoleMappings = []auth.AttributeRoleMapping{

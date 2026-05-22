@@ -2,7 +2,7 @@
 
 This document records both the production authorization contract and the currently implemented DEV authorization behavior for The WIZARD. It does not replace the editable permissions model or breakglass runtime work. It gives reviewers a durable baseline for the Google SAML and Google group/attribute contract, the DEV persona-switcher behavior, and the route/API boundaries that must stay aligned with `docs/product/product-requirements.md`, `docs/planning/implementation-plan.md`, and `docs/testing/test-matrix.md`.
 
-This matrix is current DEV implementation documentation. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/planning/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher. Issue #188 remains open for live production SAML assertion validation, production session issuance, approved Google Workspace metadata/group/attribute decisions, and persistent manual site-scope administration.
+This matrix is current DEV implementation documentation plus the checked-in production authorization contract. Issue #185 supplies the route/API inventory evidence that issue #158 needed before the parent permissions backlog can be evaluated; that detailed audit lives in `docs/planning/route-api-authorization-inventory.md` and is checked by `npm run route-api-inventory:check`. Issue #158 should close only when the parent issue owner confirms the remaining parent acceptance criteria beyond this inventory are complete. Issue #160 is intentionally out of scope for this matrix because editable in-app persona grant/revoke management requires a separate persistent authorization model rather than a richer DEV persona switcher. Issue #188 adds the production evaluator for verified Google identity data, the same-URL route authorization helper, the environment configuration contract, and the persistent database table for site-scope mappings; live production SAML assertion validation and session issuance still require approved Google Workspace metadata and runtime middleware wiring before staging promotion can treat SAML as live.
 
 ## Source Order
 
@@ -10,6 +10,7 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 - `docs/planning/implementation-plan.md` defines the implementation contract, staged rollout constraints, Phase 2 live-write pilot gate, route registry, and follow-up work still required before production SAML is live.
 - `docs/planning/route-api-authorization-inventory.md` records the route-by-route frontend, DEV API, direct-navigation, feature-flag, and static-page exception audit for issue #185.
 - `internal/auth/production.go` contains the current checked-in evaluator for verified Google identity data.
+- `internal/db/schema.sql` contains the persistent `auth_site_scope_mappings` table used when Google groups or SAML attributes do not fully carry site scope.
 - `internal/web` contains the DEV persona-switcher route and API authorization behavior.
 - `docs/testing/test-matrix.md` defines the scenarios that must be evidenced in dev and staging.
 
@@ -20,20 +21,20 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 - `@stu.wusd.org` is explicitly denied before role authorization.
 - Local breakglass accounts are the only domain-gate exception.
 - Phase 0 scenario `P0-0C-001` is covered by `TestP000C001StaffDomainAllowlistGate` and `TestP000C001DevAndStagingShareStaffDomainGate`. Those tests are intentionally narrow: the first proves the evaluator lets the three staff domains proceed to role mapping and blocks non-staff domains before role mapping can grant access; the second proves development and staging load the same default staff-domain policy before live SAML assertion handling is added.
-- Phase 0 scenario `P0-0C-002` is covered by `TestP000C002StudentDomainDenyGate` and `TestLoadKeepsMandatoryStudentDenyDomain`. Those tests prove `@stu.wusd.org` remains denied before role/site authorization even when a deployment-specific allowed-domain override accidentally includes the student domain.
 
 ## Production Auth Flow
 
 1. Google Workspace authenticates the user through SAML.
 2. The application receives verified identity data from the future SAML middleware: email address, group memberships, and configured SAML attributes.
 3. The application canonicalizes the email address and applies the domain gate before any normal role authorization.
-4. The application denies `@stu.wusd.org` even if Google groups or attributes would otherwise map to an application role, and even if a deployment-specific allowed-domain override accidentally includes the student domain.
+4. The application denies `@stu.wusd.org` even if Google groups or attributes would otherwise map to an application role.
 5. The application allows only `@wusd.org`, `@it.wusd.org`, and `@staff.wusd.org` for normal SAML users.
 6. The breakglass runtime may bypass the domain gate only for named local emergency accounts after its own local-auth and network-source checks pass.
 7. The application maps Google groups and SAML attributes to stable role ids.
 8. A user with no mapped role is authenticated but not authorized and must receive access denied.
 9. The application maps current Google groups and SAML attributes to site scopes on each authorization evaluation so changed assignments do not leave stale cross-site access.
-10. Route and API handlers must enforce the resulting role and scope server-side. Frontend hiding is not a production authorization control.
+10. `internal/auth.AuthorizeRoute` checks the evaluated role decision against the protected route inventory so a user hitting the same URL receives access denied when the role lacks that route.
+11. Route and API handlers must enforce the resulting role and scope server-side. Frontend hiding is not a production authorization control.
 
 ## Stable Role IDs
 
@@ -51,7 +52,7 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 The checked-in environment contract is:
 
 - `AUTH_ALLOWED_EMAIL_DOMAINS`: comma-separated normal SAML domains. Default: `wusd.org,it.wusd.org,staff.wusd.org`.
-- `AUTH_DENIED_EMAIL_DOMAINS`: comma-separated explicit denied domains. Default: `stu.wusd.org`. Deployments may add local denied domains, but `stu.wusd.org` is a non-removable safety floor in the checked-in evaluator and startup policy.
+- `AUTH_DENIED_EMAIL_DOMAINS`: comma-separated explicit denied domains. Default: `stu.wusd.org`.
 - `GOOGLE_SAML_ENTITY_ID`: service-provider entity id configured in Google Workspace.
 - `GOOGLE_SAML_ACS_URL`: assertion consumer service URL configured in Google Workspace.
 - `GOOGLE_SAML_IDP_METADATA_URL`: Google-hosted metadata URL when the deployment uses metadata discovery.
@@ -65,6 +66,8 @@ The checked-in environment contract is:
 - `BREAKGLASS_ALLOWED_CIDRS`: optional comma-separated allowed source networks. Default: `10.23.0.0/16,10.19.100.0/24`.
 
 Deployment operators may override `AUTH_ALLOWED_EMAIL_DOMAINS` or `AUTH_DENIED_EMAIL_DOMAINS`, but doing so changes the Phase 0 staff-domain gate and must be recorded with the deployment configuration and promotion evidence. The repository default remains the baseline for both development and staging checks.
+
+The checked-in SAML assertion consumer service configuration target is `GOOGLE_SAML_ACS_URL`. Runtime SAML middleware must validate Google signatures and conditions before it constructs the verified identity input for `internal/auth.EvaluateGoogleIdentity`; the DEV persona cookie and terminal mock-session override are never accepted as production identity inputs.
 
 Example mapping shape:
 
@@ -120,7 +123,7 @@ Example mapping shape:
 | IT Admin | All implemented routes: `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, phone-directory routes, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/zoom-desk-phone-renames`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile` | District-wide | Implemented |
 | Human Resources | `/dashboard/hr-lifecycle`, `/search`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/my-profile`, `/onboarding`, `/offboarding` | District-wide | Implemented |
 | Site Admin | `/dashboard/site-admin`, `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site on site-scoped pages | Implemented |
-| Site Secretary | `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site | Implemented |
+| Site Secretary | `/search`, phone-directory routes, `/my-profile`, `/onboarding`, `/student-data-cleanup`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site | Implemented |
 | Device Wrangler | `/search`, phone-directory routes, `/my-profile`, `/frequent-fliers`, `/departing-seniors` | Exactly one assigned site where data is site-scoped | Implemented |
 | Faculty and Staff | `/search`, phone-directory routes, `/my-profile` | Multiple associated sites allowed; onboarding/current-assignment default site provides initial staff context | Implemented |
 | No Access | No protected route access | None | Implemented as denied session state |
@@ -241,9 +244,9 @@ The current row for Local breakglass records the implemented local route only. I
 
 ### Production Authorization Boundary
 
-Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method. Persistent manual site-scope administration is also follow-up work. Until it exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs.
+Google Workspace admin decisions are still needed for the exact group names, SAML attribute names, ACS URL, metadata source, and certificate delivery method. The persistent `auth_site_scope_mappings` table is now defined, but the operator administration UI and database write path for maintaining it are follow-up work. Until that write path exists, production site scopes should come from deployment-managed mapping JSON or Google group/attribute inputs, with the database table available for migrations and future audited administration.
 
-Issue #188 should remain open until the production path validates Google SAML assertions, creates production session cookies from verified identity data, handles configured SAML/SSO sign-in and sign-out flows, and proves that current Google group or attribute inputs recalculate roles and site scopes on every authorization evaluation. The DEV persona cookie, feature-flag target editor, and mock persona payloads are useful for local route/API testing only and are not acceptable production auth sources.
+Issue #188 establishes the production authorization boundary that follows SAML validation: staff-domain gate, Google group/attribute role mapping, site-scope mapping, route authorization, and a persistent database table for manual site-scope mappings. A follow-up runtime integration is still required before production can accept live SAML assertions, create production session cookies from verified identity data, and handle SSO sign-in/sign-out flows. The DEV persona cookie, feature-flag target editor, and mock persona payloads are useful for local route/API testing only and are not acceptable production auth sources.
 
 The durable product target remains:
 

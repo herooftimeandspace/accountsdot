@@ -50,10 +50,45 @@ func TestSchemaContainsCoreTablesAndConstraints(t *testing.T) {
 		"create table if not exists feature_flags",
 		"create table if not exists feature_flag_targets",
 		"target_type text not null check (target_type in ('persona', 'site'))",
+		"create table if not exists auth_site_scope_mappings",
+		"source_type text not null check (source_type in ('group', 'attribute'))",
+		"site_codes jsonb not null default '[]'::jsonb",
+		"create index if not exists auth_site_scope_mappings_source_idx",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(strings.ToLower(text), strings.ToLower(snippet)) {
 			t.Fatalf("schema.sql must contain %q", snippet)
+		}
+	}
+}
+
+// TestAuthSiteScopeMigrationContainsPersistentMappingTable locks the Phase 0
+// production-auth database contract to an idempotent migration. The future
+// admin UI can populate this table when Google groups or SAML attributes do not
+// fully carry site scope, and reviewers can diff this test when schema fields
+// change.
+func TestAuthSiteScopeMigrationContainsPersistentMappingTable(t *testing.T) {
+	root := projectRoot(t)
+	migration, err := os.ReadFile(filepath.Join(root, "internal", "db", "migrations", "202605210001_auth_site_scope_mappings.sql"))
+	if err != nil {
+		t.Fatalf("failed reading auth site-scope migration: %v", err)
+	}
+	text := string(migration)
+
+	requiredSnippets := []string{
+		"create table if not exists auth_site_scope_mappings",
+		"source_type text not null check (source_type in ('group', 'attribute'))",
+		"source_value text not null",
+		"attribute_values jsonb not null default '[]'::jsonb",
+		"site_codes jsonb not null default '[]'::jsonb",
+		"actor_id text not null",
+		"reason text not null",
+		"unique (source_type, source_value)",
+		"create index if not exists auth_site_scope_mappings_source_idx",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(strings.ToLower(text), strings.ToLower(snippet)) {
+			t.Fatalf("auth site-scope migration must contain %q", snippet)
 		}
 	}
 }
