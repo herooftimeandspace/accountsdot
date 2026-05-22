@@ -13,7 +13,8 @@ import (
 // TestAppRoutes verifies the application mux still serves the unauthenticated
 // smoke routes used by local startup checks. These routes expose no protected
 // provider data and give quick feedback before the React DEV frontend is
-// running.
+// running; an unwired app mux reports not-ready metrics instead of false
+// readiness.
 func TestAppRoutes(t *testing.T) {
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
@@ -23,7 +24,7 @@ func TestAppRoutes(t *testing.T) {
 		contains    string
 	}{
 		{path: "/", contentType: "text/html", contains: "Go Employee Provisioner"},
-		{path: "/metrics", contentType: "text/plain", contains: "app_ready 1"},
+		{path: "/metrics", contentType: "text/plain", contains: "app_ready 0"},
 		{path: "/events/stream", contentType: "text/event-stream", contains: "event: ready"},
 		{path: "/api/v1/session/me", contentType: "application/json", contains: `"authenticated":false`},
 	}

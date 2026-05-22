@@ -16,14 +16,7 @@ import (
 // It calls NewHealthHandler directly so regressions can be debugged without the
 // larger application mux.
 func TestHealthRoutes(t *testing.T) {
-	handler := web.NewHealthHandler(web.HealthDependencies{
-		DBReady:         func(context.Context) error { return nil },
-		SequenceReady:   func(context.Context) error { return nil },
-		ImportPathReady: func(context.Context) error { return nil },
-		SFTPReady:       func(context.Context) error { return nil },
-		GoogleReady:     func(context.Context) error { return nil },
-		GlobalPaused:    func(context.Context) (bool, error) { return false, nil },
-	})
+	handler := web.NewHealthHandler(readyDeps())
 
 	tests := []struct {
 		path       string
@@ -51,46 +44,87 @@ func TestHealthRoutes(t *testing.T) {
 }
 
 // TestHealthReadyFailsDependency proves /health/ready fails closed when a
-// required dependency callback returns an error. The response remains JSON so
-// operators can see which dependency blocked readiness.
+// configured dependency callback returns an error. The response remains JSON and
+// uses bounded states so operators can see which dependency blocked readiness
+// without exposing raw driver or provider text.
 func TestHealthReadyFailsDependency(t *testing.T) {
-	handler := web.NewHealthHandler(web.HealthDependencies{
-		DBReady:         func(context.Context) error { return nil },
-		SequenceReady:   func(context.Context) error { return nil },
-		ImportPathReady: func(context.Context) error { return nil },
-		SFTPReady:       func(context.Context) error { return nil },
-		GoogleReady:     func(context.Context) error { return errBoom{} },
-		GlobalPaused:    func(context.Context) (bool, error) { return false, nil },
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503, got %d", rec.Code)
+	tests := []struct {
+		name       string
+		mutate     func(*web.HealthDependencies)
+		dependency string
+	}{
+		{name: "db", mutate: func(deps *web.HealthDependencies) { deps.DBReady = func(context.Context) error { return errBoom{} } }, dependency: "db"},
+		{name: "import path", mutate: func(deps *web.HealthDependencies) {
+			deps.ImportPathReady = func(context.Context) error { return errBoom{} }
+		}, dependency: "import_path"},
+		{name: "sftp", mutate: func(deps *web.HealthDependencies) { deps.SFTPReady = func(context.Context) error { return errBoom{} } }, dependency: "sftp"},
+		{name: "google service account", mutate: func(deps *web.HealthDependencies) {
+			deps.GoogleReady = func(context.Context) error { return errBoom{} }
+		}, dependency: "google"},
 	}
-	if body := rec.Body.String(); !strings.Contains(body, `"status":"degraded"`) || !strings.Contains(body, `"google":"unavailable"`) || strings.Contains(body, "secret") {
-		t.Fatalf("ready dependency failure body = %s, want sanitized degraded google signal", body)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := readyDeps()
+			tc.mutate(&deps)
+			handler := web.NewHealthHandler(deps)
+
+			rec := requestHealth(t, handler, "/health/ready", http.StatusServiceUnavailable)
+			body := rec.Body.String()
+			want := `"` + tc.dependency + `":"unavailable"`
+			if !strings.Contains(body, `"status":"degraded"`) || !strings.Contains(body, want) || strings.Contains(body, "secret") {
+				t.Fatalf("ready dependency failure body = %s, want sanitized degraded %s signal", body, tc.dependency)
+			}
+		})
 	}
 }
 
-// TestHealthReadyAllowsMissingOptionalCheck keeps local smoke checks usable
-// before every external dependency has a concrete readiness callback. Missing
-// callbacks are reported as not_configured instead of inventing readiness work.
-func TestHealthReadyAllowsMissingOptionalCheck(t *testing.T) {
-	handler := web.NewHealthHandler(web.HealthDependencies{
-		DBReady:         func(context.Context) error { return nil },
-		SequenceReady:   func(context.Context) error { return nil },
-		ImportPathReady: func(context.Context) error { return nil },
-		GlobalPaused:    func(context.Context) (bool, error) { return false, nil },
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+// TestHealthReadyFailsClosedOnMissingRequiredDependency covers the Phase 0
+// degraded drill where required DB, sequence, import-staging storage, or Google
+// service-account checks are absent from the application wiring. Readiness must
+// return 503 while liveness still returns a meaningful process-level ok.
+func TestHealthReadyFailsClosedOnMissingRequiredDependency(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(*web.HealthDependencies)
+		dependency string
+	}{
+		{name: "db", mutate: func(deps *web.HealthDependencies) { deps.DBReady = nil }, dependency: "db"},
+		{name: "sequence", mutate: func(deps *web.HealthDependencies) { deps.SequenceReady = nil }, dependency: "sequence"},
+		{name: "import path", mutate: func(deps *web.HealthDependencies) { deps.ImportPathReady = nil }, dependency: "import_path"},
+		{name: "google service account", mutate: func(deps *web.HealthDependencies) { deps.GoogleReady = nil }, dependency: "google"},
 	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := readyDeps()
+			tc.mutate(&deps)
+			handler := web.NewHealthHandler(deps)
+
+			readyRec := requestHealth(t, handler, "/health/ready", http.StatusServiceUnavailable)
+			body := readyRec.Body.String()
+			want := `"` + tc.dependency + `":"missing_required_check"`
+			if !strings.Contains(body, `"status":"degraded"`) || !strings.Contains(body, want) {
+				t.Fatalf("ready missing dependency body = %s, want %s", body, want)
+			}
+
+			liveRec := requestHealth(t, handler, "/health/live", http.StatusOK)
+			if body := liveRec.Body.String(); !strings.Contains(body, `"status":"ok"`) || strings.Contains(body, tc.dependency) {
+				t.Fatalf("live missing dependency body = %s, want process-only ok", body)
+			}
+		})
+	}
+}
+
+// TestHealthReadyAllowsMissingOptionalSFTPCheck keeps local smoke checks usable
+// before SFTP integration mode wires a concrete readiness callback. Missing
+// optional SFTP is reported as not_configured instead of failing readiness.
+func TestHealthReadyAllowsMissingOptionalSFTPCheck(t *testing.T) {
+	deps := readyDeps()
+	deps.SFTPReady = nil
+	handler := web.NewHealthHandler(deps)
+
+	rec := requestHealth(t, handler, "/health/ready", http.StatusOK)
 	if body := rec.Body.String(); !strings.Contains(body, `"sftp":"not_configured"`) {
 		t.Fatalf("ready missing optional check body = %s, want not_configured signal", body)
 	}
@@ -212,6 +246,28 @@ func TestHealthReadyUsesRequestContext(t *testing.T) {
 	if body := rec.Body.String(); !strings.Contains(body, `"db":"unavailable"`) || strings.Contains(body, "context canceled") {
 		t.Fatalf("ready canceled body = %s, want sanitized canceled dependency", body)
 	}
+}
+
+func readyDeps() web.HealthDependencies {
+	return web.HealthDependencies{
+		DBReady:         func(context.Context) error { return nil },
+		SequenceReady:   func(context.Context) error { return nil },
+		ImportPathReady: func(context.Context) error { return nil },
+		SFTPReady:       func(context.Context) error { return nil },
+		GoogleReady:     func(context.Context) error { return nil },
+		GlobalPaused:    func(context.Context) (bool, error) { return false, nil },
+	}
+}
+
+func requestHealth(t *testing.T, handler http.Handler, path string, statusCode int) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != statusCode {
+		t.Fatalf("%s returned %d, want %d; body %s", path, rec.Code, statusCode, rec.Body.String())
+	}
+	return rec
 }
 
 type errBoom struct{}

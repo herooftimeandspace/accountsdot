@@ -6,6 +6,8 @@ import (
 	"net/http"
 )
 
+const missingRequiredReadinessCheck = "missing_required_check"
+
 type HealthDependencies struct {
 	DBReady         func(context.Context) error
 	SequenceReady   func(context.Context) error
@@ -44,8 +46,9 @@ func NewHealthHandler(deps HealthDependencies) http.Handler {
 }
 
 type healthCheck struct {
-	name  string
-	check func(context.Context) error
+	name     string
+	check    func(context.Context) error
+	required bool
 }
 
 type healthSnapshot struct {
@@ -60,19 +63,20 @@ type healthSnapshot struct {
 // provider URLs, credentials, or tenant details from becoming labels.
 func dependencyChecks(deps HealthDependencies) []healthCheck {
 	return []healthCheck{
-		{name: "db", check: deps.DBReady},
-		{name: "sequence", check: deps.SequenceReady},
-		{name: "import_path", check: deps.ImportPathReady},
+		{name: "db", check: deps.DBReady, required: true},
+		{name: "sequence", check: deps.SequenceReady, required: true},
+		{name: "import_path", check: deps.ImportPathReady, required: true},
 		{name: "sftp", check: deps.SFTPReady},
-		{name: "google", check: deps.GoogleReady},
+		{name: "google", check: deps.GoogleReady, required: true},
 	}
 }
 
 // evaluateHealth runs the dependency callbacks for /health/ready, /health, and
-// /metrics using the request context supplied by the caller. Missing callbacks
-// are reported as not_configured so local smoke tests can run without a
-// database, but any failing callback or active global pause clears readiness
-// with a bounded public state that does not expose raw driver or provider text.
+// /metrics using the request context supplied by the caller. Missing required
+// callbacks fail closed as missing_required_check; unwired optional callbacks
+// are reported as not_configured. Any failing callback or active global pause
+// clears readiness with a bounded public state that does not expose raw driver
+// or provider text.
 func evaluateHealth(ctx context.Context, deps HealthDependencies) healthSnapshot {
 	snapshot := healthSnapshot{
 		dependencies: make(map[string]string, len(dependencyChecks(deps))),
@@ -82,6 +86,11 @@ func evaluateHealth(ctx context.Context, deps HealthDependencies) healthSnapshot
 
 	for _, dependency := range dependencyChecks(deps) {
 		if dependency.check == nil {
+			if dependency.required {
+				snapshot.dependencies[dependency.name] = missingRequiredReadinessCheck
+				snapshot.ready = false
+				continue
+			}
 			snapshot.dependencies[dependency.name] = "not_configured"
 			continue
 		}
@@ -142,8 +151,8 @@ func (snapshot healthSnapshot) readiness() (int, healthResponse) {
 }
 
 // dependenciesReady distinguishes a clean global pause from a dependency
-// outage. not_configured is allowed for local smoke tests where cmd/provisioner
-// has not wired a concrete callback yet.
+// outage. not_configured is allowed only for optional unwired checks; missing
+// required checks use missing_required_check and therefore remain degraded.
 func dependenciesReady(dependencies map[string]string) bool {
 	for _, state := range dependencies {
 		if state != "ok" && state != "not_configured" {
