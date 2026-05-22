@@ -542,6 +542,43 @@ function reconcileOutdatedPullRequestReviewThreads({ reviewThreads, config, dryR
   });
 }
 
+function resolveRemediatedReviewThreads({ pr, config, dryRun, branchUpdated, resolveThread = resolveReviewThread }) {
+  const threadSummaries = pr.unresolved_codex_review_thread_summaries || [];
+  if (threadSummaries.length === 0) return [];
+  return threadSummaries.map((thread) => {
+    const result = {
+      number: pr.number,
+      action: dryRun ? "would-resolve-remediated-thread" : "resolve-remediated-thread",
+      status: dryRun ? "dry-run" : "skipped",
+      reason: "",
+      ...thread,
+    };
+    if (dryRun) {
+      result.reason = "dry-run performs no review-thread mutations";
+      return result;
+    }
+    if (!config.autoResolveOutdatedCodexReviewThreads) {
+      result.status = "blocked";
+      result.reason = "auto_resolve_outdated_codex_review_threads is disabled";
+      return result;
+    }
+    if (!branchUpdated) {
+      result.status = "blocked";
+      result.reason = "review remediation completed without a branch update, so the automation did not resolve active review feedback";
+      return result;
+    }
+    try {
+      resolveThread(thread.thread_id);
+      result.status = "resolved";
+      result.reason = "review remediation succeeded and updated the PR branch, so the handed-off Codex Review thread was resolved";
+    } catch (error) {
+      result.status = "blocked";
+      result.reason = error.stderr || error.message || String(error);
+    }
+    return result;
+  });
+}
+
 function normalizedLogin(login) {
   return String(login || "")
     .toLowerCase()
@@ -1795,7 +1832,7 @@ function renderReviewRemediationPrompt({ pr, issue, dispatchConfig, workflow, sk
   ].join("\n");
 }
 
-async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun }) {
+async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, workflow, skills, dryRun, prConfig = DEFAULT_PULL_REQUESTS }) {
   const issue = issueForPullRequest(pr, issues);
   const targetBranch = pr.target_branch || dispatchConfig.defaultTargetBranch;
   const workspacePath = workspaceForReviewRemediation({ pr, issue, dispatchConfig });
@@ -1916,6 +1953,21 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
         workspacePath,
       })
     : { status: result.status, runner_status: result.runner_status, reason: "no repo-owned agent runner command is configured yet" };
+  const postRunnerHead = revParse(repoPath, "HEAD");
+  const branchUpdated =
+    runner.status === "succeeded" &&
+    postRunnerHead.ok &&
+    preparation.preparation?.local_head &&
+    postRunnerHead.oid !== preparation.preparation.local_head;
+  const reviewThreadResolutions =
+    runner.status === "succeeded"
+      ? resolveRemediatedReviewThreads({
+          pr,
+          config: prConfig,
+          dryRun: false,
+          branchUpdated,
+        })
+      : [];
   const priorState = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
   const state = {
     ...priorState,
@@ -1934,6 +1986,7 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     runner,
     dirty_files_at_start: preparedStatus.dirty_files,
     workspace_preparation: preparation.preparation,
+    review_thread_resolutions: reviewThreadResolutions,
     checkout_mode: result.checkout_mode,
     last_event:
       runner.runner_status === "completed"
@@ -1950,6 +2003,7 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
     reason: runner.reason || (preparedStatus.clean ? preparation.preparation?.reason || "" : "launched remediation runner with existing local workspace edits preserved"),
     dirty_files: preparedStatus.dirty_files,
     workspace_preparation: preparation.preparation,
+    review_thread_resolutions: reviewThreadResolutions,
     checkout_mode: result.checkout_mode,
   };
 }
@@ -2851,7 +2905,7 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
     Math.min(maxSelected, prConfig.maxReviewRemediationsPerTick),
   );
   const reviewRemediationPromises = selectedReviewRemediationCandidates.map((entry) =>
-    ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun }),
+    ensureReviewRemediationDispatch({ pr: entry, issues, dispatchConfig, workflow, skills, dryRun, prConfig }),
   );
   const reviewRemediations = await Promise.all(reviewRemediationPromises);
   const remediationSlotsUsed = reviewRemediations.filter(
@@ -2923,6 +2977,11 @@ async function sync({ dryRun = false, json = false, maxRuns = null } = {}) {
           ...reviewRemediations
             .filter((result) => ["prepared", "succeeded", "failed"].includes(result.status))
             .map((result) => `review remediation ${result.status} for PR #${result.number} in ${result.repo}`),
+          ...reviewRemediations.flatMap((result) =>
+            (result.review_thread_resolutions || [])
+              .filter((resolution) => resolution.status === "resolved")
+              .map((resolution) => `resolved remediated Codex Review thread on PR #${resolution.number}`),
+          ),
           ...mergedWorkspaceStates
             .filter((result) => result.status === "merged")
             .map((result) => `marked issue #${result.issue_number} workspace merged by PR #${result.pr_number}`),
@@ -3156,6 +3215,41 @@ async function selfTest() {
       }).map((result) => ({ number: result.number, action: result.action, status: result.status })),
       [{ number: 244, action: "would-resolve-outdated-thread", status: "dry-run" }],
     );
+    const remediatedThreadPr = {
+      number: 245,
+      unresolved_codex_review_thread_summaries: [
+        {
+          thread_id: "thread-2",
+          author: "chatgpt-codex-connector",
+          path: "scripts/symphony_runner.mjs",
+          line: 1,
+          url: "https://example.invalid/thread-2",
+          is_outdated: false,
+          body_excerpt: "Fix this after remediation.",
+        },
+      ],
+    };
+    const resolvedThreadIds = [];
+    const remediatedResolutions = resolveRemediatedReviewThreads({
+      pr: remediatedThreadPr,
+      config: DEFAULT_PULL_REQUESTS,
+      dryRun: false,
+      branchUpdated: true,
+      resolveThread: (threadId) => resolvedThreadIds.push(threadId),
+    });
+    assert.deepEqual(resolvedThreadIds, ["thread-2"]);
+    assert.equal(remediatedResolutions[0].status, "resolved");
+    const noBranchUpdateResolutions = resolveRemediatedReviewThreads({
+      pr: remediatedThreadPr,
+      config: DEFAULT_PULL_REQUESTS,
+      dryRun: false,
+      branchUpdated: false,
+      resolveThread: () => {
+        throw new Error("should not resolve unchanged branch");
+      },
+    });
+    assert.equal(noBranchUpdateResolutions[0].status, "blocked");
+    assert.match(noBranchUpdateResolutions[0].reason, /without a branch update/);
     assert.equal(
       syncStatusFromResults({
         prMergeResults: [],
