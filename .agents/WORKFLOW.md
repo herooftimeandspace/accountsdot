@@ -9,6 +9,7 @@ tracker:
   blocked_labels:
     - blocked
     - agent-blocked
+    - human-review
     - human-only
     - security-sensitive
     - production-write
@@ -74,6 +75,19 @@ self_healing:
     - symphony
   priority: top
   fingerprint_prefix: symphony-self-heal
+escalation:
+  durable_surface: github_issue
+  live_surface: daemon_status_tui
+  chat_surface: optional_watchdog_summary
+  human_review_labels:
+    - human-review
+    - agent-blocked
+    - symphony
+  notify_human_when:
+    - blocked_human
+    - destructive_cleanup_risk
+    - ambiguous_dirty_source_edits
+    - repeated_self_healing_failure
 review_loops:
   max_review_requests_per_pr: 4
   review_request_comment: "@codex"
@@ -299,6 +313,14 @@ The following rules capture operational failures that previously required manual
 - The daemon writes operator-readable state under `daemon.state_dir`, including `controller.json`, `status.json`, `status.md`, `runs.jsonl`, and worker state. `npm run symphony:status -- --watch` and `npm run symphony:tui` must read that state instead of rebuilding queue policy.
 - The terminal TUI is only a client. It may queue pause, resume, drain, stop, cancel, and concurrency commands, but it must not duplicate issue ranking, review-thread interpretation, merge policy, workspace recovery, or self-healing classification.
 - Codex automations are optional watchdog/backstop jobs for this path. A watchdog should check whether `controller.json` and the daemon lock are fresh. If the daemon is active and healthy, it reports status and exits. If the daemon is inactive or stale and `daemon.watchdog_fallback_sync` is true, it may run one non-overlapping `npm run symphony:sync -- --json --max-runs <capacity>` tick. It must not start a second daemon or reimplement scheduling decisions in the automation prompt.
+
+### Escalation Surfaces
+
+- GitHub issues are the durable escalation surface for Symphony failures. The runner should create or update one deduplicated issue per stable self-healing fingerprint, include the exact blocker, affected workspace, related issue or PR numbers, dry-run evidence, acceptance criteria, safety constraints, and the next safe action.
+- Automatable self-healing issues use `self_healing.labels`, keep `agent-ready`, and run ahead of ordinary phase work. They should not interrupt the operator unless the same fingerprint repeats, exhausts retry budget, or becomes non-automatable.
+- Human decisions use `escalation.human_review_labels`. When cleanup could destroy source edits, the branch/workspace state is ambiguous, a destructive action is required, secrets or production writes are involved, or retries are exhausted, the runner must mark the work `blocked_human`, add a concise GitHub issue comment explaining the decision needed, and remove it from runnable capacity.
+- The daemon status files and TUI are the live awareness surface. `status.json`, `status.md`, `runs.jsonl`, and `npm run symphony:tui` must make `blocked_human` and `human-review` items visible with issue links and the required operator decision.
+- Codex chat is not the control plane. A watchdog may summarize active `blocked_human` items in chat, but it must link back to the GitHub issue and daemon status instead of treating the chat as durable state.
 
 ## Phase 0 Pull Request Queue Runtime
 

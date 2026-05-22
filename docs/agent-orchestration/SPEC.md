@@ -184,6 +184,16 @@ The daemon supports pause, resume, drain, stop, cancel-worker, and set-concurren
 
 Codex automations are optional watchdog/backstop jobs. A watchdog checks whether the daemon status is fresh and exits when the daemon is healthy. If the daemon is inactive or stale and the workflow config allows fallback, the watchdog may run one `symphony sync` tick. It must never start a second daemon or duplicate orchestration policy in prompt text.
 
+### 5.5.2 Escalation Surfaces
+
+GitHub issues are Symphony's durable escalation surface. When Symphony discovers a concrete automation defect or workspace failure, it should create or update one deduplicated issue keyed by a stable fingerprint. The issue body or latest comment should include the exact blocker, affected workspace, related issue or PR numbers, dry-run evidence, acceptance criteria, safety constraints, and the next safe action.
+
+Automatable self-healing issues keep the configured self-healing labels, including `agent-ready`, and run ahead of ordinary phase work. They should not require operator attention unless they repeat, exhaust retry budget, or become non-automatable.
+
+Human decisions use the workflow's `human-review`, `agent-blocked`, and `symphony` labels. If cleanup could destroy source edits, the branch or workspace state is ambiguous, a destructive action is required, secrets or production writes are involved, or retries are exhausted, the runner must mark the work `blocked_human`, add a concise GitHub issue comment explaining the decision needed, and keep it out of runnable capacity.
+
+The daemon status files and TUI are the live awareness surface for these escalations. `status.json`, `status.md`, `runs.jsonl`, `symphony status --watch`, and `symphony tui` should make `blocked_human` items visible with issue links and the required operator decision. Codex chat is only an optional watchdog summary channel; it must link back to GitHub and daemon status rather than becoming the source of truth.
+
 ### 5.6 Agent Runner
 
 The agent runner launches Codex in the prepared workspace. A future implementation may use Codex App Server mode when available, or a CLI-compatible runner if that is the available local interface.
