@@ -30,6 +30,7 @@ dispatch:
   agent_runner_command: codex --ask-for-approval never exec --json --sandbox workspace-write --cd {repo} -
   agent_runner_codex_home_root: /private/tmp/accountsdot-symphony/.codex-agent-homes
   agent_runner_timeout_ms: 21600000
+  agent_runner_idle_timeout_ms: 120000
 pull_requests:
   target_branch: phase-0-platform-foundation
   inspect_before_dispatch: true
@@ -216,6 +217,7 @@ The dispatcher is conservative by design:
 - The dispatcher refuses to reset an existing branch, overwrite dirty worktrees, or create a workspace from a missing target branch.
 - The dispatcher treats only a clean PR that is ready to merge as a reason to pause ordinary issue dispatch. Blocked, dirty, draft, or waiting-for-review PRs must be reported and remediated, but they should not prevent unrelated eligible issues from using remaining worker capacity.
 - `dispatch.agent_runner_command` is approved for this repo and launches `codex exec` from the prepared worktree with the rendered issue prompt on stdin. The dispatcher sets `CODEX_HOME` to a per-workspace directory under `dispatch.agent_runner_codex_home_root`, symlinks the operator's existing Codex auth/config/plugin references into that writable home, and keeps worker state databases out of the desktop app's `~/.codex` directory. This prevents automation-launched workers from failing on readonly `state_5.sqlite` or app-server state writes while still using the authenticated Codex installation. The dispatcher writes runner stdout and stderr to the issue workspace `logs/` directory and records completion or failure in `state.json`.
+- The dispatcher streams worker stdout and stderr while the worker is running. If a worker produces no output for `dispatch.agent_runner_idle_timeout_ms`, the dispatcher terminates it and records a bounded failure instead of occupying the next scheduled tick. If the worker has already emitted a Codex `turn.completed` event, the dispatcher may reap the still-running process and record the run as completed with a reaper note because the agent's final response is already durable in `logs/agent-stdout.log`.
 
 The Synchronizer wrapper should now call `npm run symphony:sync -- --json` for pull-request queue handling and issue dispatch state instead of maintaining a chat-only issue queue. The wrapper remains responsible for making sure the runner worktree is clean and current, invoking the repo-owned command, and surfacing runner failures. It should not duplicate merge policy, run long sleeps, or decide review status from flat comments when the runner can inspect thread-aware review state.
 
