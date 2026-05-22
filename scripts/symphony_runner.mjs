@@ -1999,13 +1999,11 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     if (branch.branch !== branchName) {
       return { ...result, status: "blocked", reason: `prepared issue workspace is on ${branch.branch || "(detached)"}, expected ${branchName}` };
     }
-    const status = cleanStatus(repoPath);
-    if (!status.clean) {
-      if (status.blocker !== "worktree has local edits") {
-        return { ...result, status: "blocked", reason: status.blocker, dirty_files: status.dirty_files };
-      }
-      dirtyStatus = status;
+    const dirtyInspection = dispatchableDirtyStatus(repoPath);
+    if (!dirtyInspection.ok) {
+      return { ...result, status: "blocked", reason: dirtyInspection.reason, dirty_files: dirtyInspection.dirty_files };
     }
+    dirtyStatus = dirtyInspection.dirtyStatus;
   } else {
     run("git", ["fetch", "--prune", "origin"], { cwd: repoRoot });
     const existingWorktree = worktreeForBranch(branchName);
@@ -2305,6 +2303,13 @@ function cleanStatus(cwd) {
       : [],
     has_unmerged: mergeFailureHasConflicts(cwd),
   };
+}
+
+function dispatchableDirtyStatus(cwd) {
+  const status = cleanStatus(cwd);
+  if (status.clean) return { ok: true, dirtyStatus: null, status };
+  if (status.blocker === "worktree has local edits") return { ok: true, dirtyStatus: status, status };
+  return { ok: false, reason: status.blocker, dirty_files: status.dirty_files || [], status };
 }
 
 function currentBranch(cwd) {
@@ -3687,6 +3692,7 @@ async function selfTest() {
     run("git", ["config", "user.name", "Symphony Test"], { cwd: renamedRepo });
     run("git", ["checkout", "-b", issueBranchName(renamedIssue, dispatchConfig)], { cwd: renamedRepo });
     run("git", ["commit", "--allow-empty", "-m", "old slug workspace"], { cwd: renamedRepo });
+    assert.equal(classifyIssueForDispatch(renamedIssue, [], [], dispatchConfig).eligible, true);
     const renamedDispatch = await ensureDispatchWorkspace({
       issue: renamedIssue,
       dispatchConfig,
@@ -3709,6 +3715,27 @@ async function selfTest() {
     });
     assert.equal(unhealthyDispatch.status, "blocked");
     assert.notEqual(unhealthyDispatch.reason, "worktree has local edits");
+    const failedStatusIssue = { ...phaseIssue, number: 900270, title: "P0-0A-007: Failed status inspection blocks dispatch" };
+    const failedStatusWorkspace = issueWorkspacePath(failedStatusIssue, dispatchConfig);
+    const failedStatusRepo = path.join(failedStatusWorkspace, "repo");
+    fs.mkdirSync(failedStatusRepo, { recursive: true });
+    run("git", ["init"], { cwd: failedStatusRepo });
+    run("git", ["config", "user.email", "symphony@example.invalid"], { cwd: failedStatusRepo });
+    run("git", ["config", "user.name", "Symphony Test"], { cwd: failedStatusRepo });
+    run("git", ["checkout", "-b", issueBranchName(failedStatusIssue, dispatchConfig)], { cwd: failedStatusRepo });
+    fs.writeFileSync(path.join(failedStatusRepo, "README.md"), "base\n");
+    run("git", ["add", "README.md"], { cwd: failedStatusRepo });
+    run("git", ["commit", "-m", "base"], { cwd: failedStatusRepo });
+    fs.writeFileSync(path.join(failedStatusRepo, ".git", "index"), "not a git index\n");
+    const failedStatusDispatch = await ensureDispatchWorkspace({
+      issue: failedStatusIssue,
+      dispatchConfig,
+      workflow,
+      skills: fakeSkills,
+      dryRun: false,
+    });
+    assert.equal(failedStatusDispatch.status, "blocked");
+    assert.notEqual(failedStatusDispatch.reason, "worktree has local edits");
     assert.deepEqual(splitCommandLine("codex --ask-for-approval never exec --cd {repo} -"), [
       "codex",
       "--ask-for-approval",
