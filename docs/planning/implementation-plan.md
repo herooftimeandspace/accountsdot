@@ -463,6 +463,8 @@
   - PostgreSQL schema and migrations
   - durable workflow/job engine, leases, recovery loop, outbox, health endpoints, metrics, global pause
   - staff-only access gate, role-aware authorization skeleton, breakglass support
+  - production authorization evaluator for verified Google SAML identity inputs, including group/attribute role mapping, site-scope mapping, and same-URL route denial
+  - persistent `auth_site_scope_mappings` schema for manual site-scope mappings when Google groups or SAML attributes do not fully express scope
   - provider credential/config plumbing and read-only connectivity checks
   - IT Admin settings for timezone and sync cadence
   - IT Admin emergency cutoff controls, including immediate global pause before downstream writes can continue
@@ -498,6 +500,7 @@
     - overlap-prevention evidence for duplicate job-family suppression
   - `0C` auth gate, breakglass, global pause, and IT Admin emergency controls
     - allow/deny auth-gate evidence for staff and student domains
+    - Google group and SAML attribute mapping evidence showing staff users receive only currently mapped roles and unmapped staff users receive access denied for the same URL
     - breakglass access evidence for configured named local accounts, denied source addresses, unknown accounts, and sanitized audit records
     - global-pause runtime evidence showing new claims stop without bringing down diagnostics
   - `0D` provider configuration, read-only connectivity, and dev mock scaffolding
@@ -2146,8 +2149,8 @@
   - `internal/auth` owns the checked-in Google identity evaluation contract for verified SAML identities.
   - Startup config parses `AUTH_ALLOWED_EMAIL_DOMAINS`, `AUTH_DENIED_EMAIL_DOMAINS`, `GOOGLE_SAML_*`, `GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON`, `GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON`, and `GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON`. `AUTH_DENIED_EMAIL_DOMAINS` can add deployment-specific blocked domains, but it cannot remove the `@stu.wusd.org` safety floor from the checked-in startup policy.
   - The evaluator applies domain checks before any role or site-scope mapping, explicitly denies `@stu.wusd.org`, authorizes only identities with at least one mapped role, and recalculates site scope from current group/attribute inputs each request. The student-domain denial remains active even if a deployment-specific allowed-domain override accidentally includes the student domain.
-  - `P0-0C-001` verification uses `go test ./internal/auth ./internal/config -run 'TestP000C001'` as the narrow dev and staging parity check until live SAML assertion handling exists. `TestP000C001StaffDomainAllowlistGate` proves the three staff domains can reach role mapping while non-staff domains are denied before role mapping; `TestP000C001DevAndStagingShareStaffDomainGate` proves the repository default staff-domain policy is identical for development and staging configuration loading.
   - Site-scope recalculation is deliberately stateless in this Phase 0 boundary. The evaluator uses only the current policy mapping plus the current verified Google group and SAML attribute values supplied for that request. It does not reuse a previous session, database, UI, or cached site list, so a changed Google group, changed SAML site attribute, removed site assignment, or updated mapping JSON replaces the previous scope on the next evaluation.
+  - `P0-0C-001` verification uses `go test ./internal/auth ./internal/config -run 'TestP000C001'` as the narrow dev and staging parity check until live SAML assertion handling exists. `TestP000C001StaffDomainAllowlistGate` proves the three staff domains can reach role mapping while non-staff domains are denied before role mapping; `TestP000C001DevAndStagingShareStaffDomainGate` proves the repository default staff-domain policy is identical for development and staging configuration loading.
   - Group and attribute mappings are case-insensitive for matching. Role ids and site ids should use the same stable application ids documented in the permissions matrix and route behavior.
   - DEV persona switching remains isolated to development endpoints and must not become a production authorization source.
   - This boundary does not yet validate SAML assertions, create a production session cookie, persist manual site-scope mappings in the database, or implement the local breakglass runtime. Those are follow-up implementation steps after Google Workspace SAML metadata, group names, attribute names, and manual site-scope administration decisions are approved.
@@ -2269,7 +2272,6 @@
 ## Transactions and Ordering
 - All FSM transitions, extension mutations, and room-scoped mutations run in `SERIALIZABLE` transactions.
 - `jobs` and `event_outbox` use sequence-backed `global_tick`; strict ordering must use `global_tick`, never UUID sort order.
-- `internal/db.ListOutboxEvents` reads event outbox rows by `global_tick asc` and returns `OutboxEvent.GlobalTick` as the sequencing value; the row id is only an identity field and must not drive publisher order.
 - `internal/db` must expose `WithRetry(ctx, pool, fn)` with jittered exponential backoff for `40001` and deadlock-class failures, up to 5 attempts.
 
 ## Allocation and Resource Safety
@@ -2319,8 +2321,8 @@
   - `internal/db.ClaimNextJob` claims the oldest eligible queued job by `global_tick`, moves it to `running`, and records `lease_owner`, `lease_expires_at`, and `lease_heartbeat_at`
   - `internal/db.RecoverExpiredJobLeases` finds expired `running` leases with `FOR UPDATE SKIP LOCKED`, moves them to `recovering`, clears claim ownership, returns the previous owner and nullable heartbeat details for runtime evidence, and also returns already-`recovering` rows so an interrupted recovery loop can reconcile them on the next pass
   - `internal/db.ReconcileRecoveredJob` checks `external_request_log` before requeueing; an existing `outcome = 'succeeded'` row marks the job `succeeded` without another execution, while no success row moves the job back to `queued` and increments `attempt_count`
-  - `internal/db.ListOutboxEvents` reads `event_outbox` rows in `global_tick` order for Phase 0 ordering evidence and future publisher loops; it is read-only and does not acknowledge, delete, publish, or write provider state
   - worker and recovery-loop callers must run these primitives inside `internal/db.WithRetry` so recovery preserves the repository's `SERIALIZABLE` transaction rule
+  - `internal/db.ListOutboxEvents` reads `event_outbox` rows in `global_tick` order for Phase 0 ordering evidence and future publisher loops; it is read-only and does not acknowledge, delete, publish, or write provider state
   - staging evidence for `P0-0B-001` should run the same claim, expired-lease recovery, and external-request-log reconciliation flow against staging infrastructure without manual database repair
   - staging evidence for `P0-0B-002` should insert concurrent jobs and outbox events in staging-safe configuration, then show selected rows follow `global_tick` order even when row ids, UUID-backed subjects, or timestamps do not provide the same ordering guarantee
 - Starting with Phase 2, live writeback also requires a what-if validation pass before provider mutation and a pilot allowlist check immediately before the write call. The only approved live-write targets are `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org` until a later project-owner-approved PR explicitly changes the merged allowlist. Provider workers must treat any non-allowlisted, ambiguous, missing, or unmerged-approval target as a hard pre-write denial, not as a warning or manual override.
@@ -2608,7 +2610,6 @@
 - SSE uses durable outbox plus Postgres `LISTEN/NOTIFY`.
 - Replay backfill is capped to the last 100 events or 10 minutes, whichever is smaller; older clients receive `resync_required`.
 - `system_controls.global_pause` is the global kill switch; the orchestrator must honor it before claiming work and between steps while leaving UI and diagnostics online.
-- Phase 0 claim enforcement for `P0-0C-006` lives at `internal/db.ClaimNextJob`: the worker claim boundary reads `system_controls.global_pause` before mutating `jobs`, returns `ErrGlobalPauseActive` when the row is enabled, and does not create a new lease while paused. Dev and staging evidence should pair that no-claim proof with a lightweight UI or diagnostic read so the emergency cutoff is proven without treating pause as a service outage.
 - Health endpoints:
   - `/health/live`
   - `/health/ready`
@@ -2619,7 +2620,6 @@
 
 ## Provider Protection
 - Circuit breakers use exponential backoff `1s → 2s → 4s`, then pause only the affected queue for 15 minutes before a half-open probe.
-- Phase 0 provider readiness is a client-initialization and connectivity boundary, not a writeback boundary. Development readiness uses mock clients for `zoom`, `google`, `aeries`, and `sftp`; those mock checks must return success without calling outbound probes or provider write APIs. Staging readiness may disable individual mocks only for read-only probes configured with non-production or masked credentials outside the repository, and diagnostics may include only non-secret endpoint/account labels. The operational procedure and evidence expectations live in `docs/operations/provider-readiness.md`.
 
 ## Orchestration Loops and Provider Workflows
 - Orchestration is durable:
