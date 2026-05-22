@@ -954,7 +954,8 @@ function activeWorkspaceForIssue(issue, dispatchConfig) {
         };
       }
       if (state.status === "failed") {
-        const attempts = Number(state.attempts || 1);
+        const parsedAttempts = Number(state.attempts || 1);
+        const attempts = Number.isFinite(parsedAttempts) ? parsedAttempts : dispatchConfig.maxAttempts;
         if (attempts >= dispatchConfig.maxAttempts) {
           return {
             workspace: workspacePath,
@@ -1059,6 +1060,24 @@ function rankedDispatchQueue(issues, prs, mergedPrs, dispatchConfig) {
 
 function issueWorkspacePath(issue, dispatchConfig) {
   return path.join(dispatchConfig.workspaceRoot, `issue-${issue.number}-${issueSlug(issue)}`);
+}
+
+function issueDispatchWorkspacePath(issue, dispatchConfig) {
+  const currentPath = issueWorkspacePath(issue, dispatchConfig);
+  const resolvedPath = findIssueWorkspace(issue, dispatchConfig);
+  if (path.resolve(currentPath) === path.resolve(resolvedPath)) return currentPath;
+  const branchName = issueBranchName(issue, dispatchConfig);
+  if (workspaceRepoMatchesBranch(resolvedPath, branchName)) return resolvedPath;
+  const statePath = path.join(resolvedPath, "state.json");
+  if (fs.existsSync(statePath)) {
+    try {
+      const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      if (String(state.branch || "") === branchName) return resolvedPath;
+    } catch {
+      return resolvedPath;
+    }
+  }
+  return currentPath;
 }
 
 const WORKTREE_TEARDOWN_GENERATED_CACHE_DIRS = [".gomodcache", ".gocache", path.join("node_modules", ".cache")];
@@ -1264,7 +1283,7 @@ function hasUnattemptedReadyToMergePr(prMergeQueue, prMergeResults) {
   );
 }
 
-function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus = null, workspaceState = null }) {
+function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus = null, workspaceState = null, workspacePath = null }) {
   const routedSkills = routeSkills(`${issue.title}\n${issue.body || ""}`, skills);
   const skillSection =
     routedSkills.length === 0
@@ -1279,6 +1298,7 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatu
           .join("\n\n");
   const targetBranch = issueTargetBranch(issue, dispatchConfig);
   const branchName = issueBranchName(issue, dispatchConfig);
+  const renderedWorkspacePath = workspacePath || issueWorkspacePath(issue, dispatchConfig);
   const existingWorkspaceSection =
     dirtyStatus?.dirty_files?.length > 0 || workspaceState?.status
       ? [
@@ -1307,7 +1327,7 @@ function renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatu
     `Issue URL: ${issue.url}`,
     `Target branch: ${targetBranch}`,
     `Working branch: ${branchName}`,
-    `Workspace root: ${issueWorkspacePath(issue, dispatchConfig)}`,
+    `Workspace root: ${renderedWorkspacePath}`,
     "",
     "## Issue Body",
     "",
@@ -2087,7 +2107,7 @@ async function ensureReviewRemediationDispatch({ pr, issues, dispatchConfig, wor
 }
 
 async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills, dryRun }) {
-  const workspacePath = findIssueWorkspace(issue, dispatchConfig);
+  const workspacePath = issueDispatchWorkspacePath(issue, dispatchConfig);
   const repoPath = path.join(workspacePath, "repo");
   const logsPath = path.join(workspacePath, "logs");
   const promptPath = path.join(workspacePath, "prompt.md");
@@ -2156,7 +2176,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
     }
   }
 
-  const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus, workspaceState: priorState });
+  const prompt = renderIssuePrompt({ issue, dispatchConfig, workflow, skills, dirtyStatus, workspaceState: priorState, workspacePath });
   fs.writeFileSync(promptPath, `${prompt}\n`);
   const runner = dispatchConfig.agentRunnerCommand
     ? await runAgentRunner({
@@ -3753,6 +3773,10 @@ async function selfTest() {
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, true);
     fs.writeFileSync(retryStatePath, JSON.stringify({ status: "failed", attempts: 4 }));
     assert.equal(classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig).eligible, false);
+    fs.writeFileSync(retryStatePath, JSON.stringify({ status: "failed", attempts: "legacy-corrupt" }));
+    const invalidAttemptClassification = classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig);
+    assert.equal(invalidAttemptClassification.eligible, false);
+    assert.match(invalidAttemptClassification.reason, /active workspace already exists/);
     fs.writeFileSync(retryStatePath, JSON.stringify({ status: "succeeded", attempts: 1 }));
     const succeededWorkspaceClassification = classifyIssueForDispatch(phaseIssue, [], [], retryDispatchConfig);
     assert.equal(succeededWorkspaceClassification.eligible, true);
@@ -4000,6 +4024,19 @@ async function selfTest() {
     run("git", ["commit", "--allow-empty", "-m", "old slug workspace"], { cwd: oldSlugRepo });
     run("git", ["update-ref", "refs/remotes/origin/codex/issue-267-review-remediation", "HEAD"], { cwd: oldSlugRepo });
     assert.equal(findIssueWorkspace({ number: 267, title: "New title" }, dispatchConfig), oldSlugWorkspace);
+    assert.equal(
+      issueDispatchWorkspacePath({ number: 267, title: "New title" }, dispatchConfig),
+      issueWorkspacePath({ number: 267, title: "New title" }, dispatchConfig),
+    );
+    const legacyWorkspacePrompt = renderIssuePrompt({
+      issue: { number: 267, title: "New title", body: "", url: "https://example.invalid/issues/267" },
+      dispatchConfig,
+      workflow: reviewWorkflow,
+      skills: fakeSkills,
+      workspacePath: oldSlugWorkspace,
+    });
+    assert.match(legacyWorkspacePrompt, new RegExp(`Workspace root: ${oldSlugWorkspace.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.doesNotMatch(legacyWorkspacePrompt, /Workspace root: .*issue-267-new-title/);
     const slugDriftResult = await ensureReviewRemediationDispatch({
       pr: {
         number: 288,
