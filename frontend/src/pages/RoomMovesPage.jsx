@@ -41,6 +41,7 @@ const ROOM_MOVES_TABLE_COLUMNS = [
 const BULK_COLUMNS = [
   { key: "person", label: "Person", value: (row) => [row.person, row.email, row.phone].join(" ") },
   { key: "current_room", label: "Current Room", value: (row) => row.current_room },
+  { key: "source_role", label: "Relationship", value: (row) => sourceRoleLabel(row.source_role) },
   { key: "destination_site", label: "Destination Site", value: (row) => row.destination_site },
   { key: "destination_room", label: "Destination Room", value: (row) => row.destination_room },
   { key: "action", label: "Action", value: (row) => row.action },
@@ -182,6 +183,22 @@ function personAutocompleteLabel(person) {
 function bulkPersonLabel(person) {
   const extension = person.phone ? `ext ${person.phone}` : "no extension";
   return `${person.name} · ${person.email} · ${extension}`;
+}
+
+function sourceRoleLabel(role) {
+  switch (role) {
+    case "primary":
+    case "last_primary":
+      return "Primary room";
+    case "secondary":
+      return "Secondary room";
+    case "tertiary":
+      return "Tertiary room";
+    case "slg_only":
+      return "Shared-line only";
+    default:
+      return "Room membership";
+  }
 }
 
 function findPersonFromAutocompleteValue(people, value) {
@@ -594,6 +611,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
           next.current_site = person.site;
           next.current_room_id = person.current_room_id;
           next.current_room = person.current_room;
+          next.source_role = person.source_role || "";
           next.destination_site_id = person.site_id;
           next.destination_site = person.site;
           next.destination_room_id = person.current_room_id || "none";
@@ -603,6 +621,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
       if (action === "add") {
         next.current_room_id = "none";
         next.current_room = "";
+        next.source_role = "";
       }
       if (action === "removal") {
         next.destination_room_id = "none";
@@ -629,6 +648,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
         employee_id: "",
         current_room: "",
         current_room_id: "none",
+        source_role: "",
         destination_site_id: page.scope_site.id,
         destination_site: page.scope_site.name,
         destination_room_id: "none",
@@ -716,6 +736,7 @@ function BulkDraftTable({ bounds, page, onSave, onTransition, onDelete }) {
               ))}
             </select>
             <div>{row.current_room || "—"}</div>
+            <div className="room-moves-runtime__source-role">{sourceRoleLabel(row.source_role)}</div>
             {page.can_manage_district ? (
               <select
                 value={row.destination_site_id}

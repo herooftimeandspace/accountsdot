@@ -573,6 +573,7 @@ type roomMoveDraftTestPayload struct {
 		CurrentSiteID      string   `json:"current_site_id"`
 		CurrentRoomID      string   `json:"current_room_id"`
 		CurrentRoom        string   `json:"current_room"`
+		SourceRole         string   `json:"source_role"`
 		DestinationSiteID  string   `json:"destination_site_id"`
 		DestinationRoomID  string   `json:"destination_room_id"`
 		DestinationRoom    string   `json:"destination_room"`
@@ -3939,6 +3940,31 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 				t.Fatalf("site secretary received out-of-site room option %#v", room)
 			}
 		}
+		secretaryRosterBody, err := json.Marshal(map[string]any{
+			"mode": "end_of_year_site_move",
+		})
+		if err != nil {
+			t.Fatalf("marshal secretary roster draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(secretaryRosterBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(secretaryCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("site secretary roster draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		secretaryRoster := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		secretaryRowsByPerson := map[string]int{}
+		for _, row := range secretaryRoster.Draft.Rows {
+			if row.CurrentSiteID != "clover-hs" || row.DestinationSiteID != "clover-hs" {
+				t.Fatalf("site secretary roster row = %#v, want only scoped-site memberships", row)
+			}
+			secretaryRowsByPerson[row.PersonID]++
+		}
+		if secretaryRowsByPerson["morgan-lee"] != 2 || secretaryRowsByPerson["casey-nguyen"] != 3 {
+			t.Fatalf("site secretary roster rows by person = %#v, want repeated rows for multi-room and SLG-only memberships", secretaryRowsByPerson)
+		}
 		foundITAuthoredAssignedSiteRow := false
 		for _, row := range sitePayload.Page.Rows {
 			if row.CurrentSiteID != "clover-hs" {
@@ -4374,6 +4400,32 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		roster := decodeJSON[roomMoveDraftTestResponse](t, rec)
 		if roster.Draft.Mode != "end_of_year_site_move" || len(roster.Draft.Rows) < 2 {
 			t.Fatalf("roster draft = %#v, want clover roster rows", roster.Draft)
+		}
+		morganRows := 0
+		caseyRows := 0
+		sourceRoles := map[string]bool{}
+		for _, row := range roster.Draft.Rows {
+			if row.CurrentSiteID != "clover-hs" || row.DestinationSiteID != "clover-hs" {
+				t.Fatalf("roster row = %#v, want only clover-scoped current memberships", row)
+			}
+			if row.DestinationRoomID != "none" {
+				t.Fatalf("roster row = %#v, want Site Rollover destination placeholder", row)
+			}
+			sourceRoles[row.SourceRole] = true
+			switch row.PersonID {
+			case "morgan-lee":
+				morganRows++
+			case "casey-nguyen":
+				caseyRows++
+			}
+		}
+		if morganRows != 2 || caseyRows != 3 {
+			t.Fatalf("roster repeated-person rows: Morgan=%d Casey=%d rows=%#v, want every room and classroom SLG membership", morganRows, caseyRows, roster.Draft.Rows)
+		}
+		for _, role := range []string{"primary", "last_primary", "secondary", "tertiary", "slg_only"} {
+			if !sourceRoles[role] {
+				t.Fatalf("roster source roles = %#v, want %s classification represented", sourceRoles, role)
+			}
 		}
 		placeholderRow := roster.Draft.Rows[0]
 		if placeholderRow.Action != "change" || placeholderRow.DestinationRoomID != "none" {

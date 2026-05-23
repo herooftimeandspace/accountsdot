@@ -1843,7 +1843,7 @@ input {
 .room-moves-runtime__bulk-header,
 .room-moves-runtime__bulk-row {
   display: grid;
-  grid-template-columns: minmax(300px, 1.7fr) 112px minmax(150px, 0.9fr) minmax(140px, 0.85fr) 96px 92px;
+  grid-template-columns: minmax(260px, 1.45fr) 96px minmax(110px, 0.68fr) minmax(140px, 0.82fr) minmax(130px, 0.78fr) 88px 84px;
   column-gap: 12px;
   align-items: center;
 }
@@ -1887,6 +1887,11 @@ input {
 
 .room-moves-runtime__bulk-row > div {
   min-width: 0;
+}
+
+.room-moves-runtime__source-role {
+  font-weight: 700;
+  color: var(--color-navy);
 }
 
 .room-moves-runtime__bulk-row button {
