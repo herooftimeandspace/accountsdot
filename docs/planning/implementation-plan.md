@@ -1983,8 +1983,10 @@
     - current extension
     - current shared line groups
     - current room
+    - source relationship classification for the current room row, using `Primary room`, `Secondary room`, `Tertiary room`, or `Shared-line only` when the source data supports that distinction
     - editable new-room input using a dropdown or data-validated text box
     - easy affordance to copy current room into new room
+  - site-rollover draft population must expand the current site state into one editable row per current room relationship. A person with multiple same-site room associations appears in multiple linked rows, and classroom shared line group memberships in the documented site room range appear even when the person is not the primary desk-phone assignee. Department shared line groups remain outside this workflow unless a later department workflow opts in.
   - the room-move editor must support adding new people at the bottom of the move list for expected arrivals not yet fully present in HR or IT systems
   - each row must support an explicit move action indicator:
     - `add`

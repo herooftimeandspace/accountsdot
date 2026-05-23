@@ -364,12 +364,13 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Draft creation modes:
 - `Move Person` opens a right-hand drawer for a one-person correction with employee ID, email, or name search, current room context, destination room, and IT-only destination-site control
 - `Batch Move` creates a blank bulk draft where the user can add searchable rows one at a time
-- `Site Rollover` creates a draft preloaded with every eligible employee or contractor at the scoped site
+- `Site Rollover` creates a draft preloaded with every eligible employee or contractor room relationship at the scoped site. The preload is membership-based rather than person-deduped: a person assigned to multiple same-site rooms appears in multiple linked rows, and classroom shared line group memberships in the documented site room range appear as editable room rows even when the person is not the primary desk-phone assignee. Department shared line groups remain separate from this workflow.
 - Destination-room defaults:
   - `None` must appear first in destination-room dropdowns
   - destination-room dropdowns must show one unique option per room value; duplicate `None` or duplicate room labels from DEV mocks or provider payloads should collapse to a single selectable value
   - for same-site moves, the default destination room is the person’s current room when that room exists in the destination site
   - site-rollover roster drafts are the exception to the same-site current-room default: preloaded roster rows persist destination room as `None` until the operator selects the actual destination room, so the initial draft never stores a no-op same-room move
+  - bulk draft rows include a `Relationship` classification for the current room source, using `Primary room`, `Secondary room`, `Tertiary room`, or `Shared-line only` when source data supports those labels
   - manually submitted or edited draft rows must reject no-op same-room moves by stable current-room and destination-room id before draft persistence, scheduling, or apply
   - for inter-site moves, the destination room defaults to `None`
   - if a person is moving sites, the destination room should be set to none

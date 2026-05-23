@@ -144,7 +144,7 @@ type roomMoveDraftRow struct {
 	CurrentSite        string   `json:"current_site"`
 	CurrentRoomID      string   `json:"current_room_id"`
 	CurrentRoom        string   `json:"current_room"`
-	SourceRole         string   `json:"-"`
+	SourceRole         string   `json:"source_role,omitempty"`
 	DestinationSiteID  string   `json:"destination_site_id"`
 	DestinationSite    string   `json:"destination_site"`
 	DestinationRoomID  string   `json:"destination_room_id"`
@@ -186,6 +186,18 @@ type roomMoveRoomOption struct {
 	Site   string `json:"site"`
 }
 
+// roomMoveCurrentMembership represents one current room relationship before it
+// becomes an editable bulk-draft row. The DEV mock keeps it separate from
+// roomMovePersonOption so Site Rollover can include secondary and SLG-only room
+// memberships without duplicating the person picker records.
+type roomMoveCurrentMembership struct {
+	PersonID string
+	SiteID   string
+	RoomID   string
+	Role     string
+	SourceID string
+}
+
 type roomMoveDraftRequest struct {
 	Mode          string             `json:"mode"`
 	PersonID      string             `json:"person_id"`
@@ -206,6 +218,10 @@ type devRoomMoveStoreState struct {
 	completed map[string]bool
 	canceled  map[string]bool
 	jobs      map[string]roomMoveCompletedJobPayload
+}
+
+type roomMoveNormalizeOptions struct {
+	trustCompletedRevertRows bool
 }
 
 func newDevRoomMoveStore() *devRoomMoveStoreState {
@@ -763,12 +779,12 @@ func (s *devRoomMoveStoreState) updateDraft(config devPersonaConfig, draftID str
 	if request.ScopeSiteID == "" {
 		request.ScopeSiteID = existing.ScopeSiteID
 	}
+	if request.Mode == "" {
+		request.Mode = existing.Mode
+	}
 	draft, status, errors := buildRoomMoveDraft(config, draftID, request)
 	if status != http.StatusOK {
 		return roomMoveDraftPayload{}, status, errors
-	}
-	if request.Mode == "" {
-		draft.Mode = existing.Mode
 	}
 	if request.EffectiveDate == "" {
 		draft.EffectiveDate = existing.EffectiveDate
@@ -799,7 +815,7 @@ func (s *devRoomMoveStoreState) transitionDraft(config devPersonaConfig, draftID
 	if s.canceled[draft.ID] {
 		return roomMoveDraftPayload{}, http.StatusConflict, map[string]string{"draft": "Canceled drafts cannot be scheduled or applied."}
 	}
-	if status, errors := validateRoomMoveRowsForTransition(draft.Rows); status != http.StatusOK {
+	if status, errors := validateRoomMoveRowsForTransition(draft.Mode, draft.Rows); status != http.StatusOK {
 		return roomMoveDraftPayload{}, status, errors
 	}
 	if action == "schedule" {
@@ -954,16 +970,23 @@ func (s *devRoomMoveStoreState) scheduleRevert(config devPersonaConfig, jobID st
 		rows = append(rows, roomMoveDraftRow{
 			ID:                "revert-" + row.ID,
 			PersonID:          row.PersonID,
+			CurrentSiteID:     row.DestinationSiteID,
+			CurrentRoomID:     row.DestinationRoomID,
+			CurrentRoom:       row.DestinationRoom,
+			SourceRole:        normalizeRoomMoveSourceRole(row.DestinationRole),
 			DestinationSiteID: row.CurrentSiteID,
 			DestinationRoomID: row.CurrentRoomID,
+			DestinationRole:   normalizeRoomMoveDestinationRole(row.SourceRole),
 			Action:            "revert",
 		})
 	}
-	draft, status, errors := buildRoomMoveDraft(config, revertID, roomMoveDraftRequest{
+	draft, status, errors := buildRoomMoveDraftWithOptions(config, revertID, roomMoveDraftRequest{
 		Mode:          job.Mode,
 		ScopeSiteID:   job.ScopeSiteID,
 		EffectiveDate: "2026-05-11",
 		Rows:          rows,
+	}, roomMoveNormalizeOptions{
+		trustCompletedRevertRows: true,
 	})
 	if status != http.StatusOK {
 		return roomMoveDraftPayload{}, status, errors
@@ -1010,6 +1033,10 @@ func (s *devRoomMoveStoreState) ensureBulkDraft(config devPersonaConfig, draftID
 }
 
 func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMoveDraftRequest) (roomMoveDraftPayload, int, map[string]string) {
+	return buildRoomMoveDraftWithOptions(config, draftID, request, roomMoveNormalizeOptions{})
+}
+
+func buildRoomMoveDraftWithOptions(config devPersonaConfig, draftID string, request roomMoveDraftRequest, options roomMoveNormalizeOptions) (roomMoveDraftPayload, int, map[string]string) {
 	mode := strings.TrimSpace(request.Mode)
 	if mode == "" {
 		mode = roomMoveTypeSingle
@@ -1034,14 +1061,17 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 		rows = []roomMoveDraftRow{draftRowFromPerson(person, person.SiteID, person.CurrentRoomID)}
 	}
 	if mode == roomMoveTypeBulkRoster && len(rows) == 0 {
-		for _, person := range roomMovePeopleForSite(scopeSite.ID) {
-			rows = append(rows, draftRowFromPerson(person, person.SiteID, "none"))
+		for _, membership := range roomMoveMembershipsForSite(scopeSite.ID) {
+			row, ok := draftRowFromMembership(membership)
+			if ok {
+				rows = append(rows, row)
+			}
 		}
 	}
 	if mode == roomMoveTypeBuildList && rows == nil {
 		rows = []roomMoveDraftRow{}
 	}
-	normalizedRows, warnings, status, errors := normalizeRoomMoveRows(config, scopeSite, rows)
+	normalizedRows, warnings, status, errors := normalizeRoomMoveRows(config, scopeSite, mode, rows, options)
 	if status != http.StatusOK {
 		return roomMoveDraftPayload{}, status, errors
 	}
@@ -1064,10 +1094,13 @@ func buildRoomMoveDraft(config devPersonaConfig, draftID string, request roomMov
 
 // normalizeRoomMoveRows converts client-supplied draft rows into the canonical DEV mock payload saved by createDraft
 // and updateDraft. The action-specific branches are user-visible: add rows clear prior room state, and removal rows
-// always save destination room None so reloads continue to represent removal from room phones, SLGs, and queues. The
+// always save destination room None so reloads continue to represent removal from room phones, SLGs, and queues. Site
+// Rollover rows with membership-shaped ids must keep their server-issued membership row id so a hostile request cannot
+// fall back from membership-level source data to person-level defaults. Manual and legacy rows are still accepted in
+// roster mode, but their current-room source is rebuilt from trusted server-side person or completed-job context. The
 // repeated-user pass preserves every same-person row and models the Phase 3 planner contract for one primary desk-phone
 // owner plus secondary, tertiary, or later-order shared-line-group memberships.
-func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, rows []roomMoveDraftRow) ([]roomMoveDraftRow, []string, int, map[string]string) {
+func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, mode string, rows []roomMoveDraftRow, options roomMoveNormalizeOptions) ([]roomMoveDraftRow, []string, int, map[string]string) {
 	normalized := make([]roomMoveDraftRow, 0, len(rows))
 	warnings := []string{}
 	for index, row := range rows {
@@ -1102,8 +1135,12 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		if action == "removal" {
 			destinationRole = "removal"
 		}
-		if roomMoveIsSameStableRoom(person, destinationSiteID, destinationRoomID, action) {
-			return nil, nil, http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, person.CurrentRoom)}
+		currentRoomID, currentRoom, sourceRole, sourceError := trustedRoomMoveSourceForRow(scopeSite, mode, row, person, action, options)
+		if sourceError != "" {
+			return nil, nil, http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.id", index): sourceError}
+		}
+		if roomMoveIsSameStableRoomID(person.SiteID, currentRoomID, destinationSiteID, destinationRoomID, action) {
+			return nil, nil, http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, currentRoom)}
 		}
 		room := roomMoveRoomByID(destinationRoomID, destinationSiteID)
 		warning := row.Warning
@@ -1118,7 +1155,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 		fallbackStatus := row.FallbackStatus
 		technicalOutcome := row.TechnicalOutcome
 		phoneOutcome := person.Phone
-		if destinationRoomID == "none" && person.CurrentRoomID != "none" && !roomMoveIsNeutralRolloverPlaceholder(person, destinationSiteID, destinationRoomID, action) {
+		if destinationRoomID == "none" && currentRoomID != "none" && !roomMoveIsNeutralRolloverPlaceholderRowForSource(person.SiteID, currentRoomID, destinationSiteID, destinationRoomID, action) {
 			warning = fmt.Sprintf("Destination room for %s is None; phone and room assignments will be removed.", person.Name)
 			warnings = appendUniqueString(warnings, warning)
 			phoneOutcome = "Remove phone and SLGs; convert room to common area"
@@ -1138,11 +1175,10 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			manualActionReason = ""
 			warnings = appendUniqueString(warnings, warning)
 		}
-		currentRoomID := person.CurrentRoomID
-		currentRoom := person.CurrentRoom
 		if action == "add" {
 			currentRoomID = "none"
 			currentRoom = ""
+			sourceRole = ""
 		}
 		normalized = append(normalized, roomMoveDraftRow{
 			ID:                 firstNonEmpty(row.ID, fmt.Sprintf("row-%02d-%s", index+1, person.ID)),
@@ -1154,7 +1190,7 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 			CurrentSite:        person.Site,
 			CurrentRoomID:      currentRoomID,
 			CurrentRoom:        currentRoom,
-			SourceRole:         person.SourceRole,
+			SourceRole:         sourceRole,
 			DestinationSiteID:  destinationSiteID,
 			DestinationSite:    destinationSite.Name,
 			DestinationRoomID:  destinationRoomID,
@@ -1183,6 +1219,83 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, ro
 	return normalized, warnings, http.StatusOK, nil
 }
 
+// trustedRoomMoveSourceForRow rebuilds the current-room fields that createDraft,
+// updateDraft, and transition validation trust for Room Moves. Direct API
+// payloads may carry stale or hostile current_room_id/current_room/source_role
+// values, so normalization resolves Site Rollover membership-shaped rows from
+// the server-side membership seed encoded in the row id and resolves manual or
+// legacy person rows from trusted server-side person data. Completed-job revert
+// rows are generated by scheduleRevert from stored DEV job rows, so they keep
+// the completed row's current-room context even when the original completed row
+// was manually added or seeded with a legacy person-style id. Destination room,
+// destination site, action, and destination role remain operator-editable.
+func trustedRoomMoveSourceForRow(scopeSite devSiteContext, mode string, row roomMoveDraftRow, person roomMovePersonOption, action string, options roomMoveNormalizeOptions) (string, string, string, string) {
+	if action == "add" {
+		return "none", "", "", ""
+	}
+	if mode != roomMoveTypeBulkRoster {
+		currentRoomID := person.CurrentRoomID
+		room := roomMoveRoomByID(currentRoomID, person.SiteID)
+		return currentRoomID, firstNonEmpty(room.Label, person.CurrentRoom), normalizeRoomMoveSourceRole(person.SourceRole), ""
+	}
+	if action == "revert" && options.trustCompletedRevertRows && strings.HasPrefix(row.ID, "revert-") {
+		originalRow := row
+		originalRow.ID = strings.TrimPrefix(row.ID, "revert-")
+		if membership, ok := roomMoveMembershipForDraftRow(scopeSite.ID, originalRow, person.ID); ok {
+			if membership.SiteID != person.SiteID {
+				return "", "", "", "Site Rollover membership row does not match that person's site."
+			}
+			if row.CurrentRoomID == "" {
+				return "", "", "", "Completed Site Rollover revert row is missing the current room."
+			}
+			currentRoomID := row.CurrentRoomID
+			room := roomMoveRoomByID(currentRoomID, firstNonEmpty(row.CurrentSiteID, membership.SiteID))
+			return currentRoomID, room.Label, firstNonEmpty(normalizeRoomMoveSourceRole(row.SourceRole), normalizeRoomMoveSourceRole(membership.Role)), ""
+		}
+		if roomMoveRowIDRequiresMembership(scopeSite.ID, originalRow.ID, person.ID) {
+			return "", "", "", "Unknown Site Rollover membership row."
+		}
+		if row.CurrentRoomID == "" {
+			return "", "", "", "Completed Site Rollover revert row is missing the current room."
+		}
+		currentSiteID := firstNonEmpty(row.CurrentSiteID, person.SiteID)
+		currentRoomID := row.CurrentRoomID
+		room := roomMoveRoomByID(currentRoomID, currentSiteID)
+		return currentRoomID, firstNonEmpty(room.Label, row.CurrentRoom), normalizeRoomMoveSourceRole(row.SourceRole), ""
+	}
+	if membership, ok := roomMoveMembershipForDraftRow(scopeSite.ID, row, person.ID); ok {
+		if membership.SiteID != person.SiteID {
+			return "", "", "", "Site Rollover membership row does not match that person's site."
+		}
+		room := roomMoveRoomByID(membership.RoomID, membership.SiteID)
+		return membership.RoomID, room.Label, normalizeRoomMoveSourceRole(membership.Role), ""
+	}
+	if mode == roomMoveTypeBulkRoster && roomMoveRowIDRequiresMembership(scopeSite.ID, row.ID, person.ID) {
+		return "", "", "", "Unknown Site Rollover membership row."
+	}
+	currentRoomID := person.CurrentRoomID
+	room := roomMoveRoomByID(currentRoomID, person.SiteID)
+	return currentRoomID, firstNonEmpty(room.Label, person.CurrentRoom), normalizeRoomMoveSourceRole(person.SourceRole), ""
+}
+
+// roomMoveRowIDRequiresMembership distinguishes server-issued Site Rollover membership row ids from manual frontend
+// rows (`new-*`) and legacy seeded completed-job rows (`row-<person>`). Membership-shaped ids must resolve back to a
+// known room membership for the submitted person and scoped site before normalization can trust row-level source room
+// data. Exact membership ids owned by another person still require membership validation so a crafted row cannot pair
+// one person's trusted membership identity with another person's person-level defaults.
+func roomMoveRowIDRequiresMembership(siteID string, rowID string, personID string) bool {
+	rowID = strings.TrimSpace(rowID)
+	if rowID == "" {
+		return false
+	}
+	for _, membership := range roomMoveMembershipsForSite(siteID) {
+		if roomMoveMembershipRowID(membership) == rowID {
+			return true
+		}
+	}
+	return strings.HasPrefix(rowID, "row-"+personID+"-")
+}
+
 func normalizeRoomMoveDestinationRole(role string) string {
 	switch strings.ToLower(strings.TrimSpace(role)) {
 	case "primary":
@@ -1193,6 +1306,27 @@ func normalizeRoomMoveDestinationRole(role string) string {
 		return "tertiary"
 	case "slg_only", "slg-only", "member":
 		return "member"
+	default:
+		return ""
+	}
+}
+
+// normalizeRoomMoveSourceRole preserves the current-room relationship labels
+// that the bulk draft table shows to secretaries. It accepts the vocabulary used
+// by seeded DEV memberships and collapses shared-line-only aliases to one value
+// before the row is persisted or returned from the API.
+func normalizeRoomMoveSourceRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "primary":
+		return "primary"
+	case "secondary":
+		return "secondary"
+	case "tertiary":
+		return "tertiary"
+	case "last_primary":
+		return "last_primary"
+	case "slg_only", "slg-only", "member":
+		return "slg_only"
 	default:
 		return ""
 	}
@@ -1406,7 +1540,7 @@ func seededBulkDraftFeedbackRows() []roomMoveDraftRow {
 			Action:            "add",
 		},
 		{
-			ID:                "row-morgan-lee-removal",
+			ID:                roomMoveMembershipRowID(roomMoveCurrentMembership{PersonID: "morgan-lee", SiteID: "clover-hs", RoomID: "cla-b210", Role: "last_primary", SourceID: "person-current"}),
 			PersonID:          "morgan-lee",
 			DestinationSiteID: "clover-hs",
 			DestinationRoomID: "cla-b204",
@@ -1525,6 +1659,102 @@ func roomMovePeopleForSite(siteID string) []roomMovePersonOption {
 	return people
 }
 
+// roomMoveMembershipsForSite is the DEV stand-in for the provider-backed
+// current room membership projection that will eventually merge Zoom primary
+// desk-phone state, classroom shared line group membership, and IncidentIQ room
+// association data. Site-rollover draft creation uses this list instead of the
+// unique-person picker so a secretary sees one editable row for each in-scope
+// room relationship without department shared line groups or out-of-site rooms.
+func roomMoveMembershipsForSite(siteID string) []roomMoveCurrentMembership {
+	memberships := []roomMoveCurrentMembership{}
+	for _, person := range roomMovePeopleSeed() {
+		if person.SiteID == siteID && person.CurrentRoomID != "" && person.CurrentRoomID != "none" {
+			memberships = append(memberships, roomMoveCurrentMembership{
+				PersonID: person.ID,
+				SiteID:   person.SiteID,
+				RoomID:   person.CurrentRoomID,
+				Role:     normalizeRoomMoveSourceRole(person.SourceRole),
+				SourceID: "person-current",
+			})
+		}
+	}
+	for _, membership := range roomMoveSharedLineMembershipSeed() {
+		if membership.SiteID == siteID && classroomRoomIDInSiteRange(membership.SiteID, membership.RoomID) {
+			memberships = append(memberships, membership)
+		}
+	}
+	return memberships
+}
+
+func roomMoveMembershipForDraftRow(siteID string, row roomMoveDraftRow, personID string) (roomMoveCurrentMembership, bool) {
+	if row.ID == "" {
+		return roomMoveCurrentMembership{}, false
+	}
+	for _, membership := range roomMoveMembershipsForSite(siteID) {
+		if membership.PersonID == personID && roomMoveMembershipRowID(membership) == row.ID {
+			return membership, true
+		}
+	}
+	return roomMoveCurrentMembership{}, false
+}
+
+func roomMoveMembershipRowID(membership roomMoveCurrentMembership) string {
+	sourceID := membership.SourceID
+	if sourceID == "" {
+		sourceID = firstNonEmpty(normalizeRoomMoveSourceRole(membership.Role), "membership")
+	}
+	return fmt.Sprintf("row-%s-%s-%s", membership.PersonID, membership.RoomID, roomMoveRowIDPart(sourceID))
+}
+
+func roomMoveRowIDPart(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	previousDash := false
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			previousDash = false
+			continue
+		}
+		if !previousDash {
+			b.WriteByte('-')
+			previousDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+// roomMoveSharedLineMembershipSeed supplies deterministic classroom shared-line
+// memberships for DEV bulk-draft tests. The final row is intentionally outside
+// the classroom room catalog so the membership filter proves department-style
+// shared lines do not leak into Site Rollover rows.
+func roomMoveSharedLineMembershipSeed() []roomMoveCurrentMembership {
+	return []roomMoveCurrentMembership{
+		{PersonID: "morgan-lee", SiteID: "clover-hs", RoomID: "cla-a108", Role: "secondary", SourceID: "zoom-slg-classroom-a108"},
+		{PersonID: "casey-nguyen", SiteID: "clover-hs", RoomID: "cla-b204", Role: "slg_only", SourceID: "zoom-slg-classroom-b204"},
+		{PersonID: "casey-nguyen", SiteID: "clover-hs", RoomID: "cla-b204", Role: "slg_only", SourceID: "incidentiq-room-association-b204"},
+		{PersonID: "casey-nguyen", SiteID: "clover-hs", RoomID: "cla-b210", Role: "tertiary", SourceID: "incidentiq-room-association-b210"},
+		{PersonID: "jamie-reed", SiteID: "desert-view", RoomID: "dve-c122", Role: "secondary", SourceID: "zoom-slg-classroom-c122"},
+		{PersonID: "alex-ramirez", SiteID: "district-office", RoomID: "do-50001", Role: "slg_only", SourceID: "zoom-slg-department-50001"},
+	}
+}
+
+// classroomRoomIDInSiteRange applies the Room Moves classroom membership filter
+// before a seeded shared line becomes a roster row. Department-style 500-range
+// shared lines stay out of this room workflow even if a future seed accidentally
+// lists one beside classroom room memberships.
+func classroomRoomIDInSiteRange(siteID string, roomID string) bool {
+	if roomID == "none" || strings.Contains(roomID, "500") {
+		return false
+	}
+	for _, room := range roomMoveRoomsForSite(siteID) {
+		if room.ID == roomID {
+			return true
+		}
+	}
+	return false
+}
+
 func roomMoveRoomsForConfig(config devPersonaConfig) []roomMoveRoomOption {
 	rooms := []roomMoveRoomOption{}
 	seen := map[string]bool{}
@@ -1610,14 +1840,30 @@ func roomMovePersonIDByEmail(email string) string {
 // future room move when the stable destination id equals the person's current
 // room id at the same site.
 func roomMoveIsSameStableRoom(person roomMovePersonOption, destinationSiteID string, destinationRoomID string, action string) bool {
+	return roomMoveIsSameStableRoomID(person.SiteID, person.CurrentRoomID, destinationSiteID, destinationRoomID, action)
+}
+
+// roomMoveIsSameStableRoomID is the row-level variant of the same-room guard.
+// Membership-expanded roster rows may have a current room that differs from the
+// person's primary room, so normalization and transition validation call this
+// helper with the row's current room id instead of always using the person seed.
+func roomMoveIsSameStableRoomID(currentSiteID string, currentRoomID string, destinationSiteID string, destinationRoomID string, action string) bool {
 	if action == "add" || action == "removal" || action == "revert" || destinationRoomID == "" || destinationRoomID == "none" {
 		return false
 	}
-	return person.SiteID == destinationSiteID && person.CurrentRoomID == destinationRoomID
+	return currentSiteID == destinationSiteID && currentRoomID == destinationRoomID
 }
 
-func roomMoveIsNeutralRolloverPlaceholder(person roomMovePersonOption, destinationSiteID string, destinationRoomID string, action string) bool {
-	return action == "change" && person.SiteID == destinationSiteID && destinationRoomID == "none" && person.CurrentRoomID != "none"
+// roomMoveIsNeutralRolloverPlaceholderRow keeps Site Rollover membership rows
+// neutral until an operator chooses a destination. Without the row-level check,
+// an SLG-only or secondary current room could be mistaken for a removal because
+// the person seed only carries one primary current room.
+func roomMoveIsNeutralRolloverPlaceholderRow(row roomMoveDraftRow, destinationRoomID string, action string) bool {
+	return roomMoveIsNeutralRolloverPlaceholderRowForSource(row.CurrentSiteID, row.CurrentRoomID, row.DestinationSiteID, destinationRoomID, action)
+}
+
+func roomMoveIsNeutralRolloverPlaceholderRowForSource(currentSiteID string, currentRoomID string, destinationSiteID string, destinationRoomID string, action string) bool {
+	return action == "change" && currentSiteID == destinationSiteID && destinationRoomID == "none" && currentRoomID != "" && currentRoomID != "none"
 }
 
 // validateRoomMoveRowsForTransition reruns the same-room guard immediately
@@ -1625,17 +1871,22 @@ func roomMoveIsNeutralRolloverPlaceholder(person roomMovePersonOption, destinati
 // cannot bypass create/update validation and become planned provider work. It
 // also keeps untouched site-rollover placeholder rows from turning into
 // implicit room-removal work during schedule or apply.
-func validateRoomMoveRowsForTransition(rows []roomMoveDraftRow) (int, map[string]string) {
+func validateRoomMoveRowsForTransition(mode string, rows []roomMoveDraftRow) (int, map[string]string) {
 	for index, row := range rows {
 		person, ok := roomMovePersonByID(row.PersonID)
 		if !ok {
 			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.person_id", index): "Unknown person."}
 		}
-		if roomMoveIsNeutralRolloverPlaceholder(person, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
+		scopeSite := siteByID(row.CurrentSiteID)
+		currentRoomID, currentRoom, _, sourceError := trustedRoomMoveSourceForRow(scopeSite, mode, row, person, row.Action, roomMoveNormalizeOptions{})
+		if sourceError != "" {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.id", index): sourceError}
+		}
+		if roomMoveIsNeutralRolloverPlaceholderRowForSource(person.SiteID, currentRoomID, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
 			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("Choose a destination room for %s before scheduling or applying the room move.", person.Name)}
 		}
-		if roomMoveIsSameStableRoom(person, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
-			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, person.CurrentRoom)}
+		if roomMoveIsSameStableRoomID(person.SiteID, currentRoomID, row.DestinationSiteID, row.DestinationRoomID, row.Action) {
+			return http.StatusBadRequest, map[string]string{fmt.Sprintf("rows.%d.destination_room_id", index): fmt.Sprintf("%s is already in %s. Choose a different destination room.", person.Name, currentRoom)}
 		}
 	}
 	return http.StatusOK, nil
@@ -1742,6 +1993,38 @@ func draftRowFromPerson(person roomMovePersonOption, destinationSiteID string, d
 		Phone:             person.Phone,
 		Action:            "change",
 	}
+}
+
+// draftRowFromMembership turns one current room membership into the editable
+// Site Rollover row returned by the DEV mock API. Destination stays `None` so
+// the preload is a reviewable draft, not an implicit no-op move or removal.
+func draftRowFromMembership(membership roomMoveCurrentMembership) (roomMoveDraftRow, bool) {
+	person, ok := roomMovePersonByID(membership.PersonID)
+	if !ok {
+		return roomMoveDraftRow{}, false
+	}
+	if person.SiteID != membership.SiteID {
+		return roomMoveDraftRow{}, false
+	}
+	room := roomMoveRoomByID(membership.RoomID, membership.SiteID)
+	return roomMoveDraftRow{
+		ID:                roomMoveMembershipRowID(membership),
+		PersonID:          person.ID,
+		Person:            person.Name,
+		Email:             person.Email,
+		EmployeeID:        person.EmployeeID,
+		CurrentSiteID:     person.SiteID,
+		CurrentSite:       person.Site,
+		CurrentRoomID:     membership.RoomID,
+		CurrentRoom:       room.Label,
+		SourceRole:        normalizeRoomMoveSourceRole(membership.Role),
+		DestinationSiteID: person.SiteID,
+		DestinationSite:   person.Site,
+		DestinationRoomID: "none",
+		DestinationRoom:   "None",
+		Phone:             person.Phone,
+		Action:            "change",
+	}, true
 }
 
 func draftStatusLabel(status string) string {
