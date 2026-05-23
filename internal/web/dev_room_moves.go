@@ -1252,7 +1252,7 @@ func trustedRoomMoveSourceForRow(scopeSite devSiteContext, mode string, row room
 			room := roomMoveRoomByID(currentRoomID, firstNonEmpty(row.CurrentSiteID, membership.SiteID))
 			return currentRoomID, room.Label, firstNonEmpty(normalizeRoomMoveSourceRole(row.SourceRole), normalizeRoomMoveSourceRole(membership.Role)), ""
 		}
-		if roomMoveRowIDRequiresMembership(originalRow.ID, person.ID) {
+		if roomMoveRowIDRequiresMembership(scopeSite.ID, originalRow.ID, person.ID) {
 			return "", "", "", "Unknown Site Rollover membership row."
 		}
 		if row.CurrentRoomID == "" {
@@ -1270,7 +1270,7 @@ func trustedRoomMoveSourceForRow(scopeSite devSiteContext, mode string, row room
 		room := roomMoveRoomByID(membership.RoomID, membership.SiteID)
 		return membership.RoomID, room.Label, normalizeRoomMoveSourceRole(membership.Role), ""
 	}
-	if mode == roomMoveTypeBulkRoster && roomMoveRowIDRequiresMembership(row.ID, person.ID) {
+	if mode == roomMoveTypeBulkRoster && roomMoveRowIDRequiresMembership(scopeSite.ID, row.ID, person.ID) {
 		return "", "", "", "Unknown Site Rollover membership row."
 	}
 	currentRoomID := person.CurrentRoomID
@@ -1280,11 +1280,18 @@ func trustedRoomMoveSourceForRow(scopeSite devSiteContext, mode string, row room
 
 // roomMoveRowIDRequiresMembership distinguishes server-issued Site Rollover membership row ids from manual frontend
 // rows (`new-*`) and legacy seeded completed-job rows (`row-<person>`). Membership-shaped ids must resolve back to a
-// known room membership before normalization can trust row-level source room data.
-func roomMoveRowIDRequiresMembership(rowID string, personID string) bool {
+// known room membership for the submitted person and scoped site before normalization can trust row-level source room
+// data. Exact membership ids owned by another person still require membership validation so a crafted row cannot pair
+// one person's trusted membership identity with another person's person-level defaults.
+func roomMoveRowIDRequiresMembership(siteID string, rowID string, personID string) bool {
 	rowID = strings.TrimSpace(rowID)
 	if rowID == "" {
 		return false
+	}
+	for _, membership := range roomMoveMembershipsForSite(siteID) {
+		if roomMoveMembershipRowID(membership) == rowID {
+			return true
+		}
 	}
 	return strings.HasPrefix(rowID, "row-"+personID+"-")
 }

@@ -4711,6 +4711,28 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("tampered rollover row error = %s, want membership id rejection", rec.Body.String())
 		}
 
+		crossPersonRolloverRowBody, err := json.Marshal(map[string]any{
+			"mode":          "end_of_year_site_move",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"id": "row-casey-nguyen-cla-b204-zoom-slg-classroom-b204", "person_id": "morgan-lee", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal cross-person rollover row draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(crossPersonRolloverRowBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("cross-person rollover row returned %d, want 400: %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "Unknown Site Rollover membership row") {
+			t.Fatalf("cross-person rollover row error = %s, want membership id rejection", rec.Body.String())
+		}
+
 		crossSiteRolloverRowBody, err := json.Marshal(map[string]any{
 			"mode":          "end_of_year_site_move",
 			"scope_site_id": "clover-hs",
