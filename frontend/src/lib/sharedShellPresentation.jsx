@@ -9,6 +9,7 @@ import {
   clampSidebarOffset,
   sidebarOffsetForFocusedRect,
   sidebarOffsetForWheel,
+  sidebarWheelDeltaPixels,
 } from "./sharedShellSidebarScroll.mjs";
 
 const SIDEBAR_TEMPLATE = {
@@ -988,6 +989,9 @@ function SharedShellSidebarScrollManager({ visibleSidebarRows }) {
     }
 
     function handleWheel(event) {
+      if (event.ctrlKey) {
+        return;
+      }
       const bounds = readSidebarBounds();
       if (
         !Number.isFinite(bounds.left) ||
@@ -998,12 +1002,18 @@ function SharedShellSidebarScrollManager({ visibleSidebarRows }) {
         return;
       }
 
-      const nextOffset = sidebarOffsetForWheel(currentOffset, event.deltaY, remeasureGeometry());
-      if (nextOffset === currentOffset) {
-        return;
+      const geometry = remeasureGeometry();
+      const nextOffset = sidebarOffsetForWheel(
+        currentOffset,
+        sidebarWheelDeltaPixels(event.deltaY, event.deltaMode, geometry),
+        geometry,
+      );
+      if (event.cancelable) {
+        event.preventDefault();
       }
-      event.preventDefault();
-      publishOffset(nextOffset);
+      if (nextOffset !== currentOffset) {
+        publishOffset(nextOffset);
+      }
     }
 
     function handleFocusIn(event) {

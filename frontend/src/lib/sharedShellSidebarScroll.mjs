@@ -1,4 +1,5 @@
 const SIDEBAR_VIEWPORT_MARGIN = 12;
+const WHEEL_DELTA_LINE = 16;
 
 /**
  * clampSidebarOffset keeps the shared sidebar scroll offset within the range
@@ -24,6 +25,24 @@ export function clampSidebarOffset(offset, { viewportHeight, contentBottom, marg
  */
 export function sidebarOffsetForWheel(currentOffset, deltaY, geometry) {
   return clampSidebarOffset(currentOffset - deltaY, geometry);
+}
+
+/**
+ * sidebarWheelDeltaPixels normalizes WheelEvent delta units before shared
+ * sidebar scroll math runs. SharedShellSidebarScrollManager uses this so line
+ * and page-mode wheels behave like pixel-mode trackpads instead of jumping
+ * straight to the sidebar's clamp bounds.
+ */
+export function sidebarWheelDeltaPixels(deltaY, deltaMode, geometry = {}) {
+  const numericDeltaY = Number.isFinite(deltaY) ? deltaY : 0;
+  if (deltaMode === 1) {
+    return numericDeltaY * WHEEL_DELTA_LINE;
+  }
+  if (deltaMode === 2) {
+    const viewportHeight = Math.max(0, Number(geometry?.viewportHeight) || 0);
+    return numericDeltaY * viewportHeight;
+  }
+  return numericDeltaY;
 }
 
 /**
