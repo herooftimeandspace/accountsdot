@@ -111,6 +111,7 @@ This document tracks the named mock scenarios and verification coverage required
     - conflict-surfacing evidence showing no silent normalization
     - projection-refresh evidence after successful import
     - evidence that projection-backed read surfaces expose freshness context without requiring live provider fan-out for list rendering
+    - source-precedence evidence for upstream/manual reconciliation outcomes documented in `docs/product/source-precedence.md`
   - `1B` onboarding/offboarding visibility and review-only mismatch queues
     - scope evidence for HR, Site Admin, and IT review surfaces
     - queue ownership evidence for review-only operational handling
@@ -149,6 +150,10 @@ This document tracks the named mock scenarios and verification coverage required
   | `P1-1A-002` | Source Conflict Surfaces Without Silent Normalization | Feed conflicting upstream values and verify the dashboard surfaces the conflict rather than normalizing it away. | Confirm staging conflict handling produces owned review surfaces, not silent drift. |
   | `P1-1A-003` | Projection Refresh After Successful Import | Verify successful import refreshes the visible read model without manual rebuild steps. | Confirm staging projections refresh after completed sync/import runs. |
   | `P1-1A-004` | Projection Backed Lists Expose Freshness Context | Verify projection-backed dashboard and queue surfaces show last-sync or equivalent freshness context without requiring live provider calls for the list view itself. | Confirm staging list and queue surfaces expose the same freshness context while remaining projection-backed. |
+  | `P1-1A-005` | Upstream Overwrites Non-Authoritative Manual Value | Verify the `upstream-overwrites-manual` case: an Escape-backed or otherwise provider-owned field receives an upstream change, the non-authoritative manual value does not remain effective, operators can see why upstream won, and an audit event records the decision without erasing the prior manual history. | Confirm staging uses the same provider-owned precedence rule against masked source data and does not preserve stale app state for provider-owned fields. |
+  | `P1-1A-006` | Manual Value Preserved Over Upstream Drift | Verify the `manual-preserved-over-upstream` case: an app-owned preferred/display-name intent, permission revocation, or active approved override remains effective when a provider read disagrees, while the upstream value is displayed separately with `Upstream cleanup required` or equivalent copy. | Confirm staging preserves documented app-owned/manual precedence without hiding the changed upstream value. |
+  | `P1-1A-007` | Source Precedence Conflict Needs Review | Verify the `conflict-needs-review` case: an upstream change differs from both the upstream snapshot and active manual value, the row moves to `Needs review`, dependent write-capable workflow steps are blocked, and the configured owner is visible. | Confirm staging conflict routing blocks unsafe provider mutation and surfaces the owner, source values, and required review action. |
+  | `P1-1A-008` | Temporary Override Cleared After Upstream Correction | Verify the `temporary-override-cleared-after-upstream-correction` case: a temporary site or room override is automatically end-dated when upstream reports the intended corrected value, effective value switches to upstream, and audit evidence records the clear event. | Confirm staging clears temporary overrides only on the documented upstream match or clear condition, not on unrelated source changes. |
 - `1B` onboarding/offboarding visibility and review-only mismatch queues
   | Scenario ID | Scenario Name | Operational Owner | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- | --- |

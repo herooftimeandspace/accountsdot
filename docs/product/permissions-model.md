@@ -8,6 +8,8 @@ The model intentionally separates three concepts:
 - **Stored assignments** are grants and revocations persisted by the application after lockout validation succeeds.
 - **Effective access** is the resolved permission set used by server-side authorization. Future route handlers must enforce effective access, not frontend state or proposed-only edits.
 
+Permission grants, revocations, and site-scope mappings are one field family in the broader source-precedence contract in `docs/product/source-precedence.md`. This permissions model remains authoritative for the exact effective-access order, while the source-precedence document defines the shared reconciliation metadata, audit behavior, and UI presentation used when Google/SAML source signals disagree with dashboard-managed permission decisions.
+
 ## Source Inputs
 
 Effective access is resolved from these inputs, in this order:
@@ -35,7 +37,7 @@ Effective access is resolved from these inputs, in this order:
 6. **Manual application revocations**
    - Manual revocations are editable by IT Admin in v1 for app-local roles and site scopes.
    - Manual revocations deny the matching effective permission even when a SAML or Google source still reports the same role/scope. This is intentionally conservative for the in-app resolver and must be surfaced to IT as requiring upstream cleanup when the revoked source is still present.
-   - Revocations may have a start time, expiration time, reason, actor, and audit entry.
+   - Revocations may have a start time, expiration time, reason, actor, related ticket/form/workflow reference when available, review or expiration date for temporary revocations, supersession behavior, and audit entry.
 7. **Feature rollout state**
    - Feature flags are not permission grants.
    - A user can hold a role and still be denied a route when the route's feature rollout is disabled for that persona/site.
@@ -84,6 +86,9 @@ Do not persist secrets, SAML assertions, OAuth tokens, service-account JSON, or 
 - Manual grants are ignored before `StartsAt` and after `ExpiresAt`.
 - Manual revocations are ignored before `StartsAt` and after `ExpiresAt`.
 - Manual revocations remove the matching role/scope from the effective grant set and remain visible in the denial set for audit and operator explanation.
+- When a manual revocation or site-scope mapping remains effective while Google or SAML still reports the old grant, the UI must surface `Upstream cleanup required` rather than implying the source system was changed.
+- When Google/SAML source changes match a temporary manual revocation or site-scope correction, reconciliation may clear the temporary manual row only through an audited `clear_temporary_override` outcome.
+- When Google/SAML source changes conflict with an active manual grant, revocation, or site mapping, reconciliation must preserve the last safe effective access decision, show the conflict to IT Admin, and fail closed for any site-scoped role that would otherwise become multi-site.
 - The resolver returns deterministic ordering so tests, logs, and audit snapshots are stable.
 
 ## Lockout Protection
