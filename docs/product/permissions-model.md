@@ -91,6 +91,7 @@ Do not persist secrets, SAML assertions, OAuth tokens, service-account JSON, or 
 - When Google/SAML source changes match a temporary manual revocation or site-scope correction, reconciliation may clear the temporary manual row only through an audited `clear_temporary_override` outcome.
 - When Google/SAML source changes conflict with an active manual grant, revocation, or site mapping, reconciliation must preserve the last safe effective access decision, show the conflict to IT Admin, and fail closed for any site-scoped role that would otherwise become multi-site.
 - The resolver returns deterministic ordering so tests, logs, and audit snapshots are stable.
+- Human Resources may hold district-wide lifecycle visibility and manual offboarding authority, but HR-originated immediate or scheduled termination paths must deny targets with effective `it_admin` access before any mock state, database row, workflow record, provider-operation plan, or external request is created. IT Admin actor behavior remains separately authorized by the offboarding route/API contract and the lockout protections below.
 
 ## Lockout Protection
 

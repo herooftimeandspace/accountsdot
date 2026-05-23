@@ -1852,8 +1852,8 @@
           "DEV Mock APIs"
         ],
         "operationId": "createDevEmergencyDeprovision",
-        "summary": "Schedule a mock emergency deprovision action without provider writeback.",
-        "description": "Schedule a mock emergency deprovision action without provider writeback.",
+        "summary": "Schedule an immediate or future-dated mock emergency deprovision action without provider writeback.",
+        "description": "Schedule an immediate or future-dated mock emergency deprovision action without provider writeback.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2717,11 +2717,23 @@
         "type": "object",
         "additionalProperties": true,
         "properties": {
-          "target_id": {
+          "person_id": {
             "type": "string"
           },
+          "execution_mode": {
+            "type": "string",
+            "enum": [
+              "immediate",
+              "scheduled"
+            ]
+          },
           "scheduled_for": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
           }
         }
       },

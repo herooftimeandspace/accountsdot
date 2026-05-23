@@ -96,15 +96,16 @@ type offboardingEndDateResponse struct {
 }
 
 type offboardingCandidatePayload struct {
-	ID              string `json:"id"`
-	Kind            string `json:"kind"`
-	Person          string `json:"person"`
-	Email           string `json:"email"`
-	EmployeeID      string `json:"employee_id"`
-	SiteID          string `json:"site_id"`
-	Site            string `json:"site"`
-	TerminationDate string `json:"termination_date,omitempty"`
-	Source          string `json:"source"`
+	ID              string   `json:"id"`
+	Kind            string   `json:"kind"`
+	Person          string   `json:"person"`
+	Email           string   `json:"email"`
+	EmployeeID      string   `json:"employee_id"`
+	SiteID          string   `json:"site_id"`
+	Site            string   `json:"site"`
+	TerminationDate string   `json:"termination_date,omitempty"`
+	Source          string   `json:"source"`
+	TargetRoles     []string `json:"-"`
 }
 
 type offboardingCandidatesResponse struct {
@@ -112,7 +113,9 @@ type offboardingCandidatesResponse struct {
 }
 
 type offboardingEmergencyRequest struct {
-	PersonID string `json:"person_id"`
+	PersonID      string `json:"person_id"`
+	ExecutionMode string `json:"execution_mode"`
+	ScheduledFor  string `json:"scheduled_for"`
 }
 
 type offboardingContractorRequest struct {
@@ -359,7 +362,7 @@ func handleDevOffboardingCandidates(w http.ResponseWriter, r *http.Request) {
 	if mode == "" {
 		mode = "emergency"
 	}
-	candidates, status, errors := devOffboardingStore.candidates(mode)
+	candidates, status, errors := devOffboardingStore.candidates(mode, config)
 	if status != http.StatusOK {
 		writeJSON(w, status, map[string]any{
 			"code":    "offboarding_candidate_search_rejected",
@@ -371,11 +374,12 @@ func handleDevOffboardingCandidates(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, offboardingCandidatesResponse{Candidates: candidates})
 }
 
-// handleDevOffboardingEmergencyDeprovision records the DEV-only immediate
-// deprovision decision submitted from the Emergency Offboarding drawer. It does
-// not call Google, Zoom, IncidentIQ, Escape, or a database; it writes only the
-// in-memory audit-shaped action list so the UI and tests can verify the future
-// workflow boundary without bypassing the Phase 2 live-write pilot gate.
+// handleDevOffboardingEmergencyDeprovision records the DEV-only immediate or
+// future-dated deprovision decision submitted from the Emergency Offboarding
+// drawer. It does not call Google, Zoom, IncidentIQ, Escape, or a database; it
+// writes only the in-memory audit-shaped action list after HR/IT authorization,
+// selected-target validation, future-date validation, and the HR-to-IT-Admin
+// denial all pass.
 func handleDevOffboardingEmergencyDeprovision(w http.ResponseWriter, r *http.Request) {
 	if !devModeEnabled() || r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -393,7 +397,7 @@ func handleDevOffboardingEmergencyDeprovision(w http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-	action, status, errors := devOffboardingStore.scheduleEmergencyDeprovision(request.PersonID, config)
+	action, status, errors := devOffboardingStore.scheduleEmergencyDeprovision(request, config)
 	writeOffboardingScheduleResult(w, action, status, errors)
 }
 
@@ -547,19 +551,28 @@ func (s *devOffboardingStoreState) updateEndDate(id string, value string, config
 
 // candidates returns the authorized search corpus for the selected manual
 // offboarding drawer. The caller already verified HR/IT access; this helper
-// keeps contractor searches limited to active manual Non-Escape contractors
-// while emergency searches include both active employees and contractors.
-func (s *devOffboardingStoreState) candidates(mode string) ([]offboardingCandidatePayload, int, map[string]string) {
+// keeps contractor searches limited to active manual Non-Escape contractors,
+// emergency searches include both active employees and contractors, and HR
+// searches omit IT Admin targets so the UI does not offer a denied termination
+// path.
+func (s *devOffboardingStoreState) candidates(mode string, config devPersonaConfig) ([]offboardingCandidatePayload, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	switch mode {
 	case "emergency":
-		return append([]offboardingCandidatePayload(nil), devOffboardingEmergencyCandidates...), http.StatusOK, nil
+		candidates := make([]offboardingCandidatePayload, 0, len(devOffboardingEmergencyCandidates))
+		for _, candidate := range devOffboardingEmergencyCandidates {
+			if offboardingTargetDeniedForActor(candidate, config) {
+				continue
+			}
+			candidates = append(candidates, candidate)
+		}
+		return candidates, http.StatusOK, nil
 	case "contractor":
 		contractors := make([]offboardingCandidatePayload, 0, len(devOffboardingEmergencyCandidates))
 		for _, candidate := range devOffboardingEmergencyCandidates {
-			if candidate.Kind == "contractor" {
+			if candidate.Kind == "contractor" && !offboardingTargetDeniedForActor(candidate, config) {
 				contractors = append(contractors, candidate)
 			}
 		}
@@ -571,26 +584,51 @@ func (s *devOffboardingStoreState) candidates(mode string) ([]offboardingCandida
 	}
 }
 
-// scheduleEmergencyDeprovision records the immediate DEV mock deprovision
-// intent after the handler validates HR/IT access. It writes only in-memory
-// action evidence and deliberately does not call any provider or database.
-func (s *devOffboardingStoreState) scheduleEmergencyDeprovision(personID string, config devPersonaConfig) (offboardingScheduledAction, int, map[string]string) {
+// scheduleEmergencyDeprovision records immediate or future-dated DEV mock
+// deprovision intent after the handler validates HR/IT access. It performs all
+// target and effective-date checks before appending to scheduledActions, so a
+// denied HR-to-IT-Admin request creates no mock state, database row, provider
+// plan, or external request.
+func (s *devOffboardingStoreState) scheduleEmergencyDeprovision(request offboardingEmergencyRequest, config devPersonaConfig) (offboardingScheduledAction, int, map[string]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	candidate, found := findOffboardingCandidate(personID)
+	candidate, found := findOffboardingCandidate(request.PersonID)
 	if !found {
 		return offboardingScheduledAction{}, http.StatusNotFound, map[string]string{
 			"person_id": "Select an active employee or contractor.",
 		}
 	}
+	if offboardingTargetDeniedForActor(candidate, config) {
+		return offboardingScheduledAction{}, http.StatusForbidden, map[string]string{
+			"person_id": "Human Resources cannot terminate IT Admin targets. Escalate this action to IT Admin or the documented emergency process.",
+		}
+	}
+	mode := strings.TrimSpace(request.ExecutionMode)
+	if mode == "" {
+		mode = "immediate"
+	}
+	scheduledFor := "immediate"
+	if mode == "scheduled" {
+		normalized, err := normalizeFutureOffboardingDateTime(request.ScheduledFor)
+		if err != nil {
+			return offboardingScheduledAction{}, http.StatusBadRequest, map[string]string{
+				"scheduled_for": err.Error(),
+			}
+		}
+		scheduledFor = normalized
+	} else if mode != "immediate" {
+		return offboardingScheduledAction{}, http.StatusBadRequest, map[string]string{
+			"execution_mode": "Use immediate or scheduled.",
+		}
+	}
 	action := offboardingScheduledAction{
-		ID:           "dev-offboarding-emergency-" + candidate.ID,
-		Kind:         "emergency_deprovision",
+		ID:           "dev-offboarding-emergency-" + mode + "-" + candidate.ID,
+		Kind:         emergencyOffboardingActionKind(mode),
 		PersonID:     candidate.ID,
 		Person:       candidate.Person,
 		Email:        candidate.Email,
-		ScheduledFor: "immediate",
+		ScheduledFor: scheduledFor,
 		ActorID:      config.Persona.ID,
 		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 		Mode:         "dev_mock_only",
@@ -611,6 +649,11 @@ func (s *devOffboardingStoreState) scheduleContractorOffboarding(personID string
 	if !found || candidate.Kind != "contractor" {
 		return offboardingScheduledAction{}, http.StatusNotFound, map[string]string{
 			"person_id": "Select an active contractor.",
+		}
+	}
+	if offboardingTargetDeniedForActor(candidate, config) {
+		return offboardingScheduledAction{}, http.StatusForbidden, map[string]string{
+			"person_id": "Human Resources cannot schedule termination for IT Admin targets. Escalate this action to IT Admin or the documented emergency process.",
 		}
 	}
 	normalizedDate := strings.TrimSpace(endDate)
@@ -638,6 +681,38 @@ func (s *devOffboardingStoreState) scheduleContractorOffboarding(personID string
 	}
 	s.scheduledActions = append(s.scheduledActions, action)
 	return action, http.StatusOK, nil
+}
+
+func emergencyOffboardingActionKind(mode string) string {
+	if mode == "scheduled" {
+		return "emergency_scheduled_deprovision"
+	}
+	return "emergency_deprovision"
+}
+
+func normalizeFutureOffboardingDateTime(value string) (string, error) {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return "", offboardingValidationError("Choose a future effective date and time.")
+	}
+	parsed, err := time.Parse(time.RFC3339, normalized)
+	if err != nil {
+		return "", offboardingValidationError("Use RFC3339 with an explicit timezone offset.")
+	}
+	if !parsed.After(time.Now().UTC()) {
+		return "", offboardingValidationError("Choose a future effective date and time.")
+	}
+	return parsed.UTC().Format(time.RFC3339), nil
+}
+
+type offboardingValidationError string
+
+func (e offboardingValidationError) Error() string {
+	return string(e)
+}
+
+func offboardingTargetDeniedForActor(candidate offboardingCandidatePayload, config devPersonaConfig) bool {
+	return config.Persona.ID == "human_resources" && slices.Contains(candidate.TargetRoles, "it_admin")
 }
 
 // findOffboardingCandidate resolves an explicit drawer selection by stable DEV
@@ -931,6 +1006,17 @@ var devOffboardingEmergencyCandidates = []offboardingCandidatePayload{
 		Source:     "Escape",
 	},
 	{
+		ID:          "employee-alex-rivera",
+		Kind:        "employee",
+		Person:      "Alex Rivera",
+		Email:       "alex.rivera@it.wusd.org",
+		EmployeeID:  "100442",
+		SiteID:      "district-office",
+		Site:        "District Office",
+		Source:      "Escape",
+		TargetRoles: []string{"it_admin"},
+	},
+	{
 		ID:              "contractor-sam-ortega",
 		Kind:            "contractor",
 		Person:          "Sam Ortega",
@@ -940,6 +1026,17 @@ var devOffboardingEmergencyCandidates = []offboardingCandidatePayload{
 		Site:            "Desert View",
 		TerminationDate: "2026-06-30",
 		Source:          "Manual Non-Escape",
+	},
+	{
+		ID:          "contractor-devon-cho",
+		Kind:        "contractor",
+		Person:      "Devon Cho",
+		Email:       "devon.cho@it.wusd.org",
+		EmployeeID:  "6600190",
+		SiteID:      "district-office",
+		Site:        "District Office",
+		Source:      "Manual Non-Escape",
+		TargetRoles: []string{"it_admin"},
 	},
 	{
 		ID:         "contractor-nina-patel",
