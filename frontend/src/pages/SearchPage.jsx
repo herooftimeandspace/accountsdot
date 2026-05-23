@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AccessDenied } from "../components/AccessDenied";
 import { PenArtboard } from "../lib/PenArtboard";
+import { fetchDevApiJSON, handleDevApiAuthError } from "../lib/devApi";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
 import {
   buildSharedShellHiddenNodeIds,
@@ -16,20 +18,26 @@ const CONTENT_TOP = 118;
 const CONTENT_WIDTH = 1232;
 
 /**
- * clone documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * clone gives SearchPage a mutable copy of the generated IT Admin dashboard
+ * artboard. The search route reuses that shell as a visual base, then rewrites
+ * duplicated node ids before layering live search results over the content pane.
  */
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 /**
- * uniquifyNodeIds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * uniquifyNodeIds prevents repeated generated ids from colliding after the
+ * dashboard artboard is reused for the Search route. PenArtboard and overlay
+ * lookups depend on stable unique ids when hiding static nodes.
  */
 function uniquifyNodeIds(artboard) {
   const seen = new Map();
 
   /**
-   * visit documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   * visit walks the copied artboard tree in place and suffixes only duplicate
+   * ids. The first occurrence keeps the PEN id so existing shared-shell slot
+   * references continue to resolve.
    */
   function visit(node) {
     const count = (seen.get(node.id) ?? 0) + 1;
@@ -47,7 +55,9 @@ function uniquifyNodeIds(artboard) {
 }
 
 /**
- * buildNodeIndex builds derived data for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * buildNodeIndex creates the id lookup used by contentHiddenNodeIds and the
+ * PenArtboard overlay callback. Search needs this index to hide the static
+ * dashboard pane without changing generated artboard files.
  */
 function buildNodeIndex(node, map = new Map()) {
   map.set(node.id, node);
@@ -58,7 +68,9 @@ function buildNodeIndex(node, map = new Map()) {
 }
 
 /**
- * descendantIds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * descendantIds returns every generated child id below a hidden content node.
+ * Hiding descendants with their parent prevents dashboard text and controls
+ * from remaining clickable underneath the live search results panel.
  */
 function descendantIds(node) {
   const ids = [];
@@ -69,7 +81,9 @@ function descendantIds(node) {
 }
 
 /**
- * nodeBounds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * nodeBounds normalizes PEN node geometry for the Search route's pane-hiding
+ * heuristic. Missing generated nodes return null so route startup can wait for
+ * artboard readiness instead of failing on undefined coordinates.
  */
 function nodeBounds(node) {
   if (!node) {
@@ -84,7 +98,10 @@ function nodeBounds(node) {
 }
 
 /**
- * contentHiddenNodeIds documents runtime data flow for frontend/src/pages/SearchPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * contentHiddenNodeIds removes the generated dashboard content pane while
+ * preserving the shared shell. The global search route then renders live query
+ * results in the cleared pane without altering sidebar, header, drawer, or
+ * persona-switch behavior owned by sharedShellPresentation.
  */
 function contentHiddenNodeIds(artboard, nodeIndex, session) {
   const hidden = new Set(
@@ -194,63 +211,32 @@ export function SearchPage({
   onUnauthorized,
   onForbidden,
 }) {
-  const [pageState, setPageState] = useState("loading");
-  const [payload, setPayload] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
+  const trimmedSearchQuery = searchQuery.trim();
+  const searchResultsQuery = useQuery({
+    queryKey: ["dev-search", session?.current_persona?.id ?? "", trimmedSearchQuery],
+    enabled: Boolean(session?.authenticated && session?.authorized),
+    queryFn: ({ signal }) => {
+      const requestUrl = new URL("/api/v1/dev/search", window.location.origin);
+      if (trimmedSearchQuery) {
+        requestUrl.searchParams.set("q", trimmedSearchQuery);
+      }
+      return fetchDevApiJSON(requestUrl, { signal });
+    },
+  });
+  const payload = searchResultsQuery.data ?? null;
+  const pageState = searchResultsQuery.isLoading || searchResultsQuery.isFetching ? "loading" : searchResultsQuery.isError ? "error" : "ready";
+  const errorMessage =
+    searchResultsQuery.error instanceof Error ? searchResultsQuery.error.message : "Unable to load global search results.";
 
   const { artboard: baseArtboard, status: artboardStatus } = useGeneratedArtboard(SEARCH_ARTBOARD_KEY);
   const artboard = useMemo(() => baseArtboard ? uniquifyNodeIds(clone(baseArtboard)) : null, [baseArtboard]);
   const nodeIndex = useMemo(() => artboard ? buildNodeIndex(artboard) : new Map(), [artboard]);
 
   useEffect(() => {
-    if (!session?.authenticated || !session?.authorized) {
-      return undefined;
+    if (searchResultsQuery.isError) {
+      handleDevApiAuthError(searchResultsQuery.error, { onUnauthorized, onForbidden });
     }
-
-    const controller = new AbortController();
-
-    /**
-     * loadSearch fetches search results for the current header query and stores the decoded payload for the overlay renderer. Auth failures are delegated to app-level handlers, while aborted requests are ignored so fast query changes do not surface stale errors.
-     */
-    async function loadSearch() {
-      setPageState("loading");
-      setErrorMessage("");
-      try {
-        const requestUrl = new URL("/api/v1/dev/search", window.location.origin);
-        if (searchQuery.trim()) {
-          requestUrl.searchParams.set("q", searchQuery.trim());
-        }
-        const response = await fetch(requestUrl, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-        if (response.status === 401) {
-          onUnauthorized?.();
-          return;
-        }
-        if (response.status === 403) {
-          onForbidden?.();
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`Search request failed with ${response.status}`);
-        }
-        setPayload(await response.json());
-        setPageState("ready");
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        setPayload(null);
-        setErrorMessage(error instanceof Error ? error.message : "Unable to load global search results.");
-        setPageState("error");
-      }
-    }
-
-    void loadSearch();
-    return () => controller.abort();
-  }, [onForbidden, onUnauthorized, searchQuery, session?.authenticated, session?.authorized]);
+  }, [onForbidden, onUnauthorized, searchResultsQuery.error, searchResultsQuery.isError]);
 
   const textOverrides = useMemo(() => buildSharedShellTextOverrides(session), [session]);
   const hiddenNodeIds = useMemo(

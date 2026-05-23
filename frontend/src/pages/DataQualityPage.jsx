@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AccessDenied } from "../components/AccessDenied";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import {
   DataQualityGeneratedView,
   dataQualityDesign,
 } from "../generated/data-quality.generated.jsx";
+import { fetchDevApiJSON, handleDevApiAuthError } from "../lib/devApi";
 import {
   buildSharedShellHiddenNodeIds,
   buildSharedShellImageOverrides,
@@ -220,64 +222,24 @@ export function DataQualityPage({
   onUnauthorized,
   onForbidden,
 }) {
-  const [pageState, setPageState] = useState("loading");
-  const [payload, setPayload] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
+  const dataQualityQuery = useQuery({
+    queryKey: ["dev-page", "data-quality", session?.current_persona?.id ?? "", session?.current_site_id ?? ""],
+    enabled: Boolean(session?.authenticated && session?.authorized),
+    queryFn: ({ signal }) => fetchDevApiJSON(DATA_QUALITY_ENDPOINT, { signal }),
+  });
+  const payload = dataQualityQuery.data ?? null;
+  const pageState = dataQualityQuery.isLoading || dataQualityQuery.isFetching ? "loading" : dataQualityQuery.isError ? "error" : "ready";
+  const errorMessage =
+    dataQualityQuery.error instanceof Error ? dataQualityQuery.error.message : "Unable to load Data Quality mock data.";
   const table = useRuntimeTableData(payload?.page?.queue?.rows ?? [], DATA_QUALITY_QUEUE_COLUMNS, {
     defaultSort: { key: "issue", direction: "asc" },
   });
 
   useEffect(() => {
-    if (!session?.authenticated || !session?.authorized) {
-      return undefined;
+    if (dataQualityQuery.isError) {
+      handleDevApiAuthError(dataQualityQuery.error, { onUnauthorized, onForbidden });
     }
-
-    const controller = new AbortController();
-
-    /**
-     * loadPage retrieves the current DEV Data Quality JSON from the Go backend.
-     * The abort controller prevents stale responses from replacing state after
-     * persona changes, route changes, or explicit refreshes.
-     */
-    async function loadPage() {
-      setPageState("loading");
-      setErrorMessage("");
-      try {
-        const response = await fetch(DATA_QUALITY_ENDPOINT, {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-        if (response.status === 401) {
-          onUnauthorized?.();
-          return;
-        }
-        if (response.status === 403) {
-          onForbidden?.();
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(`Data Quality request failed with ${response.status}`);
-        }
-        const nextPayload = await response.json();
-        setPayload(nextPayload);
-        setPageState("ready");
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        setPayload(null);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Unable to load Data Quality mock data."
-        );
-        setPageState("error");
-      }
-    }
-
-    void loadPage();
-    return () => controller.abort();
-  }, [onForbidden, onUnauthorized, reloadKey, session]);
+  }, [dataQualityQuery.error, dataQualityQuery.isError, onForbidden, onUnauthorized]);
 
   const viewPayload = useMemo(() => {
     if (!payload) {
@@ -300,7 +262,9 @@ export function DataQualityPage({
     () => buildDataQualityTextOverrides(session, viewPayload, table.sortState),
     [session, table.sortState, viewPayload]
   );
-  const refreshDataQuality = useCallback(() => setReloadKey((value) => value + 1), []);
+  const refreshDataQuality = useCallback(() => {
+    void dataQualityQuery.refetch();
+  }, [dataQualityQuery]);
 
   const hotspots = useMemo(() => {
     if (!viewPayload?.hotspots || pageState !== "ready") {
