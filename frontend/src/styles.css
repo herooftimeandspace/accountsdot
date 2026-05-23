@@ -3346,6 +3346,48 @@ input {
   text-decoration: underline;
 }
 
+.meraki-last-seen-runtime__help {
+  margin: 0;
+  max-width: 980px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.meraki-last-seen-runtime__filters {
+  justify-content: start;
+}
+
+.meraki-last-seen-runtime__table-header,
+.meraki-last-seen-runtime__row {
+  grid-template-columns: 1.1fr 1.25fr 1.2fr 0.95fr 1fr 0.72fr;
+  align-items: start;
+}
+
+.meraki-last-seen-runtime__row {
+  min-height: 64px;
+}
+
+.meraki-last-seen-runtime__row div {
+  min-width: 0;
+}
+
+.meraki-last-seen-runtime__row strong,
+.meraki-last-seen-runtime__row span:not(.reports-runtime__status) {
+  display: block;
+}
+
+.meraki-last-seen-runtime__row strong {
+  margin-bottom: 3px;
+}
+
+.meraki-last-seen-runtime__row span:not(.reports-runtime__status) {
+  color: var(--color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .security-issues-runtime__warning,
 .security-issues-runtime__action {
   display: grid;

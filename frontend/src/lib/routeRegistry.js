@@ -30,6 +30,7 @@ export const APP_ROUTES = [
   },
   { path: "/data-quality", kind: "data-quality", artboardKey: "data-quality" },
   { path: "/frequent-fliers", kind: "frequent-fliers", artboardKey: "frequent-fliers" },
+  { path: "/meraki-last-seen", kind: "meraki-last-seen", artboardKey: "reports" },
   { path: "/student-data-cleanup", kind: "student-data-cleanup", artboardKey: "student-data-cleanup" },
   { path: "/reports", kind: "reports", artboardKey: "reports" },
   { path: "/reports/security-issues", kind: "security-issues-report", artboardKey: "reports" },
@@ -55,6 +56,7 @@ export const NAV_GROUP_ORDER = [
   "phoneDirectory",
   "dataQuality",
   "frequentFliers",
+  "merakiLastSeen",
   "studentDataCleanup",
   "reports",
   "admin",
@@ -118,6 +120,8 @@ export function navDestinationForKey(navKey, session) {
       return "/data-quality";
     case "frequentFliers":
       return "/frequent-fliers";
+    case "merakiLastSeen":
+      return "/meraki-last-seen";
     case "studentDataCleanup":
       return "/student-data-cleanup";
     case "reports":
@@ -174,6 +178,8 @@ export function navGroupVisible(navKey, session) {
       return allowedRoutes.includes("/room-moves") || allowedRoutes.includes("/room-moves/bulk-draft");
     case "frequentFliers":
       return allowedRoutes.includes("/frequent-fliers");
+    case "merakiLastSeen":
+      return allowedRoutes.includes("/meraki-last-seen");
     case "studentDataCleanup":
       return allowedRoutes.includes("/student-data-cleanup");
     case "admin":

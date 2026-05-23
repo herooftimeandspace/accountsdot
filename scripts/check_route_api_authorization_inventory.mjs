@@ -62,6 +62,7 @@ const routeInventory = [
   { route: "/phone-directory/by-department", apiPaths: ["/api/v1/dev/pages/phone-directory/by-department"] },
   { route: "/data-quality", apiPaths: ["/api/v1/dev/pages/data-quality"] },
   { route: "/frequent-fliers", apiPaths: [] },
+  { route: "/meraki-last-seen", apiPaths: ["/api/v1/dev/pages/meraki-last-seen"] },
   { route: "/student-data-cleanup", apiPaths: [] },
   { route: "/reports", apiPaths: [] },
   { route: "/reports/security-issues", apiPaths: ["/api/v1/dev/pages/reports/security-issues"] },

@@ -132,6 +132,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `/phone-directory/by-department`
   - `/data-quality`
   - `/frequent-fliers`
+  - `/meraki-last-seen`
   - `/student-data-cleanup`
   - `/reports`
   - `/reports/security-issues`
@@ -174,6 +175,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     - `/my-profile`
     - `/student-data-cleanup`
     - `/frequent-fliers`
+    - `/meraki-last-seen`
     - `/onboarding`
     - `/offboarding`
     - `/room-moves`
@@ -193,6 +195,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
     - `/phone-directory/by-department`
     - `/my-profile`
     - `/frequent-fliers`
+    - `/meraki-last-seen`
   - `Faculty and Staff`
     - `/search`
     - `/phone-directory/by-person`
@@ -207,6 +210,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - `Device Wrangler` has exactly one assigned site and sees only that site on site-scoped pages; multi-site Device Wrangler identity inputs must fail closed and route to IT Admin cleanup
   - `Faculty and Staff` may have multiple associated sites, but their default site context comes from onboarding/current assignment data and does not grant operational site-scoped roles
   - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
+  - `Meraki Last Seen` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Device Wrangler`, including both assigned student devices and classroom spare or spare-pool devices
 - Pages currently reserved to `IT Admin` only in this slice:
   - `/dashboard/it-admin`
   - `/data-quality`
@@ -227,6 +231,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - Flagged route backend coverage exception: /dashboard/site-admin is frontend/static-only in this slice; it remains gated by sidebar/direct-route feature-flag checks, but it does not yet expose a route-specific Go page or mutation API
   - Flagged route backend coverage exception: /student-data-cleanup is frontend/static-only in this slice; it remains gated by sidebar/direct-route feature-flag checks, but it does not yet expose a route-specific Go page or mutation API
   - Flagged route backend coverage exception: /frequent-fliers is frontend/static-only in this slice; it remains gated by sidebar/direct-route feature-flag checks, but it does not yet expose a route-specific Go page or mutation API
+  - `/meraki-last-seen` is a flagged site-scoped route for non-IT users and must have matching DEV backend page/API coverage before it can expose student or device payloads
 - Reports page behavior for the current foundation slice:
   - `/reports` is an IT Admin operational reporting hub for report inventory, queue summaries, and provider refresh state
   - `/reports/security-issues` is an IT Admin-only report nested under Reports for account-security issues such as orphaned accounts with recent Google activity after source-system inactivity
@@ -764,7 +769,30 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - The row trend should render as a real color-coded graph using the shared severity palette so users can scan whether the recent pattern is below threshold, at review level, or critical.
 - End-user explanation for how to interpret the page belongs in the shared help drawer, not in a persistent helper banner inside the page pane.
 
-### 5. Room-Move Workflow
+### 5. Meraki Last Seen Device Dashboard
+- Add a dedicated `/meraki-last-seen` dashboard with sidebar label `Meraki Last Seen`.
+- The first audience is `IT Admin`, `Site Admin`, and `Device Wrangler`. IT Admin has district-wide visibility. Site Admin and Device Wrangler see only their assigned site.
+- The dashboard is read-only. It must not write to Meraki, IncidentIQ, Google, local database records, tickets, or provider-owned assignment state in this slice.
+- The table must include at least:
+  - student, when the row is an assigned student device
+  - device
+  - assignment type
+  - site
+  - date last seen
+- Assignment type must distinguish at least:
+  - `Assigned student device`
+  - `Classroom spare / spare pool`
+  - `Ambiguous assignment` when the source metadata does not safely prove one of the first two states
+- Student is required for `Assigned student device` rows. Classroom spare or spare-pool devices may have no single student owner and must not be forced into an inaccurate student match.
+- Classroom spare or spare-pool rows must still show device, site, date last seen, match confidence, and source-system context.
+- Matching must use Meraki client/device identifiers plus IncidentIQ and/or Google assignment metadata. The first supported matching keys are serial number, asset tag, MAC address, hostname, assigned user, and provider device id when present.
+- IncidentIQ and Google assignment metadata decide whether the matched device is student-assigned, classroom spare/spare pool, unmatched, stale/not seen recently, or ambiguous. The dashboard must not silently choose a student when source metadata also supports spare-pool ownership.
+- Ambiguous devices that could be assigned or spare-pool must be reviewable and visible as ambiguous until source data is corrected.
+- Filters must allow operators to view all devices, assigned student devices, or classroom spare/spare-pool devices.
+- Row details should explain the match confidence, source systems, identifiers used, assignment-type rationale, and review reason without leaking unauthorized student or device fields.
+- End-user explanation belongs in the shared help drawer. Persistent helper banners should be avoided unless a later product requirement defines an operator-facing warning.
+
+### 6. Room-Move Workflow
 - Support both:
   - end-of-year site-wide room moves
   - mid-year targeted moves
@@ -790,7 +818,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - when the user is the last active user in the source room, convert that room phone to a common area phone according to the Zoom phone documentation in `docs`
   - create manual review only when the provider write cannot be planned or verified safely
 
-### 6. Phone Directory Dashboard
+### 7. Phone Directory Dashboard
 - Replace the current CSV and Google Sheet build process with direct provider-backed data.
 - Default site-level users to seeing their own site first while preserving district-wide lookup across all sites.
 - Treat phone-directory site focus separately from normal shared-header site scoping. The shared header can remain locked to a user’s assigned site while the phone-directory results still include the whole district.
@@ -972,7 +1000,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Do not use unexplained shorthand labels such as `NV`.
 - Show only the data needed for directory use and operational follow-up.
 
-### 7. Ticketing and Human Work
+### 8. Ticketing and Human Work
 - Use Incident IQ as the standard bridge to IT and Facilities.
 - Offer or create tickets when automation fails or cannot complete a task directly.
 - Create tickets on behalf of the affected user only after that user exists in Incident IQ.

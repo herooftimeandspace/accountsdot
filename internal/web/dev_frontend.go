@@ -33,6 +33,7 @@ const (
 var (
 	devGlobalSearchRoute     = "/search"
 	devDepartingSeniorsRoute = "/departing-seniors"
+	devMerakiLastSeenRoute   = "/meraki-last-seen"
 	devPhoneDirectoryRoutes  = []string{
 		"/phone-directory/by-person",
 		"/phone-directory/by-room",
@@ -41,6 +42,7 @@ var (
 	devSiteScopedRoutes = []string{
 		"/student-data-cleanup",
 		"/frequent-fliers",
+		devMerakiLastSeenRoute,
 		"/onboarding",
 		"/offboarding",
 		"/room-moves",
@@ -413,6 +415,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 				devGlobalSearchRoute,
 				"/student-data-cleanup",
 				"/frequent-fliers",
+				devMerakiLastSeenRoute,
 				"/onboarding",
 				"/offboarding",
 				"/room-moves",
@@ -474,6 +477,7 @@ var devPersonaConfigs = map[string]devPersonaConfig{
 				"/my-profile",
 				devGlobalSearchRoute,
 				"/frequent-fliers",
+				devMerakiLastSeenRoute,
 				devDepartingSeniorsRoute,
 			},
 			devPhoneDirectoryRoutes...,
@@ -625,6 +629,14 @@ var devFeatureFlagRegistry = []devFeatureFlagDefinition{
 		Description:    "Controls repeated device-support pattern visibility for site-scoped users.",
 		FeatureRoute:   "/frequent-fliers",
 		Routes:         []string{"/frequent-fliers"},
+		DefaultEnabled: true,
+	},
+	{
+		Key:            "meraki_last_seen",
+		Label:          "Meraki Last Seen",
+		Description:    "Controls Meraki client last-seen visibility for student-assigned and spare-pool devices.",
+		FeatureRoute:   devMerakiLastSeenRoute,
+		Routes:         []string{devMerakiLastSeenRoute},
 		DefaultEnabled: true,
 	},
 }

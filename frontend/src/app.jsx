@@ -16,6 +16,7 @@ const FeatureFlagsPage = lazyNamed(() => import("./pages/FeatureFlagsPage"), "Fe
 const DataQualityPage = lazyNamed(() => import("./pages/DataQualityPage"), "DataQualityPage");
 const DepartingSeniorsPage = lazyNamed(() => import("./pages/DepartingSeniorsPage"), "DepartingSeniorsPage");
 const FrequentFliersPage = lazyNamed(() => import("./pages/FrequentFliersPage"), "FrequentFliersPage");
+const MerakiLastSeenPage = lazyNamed(() => import("./pages/MerakiLastSeenPage"), "MerakiLastSeenPage");
 const OffboardingPage = lazyNamed(() => import("./pages/OffboardingPage"), "OffboardingPage");
 const OnboardingPage = lazyNamed(() => import("./pages/OnboardingPage"), "OnboardingPage");
 const MyProfilePage = lazyNamed(() => import("./pages/MyProfilePage"), "MyProfilePage");
@@ -85,6 +86,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Departing Seniors";
     case "frequent-fliers":
       return "Frequent Fliers";
+    case "meraki-last-seen":
+      return "Meraki Last Seen";
     case "student-data-cleanup":
       return "Student Data Cleanup";
     case "reports":
@@ -564,6 +567,17 @@ export function App() {
         onNavigate={navigate}
         onSearch={handleSharedSearch}
         searchQuery={currentSearchQuery}
+      />
+    );
+  } else if (currentRoute?.kind === "meraki-last-seen") {
+    page = (
+      <MerakiLastSeenPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
       />
     );
   } else if (currentRoute?.kind === "student-data-cleanup") {

@@ -1136,6 +1136,38 @@
         "x-wizard-write-boundary": "read-only"
       }
     },
+    "/api/v1/dev/pages/meraki-last-seen": {
+      "get": {
+        "tags": [
+          "DEV Mock APIs"
+        ],
+        "operationId": "getDevMerakiLastSeenPage",
+        "summary": "Return the DEV Meraki last-seen dashboard payload with assignment-type and site-scope filtering.",
+        "description": "Return the DEV Meraki last-seen dashboard payload with assignment-type and site-scope filtering.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock",
+        "x-wizard-phase": "pre-phase-0",
+        "x-wizard-auth": "dev-it-site-admin-or-device-wrangler-required",
+        "x-wizard-write-boundary": "read-only"
+      }
+    },
     "/api/v1/dev/pages/room-moves": {
       "get": {
         "tags": [

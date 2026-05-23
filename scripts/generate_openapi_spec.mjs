@@ -105,6 +105,7 @@ function operationSecurity(operation) {
     "dev-room-move-author-required",
     "dev-it-admin-required",
     "dev-it-or-device-wrangler-required",
+    "dev-it-site-admin-or-device-wrangler-required",
     "dev-route-permission-required",
   ]);
   return cookieBackedAuth.has(operation.auth) ? [{ sessionCookie: [] }] : [];
