@@ -159,6 +159,222 @@ func TestInformedK12PersonaRedaction(t *testing.T) {
 	}
 }
 
+func TestInformedK12ClearSiteChangeSignalPreservesSourceValues(t *testing.T) {
+	attachment := core.ReviewInformedK12Attachment(
+		informedK12TestForm(),
+		core.InformedK12PersonCandidate{PeopleUUID: "person-alex"},
+		core.InformedK12EvidenceUsePrimarySiteDecision,
+		"hr-reviewer",
+		dateTime("2026-05-22T15:30:00Z"),
+		"manual review",
+	)
+
+	signal := core.BuildInformedK12SiteChangeSignal(core.InformedK12SiteSignalInput{
+		Attachment: attachment,
+		SiteAliases: []core.InformedK12SiteAlias{
+			{RawValue: "Clover High School", SiteID: "CLA", SiteName: "Clover High School"},
+		},
+		EscapeSite: core.InformedK12EscapeSiteSnapshot{SiteID: "CLA", SiteName: "Clover High School"},
+		Now:        dateTime("2026-05-23T15:30:00Z"),
+		StaleAfter: 7 * 24 * time.Hour,
+	})
+
+	if signal.Status != core.InformedK12SiteSignalClear {
+		t.Fatalf("status = %q, want clear: %#v", signal.Status, signal)
+	}
+	if signal.Confidence != core.InformedK12SiteSignalConfidenceHigh {
+		t.Fatalf("confidence = %q, want high", signal.Confidence)
+	}
+	if signal.SourceFormID != "ik12-1001" || signal.ParsedSiteID != "CLA" {
+		t.Fatalf("signal identifiers = %#v", signal)
+	}
+	if len(signal.FieldRefs) != 1 || signal.FieldRefs[0].RawValue != "Clover High School" {
+		t.Fatalf("field refs = %#v, want exact raw site value", signal.FieldRefs)
+	}
+}
+
+func TestInformedK12MissingSiteChangeSignal(t *testing.T) {
+	form := informedK12TestForm()
+	form.SourceFields = []core.InformedK12SourceField{
+		{Key: "salary_step", Label: "Salary Step", Value: "T3", Sensitivity: core.InformedK12FieldSensitive},
+	}
+	attachment := core.ReviewInformedK12Attachment(form, core.InformedK12PersonCandidate{PeopleUUID: "person-alex"}, core.InformedK12EvidenceUseRelatedOnly, "hr-reviewer", dateTime("2026-05-22T15:30:00Z"), "manual review")
+
+	signal := core.BuildInformedK12SiteChangeSignal(core.InformedK12SiteSignalInput{Attachment: attachment})
+
+	if signal.Status != core.InformedK12SiteSignalMissing {
+		t.Fatalf("status = %q, want missing: %#v", signal.Status, signal)
+	}
+	if signal.Confidence != core.InformedK12SiteSignalConfidenceNone {
+		t.Fatalf("confidence = %q, want none", signal.Confidence)
+	}
+	if len(signal.FieldRefs) != 0 || len(signal.ReviewReasons) == 0 {
+		t.Fatalf("signal = %#v, want no refs and a review reason", signal)
+	}
+}
+
+func TestInformedK12AmbiguousSiteChangeSignal(t *testing.T) {
+	form := informedK12TestForm()
+	form.SourceFields = []core.InformedK12SourceField{
+		{Key: "site", Label: "Current Site", Value: "Clover High School", Sensitivity: core.InformedK12FieldPublic},
+		{Key: "transfer_site", Label: "Transfer Site", Value: "North County Campus", Sensitivity: core.InformedK12FieldPublic},
+	}
+	attachment := core.ReviewInformedK12Attachment(form, core.InformedK12PersonCandidate{PeopleUUID: "person-alex"}, core.InformedK12EvidenceUsePrimarySiteDecision, "hr-reviewer", dateTime("2026-05-22T15:30:00Z"), "manual review")
+
+	signal := core.BuildInformedK12SiteChangeSignal(core.InformedK12SiteSignalInput{
+		Attachment: attachment,
+		SiteAliases: []core.InformedK12SiteAlias{
+			{RawValue: "Clover High School", SiteID: "CLA", SiteName: "Clover High School"},
+			{RawValue: "North County Campus", SiteID: "NCC", SiteName: "North County Campus"},
+		},
+	})
+
+	if signal.Status != core.InformedK12SiteSignalAmbiguous {
+		t.Fatalf("status = %q, want ambiguous: %#v", signal.Status, signal)
+	}
+	if len(signal.RawSiteValues) != 2 {
+		t.Fatalf("raw values = %#v, want both source values", signal.RawSiteValues)
+	}
+}
+
+func TestInformedK12StaleSiteChangeSignal(t *testing.T) {
+	attachment := core.ReviewInformedK12Attachment(
+		informedK12TestForm(),
+		core.InformedK12PersonCandidate{PeopleUUID: "person-alex"},
+		core.InformedK12EvidenceUsePrimarySiteDecision,
+		"hr-reviewer",
+		dateTime("2026-05-22T15:30:00Z"),
+		"manual review",
+	)
+
+	signal := core.BuildInformedK12SiteChangeSignal(core.InformedK12SiteSignalInput{
+		Attachment: attachment,
+		SiteAliases: []core.InformedK12SiteAlias{
+			{RawValue: "Clover High School", SiteID: "CLA", SiteName: "Clover High School"},
+		},
+		Now:        dateTime("2026-06-01T00:00:00Z"),
+		StaleAfter: 7 * 24 * time.Hour,
+	})
+
+	if signal.Status != core.InformedK12SiteSignalStale {
+		t.Fatalf("status = %q, want stale: %#v", signal.Status, signal)
+	}
+	if signal.ParsedSiteID != "CLA" {
+		t.Fatalf("parsed site = %q, want CLA", signal.ParsedSiteID)
+	}
+}
+
+func TestInformedK12SiteChangeSignalConflictsWithEscape(t *testing.T) {
+	attachment := core.ReviewInformedK12Attachment(
+		informedK12TestForm(),
+		core.InformedK12PersonCandidate{PeopleUUID: "person-alex"},
+		core.InformedK12EvidenceUsePrimarySiteDecision,
+		"hr-reviewer",
+		dateTime("2026-05-22T15:30:00Z"),
+		"manual review",
+	)
+
+	signal := core.BuildInformedK12SiteChangeSignal(core.InformedK12SiteSignalInput{
+		Attachment: attachment,
+		SiteAliases: []core.InformedK12SiteAlias{
+			{RawValue: "Clover High School", SiteID: "CLA", SiteName: "Clover High School"},
+		},
+		EscapeSite: core.InformedK12EscapeSiteSnapshot{SiteID: "DO", SiteName: "District Office"},
+		Now:        dateTime("2026-05-23T15:30:00Z"),
+		StaleAfter: 7 * 24 * time.Hour,
+	})
+
+	if signal.Status != core.InformedK12SiteSignalConflicting {
+		t.Fatalf("status = %q, want conflicting: %#v", signal.Status, signal)
+	}
+	if signal.Confidence != core.InformedK12SiteSignalConfidenceMedium {
+		t.Fatalf("confidence = %q, want medium", signal.Confidence)
+	}
+}
+
+func TestLatestInformedK12SiteChangeSignalUsesNewestActiveAttachment(t *testing.T) {
+	olderForm := informedK12TestForm()
+	olderForm.SourceFormID = "ik12-older"
+	olderForm.SubmittedAt = dateTime("2026-05-21T14:00:00Z")
+	newerForm := informedK12TestForm()
+	newerForm.SourceFormID = "ik12-newer"
+	newerForm.SubmittedAt = dateTime("2026-05-23T14:00:00Z")
+	older := core.ReviewInformedK12Attachment(olderForm, core.InformedK12PersonCandidate{PeopleUUID: "person-alex"}, core.InformedK12EvidenceUseRelatedOnly, "hr-reviewer", dateTime("2026-05-22T15:30:00Z"), "manual review")
+	newer := core.ReviewInformedK12Attachment(newerForm, core.InformedK12PersonCandidate{PeopleUUID: "person-alex"}, core.InformedK12EvidenceUsePrimarySiteDecision, "hr-reviewer", dateTime("2026-05-23T15:30:00Z"), "manual review")
+
+	signal := core.LatestInformedK12SiteChangeSignal([]core.InformedK12Attachment{older, newer}, []core.InformedK12SiteAlias{
+		{RawValue: "Clover High School", SiteID: "CLA", SiteName: "Clover High School"},
+	}, core.InformedK12EscapeSiteSnapshot{SiteID: "CLA", SiteName: "Clover High School"}, dateTime("2026-05-24T00:00:00Z"), 7*24*time.Hour)
+
+	if signal.SourceFormID != "ik12-newer" || signal.Status != core.InformedK12SiteSignalClear {
+		t.Fatalf("latest signal = %#v, want clear ik12-newer", signal)
+	}
+}
+
+func TestInformedK12ReviewAttachmentDoesNotBecomeActiveSiteSignal(t *testing.T) {
+	attachment := core.ReviewInformedK12Attachment(
+		informedK12TestForm(),
+		core.InformedK12PersonCandidate{PeopleUUID: "person-alex"},
+		core.InformedK12EvidenceUsePrimarySiteDecision,
+		"hr-reviewer",
+		dateTime("2026-05-22T15:30:00Z"),
+		"manual review",
+	)
+	attachment.State = core.InformedK12AttachmentStateReview
+
+	signal := core.BuildInformedK12SiteChangeSignal(core.InformedK12SiteSignalInput{
+		Attachment: attachment,
+		SiteAliases: []core.InformedK12SiteAlias{
+			{RawValue: "Clover High School", SiteID: "CLA", SiteName: "Clover High School"},
+		},
+	})
+
+	if signal.Status != core.InformedK12SiteSignalMissing || len(signal.FieldRefs) != 0 {
+		t.Fatalf("review attachment signal = %#v, want missing without field refs", signal)
+	}
+}
+
+func TestLatestInformedK12SiteChangeSignalSkipsReviewAttachment(t *testing.T) {
+	olderForm := informedK12TestForm()
+	olderForm.SourceFormID = "ik12-approved"
+	olderForm.SubmittedAt = dateTime("2026-05-21T14:00:00Z")
+	reviewForm := informedK12TestForm()
+	reviewForm.SourceFormID = "ik12-review"
+	reviewForm.SubmittedAt = dateTime("2026-05-23T14:00:00Z")
+	reviewForm.SourceFields[0].Value = "North County Campus"
+	approved := core.ReviewInformedK12Attachment(olderForm, core.InformedK12PersonCandidate{PeopleUUID: "person-alex"}, core.InformedK12EvidenceUseRelatedOnly, "hr-reviewer", dateTime("2026-05-22T15:30:00Z"), "manual review")
+	review := core.ReviewInformedK12Attachment(reviewForm, core.InformedK12PersonCandidate{PeopleUUID: "person-alex"}, core.InformedK12EvidenceUsePrimarySiteDecision, "hr-reviewer", dateTime("2026-05-23T15:30:00Z"), "manual review")
+	review.State = core.InformedK12AttachmentStateReview
+
+	signal := core.LatestInformedK12SiteChangeSignal([]core.InformedK12Attachment{approved, review}, []core.InformedK12SiteAlias{
+		{RawValue: "Clover High School", SiteID: "CLA", SiteName: "Clover High School"},
+		{RawValue: "North County Campus", SiteID: "NCC", SiteName: "North County Campus"},
+	}, core.InformedK12EscapeSiteSnapshot{}, dateTime("2026-05-24T00:00:00Z"), 7*24*time.Hour)
+
+	if signal.SourceFormID != "ik12-approved" || signal.ParsedSiteID != "CLA" {
+		t.Fatalf("latest signal = %#v, want approved attachment to remain active", signal)
+	}
+}
+
+func TestInformedK12SiteFieldClassifierUsesWholeTerms(t *testing.T) {
+	form := informedK12TestForm()
+	form.SourceFields = []core.InformedK12SourceField{
+		{Key: "website_url", Label: "Onsite orientation website", Value: "https://example.invalid/clover", Sensitivity: core.InformedK12FieldPublic},
+	}
+	attachment := core.ReviewInformedK12Attachment(form, core.InformedK12PersonCandidate{PeopleUUID: "person-alex"}, core.InformedK12EvidenceUseRelatedOnly, "hr-reviewer", dateTime("2026-05-22T15:30:00Z"), "manual review")
+
+	signal := core.BuildInformedK12SiteChangeSignal(core.InformedK12SiteSignalInput{
+		Attachment: attachment,
+		SiteAliases: []core.InformedK12SiteAlias{
+			{RawValue: "https://example.invalid/clover", SiteID: "CLA", SiteName: "Clover High School"},
+		},
+	})
+
+	if signal.Status != core.InformedK12SiteSignalMissing || len(signal.FieldRefs) != 0 {
+		t.Fatalf("website/onsite field signal = %#v, want missing without site refs", signal)
+	}
+}
+
 func informedK12TestForm() core.InformedK12FormRecord {
 	return core.InformedK12FormRecord{
 		SourceFormID:   "ik12-1001",

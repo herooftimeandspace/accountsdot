@@ -1793,6 +1793,17 @@
   - classify retained excerpts as `public`, `personnel`, or `sensitive`; only `public` excerpts can appear in site-scoped summary views
   - sensitive or personnel excerpts must be omitted or field-level encrypted in future database persistence, and diagnostics must use field names, counts, or one-way fingerprints instead of raw values
   - detached and superseded attachments remain audit history but stop acting as active workflow evidence
+- Site-change signal modeling is side-effect-free. A linked InformedK12 form may produce a normalized signal for employee and contractor detail surfaces, but the signal does not update Escape, does not create a dashboard override, and does not enqueue provider work by itself.
+- Supported first-pass site-bearing InformedK12 fields are fields whose key or label indicates `site`, `school`, `campus`, `location`, `building`, `department`, `dept`, `position`, `job title`, `classification`, `transfer`, `new assignment`, `assignment change`, `supervisor`, `principal`, or `manager`. Direct site/location fields are higher-confidence evidence than position, transfer, department, or supervisor context.
+- The signal model must preserve the source form id, form type, submitted timestamp, attachment state, evidence use, parsed site id/name when a documented alias matches, confidence, raw site-bearing values, field references, and review reasons. Raw InformedK12 values remain source-faithful and must not be rewritten to a canonical site label unless a caller-supplied alias mapping produced the parsed site.
+- Review statuses are:
+  - `clear`: exactly one documented site alias matched and it agrees with current Escape site data when Escape context is supplied
+  - `missing`: no active attached form or no retained supported site-bearing field exists
+  - `ambiguous`: supported fields exist but either no documented site alias matches or multiple different site aliases match
+  - `stale`: a single site alias matches, but the form is older than the configured InformedK12 freshness window
+  - `conflicting`: a single site alias matches but disagrees with the current Escape site id
+- Employee and contractor detail surfaces should show the latest active InformedK12 site-change signal next to current Escape site values and any dashboard-managed site decision from #250. Detached and superseded forms stay available in form attachment history but do not displace the latest active site-change signal.
+- Missing, ambiguous, stale, and conflicting signals are review states for HR/IT data-quality work. They are evidence for future primary-site selection or override flows only after a separate documented workflow records the manual decision and audit metadata.
 
 ## Scheduling and Effective Dates
 - The system must support scheduled effective-date changes for room moves, site transfers, role changes, and similar lifecycle changes.
