@@ -719,11 +719,13 @@
   - `2C` reactivation and AD → Entra propagation warning handling
   - `2D` preferred-name self-service and downstream sync
   - `2E` actionable Google-active / Aeries-inactive queue controls, including bulk actions
+  - `2G` InformedK12 form attachment and lifecycle evidence
 - In scope:
   - manual intake for non-Escape people
   - provisioning profile editor and snapshot behavior
   - job-title bundle enforcement and unmapped-title blocking
   - preferred-name self-service for employee and contractor accounts plus downstream write path
+  - InformedK12 form attachments on employee and contractor records for inspectable lifecycle evidence
   - baseline account creation/update/deprovision flows across the in-scope identity and access systems
   - first-pass provider sequencing for baseline staff onboarding:
     - `AD` first
@@ -767,6 +769,7 @@
   - provider sequencing follows the documented first-pass order through `Zoom`, with any `Aeries`/`Verkada` follow-up ticketing handled as external `IncidentIQ` configuration rather than app behavior
   - the dashboard can surface linked `IncidentIQ` user, `Aeries`, and `Verkada` follow-up ticket status after the `IncidentIQ` user appears, without taking ownership of ticket creation
   - preferred-name self-service for employee and contractor accounts writes through directly and reaches the documented downstream targets without a review gate in this phase
+  - InformedK12 form attachments preserve source values, route ambiguous matches to review, and redact sensitive excerpts by persona
   - unmapped titles block only affected people and route resolution to HR/IT correctly
   - IT Admin can safely execute documented queue actions for Google-active / Aeries-inactive cases instead of using review-only observation
 - Failure gates:
@@ -805,6 +808,10 @@
     - downstream workflow summary for the selected action path
     - what-if validation evidence for individual and bulk actions before live mutation
     - denial evidence proving bulk actions skip or block non-allowlisted users before any upstream mutation
+  - `2G` InformedK12 form attachment and lifecycle evidence
+    - matching-rule evidence for employee id, email, legal-name/date, and ambiguous candidates
+    - manual attach, detach, and supersede audit evidence
+    - persona redaction evidence proving site-scoped operators receive summaries only and unauthorized personas receive no metadata
 - Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `2A` provisioning-profile and baseline bundle foundation
     - `P2-2A-001` Profile Save Applies To Not-Yet-Started Work
@@ -828,6 +835,12 @@
     - `P2-2E-001` Individual Queue Action Changes Outcome
     - `P2-2E-002` Bulk Queue Actions On Day One
     - `P2-2E-003` Graduated Senior Suppression And Override
+  - `2G` InformedK12 form attachment and lifecycle evidence
+    - `P2-2G-001` Exact InformedK12 Form Match Attaches To One Person
+    - `P2-2G-002` Ambiguous InformedK12 Form Match Requires Review
+    - `P2-2G-003` Manual InformedK12 Attachment Marks Decision Evidence
+    - `P2-2G-004` Detached Or Superseded Form Stops Active Evidence Use
+    - `P2-2G-005` InformedK12 Form Persona Redaction
 
 - Rollback triggers for this phase:
   - `2A`: trigger rollback if started workflows reread live profile edits, profile snapshots are not stable, or unmapped-title blocking affects the wrong people.
@@ -835,12 +848,14 @@
   - `2C`: trigger rollback if reactivation restores extras, resume/cancel/replan corrupts workflow state, Entra warning handling violates the documented baseline-first rule, or live reactivation writes are attempted outside the pilot allowlist.
   - `2D`: trigger rollback if preferred-name edits write the wrong downstream values, fail to update one of the required Zoom naming surfaces, allow student-originated preferred-name edits through the dashboard, or live preferred-name writes are attempted outside the pilot allowlist.
   - `2E`: trigger rollback if individual or bulk queue actions move the wrong records, corrupt queue state, mishandle graduated-senior suppression and override behavior, or attempt upstream mutation for any non-allowlisted account.
+  - `2G`: trigger rollback if forms auto-attach through ambiguous matches, sensitive source excerpts leak to unauthorized personas, detached/superseded forms remain active evidence, or persistence stores broad raw form payloads instead of the approved minimal metadata.
 - Rollback references for this phase:
   - `2A`: restore the last approved provisioning-profile and title-bundle configuration, cancel or replan not-yet-started workflows that referenced the superseded config, and preserve already-started workflows on their captured snapshot.
   - `2B`: place lifecycle writes under global pause, revert the lifecycle revision, reconcile created or changed baseline state against provider truth, and rerun only the documented recovery or deprovision steps needed to reach the intended baseline.
   - `2C`: revert the reactivation and resume/replan revision, clear or rebuild queued replans created by the faulty logic, and regenerate affected workflows from the latest canonical state.
   - `2D`: disable new preferred-name submissions temporarily, revert the approval/write-path revision, and reconcile downstream preferred-name state back to the last approved source of truth.
   - `2E`: disable queue actions temporarily, revert the action-handler revision, reconcile affected rows against Google and Aeries truth, and re-enqueue only the still-unresolved cases.
+  - `2G`: disable automatic attachment promotion, keep newly ingested forms in review-only state, re-run matching with corrected rules, and redact or purge any retained excerpts that exceed the documented field classes.
 
 ### Phase 3: Room, Phone, and Transfer Orchestration
 - Purpose:
@@ -1756,6 +1771,28 @@
   - prefer HR as the reviewing and approving authority
 - InformedK12 ingestion should use slow polling through the API rather than aggressive near-real-time reads.
 - Default polling target is roughly 4 times per day, subject to rate-limit safety.
+- InformedK12 form attachment is a projection and evidence feature, not a provider write path. The app may retain minimal form metadata and selected source-value excerpts that are needed for employee/contractor lifecycle review, but it must not mirror the entire form system or store broad raw payloads by default.
+- The planned attachment data model links one InformedK12 form to one employee or manual contractor person record through:
+  - `source_form_id`, form type/name, submitted timestamp, source status, safe submitter/requestor labels, and optional source-form URL/reference
+  - the attached `people_uuid` plus record kind (`employee` or `contractor`)
+  - attachment state: `attached`, `review`, `detached`, or `superseded`
+  - evidence use: `related_only`, `primary_site_decision`, or `lifecycle_decision`
+  - reviewed-by/reviewed-at/decision-note metadata for manual review, primary-site selection evidence, detach, and supersession decisions
+  - source-field excerpts stored as key, label, exact source value, and sensitivity class rather than normalized-only derived values
+- Automatic form matching follows this order:
+  - exact employee id or generated contractor employee id match
+  - exact email match using person email first, then requestor email when person email is absent
+  - legal first name plus legal last name plus matching start/change/effective date
+  - legal-name-only matches are not auto-attached; they become review items because over-normalizing names can attach sensitive forms to the wrong person
+- Ambiguous matches must stay unattached and reviewable. If employee id, email, or legal-name/date rules match multiple candidate people, the review state must preserve all candidate identifiers needed for HR/IT resolution without selecting a winner.
+- Operators may manually attach a reviewed form to the correct employee or contractor record, detach a wrong attachment, or mark an older attachment superseded by a newer source form. Detach and supersede actions preserve the original source form metadata and record actor, timestamp, and reason so audit history explains why prior evidence stopped being active.
+- Employee and contractor record surfaces should show attached InformedK12 forms in a dedicated evidence/history section. IT Admin and Human Resources can see retained personnel excerpts and source references. Site Admin and Site Secretary personas may see only non-sensitive summary fields for records in their authorized site scope. Device Wrangler, Faculty and Staff, no-access, and student-like personas must not receive attachment metadata unless a later PRD entry explicitly adds a narrower self-service view.
+- Retention and redaction rules:
+  - preserve exact source form values for retained excerpts; do not silently translate, canonicalize, or replace the source display value
+  - omit credential material, auth headers, private notes unrelated to the workflow, and fields not needed for lifecycle evidence
+  - classify retained excerpts as `public`, `personnel`, or `sensitive`; only `public` excerpts can appear in site-scoped summary views
+  - sensitive or personnel excerpts must be omitted or field-level encrypted in future database persistence, and diagnostics must use field names, counts, or one-way fingerprints instead of raw values
+  - detached and superseded attachments remain audit history but stop acting as active workflow evidence
 
 ## Scheduling and Effective Dates
 - The system must support scheduled effective-date changes for room moves, site transfers, role changes, and similar lifecycle changes.
