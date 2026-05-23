@@ -532,6 +532,21 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   | `InformedK12` | `projection-backed list/search` for trigger/event facts only | event acceleration where proven, `15m` delta, and `24h` full reconciliation | Form events may trigger workflow preparation, but broad operator search duplication of the form system is out of scope. |
   | `Google Sheets` | `batch-only source` for migration inputs and compatibility exports, not runtime truth | no routine runtime freshness target; generated exports are versioned when published | Sheets do not drive normal dashboard behavior; future compatibility exports must verify staging tabs and sentinels before pointer application. |
   | `Verkada` | `projection-backed list/search` only if a future approved workflow needs reference facts | deferred until a direct integration is approved | Current product treats Verkada follow-up as IncidentIQ ticket/configuration work rather than direct account provisioning. |
+- Employee-affecting manual changes created through the website must carry an explicit lifecycle classification before they can participate in school-year rollover:
+  - manual Non-Escape employee, contractor, volunteer, or similar local assignment records are eligible for school-year expiration only after HR review
+  - temporary HR site overrides, temporary HR room/location overrides, and InformedK12-backed primary-site selections persist until upstream Escape/Aeries correction, a job-assignment change, or HR reconciliation proves the manual value is obsolete
+  - local sync exception overrides may be cleared by annual reset as local metadata, but only after appearing in the HR rollover review queue
+  - permission and site-scope overrides are governed by the IT Admin permissions model and must never expire automatically during HR school-year cleanup
+  - local employee attributes such as preferred/display name and pronouns must never expire automatically during HR school-year cleanup
+- The school-year boundary for employee manual-change rollover uses Aeries School Info as the district calendar source where available. If Aeries schools disagree, use the earliest start date and latest end date across all schools as the district school-year boundary. If that source is unavailable, rollover must stop with an operator-visible blocker rather than falling back to a guessed date.
+- HR must receive a review queue or report before end-of-year rollover for every manual employee change classified as expiring after review, persisting until upstream correction, or annual-reset local metadata. The queue must show the person, change type, current effective value, upstream value when known, source/evidence such as an InformedK12 form or ticket, current expiration/review date, and the system's proposed lifecycle classification.
+- HR review decisions are `extend`, `remove`, and `reconciled`:
+  - `extend` requires a new expiration or review date
+  - `remove` is allowed only for change types classified as eligible for HR-approved expiration
+  - `reconciled` means the upstream source now represents the intended value or the local exception is otherwise obsolete
+  - every decision must write audit history with actor, timestamp, reason, decision, and new expiration date when provided
+- Rollover must not silently remove access, assignments, provider state, or local evidence. Any provider-affecting removal remains subject to Phase 2+ writeback safety: preview/what-if validation first, then the documented pilot allowlist gate immediately before a provider mutation.
+- Reminder expectations: HR should receive at least one pending-review notification before the school-year end boundary and another reminder for unresolved rows inside the final rollover window. Notifications are reminders only; they must not approve, remove, or extend rows without an explicit HR decision.
 - Operational site-alias mapping that affects phone and permission scope currently includes:
   - `MOT` → site code `1`
   - `WELL` → site code `1`
