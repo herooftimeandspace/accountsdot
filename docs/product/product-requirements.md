@@ -105,6 +105,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - after logout, the browser should return to `/login`
   - all logged-in implemented pages should reuse the shared shell from `docs/design/mocks/wireframes/wireframe-shared-shell.pen` as the canonical sidebar/header base
   - all logged-in implemented pages should use the shared inner-page scroll container so page content scrolls while the shared header and left sidebar remain anchored
+  - when the left sidebar's role-filtered navigation and DEV-only controls are taller than the available browser height, the shared sidebar should scroll independently so all navigation rows, Platform Status, and the DEV persona switcher remain reachable without changing the header, main page body, or drawer scroll behavior
   - shared row-detail drawers and page-help drawers should anchor to the right edge of the interior page pane directly below the shared header, overlay page content, stay fixed to the viewport while the user scrolls the page, and use an internal drawer body scrollbar when drawer content is taller than the fixed drawer height
   - all existing implemented `.pen` pages should have stable frontend routes even when richer page behavior is not yet complete
   - the reusable logged-in shell should filter sidebar visibility by the user's allowed routes

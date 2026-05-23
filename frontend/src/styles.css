@@ -331,6 +331,7 @@ input {
 .pen-node--shared-shell-sidebar {
   position: fixed !important;
   z-index: 62;
+  transform: translateY(var(--shared-shell-sidebar-scroll-y, 0px));
 }
 
 .pen-node--shared-shell-header {
@@ -366,7 +367,7 @@ input {
 .dev-toolbar {
   position: fixed;
   left: 16px;
-  top: 758px;
+  top: min(758px, calc(100vh - 48px));
   bottom: auto;
   z-index: 76;
   display: flex;
@@ -463,6 +464,7 @@ input {
 .pen-hotspot--nav {
   position: fixed !important;
   z-index: 74 !important;
+  transform: translateY(var(--shared-shell-sidebar-scroll-y, 0px));
 }
 
 .shared-shell-search {
@@ -507,6 +509,7 @@ input {
   background: rgba(206, 183, 112, 0.9);
   position: fixed !important;
   z-index: 66 !important;
+  transform: translateY(var(--shared-shell-sidebar-scroll-y, 0px));
 }
 
 .shared-shell-nav__icon,
@@ -516,6 +519,7 @@ input {
   pointer-events: none;
   position: fixed !important;
   z-index: 67 !important;
+  transform: translateY(var(--shared-shell-sidebar-scroll-y, 0px));
 }
 
 .shared-shell-nav__icon {
@@ -564,7 +568,7 @@ input {
   height: 8px;
   border-right: 2px solid var(--color-muted);
   border-bottom: 2px solid var(--color-muted);
-  transform: rotate(45deg);
+  transform: translateY(var(--shared-shell-sidebar-scroll-y, 0px)) rotate(45deg);
 }
 
 .shared-shell-page-sync__meta {

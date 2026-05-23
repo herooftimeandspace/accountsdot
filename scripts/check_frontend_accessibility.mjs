@@ -117,7 +117,7 @@ const sourceChecks = [
       "background: var(--color-bg)",
       "margin: 0",
       "left: 16px",
-      "top: 758px",
+      "top: min(758px, calc(100vh - 48px))",
       "width: 232px",
       "flex-direction: column-reverse",
     ],

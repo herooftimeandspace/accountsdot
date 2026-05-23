@@ -20,6 +20,7 @@ This contract makes the implemented-page UI rules from `docs/planning/implementa
 - Documented nested route buttons, such as IT Admin's `/admin/feature-flags` child under Admin, must render visually subordinate to their parent row, use the same role-filtered no-gap compaction as top-level rows, and align their active dot, label, focus target, and highlight to one row center.
 - The scope selector, search field, notification/help controls, account box, profile image/initials, support affordance, and platform-status row must be sized for the longest supported persona labels and approved branding assets.
 - The DEV-only persona switcher must render inside the shared sidebar bounds below Platform Status instead of as a top-right viewport toolbar; it may expand as an overlay for switching, but its collapsed control must not change the app frame width or right-drawer anchor.
+- When the role-filtered sidebar content is taller than the browser viewport, the sidebar layer may scroll independently from the page body. The scroll behavior must move fixed sidebar visuals, nav hotspots, Platform Status, and the DEV persona anchor together while leaving the shared header, inner page scroller, and right-drawer anchoring unchanged.
 - Live shell surfaces must not show shortcut hints, governance labels, mock-policy text, validation-process labels, or runbook/evidence copy unless the PRD defines that copy as operator-facing product behavior.
 
 ## Shared Primitives
