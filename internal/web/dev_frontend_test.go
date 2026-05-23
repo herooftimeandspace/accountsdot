@@ -569,6 +569,7 @@ type roomMoveDraftTestPayload struct {
 	CanManageDistrict bool     `json:"can_manage_district"`
 	Warnings          []string `json:"warnings"`
 	Rows              []struct {
+		ID                 string   `json:"id"`
 		PersonID           string   `json:"person_id"`
 		CurrentSiteID      string   `json:"current_site_id"`
 		CurrentRoomID      string   `json:"current_room_id"`
@@ -3962,7 +3963,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			}
 			secretaryRowsByPerson[row.PersonID]++
 		}
-		if secretaryRowsByPerson["morgan-lee"] != 2 || secretaryRowsByPerson["casey-nguyen"] != 3 {
+		if secretaryRowsByPerson["morgan-lee"] != 2 || secretaryRowsByPerson["casey-nguyen"] != 4 {
 			t.Fatalf("site secretary roster rows by person = %#v, want repeated rows for multi-room and SLG-only memberships", secretaryRowsByPerson)
 		}
 		foundITAuthoredAssignedSiteRow := false
@@ -4404,10 +4405,15 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		morganRows := 0
 		caseyRows := 0
 		sourceRoles := map[string]bool{}
+		rowIDs := map[string]bool{}
 		for _, row := range roster.Draft.Rows {
 			if row.CurrentSiteID != "clover-hs" || row.DestinationSiteID != "clover-hs" {
 				t.Fatalf("roster row = %#v, want only clover-scoped current memberships", row)
 			}
+			if rowIDs[row.ID] {
+				t.Fatalf("roster row id %q repeated in rows=%#v, want unique stable membership row ids", row.ID, roster.Draft.Rows)
+			}
+			rowIDs[row.ID] = true
 			if row.DestinationRoomID != "none" {
 				t.Fatalf("roster row = %#v, want Site Rollover destination placeholder", row)
 			}
@@ -4419,7 +4425,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 				caseyRows++
 			}
 		}
-		if morganRows != 2 || caseyRows != 3 {
+		if morganRows != 2 || caseyRows != 4 {
 			t.Fatalf("roster repeated-person rows: Morgan=%d Casey=%d rows=%#v, want every room and classroom SLG membership", morganRows, caseyRows, roster.Draft.Rows)
 		}
 		for _, role := range []string{"primary", "last_primary", "secondary", "tertiary", "slg_only"} {
@@ -4632,6 +4638,55 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		noPrimary := decodeJSON[roomMoveDraftTestResponse](t, rec)
 		if len(noPrimary.Draft.Warnings) != 1 || !strings.Contains(noPrimary.Draft.Warnings[0], "needs primary selection") {
 			t.Fatalf("no-primary repeated-user warnings = %#v, want primary-selection warning", noPrimary.Draft.Warnings)
+		}
+
+		spoofSameRoomBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"person_id": "alex-ramirez", "current_room_id": "cla-a108", "current_room": "A-108", "source_role": "secondary", "destination_site_id": "clover-hs", "destination_room_id": "cla-a104"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal spoofed same-room draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(spoofSameRoomBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("spoofed same-room draft returned %d, want 400: %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "Alex Ramirez is already in A-104") {
+			t.Fatalf("spoofed same-room error = %s, want trusted current-room label", rec.Body.String())
+		}
+
+		spoofSourceBody, err := json.Marshal(map[string]any{
+			"mode":          "manual_move_list",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"person_id": "casey-nguyen", "current_room_id": "cla-a108", "current_room": "A-108", "source_role": "primary", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108"},
+				{"person_id": "casey-nguyen", "current_room_id": "cla-b204", "current_room": "B-204", "source_role": "secondary", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal spoofed source-role draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(spoofSourceBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("spoofed source-role draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		spoofSource := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(spoofSource.Draft.Warnings) != 1 || !strings.Contains(spoofSource.Draft.Warnings[0], "needs primary selection") {
+			t.Fatalf("spoofed source-role warnings = %#v, want trusted-source primary-selection warning", spoofSource.Draft.Warnings)
+		}
+		if spoofSource.Draft.Rows[0].CurrentRoomID != "cla-a104" || spoofSource.Draft.Rows[0].CurrentRoom != "A-104" || spoofSource.Draft.Rows[0].SourceRole != "slg_only" {
+			t.Fatalf("spoofed source row = %#v, want trusted person current-room/source-role fields", spoofSource.Draft.Rows[0])
 		}
 
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+build.Draft.ID+"/schedule", nil)
