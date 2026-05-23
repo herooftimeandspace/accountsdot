@@ -16,7 +16,7 @@ The first reconciliation pass must cover these field families. Later provider in
 | --- | --- | --- | --- | --- |
 | Employment lifecycle | employment status, hire date, start date, assignment participation, end date for regular employees | Escape / SFTP, InformedK12 where it initiates pending hires | HR/IT workflow notes and review state only | Upstream wins for Escape-backed employees. Dashboard values may explain or defer work but must not replace provider-owned dates or status. |
 | Manual contractor lifecycle | contractor start date, contractor end date, employee type, classification, continuation link, contractor active/inactive state | none for active non-Escape records; inactive Escape records may be matching context | HR-managed manual intake and offboarding actions | Dashboard manual record wins while no active Escape replacement exists. Active Escape overlap supersedes the manual contractor record and marks it invalid for audit. |
-| Site assignment | primary site, site scope, district-wide vs site-scoped eligibility | Escape, Aeries staff/teacher/scheduling, Google/SAML site scope | HR temporary site override, IT Admin permission/site mapping | Provider-owned site wins by default. A documented temporary override may remain effective only until the upstream value matches the intended correction, changes job assignment, expires, or conflicts with a different upstream value. |
+| Site assignment | primary site, site scope, district-wide vs site-scoped eligibility | Escape, Aeries staff/teacher/scheduling, Google/SAML site scope, InformedK12 form evidence for reviewed site-change signals | HR temporary site override, HR/IT InformedK12-backed primary-site selection, IT Admin permission/site mapping | Provider-owned site wins by default. A documented temporary override or InformedK12-backed dashboard selection may remain effective only until the upstream value matches the intended correction, changes job assignment, is superseded by a newer form-supported decision, is manually reconciled, or conflicts with a different upstream value. |
 | Room/location | teaching room, office room, phone location, IncidentIQ location mapping | Aeries staff/teacher/scheduling, IncidentIQ asset location, Zoom phone state | authorized Site Admin/Site Secretary/HR/IT room override, room mapping override | Field-specific. Aeries staff room wins before local overrides for teachers; local room overrides can unblock workflows while upstream correction is pending; IncidentIQ room mapping overrides are app-owned mapping decisions. |
 | Legal name | first name, last name, legal display components | Escape for employees, Aeries for students, HR manual intake for non-Escape contractors | HR correction for manual records only | Upstream wins for Escape-backed employees and students. Dashboard legal-name edits are authoritative only for local manual contractor records until an active upstream replacement supersedes them. |
 | Preferred/display name | preferred first name, display name, downstream display-name intent | dashboard self-service or HR/IT approved request; Google/Zoom may reflect downstream result after sync | employee/contractor self-service or HR/IT action where authorized | Dashboard request is the app-owned intent for eligible non-student identities. Provider reads verify propagation and may surface drift but do not silently replace the app-owned preferred-name decision. |
@@ -30,7 +30,7 @@ Every dashboard-managed value that can affect a provider-backed workflow must ca
 
 Required metadata:
 
-- `field_key`: stable field identifier such as `site_assignment`, `teaching_room`, `contractor_end_date`, `preferred_name`, or `permission_site_scope`
+- `field_key`: stable field identifier such as `site_assignment`, `primary_site_selection`, `teaching_room`, `contractor_end_date`, `preferred_name`, or `permission_site_scope`
 - `subject_id`: local UUIDv7 subject or workflow id the value applies to
 - `manual_value`: the normalized value used by the application, with sensitive subfields masked or encrypted according to the field policy
 - `actor`: authenticated user or system actor that created the manual change
@@ -65,6 +65,7 @@ Write-capable workflows must use these outcomes as safety gates. A field in `mar
 - Escape-backed employment status, hire/start/end dates, and active assignment participation are provider-owned. Dashboard manual entries may create review notes, workflow scheduling context, or local exceptions, but they must not overwrite Escape values.
 - Manual non-Escape contractor records are app-owned until an active Escape record supersedes them. When superseded, the manual record remains in the database for audit, becomes inactive or invalid, and must not enqueue duplicate onboarding or offboarding work.
 - A temporary site or room override must be tied to the owner role that can correct or approve that field. Site/room overrides should clear automatically when upstream later reports the same corrected value. They should conflict, not silently clear, when upstream reports a different value than both the old upstream snapshot and the manual value.
+- An InformedK12-backed primary-site selection is a dashboard-managed site-assignment decision for an Escape-backed employee whose Escape site is incomplete, conflicting, stale, or not yet corrected. The selection may use a reviewed active InformedK12 attachment as evidence, but it must keep raw Escape site values, raw InformedK12 form values, parsed site signal, and active dashboard selection as separate facts. It has no fixed automatic expiration; it requires a review-after timestamp for HR visibility and persists until upstream Escape/Aeries data unambiguously matches the selected site, a superseding job assignment or form-supported decision replaces it, or HR/IT manually reconciles it with an audit reason. Later upstream disagreement marks a conflict and blocks dependent write-capable planning instead of silently overwriting the selection or Escape source values.
 - Aeries student and teacher data remains upstream-owned. Student exception queues must drive correction in Aeries rather than local app edits. Teacher room context follows the existing rule: Aeries staff wins when Aeries staff, teacher, and scheduling disagree before local overrides apply.
 - Preferred/display-name requests for eligible non-student identities are app-owned decisions once submitted through an authorized workflow. Downstream provider values are verification signals. If a provider later disagrees, the app should retry or surface propagation drift rather than treating the provider value as a new source decision.
 - Manual permission grants, revocations, and site mappings follow `docs/product/permissions-model.md`. Manual revocations can deny effective in-app access even when Google or SAML still reports the grant, but the UI must identify that upstream cleanup remains required.
@@ -78,6 +79,8 @@ Operator-facing surfaces that show a reconciled value should use consistent plai
 - `Effective value`: the value the application is currently using for workflow planning or display
 - `Upstream value`: the latest value observed from the named provider or source
 - `Manual value`: the active dashboard-managed value, including owner and review/expiration metadata when visible to the persona
+- `InformedK12 value`: the retained exact form value plus parsed site signal when a form is used as evidence
+- `Dashboard site selection`: the app-level primary-site decision currently used for workflow planning
 - `Needs review`: a conflict or missing context blocks safe automation
 - `Cleared after upstream correction`: a temporary manual value was automatically ended because upstream now matches the intended correction
 - `Superseded by Escape`: a manual contractor record or manual lifecycle value was replaced by an active Escape-backed record
@@ -92,6 +95,7 @@ Sensitive fields remain masked according to the viewer's role. The UI may show t
 Reconciliation must write immutable audit events for material automatic decisions:
 
 - automatic clearing of a temporary override after upstream correction
+- automatic clearing or supersession of an InformedK12-backed primary-site selection after upstream correction or newer reviewed evidence
 - supersession of a manual contractor record by an active Escape-backed record
 - conflict creation, conflict owner changes, and conflict resolution
 - manual value preserved over upstream change
@@ -108,3 +112,5 @@ These named scenarios are the minimum coverage expected before DB-backed canonic
 - `manual-preserved-over-upstream`: an active app-owned or approved override field keeps the manual value effective while displaying the changed upstream value
 - `conflict-needs-review`: an upstream change conflicts with an active manual value or another upstream authority, blocks dependent write-capable workflow steps, and routes the row to the documented owner
 - `temporary-override-cleared-after-upstream-correction`: a temporary site or room override is end-dated automatically after upstream reports the intended corrected value, with audit evidence
+- `informedk12-primary-site-selection-preserved`: a reviewed InformedK12-backed primary-site selection stays effective for planning while Escape remains ambiguous, with Escape values, form values, parsed signal, and dashboard selection shown separately
+- `informedk12-primary-site-selection-cleared`: an active InformedK12-backed primary-site selection is cleared or superseded when Escape/Aeries later unambiguously matches the selected site or a newer reviewed form-supported decision replaces it, with audit evidence
