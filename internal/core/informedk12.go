@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type InformedK12AttachmentState string
@@ -47,6 +48,36 @@ const (
 	InformedK12FieldPublic    InformedK12FieldSensitivity = "public"
 	InformedK12FieldPersonnel InformedK12FieldSensitivity = "personnel"
 	InformedK12FieldSensitive InformedK12FieldSensitivity = "sensitive"
+)
+
+type InformedK12SiteSignalStatus string
+
+const (
+	InformedK12SiteSignalClear       InformedK12SiteSignalStatus = "clear"
+	InformedK12SiteSignalMissing     InformedK12SiteSignalStatus = "missing"
+	InformedK12SiteSignalAmbiguous   InformedK12SiteSignalStatus = "ambiguous"
+	InformedK12SiteSignalStale       InformedK12SiteSignalStatus = "stale"
+	InformedK12SiteSignalConflicting InformedK12SiteSignalStatus = "conflicting"
+)
+
+type InformedK12SiteSignalConfidence string
+
+const (
+	InformedK12SiteSignalConfidenceHigh   InformedK12SiteSignalConfidence = "high"
+	InformedK12SiteSignalConfidenceMedium InformedK12SiteSignalConfidence = "medium"
+	InformedK12SiteSignalConfidenceLow    InformedK12SiteSignalConfidence = "low"
+	InformedK12SiteSignalConfidenceNone   InformedK12SiteSignalConfidence = "none"
+)
+
+type InformedK12SiteSignalFieldType string
+
+const (
+	InformedK12SiteSignalFieldSite       InformedK12SiteSignalFieldType = "site"
+	InformedK12SiteSignalFieldLocation   InformedK12SiteSignalFieldType = "location"
+	InformedK12SiteSignalFieldDepartment InformedK12SiteSignalFieldType = "department"
+	InformedK12SiteSignalFieldPosition   InformedK12SiteSignalFieldType = "position"
+	InformedK12SiteSignalFieldTransfer   InformedK12SiteSignalFieldType = "transfer"
+	InformedK12SiteSignalFieldSupervisor InformedK12SiteSignalFieldType = "supervisor"
 )
 
 type InformedK12SourceField struct {
@@ -132,6 +163,48 @@ type InformedK12VisibleAttachment struct {
 	Visibility     InformedK12VisibilityLevel
 	VisibleFields  []InformedK12SourceField
 	RedactedFields []string
+}
+
+type InformedK12SiteAlias struct {
+	RawValue string
+	SiteID   string
+	SiteName string
+}
+
+type InformedK12EscapeSiteSnapshot struct {
+	SiteID   string
+	SiteName string
+}
+
+type InformedK12SiteSignalFieldRef struct {
+	Key         string
+	Label       string
+	FieldType   InformedK12SiteSignalFieldType
+	RawValue    string
+	Sensitivity InformedK12FieldSensitivity
+}
+
+type InformedK12SiteSignalInput struct {
+	Attachment  InformedK12Attachment
+	SiteAliases []InformedK12SiteAlias
+	EscapeSite  InformedK12EscapeSiteSnapshot
+	Now         time.Time
+	StaleAfter  time.Duration
+}
+
+type InformedK12SiteChangeSignal struct {
+	Status          InformedK12SiteSignalStatus
+	Confidence      InformedK12SiteSignalConfidence
+	SourceFormID    string
+	FormType        string
+	SubmittedAt     time.Time
+	AttachmentState InformedK12AttachmentState
+	EvidenceUse     InformedK12EvidenceUse
+	ParsedSiteID    string
+	ParsedSiteName  string
+	RawSiteValues   []string
+	FieldRefs       []InformedK12SiteSignalFieldRef
+	ReviewReasons   []string
 }
 
 // MatchInformedK12Form evaluates issue #253 form-to-person attachment rules without
@@ -241,6 +314,101 @@ func RedactInformedK12AttachmentForPersona(attachment InformedK12Attachment, ctx
 	return visible
 }
 
+// BuildInformedK12SiteChangeSignal derives the issue #252 review signal from an
+// already-linked form attachment. It is called by future employee and contractor
+// detail projections after #253 has associated source forms with people; the
+// function only classifies retained form fields against caller-supplied site
+// aliases and Escape context, so it performs no provider reads, writes, or local
+// persistence.
+func BuildInformedK12SiteChangeSignal(input InformedK12SiteSignalInput) InformedK12SiteChangeSignal {
+	signal := InformedK12SiteChangeSignal{
+		Status:          InformedK12SiteSignalMissing,
+		Confidence:      InformedK12SiteSignalConfidenceNone,
+		SourceFormID:    input.Attachment.Form.SourceFormID,
+		FormType:        input.Attachment.Form.FormType,
+		SubmittedAt:     input.Attachment.Form.SubmittedAt,
+		AttachmentState: input.Attachment.State,
+		EvidenceUse:     input.Attachment.EvidenceUse,
+	}
+	if !isActiveInformedK12Attachment(input.Attachment) {
+		signal.ReviewReasons = append(signal.ReviewReasons, "attachment is not active evidence")
+		return signal
+	}
+
+	refs := collectInformedK12SiteFieldRefs(input.Attachment.Form.SourceFields)
+	signal.FieldRefs = refs
+	signal.RawSiteValues = rawSiteValues(refs)
+	if len(refs) == 0 {
+		signal.ReviewReasons = append(signal.ReviewReasons, "no supported site-bearing InformedK12 fields were retained")
+		return signal
+	}
+
+	matches := matchInformedK12SiteAliases(refs, input.SiteAliases)
+	if len(matches) == 0 {
+		signal.Status = InformedK12SiteSignalAmbiguous
+		signal.Confidence = InformedK12SiteSignalConfidenceLow
+		signal.ReviewReasons = append(signal.ReviewReasons, "supported fields were present but no documented site alias matched their raw values")
+		return signal
+	}
+	if len(matches) > 1 {
+		signal.Status = InformedK12SiteSignalAmbiguous
+		signal.Confidence = InformedK12SiteSignalConfidenceLow
+		signal.ReviewReasons = append(signal.ReviewReasons, "supported fields matched multiple different site aliases")
+		return signal
+	}
+
+	signal.ParsedSiteID = matches[0].SiteID
+	signal.ParsedSiteName = matches[0].SiteName
+	signal.Status = InformedK12SiteSignalClear
+	signal.Confidence = siteSignalConfidence(refs)
+	if input.StaleAfter > 0 && !input.Now.IsZero() && !input.Attachment.Form.SubmittedAt.IsZero() && input.Attachment.Form.SubmittedAt.Add(input.StaleAfter).Before(input.Now) {
+		signal.Status = InformedK12SiteSignalStale
+		signal.Confidence = InformedK12SiteSignalConfidenceLow
+		signal.ReviewReasons = append(signal.ReviewReasons, "source form is older than the configured InformedK12 freshness window")
+		return signal
+	}
+	if input.EscapeSite.SiteID != "" && matches[0].SiteID != "" && normalizeMatchValue(input.EscapeSite.SiteID) != normalizeMatchValue(matches[0].SiteID) {
+		signal.Status = InformedK12SiteSignalConflicting
+		signal.Confidence = InformedK12SiteSignalConfidenceMedium
+		signal.ReviewReasons = append(signal.ReviewReasons, "InformedK12 site signal conflicts with current Escape site data")
+	}
+	return signal
+}
+
+// LatestInformedK12SiteChangeSignal selects the newest active attachment signal
+// for employee and contractor detail projections. Detached and superseded forms
+// remain visible through attachment history, but they do not displace a newer or
+// older active site-change signal on the person detail surface.
+func LatestInformedK12SiteChangeSignal(attachments []InformedK12Attachment, aliases []InformedK12SiteAlias, escapeSite InformedK12EscapeSiteSnapshot, now time.Time, staleAfter time.Duration) InformedK12SiteChangeSignal {
+	var latest InformedK12Attachment
+	for _, attachment := range attachments {
+		if !isActiveInformedK12Attachment(attachment) {
+			continue
+		}
+		if latest.Form.SourceFormID == "" || attachment.Form.SubmittedAt.After(latest.Form.SubmittedAt) {
+			latest = attachment
+		}
+	}
+	if latest.Form.SourceFormID == "" {
+		return InformedK12SiteChangeSignal{
+			Status:        InformedK12SiteSignalMissing,
+			Confidence:    InformedK12SiteSignalConfidenceNone,
+			ReviewReasons: []string{"no active InformedK12 form attachment was available"},
+		}
+	}
+	return BuildInformedK12SiteChangeSignal(InformedK12SiteSignalInput{
+		Attachment:  latest,
+		SiteAliases: aliases,
+		EscapeSite:  escapeSite,
+		Now:         now,
+		StaleAfter:  staleAfter,
+	})
+}
+
+func isActiveInformedK12Attachment(attachment InformedK12Attachment) bool {
+	return attachment.State == InformedK12AttachmentStateAttached
+}
+
 func informedK12VisibilityLevel(ctx InformedK12VisibilityContext) InformedK12VisibilityLevel {
 	switch ctx.PersonaRole {
 	case PermissionRoleITAdmin, PermissionRoleHumanResources:
@@ -251,6 +419,148 @@ func informedK12VisibilityLevel(ctx InformedK12VisibilityContext) InformedK12Vis
 		}
 	}
 	return InformedK12VisibilityHidden
+}
+
+// collectInformedK12SiteFieldRefs filters retained form excerpts down to the
+// site-bearing fields that #252 allows employee and contractor detail surfaces
+// to evaluate. It returns exact raw values and sensitivity labels so callers can
+// display or redact the source evidence without reparsing the full form.
+func collectInformedK12SiteFieldRefs(fields []InformedK12SourceField) []InformedK12SiteSignalFieldRef {
+	refs := []InformedK12SiteSignalFieldRef{}
+	for _, field := range fields {
+		fieldType, ok := informedK12SiteFieldType(field)
+		if !ok || strings.TrimSpace(field.Value) == "" {
+			continue
+		}
+		refs = append(refs, InformedK12SiteSignalFieldRef{
+			Key:         field.Key,
+			Label:       field.Label,
+			FieldType:   fieldType,
+			RawValue:    field.Value,
+			Sensitivity: field.Sensitivity,
+		})
+	}
+	return refs
+}
+
+// informedK12SiteFieldType classifies supported site-bearing form fields by key
+// and label only. It deliberately ignores notes and comments so free-text
+// personnel narrative does not become a site signal by keyword accident.
+func informedK12SiteFieldType(field InformedK12SourceField) (InformedK12SiteSignalFieldType, bool) {
+	name := normalizeMatchValue(field.Key + " " + field.Label)
+	if containsAny(name, "note", "notes", "comment", "comments", "remark", "remarks") {
+		return "", false
+	}
+	switch {
+	case containsAny(name, "site", "school", "campus"):
+		return InformedK12SiteSignalFieldSite, true
+	case containsAny(name, "location", "building"):
+		return InformedK12SiteSignalFieldLocation, true
+	case containsAny(name, "department", "dept"):
+		return InformedK12SiteSignalFieldDepartment, true
+	case containsAny(name, "position", "job title", "classification"):
+		return InformedK12SiteSignalFieldPosition, true
+	case containsAny(name, "transfer", "new assignment", "assignment change"):
+		return InformedK12SiteSignalFieldTransfer, true
+	case containsAny(name, "supervisor", "principal", "manager"):
+		return InformedK12SiteSignalFieldSupervisor, true
+	}
+	return "", false
+}
+
+// rawSiteValues returns de-duplicated source values for review surfaces while
+// preserving the first retained spelling, punctuation, and capitalization from
+// InformedK12.
+func rawSiteValues(refs []InformedK12SiteSignalFieldRef) []string {
+	values := make([]string, 0, len(refs))
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		normalized := normalizeMatchValue(ref.RawValue)
+		if normalized == "" || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		values = append(values, ref.RawValue)
+	}
+	return values
+}
+
+// matchInformedK12SiteAliases compares retained raw field values with
+// documented site aliases supplied by the caller. It returns unique parsed site
+// targets and leaves no-match or multi-match cases for the public builder to
+// classify as review states.
+func matchInformedK12SiteAliases(refs []InformedK12SiteSignalFieldRef, aliases []InformedK12SiteAlias) []InformedK12SiteAlias {
+	matchesBySite := map[string]InformedK12SiteAlias{}
+	for _, ref := range refs {
+		for _, alias := range aliases {
+			if normalizeMatchValue(ref.RawValue) != normalizeMatchValue(alias.RawValue) {
+				continue
+			}
+			key := normalizeMatchValue(firstNonEmpty(alias.SiteID, alias.SiteName))
+			if key == "" {
+				continue
+			}
+			matchesBySite[key] = alias
+		}
+	}
+	matches := make([]InformedK12SiteAlias, 0, len(matchesBySite))
+	for _, match := range matchesBySite {
+		matches = append(matches, match)
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		return firstNonEmpty(matches[i].SiteID, matches[i].SiteName) < firstNonEmpty(matches[j].SiteID, matches[j].SiteName)
+	})
+	return matches
+}
+
+// siteSignalConfidence ranks direct site and location fields above contextual
+// position, department, transfer, or supervisor fields so the signal can explain
+// why one parsed site is stronger evidence than another reviewed source.
+func siteSignalConfidence(refs []InformedK12SiteSignalFieldRef) InformedK12SiteSignalConfidence {
+	for _, ref := range refs {
+		if ref.FieldType == InformedK12SiteSignalFieldSite || ref.FieldType == InformedK12SiteSignalFieldLocation {
+			return InformedK12SiteSignalConfidenceHigh
+		}
+	}
+	return InformedK12SiteSignalConfidenceMedium
+}
+
+// containsAny keeps the field classifier compact and deterministic; it performs
+// no normalization because callers pass values that already went through
+// normalizeMatchValue.
+func containsAny(value string, needles ...string) bool {
+	tokens := normalizedTermTokens(value)
+	for _, needle := range needles {
+		if containsNormalizedTerms(tokens, normalizedTermTokens(needle)) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsNormalizedTerms(tokens []string, phrase []string) bool {
+	if len(phrase) == 0 || len(phrase) > len(tokens) {
+		return false
+	}
+	for i := 0; i <= len(tokens)-len(phrase); i++ {
+		matched := true
+		for j, term := range phrase {
+			if tokens[i+j] != term {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizedTermTokens(value string) []string {
+	return strings.FieldsFunc(normalizeMatchValue(value), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
 }
 
 func uniqueStrongMatch(form InformedK12FormRecord, candidates []InformedK12PersonCandidate, rule string, sourceValue string, values func(InformedK12PersonCandidate) []string) InformedK12MatchDecision {

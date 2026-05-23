@@ -1060,6 +1060,15 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - The product must preserve exact source form values for retained fields. It may add derived display labels or mapping status, but it must not silently normalize, translate, or replace the original InformedK12 value.
 - Retained InformedK12 fields must be minimized and classified as `public`, `personnel`, or `sensitive`. IT Admin and Human Resources may see retained personnel excerpts. Site Admin and Site Secretary may see only public summary fields for records in their authorized site scope. Device Wrangler, Faculty and Staff, no-access, and student-like personas must not receive form metadata unless a later documented self-service scope explicitly allows it.
 - Detached and superseded forms remain available as audit history to IT Admin and Human Resources, but they stop acting as active workflow evidence.
+- Employee and contractor detail surfaces should show the latest active InformedK12 site-change signal separately from current Escape site data and any dashboard-managed site decision. This signal is evidence and context only; it does not create, update, or clear a site override by itself.
+- Site-change signals may use retained InformedK12 fields whose key or label clearly refers to site, school, campus, location, building, department, position, transfer/new assignment, supervisor, principal, or manager. The surface must preserve the raw/source value and show whether a documented site alias produced a parsed site.
+- The detail surface must make the signal review state clear:
+  - `clear` means one documented site alias matched and no supplied Escape site conflict exists
+  - `missing` means no active attached form or no retained supported site-bearing field exists
+  - `ambiguous` means the retained field values cannot identify exactly one documented site alias
+  - `stale` means the parsed signal is older than the configured freshness window
+  - `conflicting` means the parsed InformedK12 site disagrees with current Escape site data
+- Missing, ambiguous, stale, and conflicting states should be routed to HR/IT review rather than hidden or treated as effective employee site assignment. Future #250 primary-site selection work may use a clear or reviewed signal as evidence only after it records a separate audited dashboard decision.
 
 ### Zoom Licensing Rules
 - `US/CA Unlimited Calling Plan` applies to all staff except `BS`.
