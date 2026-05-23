@@ -220,6 +220,10 @@ This document tracks the named mock scenarios and verification coverage required
     - individual and bulk action audit evidence
     - resulting queue-state database check
     - downstream workflow summary
+  - `2G` InformedK12 form attachment and lifecycle evidence
+    - matching-rule evidence for exact and ambiguous candidate handling
+    - manual attach/review, detach, and supersede audit evidence
+    - persona redaction evidence for full, summary, and hidden views
 - `2A` provisioning-profile and baseline bundle foundation
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
@@ -259,6 +263,14 @@ This document tracks the named mock scenarios and verification coverage required
   | `P2-2F-003` | Pre-Provisioning Staff Or Contractor Name Correction Does Not Create Rename Job | Verify a source-name correction that happens before the first AD/downstream account creation produces no rename job and only affects the later initial provisioning outcome. | Confirm staging does not enqueue rename work for pre-provisioning corrections. |
   | `P2-2F-004` | Username Collision Falls Through Fallback Order | Verify an unrelated existing account holding the preferred username/email forces the rename job to continue through the documented fallback order until a unique result is found. | Confirm staging never overwrites another person's username or alias ownership when resolving a legal-name change. |
   | `P2-2F-005` | Rename Completion Preserves Google Alias And Sends Notification | Verify successful rename keeps the old primary username/email as a receive-only Google alias and emits the completion-notification email to the affected person. | Confirm staging preserves Gmail alias behavior and sends the documented completion notice. |
+- `2G` InformedK12 form attachment and lifecycle evidence
+  | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
+  | --- | --- | --- | --- |
+  | `P2-2G-001` | Exact InformedK12 Form Match Attaches To One Person | Verify a form with one exact employee id or email match attaches to the corresponding employee or contractor record and preserves exact retained source-field values. | Confirm staging attaches only when the same unique identifier match exists against masked or sandbox person projections. |
+  | `P2-2G-002` | Ambiguous InformedK12 Form Match Requires Review | Verify duplicate employee id, duplicate email, or multiple legal-name/date candidates leave the form unattached in a reviewable conflict state with candidate evidence. | Confirm staging ambiguous matches remain review-only and cannot drive workflow evidence until HR/IT resolves them. |
+  | `P2-2G-003` | Manual InformedK12 Attachment Marks Decision Evidence | Verify HR/IT can manually attach a reviewed form to an employee or contractor record and mark it as evidence for a primary-site or lifecycle decision with actor, timestamp, reason, and source form id. | Confirm staging manual attachment audit evidence is retained without writing to InformedK12 or changing upstream Escape values. |
+  | `P2-2G-004` | Detached Or Superseded Form Stops Active Evidence Use | Verify a detached or superseded attachment remains in audit history but is no longer treated as active evidence for primary-site or lifecycle decisions. | Confirm staging workflow planning ignores detached/superseded form evidence while preserving the historical record for HR/IT review. |
+  | `P2-2G-005` | InformedK12 Form Persona Redaction | Verify IT Admin and Human Resources receive retained personnel excerpts, authorized site personas receive public summaries only, and unauthorized or student-like personas receive no form metadata. | Confirm staging field-level redaction and source-link visibility match the same persona policy before promotion. |
 - `2E` actionable Google-active / Aeries-inactive controls
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
