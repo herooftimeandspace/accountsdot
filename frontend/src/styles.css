@@ -867,7 +867,8 @@ input {
   font-weight: 800;
 }
 
-.my-profile-runtime__drawer-form input {
+.my-profile-runtime__drawer-form input,
+.my-profile-runtime__drawer-form select {
   min-height: 40px;
   border: 1px solid var(--color-canvas);
   border-radius: 8px;
