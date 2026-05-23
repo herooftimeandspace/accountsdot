@@ -17,6 +17,7 @@ import {
   DEFAULT_MERAKI_LAST_SEEN_FILTER,
   MERAKI_LAST_SEEN_FILTERS,
   merakiLastSeenAssignmentLabel,
+  merakiLastSeenLastSeenSortValue,
   merakiLastSeenRowsForAssignmentFilter,
   merakiLastSeenStatusClass,
   merakiLastSeenStudentLabel,
@@ -34,7 +35,7 @@ const COLUMNS = [
   { key: "device", label: "Device", value: (row) => row.device },
   { key: "assignment_type", label: "Assignment Type", value: merakiLastSeenAssignmentLabel },
   { key: "site", label: "Site", value: (row) => row.site },
-  { key: "last_seen", label: "Date Last Seen", value: (row) => row.last_seen },
+  { key: "last_seen", label: "Date Last Seen", value: (row) => row.last_seen, sortValue: merakiLastSeenLastSeenSortValue },
   {
     key: "match",
     label: "Match",
@@ -250,7 +251,12 @@ export function MerakiLastSeenPage({ session, onNavigate, onSearch, searchQuery,
     },
   });
   const rows = payload?.page?.rows ?? [];
-  const selectedPayloadRow = selectedRow ? rows.find((row) => row.id === selectedRow.id) || selectedRow : null;
+  useEffect(() => {
+    if (selectedRow && !rows.some((row) => row.id === selectedRow.id)) {
+      setSelectedRow(null);
+    }
+  }, [rows, selectedRow]);
+  const selectedPayloadRow = selectedRow ? rows.find((row) => row.id === selectedRow.id) || null : null;
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (
     <>
       {sharedShellRenderOverlay?.({ nodeIndex, textOverrides: overlayTextOverrides })}

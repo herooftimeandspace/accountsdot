@@ -23,6 +23,14 @@ export function merakiLastSeenRowsForAssignmentFilter(rows, assignmentFilter) {
 }
 
 /**
+ * merakiLastSeenLastSeenSortValue returns the machine-sortable timestamp for
+ * last-seen ordering while leaving the display-formatted timestamp untouched.
+ */
+export function merakiLastSeenLastSeenSortValue(row) {
+  return row?.last_seen_at || row?.last_seen_iso || row?.last_seen || "";
+}
+
+/**
  * merakiLastSeenAssignmentLabel returns stable visible copy for the assignment
  * badge even when a future provider-backed payload omits the preformatted label.
  */

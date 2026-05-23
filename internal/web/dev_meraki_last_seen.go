@@ -41,6 +41,7 @@ type merakiLastSeenRowPayload struct {
 	SiteID              string   `json:"site_id"`
 	Site                string   `json:"site"`
 	LastSeen            string   `json:"last_seen"`
+	LastSeenAt          string   `json:"last_seen_at"`
 	AssignmentType      string   `json:"assignment_type"`
 	AssignmentTypeLabel string   `json:"assignment_type_label"`
 	MatchState          string   `json:"match_state"`
@@ -62,6 +63,7 @@ type merakiLastSeenSeedRecord struct {
 	SiteID              string
 	Site                string
 	LastSeen            string
+	LastSeenAt          string
 	AssignmentType      string
 	AssignmentTypeLabel string
 	MatchState          string
@@ -177,6 +179,7 @@ func merakiLastSeenSeedRows() []merakiLastSeenSeedRecord {
 			SiteID:              "clover-hs",
 			Site:                "Clover High School",
 			LastSeen:            "May 3, 2026 8:42 AM PT",
+			LastSeenAt:          "2026-05-03T15:42:00Z",
 			AssignmentType:      "assigned_student",
 			AssignmentTypeLabel: "Assigned student device",
 			MatchState:          "matched",
@@ -194,6 +197,7 @@ func merakiLastSeenSeedRows() []merakiLastSeenSeedRecord {
 			SiteID:              "clover-hs",
 			Site:                "Clover High School",
 			LastSeen:            "May 3, 2026 7:18 AM PT",
+			LastSeenAt:          "2026-05-03T14:18:00Z",
 			AssignmentType:      "classroom_spare",
 			AssignmentTypeLabel: "Classroom spare / spare pool",
 			MatchState:          "matched",
@@ -213,6 +217,7 @@ func merakiLastSeenSeedRows() []merakiLastSeenSeedRecord {
 			SiteID:              "franklin-ms",
 			Site:                "Franklin Middle School",
 			LastSeen:            "May 3, 2026 8:08 AM PT",
+			LastSeenAt:          "2026-05-03T15:08:00Z",
 			AssignmentType:      "assigned_student",
 			AssignmentTypeLabel: "Assigned student device",
 			MatchState:          "matched",
@@ -230,6 +235,7 @@ func merakiLastSeenSeedRows() []merakiLastSeenSeedRecord {
 			SiteID:              "franklin-ms",
 			Site:                "Franklin Middle School",
 			LastSeen:            "May 3, 2026 8:55 AM PT",
+			LastSeenAt:          "2026-05-03T15:55:00Z",
 			AssignmentType:      "classroom_spare",
 			AssignmentTypeLabel: "Classroom spare / spare pool",
 			MatchState:          "matched",
@@ -247,6 +253,7 @@ func merakiLastSeenSeedRows() []merakiLastSeenSeedRecord {
 			SiteID:              "franklin-ms",
 			Site:                "Franklin Middle School",
 			LastSeen:            "May 3, 2026 8:33 AM PT",
+			LastSeenAt:          "2026-05-03T15:33:00Z",
 			AssignmentType:      "ambiguous",
 			AssignmentTypeLabel: "Ambiguous assignment",
 			MatchState:          "ambiguous",

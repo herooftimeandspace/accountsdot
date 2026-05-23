@@ -1157,7 +1157,11 @@
             }
           }
         },
-        "security": [],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-site-admin-or-device-wrangler-required",

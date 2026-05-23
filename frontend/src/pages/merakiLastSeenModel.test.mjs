@@ -5,6 +5,7 @@ import {
   DEFAULT_MERAKI_LAST_SEEN_FILTER,
   MERAKI_LAST_SEEN_FILTERS,
   merakiLastSeenAssignmentLabel,
+  merakiLastSeenLastSeenSortValue,
   merakiLastSeenRowsForAssignmentFilter,
   merakiLastSeenStatusClass,
   merakiLastSeenStudentLabel,
@@ -51,4 +52,15 @@ test("Meraki Last Seen spares do not require inaccurate student labels", () => {
 test("Meraki Last Seen ambiguous matches stay visually reviewable", () => {
   assert.equal(merakiLastSeenStatusClass(rows[0]), "reports-runtime__status reports-runtime__status--ready");
   assert.equal(merakiLastSeenStatusClass(rows[2]), "reports-runtime__status reports-runtime__status--review");
+});
+
+test("Meraki Last Seen last-seen sort uses machine timestamp before display text", () => {
+  assert.equal(
+    merakiLastSeenLastSeenSortValue({
+      last_seen: "May 3, 2026 8:42 AM PT",
+      last_seen_at: "2026-05-03T15:42:00Z",
+    }),
+    "2026-05-03T15:42:00Z"
+  );
+  assert.equal(merakiLastSeenLastSeenSortValue({ last_seen: "May 3, 2026 8:42 AM PT" }), "May 3, 2026 8:42 AM PT");
 });
