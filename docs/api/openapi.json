@@ -67,7 +67,10 @@
         "x-wizard-surface": "db-backed-runtime",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "public",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/session/me": {
@@ -95,7 +98,10 @@
         "x-wizard-surface": "db-backed-runtime-planned",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "edge-auth-planned",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "planned-db-read",
+        "x-wizard-transaction-retry": "future database read implementation must enforce auth, site scope, feature flags, and field visibility before querying",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/workflows": {
@@ -127,7 +133,10 @@
         "x-wizard-surface": "db-backed-runtime-planned",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "planned-db-read",
+        "x-wizard-transaction-retry": "future database read implementation must enforce auth, site scope, feature flags, and field visibility before querying",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/workflows/{workflow_run_id}": {
@@ -168,7 +177,10 @@
         "x-wizard-surface": "db-backed-runtime-planned",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "planned-db-read",
+        "x-wizard-transaction-retry": "future database read implementation must enforce auth, site scope, feature flags, and field visibility before querying",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/workflows/{workflow_run_id}/retry": {
@@ -219,7 +231,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "planned-db-write-boundary"
+        "x-wizard-write-boundary": "planned-db-write-boundary",
+        "x-wizard-db-access": "planned-db-write",
+        "x-wizard-transaction-retry": "future durable implementation must run serializable transaction work through internal/db.WithRetry before exposing retryable mutations",
+        "x-wizard-idempotency": "future durable implementation must define deterministic idempotency keys and audit/request-log behavior before writing state"
       }
     },
     "/api/v1/approvals": {
@@ -251,7 +266,10 @@
         "x-wizard-surface": "db-backed-runtime-planned",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "planned-db-read",
+        "x-wizard-transaction-retry": "future database read implementation must enforce auth, site scope, feature flags, and field visibility before querying",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/approvals/{approval_id}/approve": {
@@ -302,7 +320,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "planned-db-write-boundary"
+        "x-wizard-write-boundary": "planned-db-write-boundary",
+        "x-wizard-db-access": "planned-db-write",
+        "x-wizard-transaction-retry": "future durable implementation must run serializable transaction work through internal/db.WithRetry before exposing retryable mutations",
+        "x-wizard-idempotency": "future durable implementation must define deterministic idempotency keys and audit/request-log behavior before writing state"
       }
     },
     "/api/v1/approvals/{approval_id}/reject": {
@@ -353,7 +374,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "planned-db-write-boundary"
+        "x-wizard-write-boundary": "planned-db-write-boundary",
+        "x-wizard-db-access": "planned-db-write",
+        "x-wizard-transaction-retry": "future durable implementation must run serializable transaction work through internal/db.WithRetry before exposing retryable mutations",
+        "x-wizard-idempotency": "future durable implementation must define deterministic idempotency keys and audit/request-log behavior before writing state"
       }
     },
     "/api/v1/sync-status/{tab}": {
@@ -418,7 +442,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/sync-status/{user_type}/{user_id}/override": {
@@ -477,7 +504,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "planned-db-write-boundary"
+        "x-wizard-write-boundary": "planned-db-write-boundary",
+        "x-wizard-db-access": "planned-db-write",
+        "x-wizard-transaction-retry": "future durable implementation must run serializable transaction work through internal/db.WithRetry before exposing retryable mutations",
+        "x-wizard-idempotency": "future durable implementation must define deterministic idempotency keys and audit/request-log behavior before writing state"
       }
     },
     "/api/v1/room-mappings": {
@@ -518,7 +548,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       },
       "post": {
         "tags": [
@@ -567,7 +600,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "staff-session-required-planned",
-        "x-wizard-write-boundary": "planned-db-write-boundary"
+        "x-wizard-write-boundary": "planned-db-write-boundary",
+        "x-wizard-db-access": "planned-db-write",
+        "x-wizard-transaction-retry": "future durable implementation must run serializable transaction work through internal/db.WithRetry before exposing retryable mutations",
+        "x-wizard-idempotency": "future durable implementation must define deterministic idempotency keys and audit/request-log behavior before writing state"
       }
     },
     "/api/v1/annual-reset": {
@@ -609,7 +645,10 @@
         "x-wizard-surface": "accepted-no-op",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "it-admin-required-planned",
-        "x-wizard-write-boundary": "planned-db-write-boundary"
+        "x-wizard-write-boundary": "planned-db-write-boundary",
+        "x-wizard-db-access": "planned-db-write",
+        "x-wizard-transaction-retry": "future durable implementation must run serializable transaction work through internal/db.WithRetry before exposing retryable mutations",
+        "x-wizard-idempotency": "future durable implementation must define deterministic idempotency keys and audit/request-log behavior before writing state"
       }
     },
     "/api/v1/breakglass/login": {
@@ -662,7 +701,10 @@
         "x-wizard-surface": "db-backed-runtime-conditional",
         "x-wizard-phase": "phase-0",
         "x-wizard-auth": "local-breakglass-token",
-        "x-wizard-write-boundary": "session-and-audit-write"
+        "x-wizard-write-boundary": "session-and-audit-write",
+        "x-wizard-db-access": "conditional-audit-log-write",
+        "x-wizard-transaction-retry": "configured audit storage must fail closed if the audit write cannot be recorded; no provider retry occurs",
+        "x-wizard-idempotency": "repeating a valid breakglass login creates a fresh local session and records sanitized audit evidence; provider state is unchanged"
       }
     },
     "/api/v1/dev/session": {
@@ -690,7 +732,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-cookie-or-anonymous",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/login": {
@@ -731,7 +776,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "development-only",
-        "x-wizard-write-boundary": "cookie-and-dev-memory-write"
+        "x-wizard-write-boundary": "cookie-and-dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/logout": {
@@ -759,7 +807,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "development-only",
-        "x-wizard-write-boundary": "cookie-and-dev-memory-write"
+        "x-wizard-write-boundary": "cookie-and-dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/my-profile": {
@@ -791,7 +842,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-staff-session-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       },
       "put": {
         "tags": [
@@ -840,7 +894,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-staff-session-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/feature-flags": {
@@ -872,7 +929,10 @@
         "x-wizard-surface": "dev-mock-or-local-db",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "it-admin-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "conditional-local-db-read",
+        "x-wizard-transaction-retry": "configured local-database path may refresh feature-flag state before returning; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/feature-flags/{key}": {
@@ -941,7 +1001,10 @@
         "x-wizard-surface": "dev-mock-or-local-db",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "it-admin-required",
-        "x-wizard-write-boundary": "dev-memory-or-local-db-write"
+        "x-wizard-write-boundary": "dev-memory-or-local-db-write",
+        "x-wizard-db-access": "conditional-local-db-write",
+        "x-wizard-transaction-retry": "configured local-database path uses internal/db.WithRetry for feature-flag target and audit updates; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "repeating an unchanged feature-flag target update must not create duplicate audit rows"
       }
     },
     "/api/v1/dev/search": {
@@ -973,7 +1036,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-staff-session-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/onboarding": {
@@ -1005,7 +1071,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-route-permission-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/offboarding": {
@@ -1037,7 +1106,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-route-permission-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/reports/security-issues": {
@@ -1069,7 +1141,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-admin-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/departing-seniors": {
@@ -1101,7 +1176,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-or-device-wrangler-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/data-quality": {
@@ -1133,7 +1211,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-admin-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/meraki-last-seen": {
@@ -1165,7 +1246,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-site-admin-or-device-wrangler-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/room-moves": {
@@ -1197,7 +1281,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-route-permission-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/room-moves/bulk-draft": {
@@ -1229,7 +1316,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-route-permission-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/phone-directory/by-person": {
@@ -1261,7 +1351,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-staff-session-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/phone-directory/by-room": {
@@ -1293,7 +1386,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-staff-session-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/phone-directory/by-department": {
@@ -1325,7 +1421,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-staff-session-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/pages/reports/zoom-desk-phone-renames": {
@@ -1357,7 +1456,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-admin-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/onboarding/manual-drafts": {
@@ -1395,7 +1497,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/onboarding/manual-drafts/{id}": {
@@ -1458,7 +1563,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       },
       "delete": {
         "tags": [
@@ -1506,7 +1614,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/onboarding/manual-drafts/{id}/finalize": {
@@ -1559,7 +1670,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/onboarding/rows/{id}/room": {
@@ -1622,7 +1736,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-onboarding-room-permission-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/offboarding/candidates": {
@@ -1654,7 +1771,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/offboarding/records/{id}/end-date": {
@@ -1720,7 +1840,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/offboarding/emergency-deprovision": {
@@ -1774,7 +1897,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/offboarding/contractor-offboarding": {
@@ -1828,7 +1954,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-hr-or-it-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/departing-seniors/records/{id}/end-date": {
@@ -1894,7 +2023,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-or-device-wrangler-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/departing-seniors/records/{id}/deprovision": {
@@ -1957,7 +2089,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-or-device-wrangler-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/room-moves/drafts": {
@@ -2008,7 +2143,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-room-move-author-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/room-moves/drafts/{id}": {
@@ -2071,7 +2209,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-room-move-author-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       },
       "delete": {
         "tags": [
@@ -2112,7 +2253,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-room-move-author-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/room-moves/drafts/{id}/cancel": {
@@ -2165,7 +2309,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-room-move-author-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/room-moves/drafts/{id}/schedule": {
@@ -2221,7 +2368,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-room-move-author-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/room-moves/drafts/{id}/apply": {
@@ -2277,7 +2427,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-room-move-author-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     },
     "/api/v1/dev/room-moves/completed": {
@@ -2309,7 +2462,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-admin-required",
-        "x-wizard-write-boundary": "read-only"
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
       }
     },
     "/api/v1/dev/room-moves/completed/{id}/revert": {
@@ -2359,7 +2515,10 @@
         "x-wizard-surface": "dev-mock",
         "x-wizard-phase": "pre-phase-0",
         "x-wizard-auth": "dev-it-admin-required",
-        "x-wizard-write-boundary": "dev-memory-write"
+        "x-wizard-write-boundary": "dev-memory-write",
+        "x-wizard-db-access": "none",
+        "x-wizard-transaction-retry": "no database transaction retry",
+        "x-wizard-idempotency": "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers"
       }
     }
   },
