@@ -4733,6 +4733,72 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("cross-site rollover row error = %s, want membership id rejection", rec.Body.String())
 		}
 
+		reversibleBulkRow := roster.Draft.Rows[0]
+		reversibleDestination := "cla-a108"
+		if reversibleBulkRow.CurrentRoomID == reversibleDestination {
+			reversibleDestination = "cla-b204"
+		}
+		reversibleBulkBody, err := json.Marshal(map[string]any{
+			"mode":          "end_of_year_site_move",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"id": reversibleBulkRow.ID, "person_id": reversibleBulkRow.PersonID, "destination_site_id": "clover-hs", "destination_room_id": reversibleDestination, "destination_role": "primary"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal reversible bulk roster draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(reversibleBulkBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("reversible bulk roster draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		reversibleBulk := decodeJSON[roomMoveDraftTestResponse](t, rec)
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+reversibleBulk.Draft.ID+"/apply", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("apply reversible bulk roster draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/room-moves/completed", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("completed room moves after bulk apply returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		completedBulk := decodeJSON[roomMoveCompletedJobsTestResponse](t, rec)
+		var bulkJobID string
+		for _, job := range completedBulk.Jobs {
+			if job.SourceDraftID == reversibleBulk.Draft.ID {
+				bulkJobID = job.ID
+			}
+		}
+		if bulkJobID == "" {
+			t.Fatalf("completed jobs %#v did not include bulk source draft %q", completedBulk.Jobs, reversibleBulk.Draft.ID)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/completed/"+bulkJobID+"/revert", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("revert completed bulk roster job returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		bulkRevert := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if bulkRevert.Draft.Status != "scheduled" || len(bulkRevert.Draft.Rows) != 1 {
+			t.Fatalf("bulk revert draft = %#v, want one scheduled reversal row", bulkRevert.Draft)
+		}
+		if bulkRevert.Draft.Rows[0].ID != "revert-"+reversibleBulk.Draft.Rows[0].ID || bulkRevert.Draft.Rows[0].CurrentRoomID != reversibleDestination || bulkRevert.Draft.Rows[0].DestinationRoomID != reversibleBulkRow.CurrentRoomID {
+			t.Fatalf("bulk revert row = %#v, want trusted completed-job source and original room destination", bulkRevert.Draft.Rows[0])
+		}
+
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+build.Draft.ID+"/schedule", nil)
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()

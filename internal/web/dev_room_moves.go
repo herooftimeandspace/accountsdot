@@ -966,8 +966,13 @@ func (s *devRoomMoveStoreState) scheduleRevert(config devPersonaConfig, jobID st
 		rows = append(rows, roomMoveDraftRow{
 			ID:                "revert-" + row.ID,
 			PersonID:          row.PersonID,
+			CurrentSiteID:     row.DestinationSiteID,
+			CurrentRoomID:     row.DestinationRoomID,
+			CurrentRoom:       row.DestinationRoom,
+			SourceRole:        normalizeRoomMoveSourceRole(row.DestinationRole),
 			DestinationSiteID: row.CurrentSiteID,
 			DestinationRoomID: row.CurrentRoomID,
+			DestinationRole:   normalizeRoomMoveDestinationRole(row.SourceRole),
 			Action:            "revert",
 		})
 	}
@@ -1207,9 +1212,10 @@ func normalizeRoomMoveRows(config devPersonaConfig, scopeSite devSiteContext, mo
 // updateDraft, and transition validation trust for Room Moves. Direct API
 // payloads may carry stale or hostile current_room_id/current_room/source_role
 // values, so normalization resolves Site Rollover rows from the server-side
-// membership seed encoded in the row id and resolves manual rows from the
-// server-side person seed. Destination room, destination site, action, and
-// destination role remain operator-editable.
+// membership seed encoded in the row id, accepts completed-job revert rows only
+// when their `revert-` id points back to a valid membership row, and resolves
+// manual rows from the server-side person seed. Destination room, destination
+// site, action, and destination role remain operator-editable.
 func trustedRoomMoveSourceForRow(scopeSite devSiteContext, mode string, row roomMoveDraftRow, person roomMovePersonOption, action string) (string, string, string, string) {
 	if action == "add" {
 		return "none", "", "", ""
@@ -1218,6 +1224,21 @@ func trustedRoomMoveSourceForRow(scopeSite devSiteContext, mode string, row room
 		currentRoomID := person.CurrentRoomID
 		room := roomMoveRoomByID(currentRoomID, person.SiteID)
 		return currentRoomID, firstNonEmpty(room.Label, person.CurrentRoom), normalizeRoomMoveSourceRole(person.SourceRole), ""
+	}
+	if action == "revert" && strings.HasPrefix(row.ID, "revert-") {
+		originalRow := row
+		originalRow.ID = strings.TrimPrefix(row.ID, "revert-")
+		if membership, ok := roomMoveMembershipForDraftRow(scopeSite.ID, originalRow, person.ID); ok {
+			if membership.SiteID != person.SiteID {
+				return "", "", "", "Site Rollover membership row does not match that person's site."
+			}
+			if row.CurrentRoomID == "" {
+				return "", "", "", "Completed Site Rollover revert row is missing the current room."
+			}
+			currentRoomID := row.CurrentRoomID
+			room := roomMoveRoomByID(currentRoomID, firstNonEmpty(row.CurrentSiteID, membership.SiteID))
+			return currentRoomID, room.Label, firstNonEmpty(normalizeRoomMoveSourceRole(row.SourceRole), normalizeRoomMoveSourceRole(membership.Role)), ""
+		}
 	}
 	if membership, ok := roomMoveMembershipForDraftRow(scopeSite.ID, row, person.ID); ok {
 		if membership.SiteID != person.SiteID {
