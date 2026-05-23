@@ -28,6 +28,18 @@ export function sidebarOffsetForWheel(currentOffset, deltaY, geometry) {
 }
 
 /**
+ * sidebarHasOverflow reports whether the shared sidebar has a non-zero
+ * independent scroll range. The wheel handler uses this to consume wheel
+ * events at real sidebar bounds, while letting the page scroller receive wheel
+ * events when the sidebar content already fits the viewport.
+ */
+export function sidebarHasOverflow({ viewportHeight, contentBottom, margin = SIDEBAR_VIEWPORT_MARGIN } = {}) {
+  const safeViewportHeight = Math.max(0, Number(viewportHeight) || 0);
+  const safeContentBottom = Math.max(0, Number(contentBottom) || 0);
+  return safeContentBottom + margin > safeViewportHeight;
+}
+
+/**
  * sidebarWheelDeltaPixels normalizes WheelEvent delta units before shared
  * sidebar scroll math runs. SharedShellSidebarScrollManager uses this so line
  * and page-mode wheels behave like pixel-mode trackpads instead of jumping

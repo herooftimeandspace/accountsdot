@@ -9,6 +9,7 @@ import {
   clampSidebarOffset,
   sidebarOffsetForFocusedRect,
   sidebarOffsetForWheel,
+  sidebarHasOverflow,
   sidebarWheelDeltaPixels,
 } from "./sharedShellSidebarScroll.mjs";
 
@@ -1008,7 +1009,8 @@ function SharedShellSidebarScrollManager({ visibleSidebarRows }) {
         sidebarWheelDeltaPixels(event.deltaY, event.deltaMode, geometry),
         geometry,
       );
-      if (event.cancelable) {
+      const shouldOwnWheel = nextOffset !== currentOffset || sidebarHasOverflow(geometry);
+      if (shouldOwnWheel && event.cancelable) {
         event.preventDefault();
       }
       if (nextOffset !== currentOffset) {

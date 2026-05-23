@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   clampSidebarOffset,
   sidebarOffsetForFocusedRect,
+  sidebarHasOverflow,
   sidebarOffsetForWheel,
   sidebarWheelDeltaPixels,
 } from "./sharedShellSidebarScroll.mjs";
@@ -18,6 +19,13 @@ test("sidebarOffsetForWheel clamps independent sidebar scroll to the reachable l
   assert.equal(sidebarOffsetForWheel(0, 80, geometry), -80);
   assert.equal(sidebarOffsetForWheel(-80, 500, geometry), -232);
   assert.equal(sidebarOffsetForWheel(-80, -500, geometry), 0);
+});
+
+test("sidebarHasOverflow distinguishes fitted sidebars from bounded scroll ranges", () => {
+  assert.equal(sidebarHasOverflow({ viewportHeight: 900, contentBottom: 760 }), false);
+  assert.equal(sidebarHasOverflow({ viewportHeight: 600, contentBottom: 820 }), true);
+  assert.equal(sidebarHasOverflow({ viewportHeight: 600, contentBottom: 588 }), false);
+  assert.equal(sidebarHasOverflow({ viewportHeight: 600, contentBottom: 589 }), true);
 });
 
 test("sidebarWheelDeltaPixels preserves pixel-mode wheel deltas", () => {
