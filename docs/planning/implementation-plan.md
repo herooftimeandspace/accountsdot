@@ -1881,9 +1881,9 @@
 - Lifecycle:
   - no fixed automatic expiration applies; `review_after` exists for stale-decision visibility and HR rollover review, not automatic removal
   - preserve the selection while Escape remains ambiguous, stale, missing, or unreconciled and the selected site remains the last safe planning value
-  - clear the selection through `clear_temporary_override` when current Escape or Aeries site data unambiguously matches the selected site
-  - mark the selection `superseded` when a newer active Escape job assignment or newer reviewed form-supported decision replaces the old planning context
-  - mark `Needs review` and block dependent write-capable planning if a later Escape import reports a different unambiguous site than both the original source snapshot and the active dashboard selection
+  - clear the selection through `clear_temporary_override` only when current Escape data unambiguously matches the selected site for an Escape-backed employee; Aeries, Google, SAML, and other site signals may support operator review but must not automatically clear an InformedK12-backed selection while Escape remains ambiguous, stale, missing, or conflicting
+  - mark the selection `superseded` when a newer reviewed form-supported decision replaces the old planning context, or when a newer active Escape job assignment replaces the context with the same unambiguous site already selected by the dashboard
+  - mark `Needs review` and block dependent write-capable planning if a later Escape import reports a different unambiguous site than both the original source snapshot and the active dashboard selection; this conflict gate wins over automatic supersession for assignment changes that introduce a different site
   - allow HR/IT to manually clear or reconcile the selection only with an audit reason
 - Workflow-planning behavior:
   - a single active Escape site after alias handling wins without creating a dashboard selection
