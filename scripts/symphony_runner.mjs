@@ -19,7 +19,16 @@ const DEFAULT_MONITOR = {
   reconcilePrBranches: true,
   safeBranchPrefixes: ["codex/", "issue-"],
   codexReviewAuthors: ["chatgpt-codex-connector", "github-copilot", "codex-review"],
+  codexReviewBot: "chatgpt-codex-connector[bot]",
+  codexReviewSuccessReactions: ["THUMBS_UP", "+1"],
+  codexReviewSuccessComments: [
+    "all PR issues have been addressed",
+    "merge is clean",
+    "no actionable feedback",
+  ],
+  codexReviewInProgressReactions: ["EYES"],
   autoResolveOutdatedCodexReviewThreads: true,
+  noReviewWithBotThumbsUpIsClean: true,
   latestCodeAllowedDirty: ["frontend/dist/", "tmp/", ".vite/"],
   browserDefaultUrl: "http://localhost:5173/dashboard/it-admin",
   browserScreenshotRequired: false,
@@ -2944,6 +2953,7 @@ async function ensureDispatchWorkspace({ issue, dispatchConfig, workflow, skills
 
 function readMonitorConfig(workflowConfig) {
   const configured = workflowConfig.maintenance?.ui_improvements_monitor || {};
+  const pullRequestSignals = workflowConfig.pull_requests || {};
   return {
     ...DEFAULT_MONITOR,
     ...snakeToCamel(configured),
@@ -2956,10 +2966,30 @@ function readMonitorConfig(workflowConfig) {
         : Boolean(configured.reconcile_pr_branches),
     safeBranchPrefixes: configured.safe_branch_prefixes || DEFAULT_MONITOR.safeBranchPrefixes,
     codexReviewAuthors: configured.codex_review_authors || DEFAULT_MONITOR.codexReviewAuthors,
+    codexReviewBot: configured.codex_review_bot || pullRequestSignals.codex_review_bot || DEFAULT_MONITOR.codexReviewBot,
+    codexReviewSuccessReactions:
+      configured.codex_review_success_reactions ||
+      pullRequestSignals.codex_review_success_reactions ||
+      DEFAULT_MONITOR.codexReviewSuccessReactions,
+    codexReviewSuccessComments:
+      configured.codex_review_success_comments ||
+      pullRequestSignals.codex_review_success_comments ||
+      DEFAULT_MONITOR.codexReviewSuccessComments,
+    codexReviewInProgressReactions:
+      configured.codex_review_in_progress_reactions ||
+      pullRequestSignals.codex_review_in_progress_reactions ||
+      DEFAULT_MONITOR.codexReviewInProgressReactions,
     autoResolveOutdatedCodexReviewThreads:
       configured.auto_resolve_outdated_codex_review_threads === undefined
         ? DEFAULT_MONITOR.autoResolveOutdatedCodexReviewThreads
         : Boolean(configured.auto_resolve_outdated_codex_review_threads),
+    noReviewWithBotThumbsUpIsClean:
+      configured.no_review_with_bot_thumbs_up_is_clean === undefined
+        ? pullRequestSignals.no_review_with_bot_thumbs_up_is_clean === undefined
+          ? DEFAULT_MONITOR.noReviewWithBotThumbsUpIsClean
+          : Boolean(pullRequestSignals.no_review_with_bot_thumbs_up_is_clean)
+        : Boolean(configured.no_review_with_bot_thumbs_up_is_clean),
+    blockedLabels: (workflowConfig.tracker?.blocked_labels || []).map((label) => String(label).toLowerCase()),
     latestCodeAllowedDirty: configured.latest_code_allowed_dirty || DEFAULT_MONITOR.latestCodeAllowedDirty,
     browserScreenshotRequired:
       configured.browser_screenshot_required === undefined
@@ -2967,6 +2997,17 @@ function readMonitorConfig(workflowConfig) {
         : Boolean(configured.browser_screenshot_required),
     lockMaxAgeMs: Number(configured.lock_max_age_ms || DEFAULT_MONITOR.lockMaxAgeMs),
   };
+}
+
+function monitorPullRequestReviewStates({ prs, reviewThreads, signalsByPr, config }) {
+  return queuePullRequests(prs).map((pr) =>
+    evaluatePullRequestForMerge({
+      pr,
+      reviewThreads,
+      signals: signalsByPr.get(pr.number) || { reviews: [], comments: [], reactionGroups: [] },
+      config,
+    }),
+  );
 }
 
 function snakeToCamel(object) {
@@ -3879,6 +3920,7 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
     const prs = listOpenPullRequests(monitor.targetBranch);
     const issues = listOpenIssues();
     let reviewThreads = fetchReviewThreads(monitor.targetBranch);
+    const reviewSignals = fetchPullRequestReviewSignals(monitor.targetBranch);
     const reviewRemediations = remediateReviewThreads({
       reviewThreads,
       config: monitor,
@@ -3892,6 +3934,12 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
     if (reviewRemediations.some((remediation) => remediation.status === "resolved")) {
       reviewThreads = fetchReviewThreads(monitor.targetBranch);
     }
+    const prReviewStates = monitorPullRequestReviewStates({
+      prs,
+      reviewThreads,
+      signalsByPr: reviewSignals,
+      config: monitor,
+    });
     const prReconciliations = reconcilePullRequestBranches({
       prs,
       reviewThreads,
@@ -3925,6 +3973,7 @@ async function uiMonitor({ dryRun = false, json = false } = {}) {
       outdated_unresolved_review_threads: reviewThreads
         .filter((entry) => entry.outdated_unresolved_threads.length > 0)
         .map((entry) => ({ number: entry.number, count: entry.outdated_unresolved_threads.length })),
+      pr_review_states: prReviewStates,
       review_remediations: reviewRemediations,
       pr_reconciliations: prReconciliations,
       uncovered_open_issues: openIssuesWithoutOpenPr(issues, prs).map((issue) => ({
@@ -4657,6 +4706,115 @@ async function selfTest() {
     });
     assert.equal(completedRequestEvaluation.status, "ready_to_merge");
     assert.equal(completedRequestEvaluation.pending_codex_review_request, false);
+    const monitorConfig = readMonitorConfig({
+      tracker: { blocked_labels: ["blocked"] },
+      pull_requests: {
+        codex_review_bot: "chatgpt-codex-connector[bot]",
+        codex_review_success_reactions: ["THUMBS_UP"],
+        codex_review_in_progress_reactions: ["EYES"],
+      },
+      maintenance: {
+        ui_improvements_monitor: {
+          codex_review_authors: ["chatgpt-codex-connector"],
+        },
+      },
+    });
+    const monitorPendingReviewStates = monitorPullRequestReviewStates({
+      prs: [readyPr],
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signalsByPr: new Map([
+        [
+          286,
+          {
+            reviews: [],
+            comments: [
+              {
+                body: "@codex please review",
+                createdAt: "2026-05-22T02:00:00Z",
+                reactionGroups: [
+                  {
+                    content: "EYES",
+                    users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+                  },
+                ],
+              },
+            ],
+            reactionGroups: [],
+          },
+        ],
+      ]),
+      config: monitorConfig,
+    });
+    assert.equal(monitorPendingReviewStates[0].status, "waiting_for_codex_review");
+    assert.equal(monitorPendingReviewStates[0].pending_codex_review_request, true);
+    assert.equal(monitorPendingReviewStates[0].bot_eyes, true);
+    const monitorCleanReviewStates = monitorPullRequestReviewStates({
+      prs: [readyPr],
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signalsByPr: new Map([
+        [
+          286,
+          {
+            reviews: [],
+            comments: [],
+            reactionGroups: [
+              {
+                content: "THUMBS_UP",
+                users: { nodes: [{ login: "chatgpt-codex-connector[bot]" }] },
+              },
+            ],
+          },
+        ],
+      ]),
+      config: monitorConfig,
+    });
+    assert.equal(monitorCleanReviewStates[0].status, "ready_to_merge");
+    assert.equal(monitorCleanReviewStates[0].bot_thumbs_up, true);
+    const monitorCleanCommentStates = monitorPullRequestReviewStates({
+      prs: [readyPr],
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signalsByPr: new Map([
+        [
+          286,
+          {
+            reviews: [],
+            comments: [
+              {
+                author: { login: "chatgpt-codex-connector" },
+                body: "Codex Review: no actionable feedback",
+                createdAt: "2026-05-22T02:05:00Z",
+                reactionGroups: [],
+              },
+              {
+                author: { login: "herooftimeandspace" },
+                body: "@codex please review",
+                createdAt: "2026-05-22T02:00:00Z",
+                reactionGroups: [],
+              },
+            ],
+            reactionGroups: [],
+          },
+        ],
+      ]),
+      config: monitorConfig,
+    });
+    assert.equal(monitorCleanCommentStates[0].status, "ready_to_merge");
+    assert.equal(monitorCleanCommentStates[0].codex_review_clean_comment, true);
+    const monitorActiveThreadStates = monitorPullRequestReviewStates({
+      prs: [readyPr],
+      reviewThreads: [
+        {
+          number: 286,
+          review_threads: [{ ...codexThread, isOutdated: false }],
+          unresolved_threads: [{ ...codexThread, isOutdated: false }],
+        },
+      ],
+      signalsByPr: new Map([[286, { reviews: [], comments: [], reactionGroups: [] }]]),
+      config: monitorConfig,
+    });
+    assert.equal(monitorActiveThreadStates[0].status, "blocked");
+    assert.equal(monitorActiveThreadStates[0].unresolved_codex_review_threads, 1);
+    assert.match(monitorActiveThreadStates[0].blockers.join("; "), /unresolved current Codex Review thread/);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["merge state DIRTY"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["draft PR"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), true);
     assert.equal(shouldRemediateBlockedPullRequest({ status: "blocked", head_ref: "codex/example", blockers: ["check state FAILURE"], unresolved_codex_review_threads: 0, unresolved_codex_review_thread_summaries: [] }), false);
