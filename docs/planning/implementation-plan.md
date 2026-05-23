@@ -841,6 +841,15 @@
     - `P2-2G-003` Manual InformedK12 Attachment Marks Decision Evidence
     - `P2-2G-004` Detached Or Superseded Form Stops Active Evidence Use
     - `P2-2G-005` InformedK12 Form Persona Redaction
+    - `P2-2G-006` Clear InformedK12 Site Signal
+    - `P2-2G-007` Missing InformedK12 Site Signal
+    - `P2-2G-008` Ambiguous InformedK12 Site Signal
+    - `P2-2G-009` Stale InformedK12 Site Signal
+    - `P2-2G-010` InformedK12 Site Signal Conflicts With Escape
+    - `P2-2G-011` Single Escape Site Wins Without Dashboard Selection
+    - `P2-2G-012` Conflicting Escape Sites Require HR/IT Review
+    - `P2-2G-013` InformedK12-Backed Primary Site Selection Drives Planning
+    - `P2-2G-014` Primary Site Selection Clears Or Supersedes Safely
 
 - Rollback triggers for this phase:
   - `2A`: trigger rollback if started workflows reread live profile edits, profile snapshots are not stable, or unmapped-title blocking affects the wrong people.
@@ -1400,6 +1409,7 @@
   - IT Admin manual permission grants, revocations, and site mappings as resolved by `docs/product/permissions-model.md`.
 - Temporary override fields:
   - HR temporary site overrides.
+  - InformedK12-backed primary-site selections for Escape-backed employees whose source site is incomplete, conflicting, stale, or not yet corrected upstream.
   - authorized room/location overrides from Site Admin, Site Secretary, HR, or IT.
   - exception-list entries and manual revocations that have an expiration or review date.
 - Manual changes that can affect provider-backed planning must persist metadata for field key, subject id, manual value, actor, created timestamp, reason/source, related form/ticket/workflow when available, owner role, effective-from date, expiration or review date when required, supersession policy, and a non-secret snapshot of the upstream value seen when the manual change was created.
@@ -1745,6 +1755,10 @@
   - if two same-category top assignments disagree on site, resolve using `SiteDescr`, `SiteIdPayCheck`, and `SiteIdTimeSheet`, with initial alias defaults of `CCLA → CLA`, `NCC → DO`, `MAIL → ignore`, `TRAN → MOT`, `DW → DO`, `MNT → MOT`, `NBMA → BPL`, and `WTCH → MOT`
   - when site fields disagree, surface an HR data-quality issue rather than silently choosing a site
   - HR may apply a temporary manual site override while the upstream data is being corrected
+  - HR and IT Admin may create an InformedK12-backed primary-site selection when the Escape site cannot be resolved definitively and a reviewed attached InformedK12 form provides usable site evidence
+  - that selection is an app-level planning decision only; it must preserve Escape site fields and InformedK12 source excerpts separately and must never write back to Escape or InformedK12
+  - selection review surfaces must show raw Escape site values, raw InformedK12 site-bearing values plus parsed signal, and active dashboard selection as distinct fields
+  - the selection can feed workflow planning that requires a primary site, but write-capable downstream steps depending on the site must block when the active selection is in conflict or missing required evidence
   - HR may include room/location details in that temporary override, but room/location is optional and should not block continuation if unknown
   - temporary HR site and room/location overrides do not require reason, owner, or expiration metadata
   - that override persists until the upstream data is corrected or the job assignment changes
@@ -1756,7 +1770,7 @@
     - temporary HR site overrides: persist until upstream correction, a job-assignment change, or HR reconciliation; include them in the HR review queue so stale overrides are visible, but do not remove them by date alone
     - temporary HR room/location overrides: same lifecycle as temporary HR site overrides; room/location may be unknown and must not block continuation when the documented workflow allows unknown room context
     - manual Non-Escape employee, contractor, volunteer, or similar local assignment records: eligible for school-year expiration after HR review; HR may extend with a new expiration/review date, remove the assignment, or mark it reconciled
-    - InformedK12-backed primary-site selections: persist until upstream Escape/Aeries correction, a superseding job assignment, a superseding form-supported decision, or HR reconciliation; show linked form evidence when available
+    - InformedK12-backed primary-site selections: persist until current Escape data unambiguously matches the selected site, a newer active Escape job assignment confirms the same selected site under the new context, a newer reviewed form-supported decision replaces the selection, or HR/IT reconciliation proves the manual value is obsolete; show linked form evidence when available and route different unambiguous Escape-site changes to `Needs review`
     - permission/site-scope overrides: never expire automatically in HR rollover; IT Admin permission-governance workflows own their review and audit lifecycle
     - local-only employee attributes such as preferred/display name and pronouns: never expire automatically in HR rollover
     - per-user sync exception overrides: annual reset may clear the local exception metadata only after review, but that clearance must not remove provider access or source data
@@ -1840,7 +1854,48 @@
   - `stale`: a single site alias matches, but the form is older than the configured InformedK12 freshness window
   - `conflicting`: a single site alias matches but disagrees with the current Escape site id
 - Employee and contractor detail surfaces should show the latest active InformedK12 site-change signal next to current Escape site values and any dashboard-managed site decision from #250. Detached and superseded forms stay available in form attachment history but do not displace the latest active site-change signal.
-- Missing, ambiguous, stale, and conflicting signals are review states for HR/IT data-quality work. They are evidence for future primary-site selection or override flows only after a separate documented workflow records the manual decision and audit metadata.
+- Missing, ambiguous, stale, and conflicting signals are review states for HR/IT data-quality work. They become evidence for primary-site selection or override flows only after a separate documented workflow records the manual decision and audit metadata.
+
+## InformedK12-Backed Primary-Site Selection
+- Purpose: allow HR or IT Admin to choose the active dashboard primary site for an Escape-backed employee when Escape data is incomplete, conflicting, stale, or not yet corrected, using an attached InformedK12 form as decision evidence.
+- Authority boundary:
+  - Escape remains source truth for employment and assignment fields.
+  - InformedK12 remains source truth for submitted form values.
+  - The dashboard selection is source truth only for the app-level planning decision until superseded or reconciled.
+  - The workflow must not mutate Escape, InformedK12, Aeries, Google, SAML, permissions, or downstream providers by creating, updating, clearing, or preserving the selection.
+- Allowed actors:
+  - Human Resources and IT Admin can create, update, supersede, clear, or mark reconciled the selection.
+  - Site Admin and Site Secretary can see only the effective site scope and public non-sensitive evidence summary for records inside their authorized site scope.
+  - Device Wrangler, Faculty and Staff, no-access, and student-like personas cannot inspect InformedK12 evidence or manage the selection.
+- Required selection metadata:
+  - `field_key = primary_site_selection`
+  - person subject id and Escape employee identifier
+  - selected canonical site id/name used by the dashboard
+  - exact raw Escape site values from active assignments at decision time
+  - related InformedK12 attachment id, source form id, form type/name, submitted timestamp, and retained raw site-bearing fields
+  - parsed InformedK12 site signal, confidence, alias/mapping id when one was used, and review state
+  - actor, owner role, created timestamp, effective-from timestamp, review-after timestamp, reason, and decision note
+  - before/after active dashboard selection
+  - non-secret source snapshot fingerprints for Escape and InformedK12
+  - supersession policy `clear_on_upstream_match` plus conflict behavior `conflict_on_upstream_difference`
+- Lifecycle:
+  - no fixed automatic expiration applies; `review_after` exists for stale-decision visibility and HR rollover review, not automatic removal
+  - preserve the selection while Escape remains ambiguous, stale, missing, or unreconciled and the selected site remains the last safe planning value
+  - clear the selection through `clear_temporary_override` only when current Escape data unambiguously matches the selected site for an Escape-backed employee; Aeries, Google, SAML, and other site signals may support operator review but must not automatically clear an InformedK12-backed selection while Escape remains ambiguous, stale, missing, or conflicting
+  - mark the selection `superseded` when a newer reviewed form-supported decision replaces the old planning context, or when a newer active Escape job assignment replaces the context with the same unambiguous site already selected by the dashboard
+  - mark `Needs review` and block dependent write-capable planning if a later Escape import reports a different unambiguous site than both the original source snapshot and the active dashboard selection; this conflict gate wins over automatic supersession for assignment changes that introduce a different site
+  - allow HR/IT to manually clear or reconcile the selection only with an audit reason
+- Workflow-planning behavior:
+  - a single active Escape site after alias handling wins without creating a dashboard selection
+  - multiple same-category Escape sites that resolve through documented heuristics may plan from the resolved Escape site while still surfacing source values
+  - unresolved or conflicting Escape sites require HR/IT review before downstream planning can use a primary site
+  - a reviewed InformedK12-backed selection can unblock planning that needs a primary site, including onboarding preparation, baseline profile evaluation, task routing, room/equipment planning, and HR data-quality triage
+  - write-capable downstream steps must re-check the latest source-precedence outcome immediately before mutation; `mark_conflict` and `blocked_missing_context` remain hard stops
+- UI and audit behavior:
+  - person detail, review queue, workflow-planning preview, and audit history must show Escape source values, InformedK12 source values, and active dashboard selection separately
+  - raw source values must remain source-faithful; derived site aliases are additive labels and must not replace Escape or InformedK12 display values
+  - every create, update, preserve-over-upstream-change, clear, supersede, conflict, and manual reconciliation event writes immutable audit history with before/after effective selection, actor or system actor, timestamp, related form id, outcome, and non-secret source snapshots
+  - detached or superseded forms remain in evidence history but cannot support a new or continuing active selection unless HR/IT explicitly re-attaches or re-selects them through the audited workflow
 
 ## Scheduling and Effective Dates
 - The system must support scheduled effective-date changes for room moves, site transfers, role changes, and similar lifecycle changes.
