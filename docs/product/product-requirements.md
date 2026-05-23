@@ -540,7 +540,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   | `Verkada` | `projection-backed list/search` only if a future approved workflow needs reference facts | deferred until a direct integration is approved | Current product treats Verkada follow-up as IncidentIQ ticket/configuration work rather than direct account provisioning. |
 - Employee-affecting manual changes created through the website must carry an explicit lifecycle classification before they can participate in school-year rollover:
   - manual Non-Escape employee, contractor, volunteer, or similar local assignment records are eligible for school-year expiration only after HR review
-  - temporary HR site overrides and temporary HR room/location overrides persist until the documented authoritative upstream correction or HR reconciliation proves the manual value is obsolete
+  - temporary HR site overrides and temporary HR room/location overrides persist until the documented authoritative upstream correction, a job-assignment change, or HR reconciliation proves the manual value is obsolete
   - InformedK12-backed primary-site selections for Escape-backed employees persist until current Escape data unambiguously matches the selected site, a newer active Escape job assignment confirms the same selected site under the new context, a newer reviewed form-supported decision replaces the selection, or HR/IT reconciliation proves the manual value is obsolete
   - local sync exception overrides may be cleared by annual reset as local metadata, but only after appearing in the HR rollover review queue
   - permission and site-scope overrides are governed by the IT Admin permissions model and must never expire automatically during HR school-year cleanup
