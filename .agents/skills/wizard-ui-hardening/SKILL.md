@@ -90,8 +90,8 @@ Prefer request cancellation, versioning, or stale-response guards over timing as
 
 UI work is not complete when code and generated artboards compile but runtime evidence is missing.
 
-- For shared-shell, auth, routing, drawer, or table-contract changes, capture at least one runtime artifact when practical.
-- Use the Browser plugin for local route checks when available; otherwise record the exact fallback runtime evidence used, such as headless Chrome output or HTTP probes.
+- For shared-shell, auth, routing, drawer, or table-contract changes, capture at least one UI artifact as part of the runtime evidence.
+- Use the Browser plugin for local route checks when available. If Browser evaluation is required but unavailable, record the blocker as `needs_browser_evaluation` instead of substituting non-UI probes.
 - Verify keyboard focus behavior whenever a drawer, dialog, login flow, or shared action control changes.
 - If Browser verification is blocked, state the missing target/tool explicitly and do not silently treat the pass as fully closed.
 
