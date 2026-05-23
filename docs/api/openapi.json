@@ -2728,7 +2728,8 @@
             ]
           },
           "scheduled_for": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "end_date": {
             "type": "string",

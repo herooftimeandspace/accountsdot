@@ -695,25 +695,14 @@ func normalizeFutureOffboardingDateTime(value string) (string, error) {
 	if normalized == "" {
 		return "", offboardingValidationError("Choose a future effective date and time.")
 	}
-	location := onboardingTimeLocation()
-	parseLayouts := []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02 15:04"}
-	for _, layout := range parseLayouts {
-		var parsed time.Time
-		var err error
-		if layout == time.RFC3339 {
-			parsed, err = time.Parse(layout, normalized)
-		} else {
-			parsed, err = time.ParseInLocation(layout, normalized, location)
-		}
-		if err != nil {
-			continue
-		}
-		if !parsed.After(time.Now().In(location)) {
-			return "", offboardingValidationError("Choose a future effective date and time.")
-		}
-		return parsed.UTC().Format(time.RFC3339), nil
+	parsed, err := time.Parse(time.RFC3339, normalized)
+	if err != nil {
+		return "", offboardingValidationError("Use RFC3339 with an explicit timezone offset.")
 	}
-	return "", offboardingValidationError("Use YYYY-MM-DDTHH:MM or RFC3339.")
+	if !parsed.After(time.Now().UTC()) {
+		return "", offboardingValidationError("Choose a future effective date and time.")
+	}
+	return parsed.UTC().Format(time.RFC3339), nil
 }
 
 type offboardingValidationError string

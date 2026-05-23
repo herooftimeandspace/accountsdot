@@ -120,6 +120,41 @@ function formatDateTime(value) {
 }
 
 /**
+ * scheduledEmergencyTimestamp converts the datetime-local control value into
+ * an explicit instant before the DEV mock API sees it. The browser interprets
+ * the control value in the operator's local timezone, and toISOString preserves
+ * that intended instant with a UTC offset marker instead of making the Go
+ * handler guess a timezone.
+ */
+function scheduledEmergencyTimestamp(value) {
+  if (!value) {
+    return "";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toISOString();
+}
+
+/**
+ * formatScheduledActionConfirmation keeps contractor date-only confirmations on
+ * the date formatter while Emergency Offboarding confirmations use timestamp
+ * formatting. Contractor actions still return YYYY-MM-DD dates from the DEV
+ * shortcut endpoint, so parsing them as datetimes would add an unintended time
+ * and can shift the displayed day for some timezones.
+ */
+function formatScheduledActionConfirmation(action) {
+  if (!action) {
+    return "";
+  }
+  if (action.kind === "contractor_scheduled_deprovision") {
+    return formatDate(action.scheduled_for);
+  }
+  return formatDateTime(action.scheduled_for);
+}
+
+/**
  * statusClass maps Offboarding workflow states onto the shared runtime severity
  * palette. It keeps row badges, drawer action badges, and mock schedule status
  * styling consistent without changing the source status text.
@@ -365,7 +400,11 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
     try {
       const endpoint = isEmergency ? OFFBOARDING_EMERGENCY_ENDPOINT : OFFBOARDING_CONTRACTOR_ENDPOINT;
       const body = isEmergency
-        ? { person_id: selectedCandidate.id, execution_mode: emergencyExecutionMode, scheduled_for: scheduledFor }
+        ? {
+            person_id: selectedCandidate.id,
+            execution_mode: emergencyExecutionMode,
+            scheduled_for: scheduledEmergencyTimestamp(scheduledFor),
+          }
         : { person_id: selectedCandidate.id, end_date: terminationDate };
       const payload = await readJSON(
         await fetch(endpoint, {
@@ -554,7 +593,7 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
       {error && state !== "error" ? <p className="offboarding-runtime__form-error" role="alert">{error}</p> : null}
       {scheduledAction ? (
         <p className="offboarding-runtime__form-success" role="status">
-          {scheduledAction.person} scheduled for {formatDateTime(scheduledAction.scheduled_for)}.
+          {scheduledAction.person} scheduled for {formatScheduledActionConfirmation(scheduledAction)}.
         </p>
       ) : null}
     </RuntimeDrawer>

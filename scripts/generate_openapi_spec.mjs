@@ -270,7 +270,7 @@ function buildSpec(source) {
         DevOffboardingActionRequest: objectSchema({
           person_id: { type: "string" },
           execution_mode: { type: "string", enum: ["immediate", "scheduled"] },
-          scheduled_for: { type: "string" },
+          scheduled_for: { type: "string", format: "date-time" },
           end_date: { type: "string", format: "date" },
         }),
         DevOnboardingManualDraftRequest: objectSchema({ draft: {} }),

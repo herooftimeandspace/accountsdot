@@ -2190,7 +2190,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("emergency action = %#v, want immediate DEV mock action", emergency.Action)
 		}
 
-		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-taylor-singh","execution_mode":"scheduled","scheduled_for":"2099-07-15T08:30"}`))
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-taylor-singh","execution_mode":"scheduled","scheduled_for":"2099-07-15T15:30:00Z"}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
@@ -2203,7 +2203,16 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("scheduled emergency action = %#v, want dated DEV mock action", scheduledEmergency.Action)
 		}
 
-		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-taylor-singh","execution_mode":"scheduled","scheduled_for":"2020-07-15T08:30"}`))
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-taylor-singh","execution_mode":"scheduled","scheduled_for":"2099-07-15T08:30"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("timezone-less scheduled emergency returned %d, want 400", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-taylor-singh","execution_mode":"scheduled","scheduled_for":"2020-07-15T15:30:00Z"}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(itCookie)
 		rec = httptest.NewRecorder()
@@ -2221,7 +2230,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("hr immediate IT Admin emergency returned %d, want 403", rec.Code)
 		}
 
-		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-alex-rivera","execution_mode":"scheduled","scheduled_for":"2099-07-15T08:30"}`))
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-alex-rivera","execution_mode":"scheduled","scheduled_for":"2099-07-15T15:30:00Z"}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(hrCookie)
 		rec = httptest.NewRecorder()
