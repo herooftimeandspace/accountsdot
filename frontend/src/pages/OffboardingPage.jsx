@@ -97,6 +97,29 @@ function formatDate(value) {
 }
 
 /**
+ * formatDateTime presents scheduled Emergency Offboarding effective timestamps
+ * returned by the DEV mock schedule API. It preserves immediate actions as a
+ * distinct label so operators can distinguish destructive-now work from future
+ * scheduled work in drawer confirmation text.
+ */
+function formatDateTime(value) {
+  if (!value || value === "immediate") {
+    return "immediate DEV mock deprovisioning";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
  * statusClass maps Offboarding workflow states onto the shared runtime severity
  * palette. It keeps row badges, drawer action badges, and mock schedule status
  * styling consistent without changing the source status text.
@@ -267,6 +290,8 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
   const [candidates, setCandidates] = useState([]);
   const [query, setQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [emergencyExecutionMode, setEmergencyExecutionMode] = useState("immediate");
+  const [scheduledFor, setScheduledFor] = useState("");
   const [terminationDate, setTerminationDate] = useState("");
   const [state, setState] = useState("loading");
   const [error, setError] = useState("");
@@ -282,6 +307,8 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
       setError("");
       setScheduledAction(null);
       setSelectedCandidate(null);
+      setEmergencyExecutionMode("immediate");
+      setScheduledFor("");
       setTerminationDate("");
       try {
         const payload = await readJSON(
@@ -338,7 +365,7 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
     try {
       const endpoint = isEmergency ? OFFBOARDING_EMERGENCY_ENDPOINT : OFFBOARDING_CONTRACTOR_ENDPOINT;
       const body = isEmergency
-        ? { person_id: selectedCandidate.id }
+        ? { person_id: selectedCandidate.id, execution_mode: emergencyExecutionMode, scheduled_for: scheduledFor }
         : { person_id: selectedCandidate.id, end_date: terminationDate };
       const payload = await readJSON(
         await fetch(endpoint, {
@@ -362,7 +389,13 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
         onForbidden();
         return;
       }
-      setError(submitError.payload?.errors?.end_date || submitError.payload?.errors?.person_id || submitError.message);
+      setError(
+        submitError.payload?.errors?.scheduled_for ||
+          submitError.payload?.errors?.execution_mode ||
+          submitError.payload?.errors?.end_date ||
+          submitError.payload?.errors?.person_id ||
+          submitError.message
+      );
       setState("ready");
     }
   };
@@ -371,7 +404,7 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
     <RuntimeDrawer title={title} onClose={onClose} variant="modal">
       <div className={isEmergency ? "offboarding-runtime__manual-callout offboarding-runtime__manual-callout--danger" : "offboarding-runtime__manual-callout offboarding-runtime__manual-callout--gold"}>
         {isEmergency
-          ? "This form is only for emergency, non-scheduled offboarding. To schedule offboarding, update the escape record or click the Manual Offboarding button"
+          ? "Use Emergency Offboarding for urgent termination now or a scheduled future termination/deprovisioning action after HR or IT verifies the selected person."
           : "This form is to offboard a manually created contractor. To offboard an employee, update the Escape record(s)."}
       </div>
       <div className="runtime-drawer__section">
@@ -421,17 +454,72 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
       ) : null}
       {isEmergency ? (
         <div className="runtime-drawer__section">
-          <div className="offboarding-runtime__manual-callout offboarding-runtime__manual-callout--danger">
-            Clicking this button will remove all access for this person. This action cannot be undone.
+          <fieldset className="offboarding-runtime__mode-group">
+            <legend>Execution mode</legend>
+            <label>
+              <input
+                type="radio"
+                name="offboarding-emergency-mode"
+                value="immediate"
+                checked={emergencyExecutionMode === "immediate"}
+                onChange={() => {
+                  setEmergencyExecutionMode("immediate");
+                  setScheduledFor("");
+                  setScheduledAction(null);
+                }}
+              />
+              <span>Immediate termination</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="offboarding-emergency-mode"
+                value="scheduled"
+                checked={emergencyExecutionMode === "scheduled"}
+                onChange={() => {
+                  setEmergencyExecutionMode("scheduled");
+                  setScheduledAction(null);
+                }}
+              />
+              <span>Scheduled termination</span>
+            </label>
+          </fieldset>
+          {emergencyExecutionMode === "scheduled" ? (
+            <label className="offboarding-runtime__candidate-search" htmlFor="offboarding-emergency-scheduled-for">
+              <span>Effective date and time</span>
+              <input
+                id="offboarding-emergency-scheduled-for"
+                type="datetime-local"
+                value={scheduledFor}
+                onChange={(event) => setScheduledFor(event.target.value)}
+              />
+            </label>
+          ) : (
+            <div className="offboarding-runtime__manual-callout offboarding-runtime__manual-callout--danger">
+              Clicking this button will remove all access for this person. This action cannot be undone.
+            </div>
+          )}
+          <div className="offboarding-runtime__drawer-actions">
+            <button
+              type="button"
+              className={emergencyExecutionMode === "immediate" ? "offboarding-runtime__drawer-action offboarding-runtime__drawer-action--danger" : "offboarding-runtime__drawer-action offboarding-runtime__drawer-action--gold"}
+              disabled={!selectedCandidate || state === "saving"}
+              onClick={handleSubmit}
+            >
+              {state === "saving"
+                ? "Scheduling..."
+                : emergencyExecutionMode === "immediate"
+                  ? "Deprovision Now"
+                  : "Schedule Emergency Offboarding"}
+            </button>
+            <button
+              type="button"
+              className="offboarding-runtime__drawer-action offboarding-runtime__drawer-action--gold"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
           </div>
-          <button
-            type="button"
-            className="offboarding-runtime__drawer-action offboarding-runtime__drawer-action--danger"
-            disabled={!selectedCandidate || state === "saving"}
-            onClick={handleSubmit}
-          >
-            {state === "saving" ? "Scheduling..." : "Deprovision Employee"}
-          </button>
         </div>
       ) : (
         <div className="runtime-drawer__section">
@@ -466,7 +554,7 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
       {error && state !== "error" ? <p className="offboarding-runtime__form-error" role="alert">{error}</p> : null}
       {scheduledAction ? (
         <p className="offboarding-runtime__form-success" role="status">
-          {scheduledAction.person} scheduled for {scheduledAction.scheduled_for === "immediate" ? "immediate DEV mock deprovisioning" : formatDate(scheduledAction.scheduled_for)}.
+          {scheduledAction.person} scheduled for {formatDateTime(scheduledAction.scheduled_for)}.
         </p>
       ) : null}
     </RuntimeDrawer>

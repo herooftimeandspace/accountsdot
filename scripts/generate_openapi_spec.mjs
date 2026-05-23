@@ -267,7 +267,12 @@ function buildSpec(source) {
           preferred_last_name: { type: "string" },
           pronouns: { type: "string" },
         }),
-        DevOffboardingActionRequest: objectSchema({ target_id: { type: "string" }, scheduled_for: { type: "string" } }),
+        DevOffboardingActionRequest: objectSchema({
+          person_id: { type: "string" },
+          execution_mode: { type: "string", enum: ["immediate", "scheduled"] },
+          scheduled_for: { type: "string" },
+          end_date: { type: "string", format: "date" },
+        }),
         DevOnboardingManualDraftRequest: objectSchema({ draft: {} }),
         DevOnboardingManualDraftResponse: objectSchema({ draft: {} }),
         DevPageResponse: objectSchema({ page: { type: "string" }, payload: {} }),
