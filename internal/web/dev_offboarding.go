@@ -173,6 +173,16 @@ func newDevOffboardingStore() *devOffboardingStoreState {
 	return &devOffboardingStoreState{endDates: map[string]string{}}
 }
 
+// DevOffboardingScheduledActionCountForTest reports the current number of DEV
+// mock schedule actions. Authorization tests use it to prove denied direct HR
+// payloads stop before the in-memory append that future database or provider
+// planning code must also guard.
+func DevOffboardingScheduledActionCountForTest() int {
+	devOffboardingStore.mu.Lock()
+	defer devOffboardingStore.mu.Unlock()
+	return len(devOffboardingStore.scheduledActions)
+}
+
 // handleDevOffboardingPage serves the DEV Offboarding read model consumed by
 // frontend/src/pages/OffboardingPage.jsx. It requires an authenticated persona
 // with /offboarding access, returns HR lifecycle rows plus editable end-date

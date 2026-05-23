@@ -2166,6 +2166,27 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			}
 		}
 
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/dev/offboarding/candidates?mode=emergency", nil)
+		req.AddCookie(hrCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("hr emergency candidate search returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		emergencyCandidates := decodeJSON[offboardingCandidatesResponse](t, rec)
+		if slices.ContainsFunc(emergencyCandidates.Candidates, func(candidate struct {
+			ID              string `json:"id"`
+			Kind            string `json:"kind"`
+			Person          string `json:"person"`
+			Email           string `json:"email"`
+			EmployeeID      string `json:"employee_id"`
+			TerminationDate string `json:"termination_date"`
+		}) bool {
+			return candidate.ID == "employee-alex-rivera" || candidate.ID == "contractor-devon-cho"
+		}) {
+			t.Fatalf("hr emergency search exposed IT Admin target: %#v", emergencyCandidates.Candidates)
+		}
+
 		siteBody := bytes.NewBufferString(`{"person_id":"employee-chris-morgan"}`)
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", siteBody)
 		req.Header.Set("Content-Type", "application/json")
@@ -2188,6 +2209,19 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		emergency := decodeJSON[offboardingScheduleResponse](t, rec)
 		if emergency.Action.Kind != "emergency_deprovision" || emergency.Action.ScheduledFor != "immediate" || emergency.Action.Mode != "dev_mock_only" {
 			t.Fatalf("emergency action = %#v, want immediate DEV mock action", emergency.Action)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-alex-rivera","execution_mode":"immediate"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it IT Admin emergency returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		itAdminEmergency := decodeJSON[offboardingScheduleResponse](t, rec)
+		if itAdminEmergency.Action.Kind != "emergency_deprovision" || itAdminEmergency.Action.ActorID != "it_admin" || itAdminEmergency.Action.PersonID != "employee-alex-rivera" {
+			t.Fatalf("it IT Admin emergency action = %#v, want IT Admin actor emergency action", itAdminEmergency.Action)
 		}
 
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-taylor-singh","execution_mode":"scheduled","scheduled_for":"2099-07-15T15:30:00Z"}`))
@@ -2221,6 +2255,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("past scheduled emergency returned %d, want 400", rec.Code)
 		}
 
+		beforeDenied := web.DevOffboardingScheduledActionCountForTest()
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-alex-rivera","execution_mode":"immediate"}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(hrCookie)
@@ -2229,7 +2264,11 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("hr immediate IT Admin emergency returned %d, want 403", rec.Code)
 		}
+		if count := web.DevOffboardingScheduledActionCountForTest(); count != beforeDenied {
+			t.Fatalf("hr immediate IT Admin denial recorded mock action count %d, want unchanged %d", count, beforeDenied)
+		}
 
+		beforeDenied = web.DevOffboardingScheduledActionCountForTest()
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/emergency-deprovision", bytes.NewBufferString(`{"person_id":"employee-alex-rivera","execution_mode":"scheduled","scheduled_for":"2099-07-15T15:30:00Z"}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(hrCookie)
@@ -2237,6 +2276,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("hr scheduled IT Admin emergency returned %d, want 403", rec.Code)
+		}
+		if count := web.DevOffboardingScheduledActionCountForTest(); count != beforeDenied {
+			t.Fatalf("hr scheduled IT Admin denial recorded mock action count %d, want unchanged %d", count, beforeDenied)
 		}
 
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/contractor-offboarding", bytes.NewBufferString(`{"person_id":"employee-chris-morgan","end_date":"2026-07-15"}`))
@@ -2272,11 +2314,28 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/contractor-offboarding", bytes.NewBufferString(`{"person_id":"contractor-devon-cho","end_date":"2026-07-15"}`))
 		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("it IT Admin contractor schedule returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		itAdminContractor := decodeJSON[offboardingScheduleResponse](t, rec)
+		if itAdminContractor.Action.Kind != "contractor_scheduled_deprovision" || itAdminContractor.Action.ActorID != "it_admin" || itAdminContractor.Action.PersonID != "contractor-devon-cho" {
+			t.Fatalf("it IT Admin contractor action = %#v, want IT Admin actor contractor action", itAdminContractor.Action)
+		}
+
+		beforeDenied = web.DevOffboardingScheduledActionCountForTest()
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/offboarding/contractor-offboarding", bytes.NewBufferString(`{"person_id":"contractor-devon-cho","end_date":"2026-07-15"}`))
+		req.Header.Set("Content-Type", "application/json")
 		req.AddCookie(hrCookie)
 		rec = httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("hr IT Admin contractor schedule returned %d, want 403", rec.Code)
+		}
+		if count := web.DevOffboardingScheduledActionCountForTest(); count != beforeDenied {
+			t.Fatalf("hr IT Admin contractor denial recorded mock action count %d, want unchanged %d", count, beforeDenied)
 		}
 	})
 
