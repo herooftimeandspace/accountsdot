@@ -4733,6 +4733,36 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("cross-site rollover row error = %s, want membership id rejection", rec.Body.String())
 		}
 
+		manualRolloverRowsBody, err := json.Marshal(map[string]any{
+			"mode":          "end_of_year_site_move",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"id": "new-morgan-change", "person_id": "morgan-lee", "current_room_id": "cla-a108", "current_room": "A-108", "source_role": "secondary", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204"},
+				{"id": "new-morgan-removal", "person_id": "morgan-lee", "current_room_id": "cla-a108", "current_room": "A-108", "source_role": "secondary", "destination_site_id": "clover-hs", "destination_room_id": "cla-b204", "action": "removal"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal manual rollover rows draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(manualRolloverRowsBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("manual rollover rows draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		manualRolloverRows := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(manualRolloverRows.Draft.Rows) != 2 {
+			t.Fatalf("manual rollover rows = %#v, want two rows", manualRolloverRows.Draft.Rows)
+		}
+		if manualRolloverRows.Draft.Rows[0].CurrentRoomID != "cla-b210" || manualRolloverRows.Draft.Rows[0].CurrentRoom != "B-210" || manualRolloverRows.Draft.Rows[0].SourceRole != "last_primary" {
+			t.Fatalf("manual rollover change row = %#v, want trusted person source fields", manualRolloverRows.Draft.Rows[0])
+		}
+		if manualRolloverRows.Draft.Rows[1].CurrentRoomID != "cla-b210" || manualRolloverRows.Draft.Rows[1].DestinationRoomID != "none" || manualRolloverRows.Draft.Rows[1].Action != "removal" {
+			t.Fatalf("manual rollover removal row = %#v, want trusted source with removal destination", manualRolloverRows.Draft.Rows[1])
+		}
+
 		reversibleBulkRow := roster.Draft.Rows[0]
 		reversibleDestination := "cla-a108"
 		if reversibleBulkRow.CurrentRoomID == reversibleDestination {
@@ -4797,6 +4827,46 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 		if bulkRevert.Draft.Rows[0].ID != "revert-"+reversibleBulk.Draft.Rows[0].ID || bulkRevert.Draft.Rows[0].CurrentRoomID != reversibleDestination || bulkRevert.Draft.Rows[0].DestinationRoomID != reversibleBulkRow.CurrentRoomID {
 			t.Fatalf("bulk revert row = %#v, want trusted completed-job source and original room destination", bulkRevert.Draft.Rows[0])
+		}
+
+		manualAddBulkBody, err := json.Marshal(map[string]any{
+			"mode":          "end_of_year_site_move",
+			"scope_site_id": "clover-hs",
+			"rows": []map[string]string{
+				{"id": "new-alex-bulk-add", "person_id": "alex-ramirez", "destination_site_id": "clover-hs", "destination_room_id": "cla-a108", "action": "add"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal manual add bulk roster draft: %v", err)
+		}
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts", bytes.NewReader(manualAddBulkBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("manual add bulk roster draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		manualAddBulk := decodeJSON[roomMoveDraftTestResponse](t, rec)
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+manualAddBulk.Draft.ID+"/apply", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("apply manual add bulk roster draft returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/completed/rm-job-"+strings.TrimPrefix(manualAddBulk.Draft.ID, "rm-draft-")+"/revert", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("revert manual add bulk roster job returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		manualAddRevert := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if len(manualAddRevert.Draft.Rows) != 1 || manualAddRevert.Draft.Rows[0].ID != "revert-new-alex-bulk-add" || manualAddRevert.Draft.Rows[0].CurrentRoomID != "cla-a108" || manualAddRevert.Draft.Rows[0].DestinationRoomID != "none" {
+			t.Fatalf("manual add revert row = %#v, want completed-job destination reverted to no prior room", manualAddRevert.Draft.Rows)
 		}
 
 		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/drafts/"+build.Draft.ID+"/schedule", nil)
@@ -4871,6 +4941,21 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		handler.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("site admin completed room moves returned %d, want 403", rec.Code)
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/dev/room-moves/completed/rm-job-090/revert", nil)
+		req.AddCookie(itCookie)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("revert seeded legacy bulk job returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		seededLegacyRevert := decodeJSON[roomMoveDraftTestResponse](t, rec)
+		if seededLegacyRevert.Draft.Status != "scheduled" || len(seededLegacyRevert.Draft.Rows) != 2 {
+			t.Fatalf("seeded legacy revert draft = %#v, want two scheduled reversal rows", seededLegacyRevert.Draft)
+		}
+		if seededLegacyRevert.Draft.Rows[0].ID != "revert-row-alex-ramirez" || seededLegacyRevert.Draft.Rows[0].CurrentRoomID != "cla-a108" || seededLegacyRevert.Draft.Rows[0].DestinationRoomID != "cla-a104" {
+			t.Fatalf("seeded Alex revert row = %#v, want legacy person row to keep completed-job source context", seededLegacyRevert.Draft.Rows[0])
 		}
 
 		applyBody, err := json.Marshal(map[string]any{
