@@ -643,7 +643,7 @@ const HELP_CONTENT_BY_ROUTE = {
       {
         heading: "Controls and access",
         paragraphs: [
-          "The profile page is informational. It does not edit Google, Aeries, Escape, Zoom, IncidentIQ, or local database records.",
+          "The profile page saves preferred display fields and advisory device preference only to DEV-local mock state in this slice. It does not edit Google, Aeries, Escape, Zoom, IncidentIQ, or local database records.",
           "If account details are wrong, correct the source system that owns the field or use the documented admin workflow for that data class when one exists.",
         ],
       },

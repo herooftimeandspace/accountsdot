@@ -64,6 +64,7 @@ function profileFormFromPayload(profile) {
     preferred_first_name: profile?.preferred_first_name ?? "",
     preferred_last_name: profile?.preferred_last_name ?? "",
     pronouns: profile?.pronouns ?? "",
+    device_preference: profile?.device_preference ?? "no_preference",
   };
 }
 
@@ -72,7 +73,7 @@ function buildProfileTextOverrides(profile) {
     return {};
   }
   return {
-    "my-profile__t60": "View your account information and manage your display name and pronouns.",
+    "my-profile__t60": "View your account information and manage your display name, pronouns, and device preference.",
     "my-profile__t69": profile.legal_name ?? "",
     "my-profile__t72": profile.display_name ?? "",
     "my-profile__t75": profile.email ?? "",
@@ -128,7 +129,7 @@ function MyProfileEditDrawer({ profile, onClose, onSave }) {
     <RuntimeDrawer title="Edit My Profile" onClose={onClose} variant="modal">
       <form className="my-profile-runtime__drawer-form" onSubmit={submitProfile}>
         <p className="my-profile-runtime__drawer-note">
-          Update the display name and pronouns used by your profile. Legal-name records stay unchanged.
+          Update the display name, pronouns, and device preference used by your profile. Legal-name records stay unchanged.
         </p>
         <label>
           <span>Preferred first name</span>
@@ -159,6 +160,23 @@ function MyProfileEditDrawer({ profile, onClose, onSave }) {
           />
           {errors.pronouns ? <small role="alert">{errors.pronouns}</small> : null}
         </label>
+        <label>
+          <span>Device preference</span>
+          <select
+            value={form.device_preference}
+            onChange={(event) => updateField("device_preference", event.target.value)}
+          >
+            {(profile.device_preference_options || []).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.device_preference ? <small role="alert">{errors.device_preference}</small> : null}
+        </label>
+        {profile.device_preference_reminder ? (
+          <p className="my-profile-runtime__drawer-note">{profile.device_preference_reminder}</p>
+        ) : null}
         {message ? (
           <p className="my-profile-runtime__drawer-message" role={state === "error" ? "alert" : "status"}>
             {message}
@@ -320,7 +338,7 @@ export function MyProfilePage({ session, onNavigate, onSearch, searchQuery = "",
     <main id="main-content" className="page-canvas page-canvas--static" aria-labelledby="my-profile-title">
       <section className="sr-only" aria-labelledby="my-profile-title">
         <h1 id="my-profile-title">{semanticSummary.title}</h1>
-        <p>Use Edit My Profile to update display name and pronouns for the current session.</p>
+        <p>Use Edit My Profile to update display name, pronouns, and device preference for the current session.</p>
         {semanticSummary.items.length > 0 ? (
           <ul>
             {semanticSummary.items.map((item) => (

@@ -374,8 +374,8 @@
   - runtime-backed implemented tables should use the shared table-control primitive for local search/filter and three-way header sorting; each page provides its own default sort column and hidden data remains excluded from search when the role cannot see it
   - summary/stat cards and metric boxes should use a shared summary info box primitive that centers its text, renders very large numeric values, color-codes the numeric value with a metric-appropriate good-to-bad scale, and always leads to a clear operator action (navigation, filter, drawer, or decision); passive non-actionable decoration should be removed or redesigned rather than persisting as a status tile
   - implemented shell user avatars should prefer a Google profile photo when one is present in the user object and fall back to generated initials when one is not
-  - the implemented shell account menu must expose `My Profile` and `Sign Out`; `My Profile` routes to the user's profile page for preferred-name and pronoun updates, while `Sign Out` triggers the configured SAML/SSO sign-out flow
-  - during the pre-phase 0 DEV pilot, `My Profile` should land on an internal mock-backed profile route implemented from its authoritative `.pen` and should allow preferred-name and pronoun edits against DEV-local mock state until real profile integration exists
+  - the implemented shell account menu must expose `My Profile` and `Sign Out`; `My Profile` routes to the user's profile page for preferred-name, pronoun, and device-preference updates, while `Sign Out` triggers the configured SAML/SSO sign-out flow
+  - during the pre-phase 0 DEV pilot, `My Profile` should land on an internal mock-backed profile route implemented from its authoritative `.pen` and should allow preferred-name, pronoun, and advisory device-preference edits against DEV-local mock state until real profile integration exists. Device-preference options start as `Mac`, `Windows`, and `No preference`, the page uses passive annual school-year reminder text rather than a dismissible notification, and DEV-local saves expose audit-shaped actor/timestamp/before/after metadata without writing to Google, Aeries, Escape, Zoom, IncidentIQ, or local database records.
   - during the pre-phase 0 DEV pilot, `Sign Out` should use a dedicated DEV sign-out flow that returns the browser to a signed-out DEV state representing the configured SAML/SSO exit path rather than just flipping the persona selector or clearing only local component state
   - the implemented header scope selector must become a real site-list dropdown and stay wide enough to keep the current selected site label on one line
   - the implemented header scope selector is a shared runtime primitive rendered above the `.pen` shell source; page-specific controls such as Phone Directory's DEV-only directory focus dropdown must reuse the primitive while preserving their documented query behavior
@@ -2086,6 +2086,7 @@
 - Current examples include:
   - room assignment override by a site secretary
   - preferred name
+  - advisory device preference
 - Legal name and preferred/display name are separate data concepts and must be modeled separately.
 - Legal-name update rules:
   - legal name is immutable except for HR and IT initiated changes

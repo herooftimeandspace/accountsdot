@@ -118,7 +118,19 @@ type myProfileResponse struct {
 		PreferredLastName  string `json:"preferred_last_name"`
 		DisplayName        string `json:"display_name"`
 		Pronouns           string `json:"pronouns"`
-		Editable           bool   `json:"editable"`
+		DevicePreference   string `json:"device_preference"`
+		DeviceReminder     string `json:"device_preference_reminder"`
+		DeviceOptions      []struct {
+			Value string `json:"value"`
+			Label string `json:"label"`
+		} `json:"device_preference_options"`
+		DeviceAudit []struct {
+			ActorID       string `json:"actor_id"`
+			ChangedAt     string `json:"changed_at"`
+			PreviousValue string `json:"previous_value"`
+			NewValue      string `json:"new_value"`
+		} `json:"device_preference_audit"`
+		Editable bool `json:"editable"`
 	} `json:"profile"`
 }
 
@@ -4355,6 +4367,8 @@ func siteIDsFromSessionPayload(payload devSessionResponse) []string {
 
 func TestDevMyProfileDirectEditMockState(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
+	web.ResetDevMyProfileStateForTest()
+	t.Cleanup(web.ResetDevMyProfileStateForTest)
 	handler := web.NewAppHandler(web.HealthDependencies{})
 
 	t.Run("requires an authenticated DEV persona", func(t *testing.T) {
@@ -4383,11 +4397,18 @@ func TestDevMyProfileDirectEditMockState(t *testing.T) {
 		if initial.Profile.DisplayName != "Avery Shah" {
 			t.Fatalf("display name = %q, want Avery Shah", initial.Profile.DisplayName)
 		}
+		if initial.Profile.DevicePreference != "mac" || len(initial.Profile.DeviceOptions) != 3 {
+			t.Fatalf("device preference/options = %q %#v, want mac and three options", initial.Profile.DevicePreference, initial.Profile.DeviceOptions)
+		}
+		if !strings.Contains(initial.Profile.DeviceReminder, "start of each school year") {
+			t.Fatalf("device reminder = %q, want annual school-year reminder", initial.Profile.DeviceReminder)
+		}
 
 		body, err := json.Marshal(map[string]string{
 			"preferred_first_name": "  Ave ",
 			"preferred_last_name":  " Shah-Lewis ",
 			"pronouns":             " They / Them ",
+			"device_preference":    " Windows ",
 		})
 		if err != nil {
 			t.Fatalf("marshal profile update: %v", err)
@@ -4407,6 +4428,12 @@ func TestDevMyProfileDirectEditMockState(t *testing.T) {
 		if updated.Profile.Pronouns != "They / Them" {
 			t.Fatalf("pronouns = %q, want They / Them", updated.Profile.Pronouns)
 		}
+		if updated.Profile.DevicePreference != "windows" {
+			t.Fatalf("device preference = %q, want windows", updated.Profile.DevicePreference)
+		}
+		if len(updated.Profile.DeviceAudit) != 1 || updated.Profile.DeviceAudit[0].ActorID != "faculty_staff" || updated.Profile.DeviceAudit[0].PreviousValue != "mac" || updated.Profile.DeviceAudit[0].NewValue != "windows" || updated.Profile.DeviceAudit[0].ChangedAt == "" {
+			t.Fatalf("device audit = %#v, want faculty_staff mac->windows with timestamp", updated.Profile.DeviceAudit)
+		}
 
 		verifyReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
 		verifyReq.AddCookie(cookie)
@@ -4422,11 +4449,14 @@ func TestDevMyProfileDirectEditMockState(t *testing.T) {
 		if verified.Profile.LegalName != "Avery Shah" {
 			t.Fatalf("legal name changed to %q, want source legal name Avery Shah", verified.Profile.LegalName)
 		}
+		if verified.Profile.DevicePreference != "windows" || len(verified.Profile.DeviceAudit) != 1 {
+			t.Fatalf("persisted device preference/audit = %q %#v, want windows with one audit", verified.Profile.DevicePreference, verified.Profile.DeviceAudit)
+		}
 	})
 
 	t.Run("validation rejects missing preferred name fields", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "faculty_staff")
-		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/my-profile", strings.NewReader(`{"preferred_first_name":"","preferred_last_name":"","pronouns":""}`))
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/my-profile", strings.NewReader(`{"preferred_first_name":"","preferred_last_name":"","pronouns":"","device_preference":"tablet"}`))
 		updateReq.Header.Set("Content-Type", "application/json")
 		updateReq.AddCookie(cookie)
 		updateRec := httptest.NewRecorder()
@@ -4436,6 +4466,36 @@ func TestDevMyProfileDirectEditMockState(t *testing.T) {
 		}
 		if !strings.Contains(updateRec.Body.String(), "preferred_first_name") {
 			t.Fatalf("validation body missing field errors: %s", updateRec.Body.String())
+		}
+		if !strings.Contains(updateRec.Body.String(), "device_preference") {
+			t.Fatalf("validation body missing device preference error: %s", updateRec.Body.String())
+		}
+	})
+
+	t.Run("profile updates are scoped to the signed-in persona", func(t *testing.T) {
+		facultyCookie := loginAsPersona(t, handler, "faculty_staff")
+		deviceCookie := loginAsPersona(t, handler, "device_wrangler")
+
+		body := strings.NewReader(`{"preferred_first_name":"Avery","preferred_last_name":"Shah","pronouns":"","device_preference":"no_preference"}`)
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/my-profile", body)
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(facultyCookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("faculty profile update returned %d, want 200: %s", updateRec.Code, updateRec.Body.String())
+		}
+
+		verifyReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/my-profile", nil)
+		verifyReq.AddCookie(deviceCookie)
+		verifyRec := httptest.NewRecorder()
+		handler.ServeHTTP(verifyRec, verifyReq)
+		if verifyRec.Code != http.StatusOK {
+			t.Fatalf("device wrangler profile get returned %d, want 200", verifyRec.Code)
+		}
+		verified := decodeJSON[myProfileResponse](t, verifyRec)
+		if verified.Profile.DevicePreference != "windows" || len(verified.Profile.DeviceAudit) != 0 {
+			t.Fatalf("device wrangler preference/audit = %q %#v, want own default with no faculty audit", verified.Profile.DevicePreference, verified.Profile.DeviceAudit)
 		}
 	})
 }
