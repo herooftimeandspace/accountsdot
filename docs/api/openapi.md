@@ -56,14 +56,24 @@ Each operation carries repo-specific OpenAPI extensions:
 - `x-wizard-auth`: the current or planned authorization boundary.
 - `x-wizard-write-boundary`: read-only, DEV mock mutation, local database
   write, session/audit write, or planned durable write boundary.
+- `x-wizard-db-access`: whether the current handler performs no database work,
+  performs a conditional local database read or write, writes conditional audit
+  state, or is only a planned database read/write surface.
+- `x-wizard-transaction-retry`: the transaction/retry expectation for the
+  current handler or the future durable implementation. Planned mutating
+  surfaces must use `internal/db.WithRetry` before they become retryable
+  database writes.
+- `x-wizard-idempotency`: the current idempotency behavior or the future
+  idempotency requirement for mutating operations.
 
 These labels are intentionally conservative. DEV mock endpoints are not
 production/staging callable APIs. Accepted no-op endpoints acknowledge legacy
 operator intent but do not write durable workflow state in this checkout.
-Future DB-backed implementations must update this source catalog, add
-structured schemas, add route tests for auth/site/feature/field behavior, and
-update `docs/planning/external-write-inventory.md` before any new durable write
-path lands.
+Future DB-backed implementations must update this source catalog or its
+generator-derived metadata, add structured schemas, add route tests for
+auth/site/feature/field behavior, and update
+`docs/planning/external-write-inventory.md` before any new durable write path
+lands.
 
 ## Database And Write Expectations
 
@@ -91,3 +101,9 @@ When a planned boundary becomes a database write path:
 6. Keep provider writeback blocked unless the implementation plan phase,
    what-if validation, live-write pilot allowlist, and explicit approval gates
    are all satisfied.
+
+Current Phase 0 OpenAPI generation does not make any accepted no-op route
+durable. Operations labeled `planned-db-write` are contract placeholders until
+the matching handler, route authorization tests, database transaction behavior,
+idempotency key source, audit rows, and external-write inventory entry all land
+in the same implementation slice.

@@ -111,6 +111,61 @@ function operationSecurity(operation) {
   return cookieBackedAuth.has(operation.auth) ? [{ sessionCookie: [] }] : [];
 }
 
+function operationDBAccess(operation) {
+  if (operation.writeBoundary === "dev-memory-or-local-db-write") {
+    return "conditional-local-db-write";
+  }
+  if (operation.writeBoundary === "session-and-audit-write") {
+    return "conditional-audit-log-write";
+  }
+  if (operation.writeBoundary === "planned-db-write-boundary") {
+    return "planned-db-write";
+  }
+  if (operation.surface === "dev-mock-or-local-db") {
+    return "conditional-local-db-read";
+  }
+  if (operation.surface === "db-backed-runtime-planned") {
+    return "planned-db-read";
+  }
+  if (operation.surface === "db-backed-runtime") {
+    return "none";
+  }
+  return "none";
+}
+
+function operationRetryExpectation(operation) {
+  switch (operationDBAccess(operation)) {
+    case "planned-db-write":
+      return "future durable implementation must run serializable transaction work through internal/db.WithRetry before exposing retryable mutations";
+    case "conditional-local-db-write":
+      return "configured local-database path uses internal/db.WithRetry for feature-flag target and audit updates; memory-only DEV path has no transaction retry";
+    case "conditional-local-db-read":
+      return "configured local-database path may refresh feature-flag state before returning; memory-only DEV path has no transaction retry";
+    case "conditional-audit-log-write":
+      return "configured audit storage must fail closed if the audit write cannot be recorded; no provider retry occurs";
+    case "planned-db-read":
+      return "future database read implementation must enforce auth, site scope, feature flags, and field visibility before querying";
+    default:
+      return "no database transaction retry";
+  }
+}
+
+function operationIdempotencyExpectation(operation) {
+  if (operation.writeBoundary === "planned-db-write-boundary") {
+    return "future durable implementation must define deterministic idempotency keys and audit/request-log behavior before writing state";
+  }
+  if (operation.writeBoundary === "dev-memory-or-local-db-write") {
+    return "repeating an unchanged feature-flag target update must not create duplicate audit rows";
+  }
+  if (operation.writeBoundary === "session-and-audit-write") {
+    return "repeating a valid breakglass login creates a fresh local session and records sanitized audit evidence; provider state is unchanged";
+  }
+  if (operation.writeBoundary === "dev-memory-write" || operation.writeBoundary === "cookie-and-dev-memory-write") {
+    return "DEV mock mutation only; repeated requests follow the handler's in-memory mock-store semantics and never write providers";
+  }
+  return "read-only operation; idempotency key not required";
+}
+
 function errorResponseRef(statusCode) {
   const responseByStatus = {
     "400": "BadRequest",
@@ -318,6 +373,9 @@ function buildSpec(source) {
       "x-wizard-phase": operation.phase,
       "x-wizard-auth": operation.auth,
       "x-wizard-write-boundary": operation.writeBoundary,
+      "x-wizard-db-access": operationDBAccess(operation),
+      "x-wizard-transaction-retry": operationRetryExpectation(operation),
+      "x-wizard-idempotency": operationIdempotencyExpectation(operation),
     };
   }
 

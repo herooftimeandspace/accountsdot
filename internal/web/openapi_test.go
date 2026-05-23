@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
@@ -39,6 +40,10 @@ func TestOpenAPISpecSurfaceLabels(t *testing.T) {
 	assertOperationLabel(t, spec.Paths, "/api/v1/workflows/{workflow_run_id}/retry", "post", "accepted-no-op", "staff-session-required-planned", "planned-db-write-boundary")
 	assertOperationLabel(t, spec.Paths, "/api/v1/dev/session", "get", "dev-mock", "dev-cookie-or-anonymous", "read-only")
 	assertOperationLabel(t, spec.Paths, "/api/v1/dev/feature-flags/{key}", "put", "dev-mock-or-local-db", "it-admin-required", "dev-memory-or-local-db-write")
+	assertOperationDBContract(t, spec.Paths, "/api/v1/workflows/{workflow_run_id}/retry", "post", "planned-db-write", "deterministic idempotency keys")
+	assertOperationDBContract(t, spec.Paths, "/api/v1/dev/feature-flags", "get", "conditional-local-db-read", "idempotency key not required")
+	assertOperationDBContract(t, spec.Paths, "/api/v1/dev/feature-flags/{key}", "put", "conditional-local-db-write", "duplicate audit rows")
+	assertOperationDBContract(t, spec.Paths, "/api/v1/dev/room-moves/drafts/{id}/apply", "post", "none", "never write providers")
 	assertOperationResponse(t, spec.Paths, "/api/v1/dev/room-moves/drafts/{id}/cancel", "post", "200", "#/components/schemas/DevRoomMoveDraftResponse")
 	assertOperationResponse(t, spec.Paths, "/api/v1/dev/room-moves/drafts/{id}/schedule", "post", "200", "#/components/schemas/DevRoomMoveDraftResponse")
 	assertOperationErrorResponses(t, spec.Paths, "/api/v1/dev/room-moves/drafts/{id}/schedule", "post", []string{"400", "401", "403", "404", "409"})
@@ -68,6 +73,9 @@ type openAPITestOperation struct {
 	Surface       string `json:"x-wizard-surface"`
 	Auth          string `json:"x-wizard-auth"`
 	WriteBoundary string `json:"x-wizard-write-boundary"`
+	DBAccess      string `json:"x-wizard-db-access"`
+	Retry         string `json:"x-wizard-transaction-retry"`
+	Idempotency   string `json:"x-wizard-idempotency"`
 	RequestBody   any    `json:"requestBody"`
 	Responses     map[string]struct {
 		Content map[string]struct {
@@ -77,6 +85,24 @@ type openAPITestOperation struct {
 		} `json:"content"`
 	} `json:"responses"`
 	Security []map[string][]string `json:"security"`
+}
+
+// assertOperationDBContract checks the generated database-access metadata that
+// issue #248 uses to distinguish planned durable writes, conditional local DB
+// writes, and DEV-only mock mutations before any provider writeback exists.
+func assertOperationDBContract(t *testing.T, paths map[string]map[string]openAPITestOperation, path string, method string, wantDBAccess string, wantIdempotencyText string) {
+	t.Helper()
+
+	operation := openAPIOperation(t, paths, path, method)
+	if operation.DBAccess != wantDBAccess {
+		t.Fatalf("%s %s db access = %q, want %q", method, path, operation.DBAccess, wantDBAccess)
+	}
+	if !strings.Contains(operation.Idempotency, wantIdempotencyText) {
+		t.Fatalf("%s %s idempotency = %q, want text containing %q", method, path, operation.Idempotency, wantIdempotencyText)
+	}
+	if operation.Retry == "" {
+		t.Fatalf("%s %s missing transaction retry expectation", method, path)
+	}
 }
 
 // openAPIOperation centralizes lookup for response/status assertions so the

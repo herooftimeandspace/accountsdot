@@ -472,7 +472,8 @@
   - generated OpenAPI contract for the current callable API surface, including
     explicit labels for DEV mock endpoints, accepted no-op placeholders, planned
     DB-backed runtime APIs, and currently callable DB-backed or conditional
-    runtime APIs
+    runtime APIs, plus generated database-access, transaction/retry, and
+    idempotency expectations for each operation
   - IT Admin settings for timezone and sync cadence
   - IT Admin emergency cutoff controls, including immediate global pause before downstream writes can continue
   - masked staging and environment-refresh playbook
@@ -526,7 +527,8 @@
     - promotion-gate evidence showing required scenario checks are enforced
     - OpenAPI generation evidence showing DEV-only, accepted no-op, planned
       DB-backed, and callable runtime surfaces stay distinguishable for
-      frontend/runtime clients
+      frontend/runtime clients, including whether each operation is read-only,
+      conditionally local-DB-backed, or only a planned durable database write
 - Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `0A` repo-local safety artifacts and environment playbooks
     - `P0-0A-001` Reference Input Snapshot Integrity
