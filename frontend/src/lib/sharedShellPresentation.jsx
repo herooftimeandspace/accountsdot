@@ -5,6 +5,11 @@ import { RuntimeSelectDropdown } from "../components/RuntimeDropdown";
 import { sharedShellSpec } from "../generated/artboards.generated.js";
 import { buildVisibleNavGroups, navDestinationForKey, visibleNavChildrenForKey } from "./routeRegistry";
 import { helpContentForRoute } from "./routeHelpContent";
+import {
+  clampSidebarOffset,
+  sidebarOffsetForFocusedRect,
+  sidebarOffsetForWheel,
+} from "./sharedShellSidebarScroll.mjs";
 
 const SIDEBAR_TEMPLATE = {
   firstLabelY: 140,
@@ -56,6 +61,9 @@ const NAV_LABELS = {
 };
 
 const DEFAULT_STATIC_REFRESH_METADATA = "Last refreshed\nMay 3, 2026 9:00 AM PT";
+const SIDEBAR_SCROLL_EVENT = "shared-shell-sidebar-scroll";
+const SIDEBAR_SCROLL_VARIABLE = "--shared-shell-sidebar-scroll-y";
+const DEV_TOOLBAR_REACHABILITY_MARGIN = 12;
 const STATIC_PAGE_REFRESH_METADATA = {
   "dashboard-it-admin": DEFAULT_STATIC_REFRESH_METADATA,
   "dashboard-hr-lifecycle": DEFAULT_STATIC_REFRESH_METADATA,
@@ -899,6 +907,139 @@ function SharedShellAccountMenu({ bounds, onNavigate, onLogout }) {
   );
 }
 
+/**
+ * SharedShellSidebarScrollManager gives the fixed shared sidebar its own
+ * viewport-bounded scroll offset when role-filtered navigation, nested IT Admin
+ * rows, Platform Status, and the DEV persona switcher are taller than the
+ * browser. It is mounted once by createSharedShellRenderOverlay for every
+ * logged-in shell route, writes only a CSS custom property for the shared
+ * sidebar layer, and leaves the fixed header, main page scroll container, and
+ * right-drawer anchoring under their existing primitives.
+ */
+function SharedShellSidebarScrollManager({ visibleSidebarRows }) {
+  useEffect(() => {
+    let currentOffset = 0;
+    let currentGeometry = { viewportHeight: window.innerHeight, contentBottom: window.innerHeight };
+    let frame = 0;
+    const root = document.documentElement;
+
+    function readSidebarBounds() {
+      const sidebarNodes = Array.from(document.querySelectorAll('[data-shared-shell-sticky="sidebar"]'));
+      return sidebarNodes.reduce(
+        (bounds, node) => {
+          const rect = node.getBoundingClientRect();
+          if (!rect || rect.width <= 0 || rect.height <= 0) {
+            return bounds;
+          }
+          return {
+            left: Math.min(bounds.left, rect.left),
+            right: Math.max(bounds.right, rect.right),
+          };
+        },
+        { left: Number.POSITIVE_INFINITY, right: Number.NEGATIVE_INFINITY },
+      );
+    }
+
+    function readContentBottom() {
+      const contentNodes = [
+        ...document.querySelectorAll('[data-shared-shell-sticky="sidebar"]:not([data-node-id="f4"])'),
+        ...document.querySelectorAll(".pen-hotspot--nav"),
+      ];
+      const baseBottom = contentNodes.reduce((bottom, node) => {
+        const rect = node.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) {
+          return bottom;
+        }
+        return Math.max(bottom, rect.bottom - currentOffset);
+      }, 0);
+      const devToolbarNode = document.querySelector(".dev-toolbar");
+      const devToolbarRect = devToolbarNode?.getBoundingClientRect();
+      if (!devToolbarRect || devToolbarRect.width <= 0 || devToolbarRect.height <= 0) {
+        return baseBottom;
+      }
+      return Math.max(baseBottom, devToolbarRect.bottom - currentOffset + DEV_TOOLBAR_REACHABILITY_MARGIN);
+    }
+
+    function publishOffset(nextOffset) {
+      currentOffset = nextOffset;
+      root.style.setProperty(SIDEBAR_SCROLL_VARIABLE, `${Math.round(currentOffset)}px`);
+      window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { offset: currentOffset } }));
+    }
+
+    function measureAndClamp() {
+      currentGeometry = {
+        viewportHeight: window.innerHeight,
+        contentBottom: readContentBottom(),
+      };
+      publishOffset(clampSidebarOffset(currentOffset, currentGeometry));
+    }
+
+    function remeasureGeometry() {
+      currentGeometry = {
+        viewportHeight: window.innerHeight,
+        contentBottom: readContentBottom(),
+      };
+      return currentGeometry;
+    }
+
+    function scheduleMeasure() {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(measureAndClamp);
+    }
+
+    function handleWheel(event) {
+      const bounds = readSidebarBounds();
+      if (
+        !Number.isFinite(bounds.left) ||
+        !Number.isFinite(bounds.right) ||
+        event.clientX < bounds.left ||
+        event.clientX > bounds.right
+      ) {
+        return;
+      }
+
+      const nextOffset = sidebarOffsetForWheel(currentOffset, event.deltaY, remeasureGeometry());
+      if (nextOffset === currentOffset) {
+        return;
+      }
+      event.preventDefault();
+      publishOffset(nextOffset);
+    }
+
+    function handleFocusIn(event) {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (!target.closest(".pen-hotspot--nav, .dev-toolbar")) {
+        return;
+      }
+      publishOffset(sidebarOffsetForFocusedRect(currentOffset, target.getBoundingClientRect(), remeasureGeometry()));
+    }
+
+    measureAndClamp();
+    window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    document.addEventListener("focusin", handleFocusIn);
+
+    const observer = new MutationObserver(scheduleMeasure);
+    observer.observe(document.body, { childList: true, subtree: true });
+    scheduleMeasure();
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("wheel", handleWheel);
+      document.removeEventListener("focusin", handleFocusIn);
+      observer.disconnect();
+      root.style.removeProperty(SIDEBAR_SCROLL_VARIABLE);
+      window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { offset: 0 } }));
+    };
+  }, [visibleSidebarRows]);
+
+  return null;
+}
+
 function defaultHelpContent(activeNavKey, activeRoutePath) {
   return helpContentForRoute(activeRoutePath, activeNavKey);
 }
@@ -941,6 +1082,10 @@ export function createSharedShellRenderOverlay({
     const resolvedScopeDropdown = scopeDropdown ?? defaultScopeDropdownForSession(session);
 
     return [
+      <SharedShellSidebarScrollManager
+        key="shared-shell-sidebar-scroll"
+        visibleSidebarRows={visibleSidebarRows.map((row) => row.key).join("|")}
+      />,
       <SharedShellPageSyncControl
         key="shared-shell-page-sync"
         buttonBounds={refreshButtonBounds}

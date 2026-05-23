@@ -64,9 +64,12 @@ export function DevPersonaSwitcher({
       }
       const sidebarWidth = Math.max(0, sidebarBounds.right - sidebarBounds.left);
       const horizontalPadding = sidebarWidth >= 180 ? 16 : 8;
+      const desiredTop = Math.round(rect.bottom + 8);
+      const viewportBottom = window.innerHeight || document.documentElement.clientHeight || desiredTop;
+      const clampedTop = Math.min(desiredTop, Math.max(0, viewportBottom - 48));
       const nextStyle = {
         left: `${Math.round(sidebarBounds.left + horizontalPadding)}px`,
-        top: `${Math.max(0, Math.round(rect.bottom + 8))}px`,
+        top: `${Math.max(0, clampedTop)}px`,
         width: `${Math.max(0, Math.round(sidebarWidth - horizontalPadding * 2))}px`,
       };
       setAnchorStyle((current) => {
@@ -79,6 +82,7 @@ export function DevPersonaSwitcher({
 
     updateAnchor();
     window.addEventListener("resize", updateAnchor);
+    window.addEventListener("shared-shell-sidebar-scroll", updateAnchor);
 
     const observer = new MutationObserver(() => {
       updateAnchor();
@@ -87,6 +91,7 @@ export function DevPersonaSwitcher({
 
     return () => {
       window.removeEventListener("resize", updateAnchor);
+      window.removeEventListener("shared-shell-sidebar-scroll", updateAnchor);
       observer.disconnect();
     };
   }, [platformStatusValueSelector]);
