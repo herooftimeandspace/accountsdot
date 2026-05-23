@@ -54,6 +54,7 @@ Do not close a feedback item as merely "fixed." Closed items must name the durab
 - Header, sidebar, profile, search, scope, nav, support, notification, help, and platform-status feedback is always `shared shell`.
 - Row spacing, baseline alignment, dividers, wrapper borders, overflow, and fragmented text are primitive work first; make them page-local only after the primitive rule is clarified.
 - New behavior requests are `docs/new behavior`: stop and update `docs/product/product-requirements.md` plus `docs/planning/implementation-plan.md` before runtime implementation.
+- When auth/session loading, route activation, drawer focus, or refresh/sync behavior is touched on more than one page, treat it as shared runtime primitive work and define the invariant before patching a single page.
 
 ## Primitive Cleanup Order
 
@@ -67,11 +68,40 @@ Do not close a feedback item as merely "fixed." Closed items must name the durab
 ## Durable UI Rules
 
 - Shared header/sidebar are canonical logged-in shell surfaces; role filtering must reflow remaining nav items without blank gaps.
+- Shared navigation must expose exactly one active row for the current route, even when a parent route resolves to a default child destination after role filtering or redirect logic.
 - Standard header `Refresh` is a shared primitive: same Vegas Gold styling, readable black text, and consistent header location wherever exposed.
 - A logical paragraph, helper block, or table-cell body should be one wrapping text node unless a documented semantic reason requires separate nodes.
 - Dashboard tables keep a shared top baseline, grow rows downward to the tallest cell, and preserve at least `5px` between row text and dividers.
 - Bordered cards, rails, tables, notices, and controls keep at least `5px` from neighboring bordered elements unless an intentional shared-border join is documented.
 - Live pages must not show shortcut pills, governance labels, mock-policy labels, or validation-process copy unless the PRD defines them as operator-facing product features.
+
+## Runtime Invariants
+
+Before editing shared-shell or auth-adjacent runtime behavior, write down the invariant the change must preserve and encode it in the smallest relevant test.
+
+- Session/auth requests must be race-safe: an older in-flight load must not overwrite a newer login, logout, or refresh result.
+- Shared navigation must define active-row precedence explicitly when parent and child destinations can both match.
+- Drawer/help primitives must restore focus predictably and share geometry/close behavior across pages.
+- Refresh/sync controls must keep labeling, disabled/loading state, and last-refreshed semantics aligned across pages.
+
+Prefer request cancellation, versioning, or stale-response guards over timing assumptions in UI state code.
+
+## Verification Expectations
+
+UI work is not complete when code and generated artboards compile but runtime evidence is missing.
+
+- For shared-shell, auth, routing, drawer, or table-contract changes, capture at least one UI artifact as part of the runtime evidence.
+- Use the Browser plugin for local route checks when available. If Browser evaluation is required but unavailable, record the blocker as `needs_browser_evaluation` instead of substituting non-UI probes.
+- Verify keyboard focus behavior whenever a drawer, dialog, login flow, or shared action control changes.
+- If Browser verification is blocked, state the missing target/tool explicitly and do not silently treat the pass as fully closed.
+
+## Comment Hygiene
+
+This repo enforces comment quality. When touching files that often fail `npm run docs:comments:check`, clean or replace nearby boilerplate comments if they are part of the edited surface.
+
+- Comments should explain business or behavioral intent, not restate syntax.
+- When a runtime helper preserves a non-obvious invariant, document that invariant in the code where it is enforced.
+- Do not add placeholder comments that defer explanation to PR text alone.
 
 ## Loop Guard
 
