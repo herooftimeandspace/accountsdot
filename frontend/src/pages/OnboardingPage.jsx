@@ -35,6 +35,7 @@ const EMPTY_DRAFT_FORM = {
   preferred_device: "",
   requested_aeries_access: "",
   replacing_employee_id: "",
+  continuation_employee_id: "",
   room_id: "",
   notes: "",
 };
@@ -141,6 +142,7 @@ function draftToForm(draft) {
     preferred_device: draft?.preferred_device ?? "",
     requested_aeries_access: draft?.requested_aeries_access ?? "",
     replacing_employee_id: draft?.replacing_employee_id ?? "",
+    continuation_employee_id: draft?.continuation_employee_id ?? "",
     room_id: draft?.room_id ?? "",
     notes: draft?.notes ?? "",
   };
@@ -225,6 +227,7 @@ function changeReasonLabel(reason) {
     reactivate_same_role: "Reactivation into same role",
     reactivate_role_change: "Reactivation into different role",
     reactivate_non_escape: "Reactivated as manual Non-Escape contractor",
+    employee_contractor_continuation: "Employee-to-contractor continuation",
     active_escape_contractor_collision: "Active Escape contractor collision",
   };
   return labels[reason] ?? reason ?? "";
@@ -263,6 +266,7 @@ function missingFieldLabel(field) {
     personal_phone: "Personal phone",
     preferred_device: "Preferred device",
     requested_aeries_access: "Requested Aeries access",
+    continuation_employee_id: "Employee continuation link",
   };
   return labels[field] ?? field;
 }
@@ -414,6 +418,77 @@ function TicketStatusLine({ label, ticketText }) {
   );
 }
 
+function ConversionTimeline({ conversionDecision, employeeTimeline = [], auditEvents = [] }) {
+  if (!conversionDecision && !employeeTimeline.length && !auditEvents.length) {
+    return null;
+  }
+  return (
+    <div className="runtime-drawer__section onboarding-runtime__timeline">
+      <h3>Employee Timeline</h3>
+      {conversionDecision ? (
+        <div className={conversionDecision.gap_warning ? "onboarding-runtime__timeline-warning" : "onboarding-runtime__timeline-decision"}>
+          <strong>{changeReasonLabel("employee_contractor_continuation")}</strong>
+          <p>{conversionDecision.reason}</p>
+          <p>
+            Gap: {conversionDecision.gap_days} day(s). Adjacent threshold: {conversionDecision.adjacent_gap_days} day(s).
+            {conversionDecision.actor_id ? ` Reviewed by ${conversionDecision.actor_id}.` : ""}
+          </p>
+          <dl className="onboarding-runtime__decision-audit">
+            {conversionDecision.decided_at ? (
+              <>
+                <dt>Decision time</dt>
+                <dd>{conversionDecision.decided_at}</dd>
+              </>
+            ) : null}
+            {conversionDecision.lifecycle_owner ? (
+              <>
+                <dt>Lifecycle owner</dt>
+                <dd>{conversionDecision.lifecycle_owner}</dd>
+              </>
+            ) : null}
+            {conversionDecision.linked_employee_id ? (
+              <>
+                <dt>Linked employee</dt>
+                <dd>{conversionDecision.linked_employee_id}</dd>
+              </>
+            ) : null}
+            {conversionDecision.linked_contractor_id ? (
+              <>
+                <dt>Linked contractor</dt>
+                <dd>{conversionDecision.linked_contractor_id}</dd>
+              </>
+            ) : null}
+          </dl>
+        </div>
+      ) : null}
+      {employeeTimeline.length ? (
+        <ol>
+          {employeeTimeline.map((entry) => (
+            <li key={`${entry.kind}-${entry.record_id}-${entry.start_date}`}>
+              <strong>{entry.label}</strong>
+              <span>{[entry.source, entry.owner].filter(Boolean).join(" / ")}</span>
+              <p>{[formatOnboardingDate(entry.start_date), formatOnboardingDate(entry.end_date)].filter(Boolean).join(" to ") || "Date pending"}</p>
+              {entry.warning ? <p className="onboarding-runtime__timeline-warning">{entry.warning}</p> : null}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      {auditEvents.length ? (
+        <div className="onboarding-runtime__audit-events">
+          <h4>Audit Events</h4>
+          {auditEvents.map((event, index) => (
+            <p key={`${event.event_type}-${event.occurred_at}-${event.actor_id}-${index}`}>
+              <strong>{event.event_type}</strong>
+              <span>{event.actor_id} - {event.occurred_at}</span>
+              <span>{event.summary}</span>
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RoomOverrideForm({ row, formOptions, onSaved }) {
   const [room, setRoom] = useState(row?.room_id ?? "");
   const [message, setMessage] = useState("");
@@ -514,6 +589,11 @@ function WorkflowDrawer({ row, formOptions, onClose, onRoomSaved }) {
           />
         </div>
       ) : null}
+      <ConversionTimeline
+        conversionDecision={row.conversion_decision}
+        employeeTimeline={row.employee_timeline}
+        auditEvents={row.audit_events}
+      />
       <div className="runtime-drawer__section">
         <TicketStatusLine label="Earliest matching Aeries ticket:" ticketText={row.aeries_ticket} />
         <TicketStatusLine label="Earliest matching Verkada ticket:" ticketText={row.verkada_ticket} />
@@ -643,8 +723,14 @@ function ReadOnlyManualDraftDrawer({ draft, row, formOptions, onClose, onRoomSav
           { label: "Requested Aeries access", value: draft.requested_aeries_access },
           { label: "Generated email", value: draft.generated_email },
           { label: "Generated ID", value: draft.generated_employee_id },
+          { label: "Continuation", value: draft.continuation_employee_name },
           { label: "Notes", value: draft.notes },
         ]}
+      />
+      <ConversionTimeline
+        conversionDecision={draft.conversion_decision}
+        employeeTimeline={draft.employee_timeline}
+        auditEvents={draft.audit_events}
       />
       {row?.can_update_room ? (
         <RoomOverrideForm row={row} formOptions={formOptions} onSaved={onRoomSaved} />
@@ -669,6 +755,7 @@ function ManualDraftDrawer({
   const leadTimeDays = daysBetween(form.start_date, currentDate);
   const showLeadTimeWarning = leadTimeDays !== null && leadTimeDays >= 0 && leadTimeDays <= 3;
   const replacingEmployee = formOptions.replacing_employees.find((employee) => employee.id === form.replacing_employee_id);
+  const continuationEmployee = formOptions.continuation_employees?.find((employee) => employee.id === form.continuation_employee_id);
   const missingSummary = showValidationFeedback && draft.missing_fields?.length
     ? `Missing required fields: ${draft.missing_fields.map(missingFieldLabel).join(", ")}`
     : "";
@@ -702,6 +789,11 @@ function ManualDraftDrawer({
               />
             </div>
           ) : null}
+          <ConversionTimeline
+            conversionDecision={draft.conversion_decision}
+            employeeTimeline={draft.employee_timeline}
+            auditEvents={draft.audit_events}
+          />
           {errors.form ? <p className="onboarding-runtime__field-error">{errors.form}</p> : null}
           <button
             type="button"
@@ -796,9 +888,13 @@ function ManualDraftDrawer({
         <SelectField id="manual-site" label="Site" value={form.site_id} options={formOptions.sites} required className={fieldClassName("site_id", draft, errors, showValidationFeedback)} onChange={(value) => onChange("site_id", value)} />
 
         <SelectField id="manual-replacing" label="Replacing" value={form.replacing_employee_id} options={formOptions.replacing_employees} onChange={(value) => onChange("replacing_employee_id", value)} />
+        <SelectField id="manual-continuation" label="Continuation" value={form.continuation_employee_id} options={formOptions.continuation_employees ?? []} className={fieldClassName("continuation_employee_id", draft, errors, showValidationFeedback)} onChange={(value) => onChange("continuation_employee_id", value)} />
         <SelectField id="manual-room" label="Room / classroom" value={form.room_id} options={formOptions.rooms} onChange={(value) => onChange("room_id", value)} />
         {replacingEmployee ? (
           <p className="onboarding-runtime__hint">{replacingEmployee.email}</p>
+        ) : null}
+        {continuationEmployee ? (
+          <p className="onboarding-runtime__hint">{continuationEmployee.email}</p>
         ) : null}
 
         <label className={fieldClassName("personal_email", draft, errors, showValidationFeedback, "onboarding-runtime__field--full")} htmlFor="manual-personal-email">
@@ -835,6 +931,11 @@ function ManualDraftDrawer({
           {saving ? "Saving..." : "Save"}
         </button>
       </form>
+      <ConversionTimeline
+        conversionDecision={draft.conversion_decision}
+        employeeTimeline={draft.employee_timeline}
+        auditEvents={draft.audit_events}
+      />
     </RuntimeDrawer>
   );
 }
@@ -1095,6 +1196,7 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     preferred_devices: [],
     requested_aeries_access: [],
     replacing_employees: [],
+    continuation_employees: [],
     rooms: [],
   };
 

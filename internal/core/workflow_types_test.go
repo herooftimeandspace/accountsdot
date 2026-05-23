@@ -57,6 +57,7 @@ func TestWorkflowChangeReasonsValidate(t *testing.T) {
 		core.WorkflowChangeReasonReactivateSameRole,
 		core.WorkflowChangeReasonReactivateRoleChange,
 		core.WorkflowChangeReasonReactivateNonEscape,
+		core.WorkflowChangeReasonEmployeeContractorContinuation,
 		core.WorkflowChangeReasonActiveEscapeContractorCollision,
 	}
 	for _, value := range valid {
