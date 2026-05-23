@@ -30,6 +30,7 @@
     "perf:routes:batch-plan": "node scripts/dev_route_performance_matrix.mjs batch-plan",
     "perf:routes:merge": "node scripts/dev_route_performance_matrix.mjs merge",
     "perf:routes:merge:strict": "node scripts/dev_route_performance_matrix.mjs merge --strict",
+    "perf:routes:self-test": "node scripts/dev_route_performance_matrix.mjs self-test",
     "pen:sync": "node scripts/sync_implemented_pages.mjs",
     "pen:check": "node scripts/sync_implemented_pages.mjs --check",
     "pen:lint": "node scripts/lint_implemented_pages.mjs",
