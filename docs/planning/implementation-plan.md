@@ -1385,6 +1385,34 @@
   - title
   - location
 
+## Source Precedence and Manual-Change Reconciliation
+- The durable source-precedence contract lives in `docs/product/source-precedence.md` and must be updated before implementation adds a new field that can be both upstream-owned and dashboard-managed.
+- Field inventory for the current implementation plan includes employment lifecycle dates/status, manual contractor lifecycle fields, site assignment, room/location, legal name for manual non-Escape records, preferred/display name, permission/site mappings, downstream provider identifiers, and local workflow/audit state.
+- Provider-owned fields:
+  - Escape-backed employment status, hire/start/end dates, and active assignment participation.
+  - Aeries student data and teacher context before documented local overrides.
+  - Google/SAML role and site-scope signals before in-app manual grants/revocations are applied by the permissions resolver.
+  - Provider identifiers such as AD object id, Google id, Zoom user id, IncidentIQ user/asset id, and extension ids.
+- Application-owned fields:
+  - workflow state, approvals, manual notes, carried-forward review inputs, workflow snapshots, and audit events.
+  - manual non-Escape contractor lifecycle fields while no active Escape replacement exists.
+  - preferred/display-name intent for eligible non-student identities after an authorized dashboard submission.
+  - IT Admin manual permission grants, revocations, and site mappings as resolved by `docs/product/permissions-model.md`.
+- Temporary override fields:
+  - HR temporary site overrides.
+  - authorized room/location overrides from Site Admin, Site Secretary, HR, or IT.
+  - exception-list entries and manual revocations that have an expiration or review date.
+- Manual changes that can affect provider-backed planning must persist metadata for field key, subject id, manual value, actor, created timestamp, reason/source, related form/ticket/workflow when available, owner role, effective-from date, expiration or review date when required, supersession policy, and a non-secret snapshot of the upstream value seen when the manual change was created.
+- Sync and explicit refresh paths must classify each upstream/manual comparison into one of the documented outcomes: `accept_upstream`, `preserve_manual`, `clear_temporary_override`, `mark_conflict`, `supersede_manual`, or `blocked_missing_context`.
+- `accept_upstream` applies when no active manual value exists, a manual value expired, or a provider-owned field receives a non-authoritative manual value. The projection updates from upstream and the prior manual state remains audit history.
+- `preserve_manual` applies when the field is app-owned or a valid active override remains in force. The manual value stays effective, the upstream value is retained for display, and the winning rule is auditable.
+- `clear_temporary_override` applies when upstream now matches the intended manual correction or the field's documented clear condition is met. The override is end-dated by a system actor and an audit event records before/after effective values.
+- `mark_conflict` applies when upstream changes to a value that differs from both the source snapshot and the active manual value, or when multiple upstream authorities disagree and no documented winner applies. Dependent write-capable workflows must block until the documented owner reviews the row.
+- `supersede_manual` applies when a higher-authority source replaces the manual record, such as an active Escape employee replacing a manual contractor. The manual record remains stored for audit but becomes inactive or invalid and must not enqueue duplicate work.
+- `blocked_missing_context` applies when a required upstream value, mapping, permission, or identifier cannot be safely resolved. The application must not infer a value for provider writes.
+- Operator copy should use the labels `Effective value`, `Upstream value`, `Manual value`, `Needs review`, `Cleared after upstream correction`, `Superseded by Escape`, and `Upstream cleanup required` where those states appear.
+- Reconciliation audit events must cover automatic clearing, supersession, conflict creation/resolution, manual-preserved-over-upstream decisions, upstream-over-manual decisions, and permission revocations that remain effective locally while upstream cleanup is still pending.
+
 ## Baseline Access Inputs
 - Baseline access must be determined from the stored job category and raw job-title bundle before any additive or exceptional permissions are considered.
 - Reactivation and rehire flows must restore the baseline category-defined access first; previous extra permissions are shown as deltas but not automatically reapplied.
@@ -2614,6 +2642,7 @@
 ## Sync Timing and Refresh Controls
 - Dashboard projections must refresh immediately after local automation pushes a successful change.
 - The system must also perform periodic upstream reconciliation to capture manual changes made outside the application.
+- Reconciliation must also compare upstream source changes against active dashboard-managed manual values using the source-precedence outcomes documented above and in `docs/product/source-precedence.md`.
 - Sync timing must be configurable per data source by IT Admin through a settings dashboard.
 - Sync timing must use bounded presets and minimum intervals rather than fully unrestricted values.
 - For API-backed providers, prefer inbound webhooks or event-subscription/pubsub integrations where supported.
@@ -2845,6 +2874,7 @@
   - `Open Mapping Tool` persists local room mapping overrides
   - `Ignore/Override Exception` persists local manual overrides, updates sync issues, and enqueues `sync_recheck`
 - Annual Reset archives completed rows, preserves room-mapping configuration, and clears per-user exception overrides.
+- Source-precedence tests must include the named scenarios `upstream-overwrites-manual`, `manual-preserved-over-upstream`, `conflict-needs-review`, and `temporary-override-cleared-after-upstream-correction` before reconciliation behavior feeds DB-backed canonical records or provider write planning.
 
 ## Test Plan
 - Unit tests:
@@ -2863,6 +2893,7 @@
   - mapping from sync evaluation results into `current_phase` and `overall_status`
   - staff vs student completion rules
   - annual reset archive and override-retention behavior
+  - source-precedence outcomes for upstream-overwrites-manual, manual-preserved-over-upstream, conflict-needs-review, and temporary-override-cleared-after-upstream-correction
 - Contract tests:
   - JSON API payload shapes
   - Zoom provider request/response mappings
