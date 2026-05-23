@@ -28,6 +28,8 @@ func TestAllowedModules(t *testing.T) {
 		t.Fatalf("failed reading go.mod: %v", err)
 	}
 	allowed := []string{
+		"github.com/charmbracelet/bubbletea",
+		"github.com/charmbracelet/lipgloss",
 		"github.com/google/uuid",
 		"github.com/jackc/pgx/v5",
 	}

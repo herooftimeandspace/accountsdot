@@ -179,7 +179,7 @@ const HELP_CONTENT_BY_ROUTE = {
         paragraphs: [
           "Use search and sortable table columns to prioritize blocked, manual-action, security-risk, or soon-due rows. Select a row to open the right drawer with end-date source, workflow owner, external links, and manual action details.",
           "HR and IT Admin may see an End date picker only on records whose end date is not owned by Escape. Site Admin may view applicable rows but cannot update those dates.",
-          "HR and IT Admin may use Emergency Offboarding only for immediate, non-scheduled access removal. Use Offboard Contractor when a manually created Non-Escape contractor needs a dated termination workflow.",
+          "HR and IT Admin may use Emergency Offboarding for immediate or scheduled access removal. HR must escalate IT Admin targets to an IT Admin or the documented breakglass emergency process. Use Offboard Contractor when a manually created Non-Escape contractor needs a dated termination workflow.",
         ],
       },
       {
@@ -187,7 +187,7 @@ const HELP_CONTENT_BY_ROUTE = {
         paragraphs: [
           "Ready or Scheduled rows can continue through the planned retirement path. Manual Action, Needs Review, Blocked, Security Risk, and Failed rows need the drawer's owner and resolution instructions before automation should proceed.",
           "Device-return warnings and security details belong in the row drawer. Use the drawer links to inspect the relevant external system when one is provided.",
-          "Emergency Offboarding searches active employees and contractors by name, email, or employee ID, then schedules immediate deprovisioning after a person is selected. Offboard Contractor searches active contractors only, saves the selected termination date only when Schedule Offboarding is selected, and Cancel closes without saving.",
+          "Emergency Offboarding searches active employees and contractors by name, email, or employee ID, then records immediate deprovisioning or a scheduled future termination after a person and execution mode are selected. HR search results omit IT Admin targets. Offboard Contractor searches active contractors only, saves the selected termination date only when Schedule Offboarding is selected, and Cancel closes without saving.",
         ],
       },
       {

@@ -319,7 +319,9 @@ function OffboardingActionBar({ canManageManual, onEmergency, onContractor }) {
  * OffboardingManualActionDrawer owns the HR/IT emergency and contractor
  * offboarding workflows. It loads candidates only after the drawer opens and
  * submits explicit schedule payloads to DEV mock APIs so date edits alone never
- * mutate state or imply live provider write approval.
+ * mutate state or imply live provider write approval. Server-side target-role
+ * denials stay in the drawer so HR sees the escalation path without the app
+ * turning a selected-person safety rejection into a generic route denial.
  */
 function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbidden }) {
   const [candidates, setCandidates] = useState([]);
@@ -422,6 +424,11 @@ function OffboardingManualActionDrawer({ mode, onClose, onUnauthorized, onForbid
     } catch (submitError) {
       if (submitError.status === 401 && onUnauthorized) {
         onUnauthorized();
+        return;
+      }
+      if (submitError.status === 403 && submitError.payload?.errors?.person_id) {
+        setError(submitError.payload.errors.person_id);
+        setState("ready");
         return;
       }
       if (submitError.status === 403 && onForbidden) {
