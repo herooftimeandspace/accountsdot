@@ -1570,8 +1570,14 @@
   - existing AD/Entra/Google identity is copied to the new Escape-backed record
   - if the contractor assignment is still active during overlap, the end-user account must remain active and be reprovisioned with the appropriate baseline access instead of being deactivated
 - Manual contractor reactivation and collision rules:
-  - a former Escape-backed person who is now inactive in Escape and later returns as a manual Non-Escape contractor must reuse the existing identity
-  - that manual reactivation path uses the contractor/manual baseline and is exposed as `reactivate_non_escape`
+  - a former Escape-backed person who is now inactive in Escape and later returns as a manual Non-Escape contractor must keep the same identity only after HR or IT explicitly marks the manual onboarding as a continuation of the former Escape employee relationship
+  - the adjacent employee-to-contractor conversion window is `14` calendar days between the Escape employee end date and the manual contractor start date
+  - if the manual contractor start date is more than `14` calendar days after the Escape employee end date, the same account can remain open only when the explicit continuation link is present, the account is eligible, and the gap warning remains visible for HR/IT review
+  - if an inactive Escape employee match is detected without that continuation link, the draft stays in `Needs Review`, withholds generated district email and employee ID values, and blocks finalization so the app does not create a duplicate account or silently override deprovisioning
+  - eligible continuation requires an inactive Escape record, matching identity fields, preserved employee number, preserved district email, complete manual contractor required fields, and no active Escape overlap
+  - that explicit continuation path uses the contractor/manual baseline and is exposed as `employee_contractor_continuation`
+  - linked conversions expose an employee timeline with the Escape employee period, manual contractor period, any gap, conversion decision, actor/timestamp, current lifecycle owner, and bidirectional employee/contractor record links
+  - linked conversions emit audit events for link creation, link removal, account-continuity decisions, and any downstream provisioning or deprovisioning action that later exists because of the conversion
   - an active Escape employee plus a manual Non-Escape contractor entry is not supported
   - when that unsupported overlap is detected, the manual record is saved for audit but is immediately marked invalid
   - the invalid manual record is linked to the active Escape-backed record in the drawer payload
@@ -1587,6 +1593,9 @@
   - `validity_state`
   - `invalid_reason`
   - `linked_escape_record`
+  - `conversion_decision`
+  - `employee_timeline`
+  - `audit_events`
   - `can_delete_manual_entry`
 
 ## Onboarding and Offboarding Dashboard Requirements

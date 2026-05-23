@@ -152,7 +152,8 @@ type dataQualityResponse struct {
 }
 
 type errorResponse struct {
-	Code string `json:"code"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 type phoneDirectoryResponse struct {
@@ -223,6 +224,8 @@ type onboardingResponse struct {
 			RoomName             string `json:"room_name"`
 			CanUpdateRoom        bool   `json:"can_update_room"`
 			ManualDraftID        string `json:"manual_draft_id"`
+			CurrentStep          string `json:"current_step"`
+			IssueAction          string `json:"issue_action"`
 			WorkflowStatus       string `json:"workflow_status"`
 			ChangeReason         string `json:"change_reason"`
 			LateStart            bool   `json:"late_start"`
@@ -232,7 +235,24 @@ type onboardingResponse struct {
 			CanDeleteManualEntry bool   `json:"can_delete_manual_entry"`
 			AssignedEmail        string `json:"assigned_email"`
 			EmployeeNumber       string `json:"employee_number"`
-			LinkedEscapeRecord   *struct {
+			ConversionDecision   *struct {
+				Decision        string `json:"decision"`
+				GapDays         int    `json:"gap_days"`
+				AdjacentGapDays int    `json:"adjacent_gap_days"`
+				GapWarning      bool   `json:"gap_warning"`
+				AccountEligible bool   `json:"account_eligible"`
+				ActorID         string `json:"actor_id"`
+			} `json:"conversion_decision"`
+			EmployeeTimeline []struct {
+				Kind     string `json:"kind"`
+				Warning  string `json:"warning"`
+				RecordID string `json:"record_id"`
+			} `json:"employee_timeline"`
+			AuditEvents []struct {
+				EventType string `json:"event_type"`
+				ActorID   string `json:"actor_id"`
+			} `json:"audit_events"`
+			LinkedEscapeRecord *struct {
 				ID             string `json:"id"`
 				Person         string `json:"person"`
 				Site           string `json:"site"`
@@ -282,23 +302,24 @@ type onboardingRoomUpdateResponse struct {
 
 type onboardingDraftResponse struct {
 	Draft struct {
-		ID                   string `json:"id"`
-		Status               string `json:"status"`
-		StartDate            string `json:"start_date"`
-		EffectiveDate        string `json:"effective_date"`
-		FirstName            string `json:"first_name"`
-		LastName             string `json:"last_name"`
-		PersonalEmail        string `json:"personal_email"`
-		PersonalPhone        string `json:"personal_phone"`
-		GeneratedEmail       string `json:"generated_email"`
-		GeneratedEmployeeID  string `json:"generated_employee_id"`
-		ChangeReason         string `json:"change_reason"`
-		LateStart            bool   `json:"late_start"`
-		ScheduledFor         string `json:"scheduled_for"`
-		ValidityState        string `json:"validity_state"`
-		InvalidReason        string `json:"invalid_reason"`
-		CanDeleteManualEntry bool   `json:"can_delete_manual_entry"`
-		LinkedEscapeRecord   *struct {
+		ID                     string `json:"id"`
+		Status                 string `json:"status"`
+		StartDate              string `json:"start_date"`
+		EffectiveDate          string `json:"effective_date"`
+		FirstName              string `json:"first_name"`
+		LastName               string `json:"last_name"`
+		PersonalEmail          string `json:"personal_email"`
+		PersonalPhone          string `json:"personal_phone"`
+		GeneratedEmail         string `json:"generated_email"`
+		GeneratedEmployeeID    string `json:"generated_employee_id"`
+		ChangeReason           string `json:"change_reason"`
+		ContinuationEmployeeID string `json:"continuation_employee_id"`
+		LateStart              bool   `json:"late_start"`
+		ScheduledFor           string `json:"scheduled_for"`
+		ValidityState          string `json:"validity_state"`
+		InvalidReason          string `json:"invalid_reason"`
+		CanDeleteManualEntry   bool   `json:"can_delete_manual_entry"`
+		LinkedEscapeRecord     *struct {
 			ID             string `json:"id"`
 			Person         string `json:"person"`
 			Site           string `json:"site"`
@@ -308,13 +329,34 @@ type onboardingDraftResponse struct {
 			CurrentStep    string `json:"current_step"`
 			WorkflowStatus string `json:"workflow_status"`
 		} `json:"linked_escape_record"`
+		ConversionDecision *struct {
+			Decision        string `json:"decision"`
+			GapDays         int    `json:"gap_days"`
+			AdjacentGapDays int    `json:"adjacent_gap_days"`
+			GapWarning      bool   `json:"gap_warning"`
+			AccountEligible bool   `json:"account_eligible"`
+			ActorID         string `json:"actor_id"`
+		} `json:"conversion_decision"`
+		EmployeeTimeline []struct {
+			Kind     string `json:"kind"`
+			Warning  string `json:"warning"`
+			RecordID string `json:"record_id"`
+		} `json:"employee_timeline"`
+		AuditEvents []struct {
+			EventType string `json:"event_type"`
+			ActorID   string `json:"actor_id"`
+		} `json:"audit_events"`
 		MissingFields []string `json:"missing_fields"`
 	} `json:"draft"`
 	Rows []struct {
 		Kind            string `json:"kind"`
 		DateAdded       string `json:"date_added"`
 		DateAddedReason string `json:"date_added_reason"`
+		CurrentStep     string `json:"current_step"`
+		IssueAction     string `json:"issue_action"`
 		WorkflowStatus  string `json:"workflow_status"`
+		ValidityState   string `json:"validity_state"`
+		InvalidReason   string `json:"invalid_reason"`
 		AssignedEmail   string `json:"assigned_email"`
 		EmployeeNumber  string `json:"employee_number"`
 		WorkflowSteps   []struct {
@@ -2727,7 +2769,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		}
 	})
 
-	t.Run("inactive escape contractor reactivation reuses existing identity", func(t *testing.T) {
+	t.Run("inactive escape contractor continuation requires explicit review link", func(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "human_resources")
 
 		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
@@ -2740,7 +2782,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		created := decodeJSON[onboardingDraftResponse](t, createRec)
 
 		body, err := json.Marshal(map[string]string{
-			"start_date":              "2026-05-11",
+			"start_date":              "2026-06-01",
 			"ssn_last4":               "5678",
 			"employee_type":           "Contractor",
 			"classification":          "Contractor",
@@ -2765,17 +2807,399 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("reactivation draft update returned %d, want 200", updateRec.Code)
 		}
 		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
-		if updated.Draft.ChangeReason != "reactivate_non_escape" {
-			t.Fatalf("change reason = %q, want reactivate_non_escape", updated.Draft.ChangeReason)
+		if updated.Draft.Status != "Needs Review" || updated.Draft.ValidityState != "review_required" {
+			t.Fatalf("unlinked continuation state = %#v, want Needs Review review_required", updated.Draft)
 		}
-		if updated.Draft.GeneratedEmail != "harper.sloan@wusd.org" {
-			t.Fatalf("generated email = %q, want reused Escape email", updated.Draft.GeneratedEmail)
+		if updated.Draft.GeneratedEmail != "" || updated.Draft.GeneratedEmployeeID != "" {
+			t.Fatalf("unlinked continuation generated identifiers = %#v, want none", updated.Draft)
 		}
-		if updated.Draft.GeneratedEmployeeID != "104812" {
-			t.Fatalf("generated employee id = %q, want reused Escape employee number", updated.Draft.GeneratedEmployeeID)
+		if updated.Draft.ConversionDecision == nil || updated.Draft.ConversionDecision.Decision != "review_required" {
+			t.Fatalf("conversion decision = %#v, want review_required", updated.Draft.ConversionDecision)
+		}
+		pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
+		pageReq.AddCookie(cookie)
+		pageRec := httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("onboarding page returned %d, want 200", pageRec.Code)
+		}
+		page := decodeJSON[onboardingResponse](t, pageRec)
+		rowIndex := -1
+		for i, row := range page.Page.Rows {
+			if row.ManualDraftID == created.Draft.ID {
+				rowIndex = i
+				break
+			}
+		}
+		if rowIndex == -1 || page.Page.Rows[rowIndex].CurrentStep == "Ready" || page.Page.Rows[rowIndex].ValidityState != "review_required" {
+			t.Fatalf("unlinked continuation row = %#v, want review-required row that is not Ready", page.Page.Rows)
+		}
+		if !updated.Draft.ConversionDecision.GapWarning || updated.Draft.ConversionDecision.GapDays <= updated.Draft.ConversionDecision.AdjacentGapDays {
+			t.Fatalf("conversion gap decision = %#v, want non-adjacent warning", updated.Draft.ConversionDecision)
+		}
+		if len(updated.Draft.EmployeeTimeline) < 3 {
+			t.Fatalf("employee timeline = %#v, want Escape period, gap, and contractor period", updated.Draft.EmployeeTimeline)
+		}
+		finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
+		finalizeReq.AddCookie(cookie)
+		finalizeRec := httptest.NewRecorder()
+		handler.ServeHTTP(finalizeRec, finalizeReq)
+		if finalizeRec.Code != http.StatusConflict {
+			t.Fatalf("unlinked continuation finalize returned %d, want 409", finalizeRec.Code)
+		}
+		finalizeError := decodeJSON[errorResponse](t, finalizeRec)
+		if finalizeError.Code != "continuation_review_required" || !strings.Contains(finalizeError.Message, "HR or IT review") {
+			t.Fatalf("unlinked continuation finalize error = %#v, want HR/IT review conflict", finalizeError)
+		}
+
+		linkedBody, err := json.Marshal(map[string]string{
+			"start_date":               "2026-06-01",
+			"ssn_last4":                "5678",
+			"employee_type":            "Contractor",
+			"classification":           "Contractor",
+			"first_name":               "Harper",
+			"last_name":                "Sloan",
+			"job_title":                "Counselor",
+			"site_id":                  "business-office",
+			"personal_email":           "harper.sloan@example.com",
+			"personal_phone":           "7075550188",
+			"preferred_device":         "Windows",
+			"requested_aeries_access":  "Staff",
+			"continuation_employee_id": "escape-harper-sloan",
+		})
+		if err != nil {
+			t.Fatalf("marshal linked continuation draft: %v", err)
+		}
+		updateReq = httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(linkedBody))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec = httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("linked continuation update returned %d, want 200", updateRec.Code)
+		}
+		updated = decodeJSON[onboardingDraftResponse](t, updateRec)
+		if updated.Draft.ChangeReason != "employee_contractor_continuation" {
+			t.Fatalf("change reason = %q, want employee_contractor_continuation", updated.Draft.ChangeReason)
+		}
+		if updated.Draft.GeneratedEmail != "harper.sloan@wusd.org" || updated.Draft.GeneratedEmployeeID != "104812" {
+			t.Fatalf("linked continuation identity reuse = %#v", updated.Draft)
 		}
 		if updated.Draft.LinkedEscapeRecord == nil || updated.Draft.LinkedEscapeRecord.ID != "escape-harper-sloan" {
 			t.Fatalf("linked escape record = %#v, want escape-harper-sloan", updated.Draft.LinkedEscapeRecord)
+		}
+		if updated.Draft.ConversionDecision == nil || updated.Draft.ConversionDecision.Decision != "keep_account_open" || updated.Draft.ConversionDecision.ActorID != "human_resources" {
+			t.Fatalf("linked conversion decision = %#v, want keep_account_open by HR", updated.Draft.ConversionDecision)
+		}
+		incompleteBody, err := json.Marshal(map[string]string{
+			"start_date":               "2026-06-01",
+			"ssn_last4":                "5678",
+			"employee_type":            "Contractor",
+			"classification":           "Contractor",
+			"first_name":               "Harper",
+			"last_name":                "Sloan",
+			"job_title":                "Counselor",
+			"site_id":                  "business-office",
+			"personal_email":           "harper.sloan@example.com",
+			"personal_phone":           "7075550188",
+			"preferred_device":         "Windows",
+			"requested_aeries_access":  "",
+			"continuation_employee_id": "escape-harper-sloan",
+		})
+		if err != nil {
+			t.Fatalf("marshal incomplete continuation draft: %v", err)
+		}
+		updateReq = httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(incompleteBody))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec = httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("incomplete continuation update returned %d, want 200", updateRec.Code)
+		}
+		incomplete := decodeJSON[onboardingDraftResponse](t, updateRec)
+		if incomplete.Draft.ConversionDecision == nil || incomplete.Draft.ConversionDecision.AccountEligible {
+			t.Fatalf("incomplete conversion decision = %#v, want account_eligible false", incomplete.Draft.ConversionDecision)
+		}
+		updateReq = httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(linkedBody))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec = httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("restored linked continuation update returned %d, want 200", updateRec.Code)
+		}
+		updated = decodeJSON[onboardingDraftResponse](t, updateRec)
+		hasLinkAudit := false
+		for _, event := range updated.Draft.AuditEvents {
+			if event.EventType == "employee_contractor_link_created" && event.ActorID == "human_resources" {
+				hasLinkAudit = true
+			}
+		}
+		if !hasLinkAudit {
+			t.Fatalf("audit events = %#v, want link-created audit event", updated.Draft.AuditEvents)
+		}
+
+		finalizeReq = httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
+		finalizeReq.AddCookie(cookie)
+		finalizeRec = httptest.NewRecorder()
+		handler.ServeHTTP(finalizeRec, finalizeReq)
+		if finalizeRec.Code != http.StatusOK {
+			t.Fatalf("linked continuation finalize returned %d, want 200", finalizeRec.Code)
+		}
+		finalized := decodeJSON[onboardingDraftResponse](t, finalizeRec)
+		if finalized.Draft.GeneratedEmail != "harper.sloan@wusd.org" || finalized.Draft.GeneratedEmployeeID != "104812" {
+			t.Fatalf("finalized draft identity reuse = %#v", finalized.Draft)
+		}
+		hasDecisionAudit := false
+		for _, event := range finalized.Draft.AuditEvents {
+			if event.EventType == "account_continuity_decision" {
+				hasDecisionAudit = true
+			}
+		}
+		if !hasDecisionAudit {
+			t.Fatalf("finalized audit events = %#v, want account continuity decision", finalized.Draft.AuditEvents)
+		}
+
+		retryReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
+		retryReq.AddCookie(cookie)
+		retryRec := httptest.NewRecorder()
+		handler.ServeHTTP(retryRec, retryReq)
+		if retryRec.Code != http.StatusOK {
+			t.Fatalf("linked continuation finalize retry returned %d, want 200", retryRec.Code)
+		}
+		retried := decodeJSON[onboardingDraftResponse](t, retryRec)
+		decisionAuditCount := 0
+		for _, event := range retried.Draft.AuditEvents {
+			if event.EventType == "account_continuity_decision" {
+				decisionAuditCount++
+			}
+		}
+		if decisionAuditCount != 1 {
+			t.Fatalf("retried audit events = %#v, want one account continuity decision", retried.Draft.AuditEvents)
+		}
+
+		mismatchCreateReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		mismatchCreateReq.AddCookie(cookie)
+		mismatchCreateRec := httptest.NewRecorder()
+		handler.ServeHTTP(mismatchCreateRec, mismatchCreateReq)
+		if mismatchCreateRec.Code != http.StatusCreated {
+			t.Fatalf("mismatch draft create returned %d, want 201", mismatchCreateRec.Code)
+		}
+		mismatchCreated := decodeJSON[onboardingDraftResponse](t, mismatchCreateRec)
+
+		mismatchBody, err := json.Marshal(map[string]string{
+			"start_date":               "2026-06-01",
+			"ssn_last4":                "5678",
+			"employee_type":            "Contractor",
+			"classification":           "Contractor",
+			"first_name":               "Harper",
+			"last_name":                "Stone",
+			"job_title":                "Counselor",
+			"site_id":                  "business-office",
+			"personal_email":           "harper.stone@example.com",
+			"personal_phone":           "7075550188",
+			"preferred_device":         "Windows",
+			"requested_aeries_access":  "Staff",
+			"continuation_employee_id": "escape-harper-sloan",
+		})
+		if err != nil {
+			t.Fatalf("marshal mismatched continuation draft: %v", err)
+		}
+		updateReq = httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+mismatchCreated.Draft.ID, bytes.NewReader(mismatchBody))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec = httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("mismatched continuation update returned %d, want 200: %s", updateRec.Code, updateRec.Body.String())
+		}
+		mismatched := decodeJSON[onboardingDraftResponse](t, updateRec)
+		if mismatched.Draft.ValidityState != "invalid" || mismatched.Draft.InvalidReason != "continuation_identity_mismatch" {
+			t.Fatalf("mismatched continuation state = %#v, want invalid continuation_identity_mismatch", mismatched.Draft)
+		}
+		pageReq = httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/onboarding", nil)
+		pageReq.AddCookie(cookie)
+		pageRec = httptest.NewRecorder()
+		handler.ServeHTTP(pageRec, pageReq)
+		if pageRec.Code != http.StatusOK {
+			t.Fatalf("onboarding page after mismatch returned %d, want 200", pageRec.Code)
+		}
+		page = decodeJSON[onboardingResponse](t, pageRec)
+		rowIndex = -1
+		for i, row := range page.Page.Rows {
+			if row.ManualDraftID == mismatchCreated.Draft.ID {
+				rowIndex = i
+				break
+			}
+		}
+		if rowIndex == -1 || page.Page.Rows[rowIndex].CurrentStep == "Ready" || page.Page.Rows[rowIndex].InvalidReason != "continuation_identity_mismatch" {
+			t.Fatalf("mismatched continuation row = %#v, want invalid row that is not Ready", page.Page.Rows)
+		}
+		if page.Page.Rows[rowIndex].CurrentStep != "Continuation link mismatch" {
+			t.Fatalf("mismatched continuation step = %q, want Continuation link mismatch", page.Page.Rows[rowIndex].CurrentStep)
+		}
+		finalizeReq = httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+mismatchCreated.Draft.ID+"/finalize", nil)
+		finalizeReq.AddCookie(cookie)
+		finalizeRec = httptest.NewRecorder()
+		handler.ServeHTTP(finalizeRec, finalizeReq)
+		if finalizeRec.Code != http.StatusConflict {
+			t.Fatalf("mismatched continuation finalize returned %d, want 409", finalizeRec.Code)
+		}
+		finalizeError = decodeJSON[errorResponse](t, finalizeRec)
+		if finalizeError.Code != "continuation_identity_mismatch" || !strings.Contains(finalizeError.Message, "Correct or clear the continuation link") {
+			t.Fatalf("mismatched continuation finalize error = %#v, want mismatch-specific conflict", finalizeError)
+		}
+
+		invalidContinuationCases := []struct {
+			name                   string
+			startDate              string
+			firstName              string
+			lastName               string
+			personalEmail          string
+			continuationEmployeeID string
+			invalidReason          string
+			finalizeCode           string
+			finalizeMessage        string
+		}{
+			{
+				name:                   "unknown former employee end date",
+				startDate:              "2026-06-01",
+				firstName:              "Riley",
+				lastName:               "Morgan",
+				personalEmail:          "riley.morgan@example.com",
+				continuationEmployeeID: "escape-riley-morgan",
+				invalidReason:          "continuation_unknown_end_date",
+				finalizeCode:           "continuation_unknown_end_date",
+				finalizeMessage:        "end date is unavailable",
+			},
+			{
+				name:                   "overlapping employee and contractor dates",
+				startDate:              "2026-04-15",
+				firstName:              "Harper",
+				lastName:               "Sloan",
+				personalEmail:          "harper.overlap@example.com",
+				continuationEmployeeID: "escape-harper-sloan",
+				invalidReason:          "continuation_date_overlap",
+				finalizeCode:           "continuation_date_overlap",
+				finalizeMessage:        "start date must be after",
+			},
+			{
+				name:                   "missing former employee identity fields",
+				startDate:              "2026-06-01",
+				firstName:              "Cameron",
+				lastName:               "Lee",
+				personalEmail:          "cameron.lee@example.com",
+				continuationEmployeeID: "escape-cameron-lee",
+				invalidReason:          "continuation_missing_identity",
+				finalizeCode:           "continuation_missing_identity",
+				finalizeMessage:        "missing the district email or employee number",
+			},
+		}
+		for _, testCase := range invalidContinuationCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+				createReq.AddCookie(cookie)
+				createRec := httptest.NewRecorder()
+				handler.ServeHTTP(createRec, createReq)
+				if createRec.Code != http.StatusCreated {
+					t.Fatalf("continuation guard draft create returned %d, want 201", createRec.Code)
+				}
+				guardedCreated := decodeJSON[onboardingDraftResponse](t, createRec)
+				body, err := json.Marshal(map[string]string{
+					"start_date":               testCase.startDate,
+					"ssn_last4":                "5678",
+					"employee_type":            "Contractor",
+					"classification":           "Contractor",
+					"first_name":               testCase.firstName,
+					"last_name":                testCase.lastName,
+					"job_title":                "Counselor",
+					"site_id":                  "business-office",
+					"personal_email":           testCase.personalEmail,
+					"personal_phone":           "7075550188",
+					"preferred_device":         "Windows",
+					"requested_aeries_access":  "Staff",
+					"continuation_employee_id": testCase.continuationEmployeeID,
+				})
+				if err != nil {
+					t.Fatalf("marshal guarded continuation draft: %v", err)
+				}
+				updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+guardedCreated.Draft.ID, bytes.NewReader(body))
+				updateReq.Header.Set("Content-Type", "application/json")
+				updateReq.AddCookie(cookie)
+				updateRec := httptest.NewRecorder()
+				handler.ServeHTTP(updateRec, updateReq)
+				if updateRec.Code != http.StatusOK {
+					t.Fatalf("guarded continuation update returned %d, want 200: %s", updateRec.Code, updateRec.Body.String())
+				}
+				guarded := decodeJSON[onboardingDraftResponse](t, updateRec)
+				if guarded.Draft.ValidityState != "invalid" || guarded.Draft.InvalidReason != testCase.invalidReason {
+					t.Fatalf("guarded continuation state = %#v, want invalid %s", guarded.Draft, testCase.invalidReason)
+				}
+				if guarded.Draft.ConversionDecision == nil || guarded.Draft.ConversionDecision.AccountEligible {
+					t.Fatalf("guarded conversion decision = %#v, want account_eligible false", guarded.Draft.ConversionDecision)
+				}
+				finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+guardedCreated.Draft.ID+"/finalize", nil)
+				finalizeReq.AddCookie(cookie)
+				finalizeRec := httptest.NewRecorder()
+				handler.ServeHTTP(finalizeRec, finalizeReq)
+				if finalizeRec.Code != http.StatusConflict {
+					t.Fatalf("guarded continuation finalize returned %d, want 409", finalizeRec.Code)
+				}
+				finalizeError := decodeJSON[errorResponse](t, finalizeRec)
+				if finalizeError.Code != testCase.finalizeCode || !strings.Contains(finalizeError.Message, testCase.finalizeMessage) {
+					t.Fatalf("guarded continuation finalize error = %#v, want %s containing %q", finalizeError, testCase.finalizeCode, testCase.finalizeMessage)
+				}
+			})
+		}
+	})
+
+	t.Run("adjacent explicit employee contractor continuation reuses identity without gap warning", func(t *testing.T) {
+		web.ResetDevOnboardingStateForTest()
+		t.Cleanup(web.ResetDevOnboardingStateForTest)
+		cookie := loginAsPersona(t, handler, "human_resources")
+
+		createReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts", nil)
+		createReq.AddCookie(cookie)
+		createRec := httptest.NewRecorder()
+		handler.ServeHTTP(createRec, createReq)
+		if createRec.Code != http.StatusCreated {
+			t.Fatalf("draft create returned %d, want 201", createRec.Code)
+		}
+		created := decodeJSON[onboardingDraftResponse](t, createRec)
+
+		body, err := json.Marshal(map[string]string{
+			"start_date":               "2026-05-08",
+			"ssn_last4":                "2468",
+			"employee_type":            "Contractor",
+			"classification":           "Contractor",
+			"first_name":               "Harper",
+			"last_name":                "Sloan",
+			"job_title":                "Counselor",
+			"site_id":                  "business-office",
+			"personal_email":           "harper.sloan@example.com",
+			"personal_phone":           "7075550188",
+			"preferred_device":         "Windows",
+			"requested_aeries_access":  "Staff",
+			"continuation_employee_id": "escape-harper-sloan",
+		})
+		if err != nil {
+			t.Fatalf("marshal adjacent continuation draft: %v", err)
+		}
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(body))
+		updateReq.Header.Set("Content-Type", "application/json")
+		updateReq.AddCookie(cookie)
+		updateRec := httptest.NewRecorder()
+		handler.ServeHTTP(updateRec, updateReq)
+		if updateRec.Code != http.StatusOK {
+			t.Fatalf("adjacent continuation update returned %d, want 200", updateRec.Code)
+		}
+		updated := decodeJSON[onboardingDraftResponse](t, updateRec)
+		if updated.Draft.ConversionDecision == nil || updated.Draft.ConversionDecision.GapWarning {
+			t.Fatalf("adjacent conversion decision = %#v, want no gap warning", updated.Draft.ConversionDecision)
+		}
+		if updated.Draft.GeneratedEmail != "harper.sloan@wusd.org" || updated.Draft.GeneratedEmployeeID != "104812" {
+			t.Fatalf("adjacent continuation identity reuse = %#v", updated.Draft)
 		}
 
 		finalizeReq := httptest.NewRequest(http.MethodPost, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID+"/finalize", nil)
@@ -2783,11 +3207,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		finalizeRec := httptest.NewRecorder()
 		handler.ServeHTTP(finalizeRec, finalizeReq)
 		if finalizeRec.Code != http.StatusOK {
-			t.Fatalf("reactivation finalize returned %d, want 200", finalizeRec.Code)
-		}
-		finalized := decodeJSON[onboardingDraftResponse](t, finalizeRec)
-		if finalized.Draft.GeneratedEmail != "harper.sloan@wusd.org" || finalized.Draft.GeneratedEmployeeID != "104812" {
-			t.Fatalf("finalized draft identity reuse = %#v", finalized.Draft)
+			t.Fatalf("adjacent continuation finalize returned %d, want 200", finalizeRec.Code)
 		}
 	})
 

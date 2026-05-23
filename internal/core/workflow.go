@@ -28,6 +28,7 @@ const (
 	WorkflowChangeReasonReactivateSameRole              WorkflowChangeReason = "reactivate_same_role"
 	WorkflowChangeReasonReactivateRoleChange            WorkflowChangeReason = "reactivate_role_change"
 	WorkflowChangeReasonReactivateNonEscape             WorkflowChangeReason = "reactivate_non_escape"
+	WorkflowChangeReasonEmployeeContractorContinuation  WorkflowChangeReason = "employee_contractor_continuation"
 	WorkflowChangeReasonActiveEscapeContractorCollision WorkflowChangeReason = "active_escape_contractor_collision"
 )
 
@@ -121,6 +122,7 @@ func (v WorkflowChangeReason) Valid() bool {
 		WorkflowChangeReasonReactivateSameRole,
 		WorkflowChangeReasonReactivateRoleChange,
 		WorkflowChangeReasonReactivateNonEscape,
+		WorkflowChangeReasonEmployeeContractorContinuation,
 		WorkflowChangeReasonActiveEscapeContractorCollision:
 		return true
 	default:
