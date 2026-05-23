@@ -305,6 +305,7 @@
   | `Google` | Hybrid `projection-backed list/search`, `live detail read`, and `live write-path verification` | `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Yes for selected user/group/detail refresh | Yes for every write-capable account, alias, group, license, or destructive action path | Not assumed for v1 | Persist minimal identity, alias, login-activity, and group-membership facts needed for workflows and audit. |
   | `Zoom` | Hybrid `projection-backed list/search`, `live detail read`, and `live write-path verification` | Event-driven acceleration where supported, `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Yes for selected user, phone, extension, license, SLG, CAP, and queue detail refresh | Yes for every write-capable phone, license, account, entitlement, cleanup, or transfer action path | Yes, where tenant support is proven | Persist minimal user, phone, extension, license, SLG, CAP, and queue facts needed for directory, transfer, and cleanup behavior. Scheduled reconciliation remains the backstop for missed events. |
   | `IncidentIQ` | Hybrid `projection-backed list/search`, `live detail read`, and ticket-action `live write-path verification` | Event-driven acceleration where supported, `15m` delta, `24h` full reconciliation, and immediate post-write refresh for app-created ticket actions | Yes for selected ticket, asset, requester, or action-sensitive status refresh | Yes for app-created ticket, subtask, status, owner, and close/update actions | Not assumed until proven in tenant | Persist minimal user linkage, asset linkage, ticket linkage, and ticket status facts needed for workflow visibility and operator queues. |
+  | `Meraki` | `projection-backed list/search` from read-only client/device activity | `15m` delta where feasible and `24h` full reconciliation | No normal live-detail dependency in the first last-seen dashboard slice | No; Meraki is read-only for the last-seen dashboard | Not assumed | Persist or project only the client/device identifiers and last-seen timestamps needed to match Meraki clients to IncidentIQ and Google device assignment metadata. Do not mutate Meraki networks, clients, policies, tags, or users for this dashboard. |
   | `InformedK12` | `projection-backed list/search` for workflow trigger/event facts only | Event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation | No normal operator live-detail dependency | No planned provider write path in the current product | Where supported, as an accelerator only | Persist workflow-triggering and preparatory event facts only. Do not create broad operator-search duplication or a full form-system mirror. |
   | `Google Sheets` | `batch-only source` for migration inputs and compatibility exports; not a runtime source of truth | No routine runtime freshness target; publish outputs are versioned when generated | No | Yes only for future compatibility-export publish paths, with staging-tab sentinel validation and pointer-swap verification | No | Do not use Sheets as a runtime source of truth. Future export writes must validate staging tabs, sentinels, checksums, and pointer application before replacing a visible sheet. |
   | `Verkada` | `projection-backed list/search` only when future workflows need local reference facts | Deferred until a direct integration is approved | No current live-detail dependency | No direct provider write path in the current product; create or update IncidentIQ follow-up tickets instead | Not assumed | Treat account or door-access follow-up as external IncidentIQ configuration/ticket work unless a later phase explicitly approves a direct Verkada integration. |
@@ -403,7 +404,7 @@
   - DEV-only mock auth, session, and page routes must require `APP_ENV=development` explicitly so missing `APP_ENV` fails closed outside development
   - the DEV login flow is mock-only in this slice: clicking `Log in with Google` establishes a signed-in DEV session and redirects to `/dashboard`, while a user who is already authenticated and authorized skips `/login` and goes directly to `/dashboard`
   - logout must return the browser to `/login`
-  - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
+  - the route registry for this slice includes `/login`, `/dashboard`, `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/data-quality`, `/frequent-fliers`, `/meraki-last-seen`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile`, and explicit first-pass error routes for `401`, `403`, `404`, `500`, `502`, and `503`
   - the three Phone Directory mode routes stay directly addressable and role-authorized, but they are not shared-sidebar child buttons; the shared sidebar renders one top-level `Phone Directory` row for all three mode routes, and the Phone Directory page's in-page mode control owns switching among `By Person`, `By Room`, and `By Department`
   - the former `/reports/ticketing-human-work` route is retired rather than hidden or repurposed; direct navigation follows normal `404` handling, while Onboarding and Room Moves own their contextual ticket/human-work status
   - the user-facing `Invalid Student Names` page is renamed to `Student Data Cleanup` in title, route, sidebar label, and operator-facing queue/report references; technical invalid-name detection terminology may remain in source-data logic where needed
@@ -414,9 +415,9 @@
   - role-based route visibility for this slice is:
     - `IT Admin`: all routes
     - `Human Resources`: `/dashboard/hr-lifecycle`, `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/offboarding`
-    - `Site Admin`: `/dashboard/site-admin`, `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`
+    - `Site Admin`: `/dashboard/site-admin`, `/search`, all three phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/meraki-last-seen`, `/onboarding`, `/offboarding`, `/room-moves`
     - `Site Secretary`: `/search`, all three phone-directory routes, `/my-profile`, `/onboarding`, `/student-data-cleanup`, `/room-moves`
-    - `Device Wrangler`: `/search`, all three phone-directory routes, `/my-profile`, `/frequent-fliers`
+    - `Device Wrangler`: `/search`, all three phone-directory routes, `/my-profile`, `/frequent-fliers`, `/meraki-last-seen`
     - `Faculty and Staff`: `/search`, all three phone-directory routes, `/my-profile`
   - scope rules for this slice are:
     - `IT Admin` sees all sites on all allowed pages
@@ -424,6 +425,7 @@
     - `Site Admin`, `Site Secretary`, and `Device Wrangler` each have exactly one assigned site and see only that site on site-scoped pages; multi-site mapping input for those roles must fail closed rather than creating cross-site operational access
     - `Faculty and Staff` may have multiple associated sites, default to the onboarding/current-assignment-derived site context on allowed pages, and never gain operational site-scoped roles from those associations
     - `Room Moves` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Site Secretary`
+    - `Meraki Last Seen` is district-wide for `IT Admin` and site-scoped for `Site Admin` and `Device Wrangler`, including assigned student devices, classroom spare/spare-pool devices, and ambiguous assignment rows
   - direct-link enforcement for this slice is strict: pages excluded from a persona's allowed route set must not appear in the sidebar, and direct navigation to a disallowed route must return `403`
   - unauthenticated access to any route other than `/login` must return `401`
   - the routes currently reserved to `IT Admin` only are `/dashboard/it-admin`, `/data-quality`, `/reports`, `/reports/security-issues`, `/reports/zoom-desk-phone-renames`, `/reports/sync-transparency`, `/admin`, and `/admin/feature-flags`
@@ -445,6 +447,7 @@
   - Flagged route backend coverage exception: /dashboard/site-admin is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
   - Flagged route backend coverage exception: /student-data-cleanup is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
   - Flagged route backend coverage exception: /frequent-fliers is frontend/static-only in this slice; it is still controlled by sidebar/direct-route feature flags, but there is no route-specific `/api/v1/dev/pages/...` or mutation API to probe yet
+  - `/meraki-last-seen` is a runtime-owned, read-only DEV dashboard route backed by `/api/v1/dev/pages/meraki-last-seen`; it reuses the Reports shell/artboard pattern for the current Phase 0 slice until a dedicated authoritative `.pen` source is created
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Purpose:
@@ -2169,6 +2172,19 @@
   - the 90-day default exists because librarians requested a longer view to identify abuse patterns that 45 days did not surface reliably
   - Frequent Fliers must live on its own dedicated screen
   - Frequent Fliers must not share a single screen with student invalid-name review
+- Meraki Last Seen requirements:
+  - `/meraki-last-seen` is a read-only device dashboard for Meraki client/device activity matched to IncidentIQ and Google device assignment metadata
+  - the route is visible to `IT Admin`, `Site Admin`, and `Device Wrangler`; IT Admin sees district-wide data and site-scoped users see only their assigned site
+  - the first runtime table columns are student, device, assignment type, site, date last seen, and match confidence
+  - assignment type must distinguish `Assigned student device`, `Classroom spare / spare pool`, and reviewable `Ambiguous assignment`
+  - assigned student devices require a student identity from IncidentIQ and/or Google assignment metadata before the row can be treated as assigned
+  - classroom spare or spare-pool devices may have no single student owner; the UI should show `No student owner` or equivalent placeholder rather than forcing an inaccurate student match
+  - classroom spare rows remain first-class table rows and must show device, site, date last seen, match confidence, and source-system context
+  - matching keys may include serial number, asset tag, MAC address, hostname, provider device id, and assigned user; source-system truth must be preserved in row details and ambiguous disagreements must not be normalized away
+  - if Meraki, IncidentIQ, and Google metadata disagree over student assignment versus spare-pool state, the row must surface as ambiguous with a review reason instead of silently choosing the student or spare state
+  - filters must support all devices, assigned student devices, and classroom spare/spare-pool devices; ambiguous rows remain visible in all devices and in review/drawer context until source data is corrected
+  - no Meraki, IncidentIQ, Google, database, or ticket write path is introduced by this dashboard slice
+  - the current DEV implementation uses sanitized mock rows from `/api/v1/dev/pages/meraki-last-seen` to enforce authorization, site-scope, assignment-type, and ambiguous-match behavior before real provider ingestion is wired
 
 ## Student Data Cleanup Runtime Notes
 - The live `/student-data-cleanup` page uses runtime table primitives over the shared `.pen` shell for page-local search, issue-type filtering, grade filtering, and three-way sortable column headers.

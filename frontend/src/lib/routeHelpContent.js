@@ -13,6 +13,7 @@ const ROUTE_SOURCE_NOTES = {
   "/phone-directory/by-department": "Product requirements Phone Directory department mode; implementation plan directory runtime view and detail-drawer contracts.",
   "/data-quality": "Product requirements Data Quality routing limits; implementation plan issue #57 decision and Data Quality queue behavior.",
   "/frequent-fliers": "Product requirements Frequent Fliers support-analysis scope; implementation plan configurable lookback, filters, and drawer contracts.",
+  "/meraki-last-seen": "Product requirements Meraki Last Seen route, assignment type, and site scoping; implementation plan read-only Meraki matching and review-state behavior.",
   "/student-data-cleanup": "Product requirements Student Data Cleanup Aeries correction contract; implementation plan runtime table, filters, and drawer behavior.",
   "/reports": "Product requirements Reports inventory and refresh drawer requirements; implementation plan Reports runtime table/search/sort behavior.",
   "/reports/security-issues": "Product requirements Security Issues report migration; implementation plan read-only IT Admin report and drawer details.",
@@ -421,6 +422,32 @@ const HELP_CONTENT_BY_ROUTE = {
       },
     ],
   },
+  "/meraki-last-seen": {
+    title: "Meraki Last Seen help",
+    sections: [
+      {
+        heading: "What this page shows",
+        paragraphs: [
+          "Meraki Last Seen shows student-assigned devices, classroom spares, and ambiguous devices matched from Meraki client activity to IncidentIQ and Google device assignment metadata.",
+          "Assigned student devices must have a student match. Classroom spare or spare-pool devices may have no student owner and should remain visible with device, site, and last-seen context.",
+        ],
+      },
+      {
+        heading: "Controls and filters",
+        paragraphs: [
+          "Use the Assignment Type filter to switch between all devices, assigned student devices, and classroom spares. Use table search and sortable headers to find devices by student, serial, asset tag, MAC address, site, source, or match state.",
+          "Site-scoped users see only their assigned site. IT Admin can review all sites.",
+        ],
+      },
+      {
+        heading: "Review states",
+        paragraphs: [
+          "Ambiguous rows mean IncidentIQ and Google metadata disagree or do not clearly prove whether the device belongs to a student or a spare pool. Do not treat those rows as student assignments until source data is corrected.",
+          "The drawer explains which source systems matched and why the row was classified as assigned, spare, or reviewable.",
+        ],
+      },
+    ],
+  },
   "/student-data-cleanup": {
     title: "Student Data Cleanup help",
     sections: [
@@ -667,6 +694,7 @@ const NAV_KEY_DEFAULT_ROUTE = {
   phoneDirectory: "/phone-directory/by-person",
   dataQuality: "/data-quality",
   frequentFliers: "/frequent-fliers",
+  merakiLastSeen: "/meraki-last-seen",
   studentDataCleanup: "/student-data-cleanup",
   reports: "/reports",
   admin: "/admin",

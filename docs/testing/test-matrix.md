@@ -143,6 +143,11 @@ This document tracks the named mock scenarios and verification coverage required
     - district-wide IT draft-create evidence
     - draft-validation evidence proving no execution side effects occur in this phase
     - evidence that authorized directory detail actions can open a one-person targeted draft with current context prefilled
+- `1G` Meraki Last Seen device visibility
+    - read-only Meraki/IncidentIQ/Google matching evidence
+    - site-scope evidence for assigned student devices and classroom spare/spare-pool devices
+    - assignment-type filter evidence for assigned student devices, classroom spares, and all devices
+    - ambiguous-match evidence showing no silent student or spare-pool choice
 - `1A` canonical read model ingestion and dashboard projections
   | Scenario ID | Scenario Name | Dev Mock Verification | Staging Verification |
   | --- | --- | --- | --- |
@@ -199,6 +204,14 @@ This document tracks the named mock scenarios and verification coverage required
   | `P1-1F-003` | Draft Validation For Add Change Removal Rows | Verify add/change/removal rows validate correctly without triggering execution. | Confirm staging draft validation logic matches dev for representative masked data. |
   | `P1-1F-004` | Directory Detail Opens Prefilled One-Person Move Draft | Verify an authorized site-scoped directory detail action opens a targeted one-person room-move draft with the selected person, current room, phone context, and site prefilled. | Confirm staging preserves the same prefilled corrective-draft behavior without execution side effects. |
   | `P1-1F-005` | Site Visibility And Draft Author Ownership Split | Verify Site Admin and Site Secretary can view all Room Moves affecting their assigned site, including IT-authored rows, while save/apply/cancel/delete mutations are allowed only for self-authored drafts and IT Admin. | Confirm staging uses assigned-site visibility independently from author-scoped mutation authority before enabling live room-move writes. |
+- `1G` Meraki Last Seen device visibility
+  | Scenario ID | Scenario Name | Operational Owner | Dev Mock Verification | Staging Verification |
+  | --- | --- | --- | --- | --- |
+  | `P1-1G-001` | Assigned Student Device Match | `Device Wrangler / Site Admin` | Verify a Meraki client matched to IncidentIQ and/or Google assignment metadata renders as `Assigned student device` with student, device, site, date last seen, source systems, and match confidence. | Confirm staging preserves the same student-required assigned-device behavior against masked or read-only provider data. |
+  | `P1-1G-002` | Classroom Spare Without Student Owner | `Device Wrangler / Site Admin` | Verify a classroom spare or spare-pool device with no student renders as `Classroom spare / spare pool`, shows device, site, and date last seen, and does not force a student match. | Confirm staging preserves spare-pool rows without inventing a student owner. |
+  | `P1-1G-003` | Spare Seen On Network | `Device Wrangler / Site Admin` | Verify a spare-pool device seen in Meraki client data remains visible in the table and drawer with Meraki last-seen context and source-system explanation. | Confirm staging includes read-only Meraki sightings for spare-pool inventory when source identifiers match IncidentIQ or Google device metadata. |
+  | `P1-1G-004` | Ambiguous Assignment Match Needs Review | `Device Wrangler / Site Admin` | Verify a device whose IncidentIQ and Google metadata could mean student assignment or spare-pool inventory is labeled reviewable ambiguous, remains visible in All devices, and is excluded from assigned-only and spare-only filters. | Confirm staging sends ambiguous provider disagreements to review rather than silently choosing a student or spare state. |
+  | `P1-1G-005` | Meraki Last Seen Site Scope | `Device Wrangler / Site Admin` | Verify Site Admin and Device Wrangler users see only assigned-site rows for both assigned student devices and classroom spares, while IT Admin sees all sites. | Confirm staging enforces the same site-scope boundary server-side before returning provider-backed rows. |
 
 ## Phase 2
 - Bucket-level evidence requirements for this phase:

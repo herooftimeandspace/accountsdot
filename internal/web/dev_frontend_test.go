@@ -86,6 +86,22 @@ type featureFlagsResponse struct {
 	} `json:"flags"`
 }
 
+type merakiLastSeenTestResponse struct {
+	PageID string `json:"page_id"`
+	Page   struct {
+		Rows []struct {
+			ID                  string   `json:"id"`
+			Student             string   `json:"student"`
+			StudentID           string   `json:"student_id"`
+			SiteID              string   `json:"site_id"`
+			AssignmentType      string   `json:"assignment_type"`
+			AssignmentTypeLabel string   `json:"assignment_type_label"`
+			MatchState          string   `json:"match_state"`
+			SourceSystems       []string `json:"source_systems"`
+		} `json:"rows"`
+	} `json:"page"`
+}
+
 type featureFlagResponse struct {
 	Key            string `json:"key"`
 	Label          string `json:"label"`
@@ -4920,6 +4936,68 @@ func TestDevMyProfileDirectEditMockState(t *testing.T) {
 	})
 }
 
+func TestDevMerakiLastSeenDashboardMatchingAndSiteScope(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	web.ResetDevFeatureFlagStateForTest()
+	t.Cleanup(web.ResetDevFeatureFlagStateForTest)
+
+	handler := web.NewAppHandler(web.HealthDependencies{})
+
+	t.Run("IT Admin sees assigned students spares and ambiguous rows", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "it_admin")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/meraki-last-seen", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Meraki Last Seen returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[merakiLastSeenTestResponse](t, rec)
+		if payload.PageID != "meraki-last-seen" {
+			t.Fatalf("page id = %q, want meraki-last-seen", payload.PageID)
+		}
+		seenAssigned := false
+		seenSpareWithoutStudent := false
+		seenSpareOnNetwork := false
+		seenAmbiguous := false
+		for _, row := range payload.Page.Rows {
+			switch row.ID {
+			case "meraki-cla-maria-nguyen":
+				seenAssigned = row.AssignmentType == "assigned_student" && row.Student == "Maria Nguyen" && row.StudentID != ""
+			case "meraki-cla-room-b204-spare":
+				seenSpareWithoutStudent = row.AssignmentType == "classroom_spare" && row.Student == "" && row.StudentID == ""
+			case "meraki-fms-library-spare":
+				seenSpareOnNetwork = row.AssignmentType == "classroom_spare" && row.MatchState == "matched" && slices.Contains(row.SourceSystems, "Meraki")
+			case "meraki-fms-ambiguous-checkout":
+				seenAmbiguous = row.AssignmentType == "ambiguous" && row.MatchState == "ambiguous" && row.Student == ""
+			}
+		}
+		if !seenAssigned || !seenSpareWithoutStudent || !seenSpareOnNetwork || !seenAmbiguous {
+			t.Fatalf("Meraki rows assigned=%v spareNoStudent=%v spareSeen=%v ambiguous=%v payload=%#v", seenAssigned, seenSpareWithoutStudent, seenSpareOnNetwork, seenAmbiguous, payload.Page.Rows)
+		}
+	})
+
+	t.Run("Device Wrangler sees only assigned site rows", func(t *testing.T) {
+		cookie := loginAsPersona(t, handler, "device_wrangler")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dev/pages/meraki-last-seen", nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Device Wrangler Meraki Last Seen returned %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		payload := decodeJSON[merakiLastSeenTestResponse](t, rec)
+		if len(payload.Page.Rows) == 0 {
+			t.Fatal("Device Wrangler should see Franklin Middle School Meraki rows")
+		}
+		for _, row := range payload.Page.Rows {
+			if row.SiteID != "franklin-ms" {
+				t.Fatalf("Device Wrangler saw cross-site row %#v", row)
+			}
+		}
+	})
+}
+
 func TestDevRouteAPIAuthorizationInventoryCoverage(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	web.ResetDevFeatureFlagStateForTest()
@@ -4946,6 +5024,7 @@ func TestDevRouteAPIAuthorizationInventoryCoverage(t *testing.T) {
 		{name: "departing seniors end date", method: http.MethodPut, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/end-date", body: `{}`},
 		{name: "departing seniors deprovision", method: http.MethodPost, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/deprovision"},
 		{name: "data quality page", method: http.MethodGet, path: "/api/v1/dev/pages/data-quality"},
+		{name: "meraki last seen page", method: http.MethodGet, path: "/api/v1/dev/pages/meraki-last-seen"},
 		{name: "room moves page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves"},
 		{name: "room moves bulk page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves/bulk-draft"},
 		{name: "room moves draft create", method: http.MethodPost, path: "/api/v1/dev/room-moves/drafts", body: `{}`},
@@ -4988,6 +5067,7 @@ func TestDevRouteAPIAuthorizationInventoryCoverage(t *testing.T) {
 		{name: "departing seniors page", method: http.MethodGet, path: "/api/v1/dev/pages/departing-seniors", personaID: "faculty_staff"},
 		{name: "departing seniors end date", method: http.MethodPut, path: "/api/v1/dev/departing-seniors/records/senior-luis-alvarez/end-date", body: `{}`, personaID: "faculty_staff"},
 		{name: "data quality page", method: http.MethodGet, path: "/api/v1/dev/pages/data-quality", personaID: "site_admin"},
+		{name: "meraki last seen page", method: http.MethodGet, path: "/api/v1/dev/pages/meraki-last-seen", personaID: "faculty_staff"},
 		{name: "room moves page", method: http.MethodGet, path: "/api/v1/dev/pages/room-moves", personaID: "faculty_staff"},
 		{name: "room moves draft create", method: http.MethodPost, path: "/api/v1/dev/room-moves/drafts", body: `{}`, personaID: "faculty_staff"},
 		{name: "room moves completed revert", method: http.MethodPost, path: "/api/v1/dev/room-moves/completed/job-unknown/revert", personaID: "site_admin"},
@@ -5023,6 +5103,7 @@ func TestDevFrontendRoutesDisabledOutsideDevelopment(t *testing.T) {
 		"/api/v1/dev/pages/onboarding",
 		"/api/v1/dev/onboarding/manual-drafts",
 		"/api/v1/dev/pages/data-quality",
+		"/api/v1/dev/pages/meraki-last-seen",
 		"/api/v1/dev/pages/phone-directory/by-person",
 	} {
 		method := http.MethodGet
@@ -5049,6 +5130,7 @@ func TestDevFrontendRoutesDisabledWhenAppEnvUnset(t *testing.T) {
 		"/api/v1/dev/pages/onboarding",
 		"/api/v1/dev/onboarding/manual-drafts",
 		"/api/v1/dev/pages/data-quality",
+		"/api/v1/dev/pages/meraki-last-seen",
 		"/api/v1/dev/pages/phone-directory/by-person",
 	} {
 		method := http.MethodGet
