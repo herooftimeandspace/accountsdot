@@ -1696,6 +1696,23 @@
   - HR may include room/location details in that temporary override, but room/location is optional and should not block continuation if unknown
   - temporary HR site and room/location overrides do not require reason, owner, or expiration metadata
   - that override persists until the upstream data is corrected or the job assignment changes
+- School-year lifecycle rules for employee-affecting manual changes:
+  - use `internal/core.ClassifyManualEmployeeChangeLifecycle` as the first-pass implementation contract for rollover classification
+  - use the Aeries School Info district calendar as the school-year boundary source, matching `docs/operations/environment-data-playbook.md`: if school calendars disagree, the district boundary is the earliest start date and latest end date across all schools
+  - do not guess a rollover date when the Aeries-derived school-year boundary is unavailable; block rollover setup and surface an operator-visible configuration/source-data issue
+  - inventory and lifecycle classification:
+    - temporary HR site overrides: persist until upstream correction, a job-assignment change, or HR reconciliation; include them in the HR review queue so stale overrides are visible, but do not remove them by date alone
+    - temporary HR room/location overrides: same lifecycle as temporary HR site overrides; room/location may be unknown and must not block continuation when the documented workflow allows unknown room context
+    - manual Non-Escape employee, contractor, volunteer, or similar local assignment records: eligible for school-year expiration after HR review; HR may extend with a new expiration/review date, remove the assignment, or mark it reconciled
+    - InformedK12-backed primary-site selections: persist until upstream Escape/Aeries correction, a superseding job assignment, a superseding form-supported decision, or HR reconciliation; show linked form evidence when available
+    - permission/site-scope overrides: never expire automatically in HR rollover; IT Admin permission-governance workflows own their review and audit lifecycle
+    - local-only employee attributes such as preferred/display name and pronouns: never expire automatically in HR rollover
+    - per-user sync exception overrides: annual reset may clear the local exception metadata only after review, but that clearance must not remove provider access or source data
+  - the HR rollover review queue/report must show person identity, change type, effective local value, upstream value when known, source/evidence reference, current expiration/review date, proposed classification, and whether a provider-affecting removal would be possible after review
+  - HR decisions are `extend`, `remove`, and `reconciled`; `extend` requires a new expiration/review date, `remove` is accepted only for change types classified as provider-removable, and `reconciled` means upstream source data or a superseding workflow now carries the intended state
+  - every HR decision must produce audit history with change id, change type, actor, timestamp, reason, decision, and new expiration date when extended
+  - destructive provider planning must fail closed unless the row has an explicit HR `remove` decision, the change type permits provider removal, what-if validation has passed, and the Phase 2+ pilot allowlist check passes immediately before provider mutation
+  - reminder jobs should notify HR before the school-year boundary and again inside the final rollover window for unresolved review rows; reminders never approve or mutate rows
 - Reactivation rules:
   - reuse the same end-user identity
   - remove accumulated ad hoc access first
