@@ -21,6 +21,11 @@ const DEFAULT_MONITOR = {
   codexReviewAuthors: ["chatgpt-codex-connector", "github-copilot", "codex-review"],
   codexReviewBot: "chatgpt-codex-connector[bot]",
   codexReviewSuccessReactions: ["THUMBS_UP", "+1"],
+  codexReviewSuccessComments: [
+    "all PR issues have been addressed",
+    "merge is clean",
+    "no actionable feedback",
+  ],
   codexReviewInProgressReactions: ["EYES"],
   autoResolveOutdatedCodexReviewThreads: true,
   noReviewWithBotThumbsUpIsClean: true,
@@ -2966,6 +2971,10 @@ function readMonitorConfig(workflowConfig) {
       configured.codex_review_success_reactions ||
       pullRequestSignals.codex_review_success_reactions ||
       DEFAULT_MONITOR.codexReviewSuccessReactions,
+    codexReviewSuccessComments:
+      configured.codex_review_success_comments ||
+      pullRequestSignals.codex_review_success_comments ||
+      DEFAULT_MONITOR.codexReviewSuccessComments,
     codexReviewInProgressReactions:
       configured.codex_review_in_progress_reactions ||
       pullRequestSignals.codex_review_in_progress_reactions ||
@@ -4761,6 +4770,36 @@ async function selfTest() {
     });
     assert.equal(monitorCleanReviewStates[0].status, "ready_to_merge");
     assert.equal(monitorCleanReviewStates[0].bot_thumbs_up, true);
+    const monitorCleanCommentStates = monitorPullRequestReviewStates({
+      prs: [readyPr],
+      reviewThreads: [{ number: 286, review_threads: [], unresolved_threads: [] }],
+      signalsByPr: new Map([
+        [
+          286,
+          {
+            reviews: [],
+            comments: [
+              {
+                author: { login: "chatgpt-codex-connector" },
+                body: "Codex Review: no actionable feedback",
+                createdAt: "2026-05-22T02:05:00Z",
+                reactionGroups: [],
+              },
+              {
+                author: { login: "herooftimeandspace" },
+                body: "@codex please review",
+                createdAt: "2026-05-22T02:00:00Z",
+                reactionGroups: [],
+              },
+            ],
+            reactionGroups: [],
+          },
+        ],
+      ]),
+      config: monitorConfig,
+    });
+    assert.equal(monitorCleanCommentStates[0].status, "ready_to_merge");
+    assert.equal(monitorCleanCommentStates[0].codex_review_clean_comment, true);
     const monitorActiveThreadStates = monitorPullRequestReviewStates({
       prs: [readyPr],
       reviewThreads: [
