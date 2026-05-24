@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 
 import { sharedShellSpec } from "../generated/artboards.generated.js";
+import { resolveDevToolbarAnchorStyle } from "./devPersonaToolbarGeometry.mjs";
 
 /**
  * DevPersonaSwitcher renders the DEV-only mock-session control inside the shared sidebar bounds. App owns the persona-switch side effect and routing fallback, while this component owns the collapsed/expanded control state, current-persona labeling, and polite status announcements used during demos.
@@ -62,13 +63,15 @@ export function DevPersonaSwitcher({
         setAnchorStyle(null);
         return;
       }
-      const sidebarWidth = Math.max(0, sidebarBounds.right - sidebarBounds.left);
-      const horizontalPadding = sidebarWidth >= 180 ? 16 : 8;
-      const nextStyle = {
-        left: `${Math.round(sidebarBounds.left + horizontalPadding)}px`,
-        top: `${Math.max(0, Math.round(rect.bottom + 8))}px`,
-        width: `${Math.max(0, Math.round(sidebarWidth - horizontalPadding * 2))}px`,
-      };
+      const nextStyle = resolveDevToolbarAnchorStyle({
+        sidebarLeft: sidebarBounds.left,
+        sidebarRight: sidebarBounds.right,
+        platformStatusBottom: rect.bottom,
+      });
+      if (!nextStyle) {
+        setAnchorStyle(null);
+        return;
+      }
       setAnchorStyle((current) => {
         if (current?.left === nextStyle.left && current?.top === nextStyle.top && current?.width === nextStyle.width) {
           return current;
