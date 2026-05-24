@@ -24,49 +24,6 @@
           "fontWeight": "800"
         },
         {
-          "type": "text",
-          "id": "t103",
-          "x": 1381,
-          "y": 96,
-          "fill": "#01161E",
-          "textGrowth": "fixed-width-height",
-          "width": 149,
-          "height": 38,
-          "content": "Last refreshed:\nApr 30, 2026 12:00 PM PT",
-          "textAlign": "right",
-          "fontFamily": "Arial",
-          "fontSize": 12
-        },
-        {
-          "type": "frame",
-          "id": "f104",
-          "x": 1540,
-          "y": 90,
-          "name": "Rect",
-          "width": 112,
-          "height": 38,
-          "fill": "#CEB770",
-          "cornerRadius": 8,
-          "stroke": {
-            "align": "inside",
-            "thickness": 1,
-            "fill": "#CEB770"
-          },
-          "layout": "none"
-        },
-        {
-          "type": "text",
-          "id": "t105",
-          "x": 1570,
-          "y": 101,
-          "fill": "#01161E",
-          "content": "Refresh",
-          "textAlign": "center",
-          "fontFamily": "Arial",
-          "fontSize": 13,
-          "fontWeight": "700"
-        },
-        {
           "type": "frame",
           "id": "f106",
           "x": 288,

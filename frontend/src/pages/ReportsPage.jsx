@@ -11,7 +11,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ARTBOARD_KEY = "reports";
@@ -468,7 +467,6 @@ export function ReportsPage({ session, onNavigate, onSearch, searchQuery }) {
     searchQuery,
     activeNavKey: meta?.activeNav ?? "reports",
     activeRoutePath: "/reports",
-    refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
   const semanticSummary = artboard
     ? buildArtboardSemanticSummary(artboard, {

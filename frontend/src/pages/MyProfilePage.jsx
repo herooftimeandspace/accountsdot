@@ -246,7 +246,6 @@ export function MyProfilePage({ session, onNavigate, onSearch, searchQuery = "",
     onSearch,
     searchQuery,
     activeRoutePath: PROFILE_ROUTE,
-    refreshMetadata: null,
   });
 
   async function saveProfile(form) {

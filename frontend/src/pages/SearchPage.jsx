@@ -267,9 +267,8 @@ export function SearchPage({
         searchQuery,
         activeNavKey: null,
         activeRoutePath: "/search",
-        refreshMetadata: payload?.page?.last_refreshed ?? null,
       }),
-    [onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
+    [onNavigate, onSearch, searchQuery, session]
   );
 
   const renderOverlay = useMemo(() => {

@@ -18,7 +18,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ARTBOARD_KEY = "student-data-cleanup";
@@ -188,14 +187,6 @@ function StudentDataOverlay({
           <strong>{totalCount} active issues</strong>
           <span>All must be corrected in Aeries.</span>
         </div>
-        <div>
-          <strong>Last sync</strong>
-          <span>May 2, 2025 9:05 AM PT</span>
-        </div>
-        <div>
-          <strong>Next sync</strong>
-          <span>in 55 minutes</span>
-        </div>
       </section>
       <div className="student-data-runtime__table-card">
         <div className="student-data-runtime__toolbar">
@@ -284,7 +275,6 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
   const [filters, setFilters] = useState({ issueType: "all", grade: "all" });
   const [selectedRow, setSelectedRow] = useState(null);
-  const [syncState, setSyncState] = useState("idle");
   const locationSearch = typeof window === "undefined" ? "" : window.location.search;
   const rows = useMemo(
     () => studentDataCleanupRowsForSession(STUDENT_DATA_CLEANUP_ROWS, session),
@@ -300,10 +290,6 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
   });
   hiddenNodeIds.push(...paneNodeIds);
   const imageNodeOverrides = buildSharedShellImageOverrides(session);
-  const handleSync = useCallback(() => {
-    setSyncState("syncing");
-    window.setTimeout(() => setSyncState("idle"), 1400);
-  }, []);
   const sharedShellRenderOverlay = createSharedShellRenderOverlay({
     session,
     onNavigate,
@@ -311,15 +297,6 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
     searchQuery,
     activeNavKey: meta?.activeNav ?? "studentDataCleanup",
     activeRoutePath: "/student-data-cleanup",
-    pageSyncControl: {
-      label: "Sync now",
-      loadingLabel: "Syncing",
-      lastRefreshed: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
-      nextSyncText: "Next sync in 55 minutes",
-      loading: syncState === "syncing",
-      disabled: syncState === "syncing",
-      onAction: handleSync,
-    },
   });
   const semanticSummary = {
     title: "Student Data Cleanup",

@@ -6,9 +6,7 @@ export const dataQualityDesign = {
   "key": "data-quality",
   "width": 1672,
   "height": 1080,
-  "hotspots": {
-    "refresh": "f104"
-  },
+  "hotspots": {},
   "slots": {
     "shell": {
       "scopeTitle": "t12",
@@ -22,9 +20,7 @@ export const dataQualityDesign = {
       "platformStatus": "t98"
     },
     "page": {
-      "title": "t99",
-      "lastRefreshed": "t103",
-      "refreshLabel": "t105"
+      "title": "t99"
     },
     "summaryCards": [
       {

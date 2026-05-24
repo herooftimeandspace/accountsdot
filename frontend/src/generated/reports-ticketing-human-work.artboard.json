@@ -1804,36 +1804,6 @@
     },
     {
       "type": "frame",
-      "id": "reports-ticketing-human-work__f104",
-      "name": "Rect",
-      "x": 1546,
-      "y": 90,
-      "width": 106,
-      "height": 38,
-      "fill": "#CEB770",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#CEB770",
-        "align": "inside"
-      }
-    },
-    {
-      "type": "text",
-      "id": "reports-ticketing-human-work__t105",
-      "content": "Refresh",
-      "x": 1574,
-      "y": 101,
-      "fontFamily": "Arial",
-      "fontSize": 13,
-      "fontWeight": "700",
-      "fill": "#01161E",
-      "width": 50,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "frame",
       "id": "reports-ticketing-human-work__f106",
       "name": "Rect",
       "x": 288,

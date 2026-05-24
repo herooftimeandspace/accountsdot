@@ -196,9 +196,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "dataQuality",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "dashboard-it-admin",
@@ -206,9 +204,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "dashboard-hr-lifecycle",
@@ -216,9 +212,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "dashboard",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "dashboard-site-admin",
@@ -234,9 +228,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "onboarding",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "offboarding",
@@ -244,9 +236,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "offboarding",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "room-moves",
@@ -254,9 +244,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "roomMoves",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "room-moves-bulk-draft",
@@ -272,9 +260,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "phone-directory-by-room",
@@ -282,9 +268,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "phone-directory-by-department",
@@ -292,9 +276,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "phoneDirectory",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "frequent-fliers",
@@ -302,9 +284,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "frequentFliers",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "student-data-cleanup",
@@ -312,9 +292,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "studentDataCleanup",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "reports",
@@ -322,9 +300,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "reports-sync-transparency",
@@ -332,9 +308,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "reports-ticketing-human-work",
@@ -342,9 +316,7 @@ export const implementedPageDesignManifest = {
       "mode": "merge-shell",
       "activeNav": "reports",
       "loggedInShell": true,
-      "standardPrimitives": [
-        "refresh"
-      ]
+      "standardPrimitives": []
     },
     {
       "key": "admin",
@@ -510,28 +482,7 @@ export const implementedPageDesignManifest = {
       "admin": "t90"
     }
   },
-  "standardPrimitives": {
-    "refresh": {
-      "label": "Refresh",
-      "role": "standard-header-action",
-      "frame": {
-        "x": 1540,
-        "y": 90,
-        "width": 112,
-        "height": 38,
-        "fill": "#CEB770",
-        "stroke": "#CEB770",
-        "cornerRadius": 8
-      },
-      "text": {
-        "y": 101,
-        "fontSize": 13,
-        "fontWeight": "700",
-        "fill": "#01161E",
-        "textAlign": "center"
-      }
-    }
-  },
+  "standardPrimitives": {},
   "lintPolicy": {
     "initialPosture": "warn broadly, fail high-confidence regressions",
     "warningPromotion": "Promote stable warning checks to failures after false positives are resolved.",

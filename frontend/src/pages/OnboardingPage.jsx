@@ -12,7 +12,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ONBOARDING_ENDPOINT = "/api/v1/dev/pages/onboarding";
@@ -1077,7 +1076,6 @@ export function OnboardingPage({ session, onNavigate, onSearch, searchQuery = ""
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
     activeRoutePath: "/onboarding",
-    refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard("onboarding"),
   });
   const semanticSummary = artboard
     ? buildArtboardSemanticSummary(artboard, {

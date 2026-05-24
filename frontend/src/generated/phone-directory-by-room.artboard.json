@@ -1786,49 +1786,6 @@
       "textGrowth": "auto"
     },
     {
-      "type": "text",
-      "id": "phone-directory-by-room__t85",
-      "content": "Last refreshed: May 2, 2025 9:05 AM PT",
-      "x": 1362,
-      "y": 98,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "400",
-      "fill": "#01161E",
-      "width": 247,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "frame",
-      "id": "phone-directory-by-room__f86",
-      "name": "Rect",
-      "x": 1546,
-      "y": 90,
-      "width": 106,
-      "height": 38,
-      "fill": "#CEB770",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#CEB770",
-        "align": "inside"
-      }
-    },
-    {
-      "type": "text",
-      "id": "phone-directory-by-room__t87",
-      "content": "Refresh",
-      "x": 1574,
-      "y": 101,
-      "fontFamily": "Arial",
-      "fontSize": 13,
-      "fontWeight": "700",
-      "fill": "#01161E",
-      "width": 50,
-      "textGrowth": "auto"
-    },
-    {
       "type": "frame",
       "id": "phone-directory-by-room__f88",
       "name": "Rect",

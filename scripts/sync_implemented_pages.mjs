@@ -155,9 +155,7 @@ const dataQualityDesign = {
   key: "data-quality",
   width: 1672,
   height: 1080,
-  hotspots: {
-    refresh: "f104",
-  },
+  hotspots: {},
   slots: {
     shell: {
       scopeTitle: "t12",
@@ -172,8 +170,6 @@ const dataQualityDesign = {
     },
     page: {
       title: "t99",
-      lastRefreshed: "t103",
-      refreshLabel: "t105",
     },
     summaryCards: [
       { title: "t107", count: "t108" },
@@ -249,28 +245,7 @@ const shellSpec = {
   },
 };
 
-const standardPrimitiveSpec = {
-  refresh: {
-    label: "Refresh",
-    role: "standard-header-action",
-    frame: {
-      x: 1540,
-      y: 90,
-      width: 112,
-      height: 38,
-      fill: "#CEB770",
-      stroke: "#CEB770",
-      cornerRadius: 8,
-    },
-    text: {
-      y: 101,
-      fontSize: 13,
-      fontWeight: "700",
-      fill: "#01161E",
-      textAlign: "center",
-    },
-  },
-};
+const standardPrimitiveSpec = {};
 
 const activeNavByArtboardKey = {
   "dashboard-it-admin": "dashboard",
@@ -321,10 +296,7 @@ function generatedManifest() {
       activeNav: activeNavByArtboardKey[spec.key] ?? null,
       loggedInShell: loggedInArtboardKeys.includes(spec.key),
       standardPrimitives:
-        spec.standardPrimitives ??
-        (loggedInArtboardKeys.includes(spec.key) && !spec.key.startsWith("error-")
-          ? ["refresh"]
-          : []),
+        spec.standardPrimitives ?? [],
     })),
     sharedShell: {
       sourcePen: SHARED_SHELL_SOURCE,

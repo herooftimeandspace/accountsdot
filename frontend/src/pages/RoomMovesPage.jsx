@@ -97,19 +97,14 @@ function nodeBox(node, fallback) {
 }
 
 /**
- * expandedTableBounds reuses the retired Refresh button's right edge as the
- * Room Moves table edge. RoomMovesPage calls this when layering the live table
- * over the generated artboard so removing the old shared refresh primitive also
- * reclaims its reserved right-side gutter instead of leaving unused canvas.
+ * expandedTableBounds lets the live Room Moves table reclaim the header-action
+ * gutter left behind by the retired shared refresh primitive. The generated
+ * source table remains the anchor; the fallback width records the intended
+ * expanded live table bounds after the source Refresh node was removed.
  */
-function expandedTableBounds(tableNode, retiredRefreshNode, fallback) {
+function expandedTableBounds(tableNode, fallback) {
   const table = nodeBox(tableNode, fallback);
-  const refresh = nodeBox(retiredRefreshNode, null);
-  if (!refresh) {
-    return table;
-  }
-  const reclaimedWidth = refresh.left + refresh.width - table.left;
-  return { ...table, width: Math.max(table.width, reclaimedWidth) };
+  return { ...table, width: Math.max(table.width, fallback.width) };
 }
 
 function statusClass(status) {
@@ -938,7 +933,6 @@ export function RoomMovesPage({
         searchQuery,
         activeNavKey: "roomMoves",
         activeRoutePath: isBulk ? "/room-moves/bulk-draft" : "/room-moves",
-        refreshMetadata: null,
       }),
     [isBulk, onNavigate, onSearch, searchQuery, session]
   );
@@ -955,7 +949,6 @@ export function RoomMovesPage({
         ? { left: 288, top: 96, width: 1268, height: 820 }
         : expandedTableBounds(
             nodeIndex.get("room-moves__f100"),
-            nodeIndex.get("room-moves__f74"),
             { left: 288, top: 348, width: 1268, height: 480 }
           );
       const batchBounds = nodeBox(nodeIndex.get("room-moves__f88"), { left: 996, top: 182, width: 220, height: 148 });

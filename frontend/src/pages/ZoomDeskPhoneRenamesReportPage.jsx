@@ -10,7 +10,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ARTBOARD_KEY = "reports";
@@ -251,7 +250,6 @@ export function ZoomDeskPhoneRenamesReportPage({ session, onNavigate, onSearch, 
     searchQuery,
     activeNavKey: meta?.activeNav ?? "reports",
     activeRoutePath: "/reports/zoom-desk-phone-renames",
-    refreshMetadata: payload?.page?.last_refreshed ?? staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
   const semanticSummary = artboard
     ? buildArtboardSemanticSummary(artboard, {

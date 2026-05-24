@@ -35,34 +35,6 @@
         },
         {
           "type": "frame",
-          "id": "f104",
-          "x": 1546,
-          "y": 90,
-          "name": "Rect",
-          "width": 106,
-          "height": 38,
-          "fill": "#CEB770",
-          "cornerRadius": 8,
-          "stroke": {
-            "align": "inside",
-            "thickness": 1,
-            "fill": "#CEB770"
-          },
-          "layout": "none"
-        },
-        {
-          "type": "text",
-          "id": "t105",
-          "x": 1574,
-          "y": 101,
-          "fill": "#01161E",
-          "content": "Refresh",
-          "fontFamily": "Arial",
-          "fontSize": 13,
-          "fontWeight": "700"
-        },
-        {
-          "type": "frame",
           "id": "f106",
           "x": 288,
           "y": 182,
