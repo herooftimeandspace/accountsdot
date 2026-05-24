@@ -27,6 +27,12 @@ const paletteColors = new Set([
 const generatedArtboardDir = path.join(projectRoot, "frontend", "src", "generated");
 const hotspotTargetsByArtboard = new Map([
   [
+    "data-quality.artboard.json",
+    {
+      refresh: "f104",
+    },
+  ],
+  [
     "login.artboard.json",
     {
       loginWithGoogle: "f5",

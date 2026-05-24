@@ -141,7 +141,7 @@ function StudentDataDrawer({ row, onClose }) {
 }
 
 /**
- * StudentDataOverlay owns the live Student Data Cleanup table over the generated .pen shell. StudentDataCleanupPage supplies DEV mock rows, filter state, row-selection handlers, and sync button state; this component returns the searchable/sortable runtime table and keeps all displayed current-name values faithful to the Aeries source strings.
+ * StudentDataOverlay owns the live Student Data Cleanup table over the generated .pen shell. StudentDataCleanupPage supplies DEV mock rows, filter state, and row-selection handlers; this component returns the searchable/sortable runtime table, visible sync freshness context, and source-faithful current-name values from Aeries.
  */
 function StudentDataOverlay({
   rows,
@@ -186,6 +186,14 @@ function StudentDataOverlay({
         <div>
           <strong>{totalCount} active issues</strong>
           <span>All must be corrected in Aeries.</span>
+        </div>
+        <div>
+          <strong>Last sync</strong>
+          <span>May 2, 2025 9:05 AM PT</span>
+        </div>
+        <div>
+          <strong>Next sync</strong>
+          <span>in 55 minutes</span>
         </div>
       </section>
       <div className="student-data-runtime__table-card">
@@ -265,10 +273,9 @@ function StudentDataOverlay({
 
 /**
  * StudentDataCleanupPage is the /student-data-cleanup route rendered by frontend/src/app.jsx after route authorization.
- * It loads the generated artboard shell, hides the obsolete static pane, renders runtime-owned filters/table/drawer
- * behavior, and passes the source reconciliation affordance through the shared page sync primitive. The sync callback
- * only simulates DEV freshness state for the button; no student record, Aeries value, provider API, or mock store is
- * mutated from this informational page.
+ * It loads the generated artboard shell, hides the obsolete static pane, and renders runtime-owned filters/table/drawer
+ * behavior plus read-only sync freshness metadata. This informational page does not mutate student records, Aeries
+ * values, provider APIs, or the DEV mock store.
  */
 export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQuery }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);

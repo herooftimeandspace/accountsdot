@@ -98,6 +98,8 @@ function buildDataQualityTextOverrides(session, payload, sortState) {
   assignValue(overrides, dataQualityDesign.slots.shell.platformStatus, shell.platform_status);
 
   assignValue(overrides, dataQualityDesign.slots.page.title, page.title);
+  assignValue(overrides, dataQualityDesign.slots.page.lastRefreshed, page.last_refreshed);
+  assignValue(overrides, dataQualityDesign.slots.page.refreshLabel, "Refresh");
   page.summary_cards.forEach((card, index) => {
     const slot = dataQualityDesign.slots.summaryCards[index];
     if (!slot) {
@@ -311,6 +313,12 @@ export function DataQualityPage({
         onClick: () => table.toggleSort(key),
       };
     });
+    if (dataQualityDesign.hotspots.refresh) {
+      mapping[dataQualityDesign.hotspots.refresh] = {
+        label: "Refresh Data Quality",
+        onClick: refreshDataQuality,
+      };
+    }
 
     return mapping;
   }, [pageState, refreshDataQuality, table, viewPayload]);

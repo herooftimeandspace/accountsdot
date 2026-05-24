@@ -155,7 +155,9 @@ const dataQualityDesign = {
   key: "data-quality",
   width: 1672,
   height: 1080,
-  hotspots: {},
+  hotspots: {
+    refresh: "f104",
+  },
   slots: {
     shell: {
       scopeTitle: "t12",
@@ -170,6 +172,8 @@ const dataQualityDesign = {
     },
     page: {
       title: "t99",
+      lastRefreshed: "t103",
+      refreshLabel: "t105",
     },
     summaryCards: [
       { title: "t107", count: "t108" },
