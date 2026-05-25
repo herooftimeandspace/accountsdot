@@ -28,6 +28,8 @@ func TestAllowedModules(t *testing.T) {
 		t.Fatalf("failed reading go.mod: %v", err)
 	}
 	allowed := []string{
+		"github.com/charmbracelet/bubbletea",
+		"github.com/charmbracelet/lipgloss",
 		"github.com/google/uuid",
 		"github.com/jackc/pgx/v5",
 	}
@@ -52,7 +54,10 @@ func TestAllowedModules(t *testing.T) {
 	}
 }
 
-// projectRoot documents the data flow for internal/buildinfo/contracts_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// projectRoot lets package-scoped contract tests read repository files such as
+// README.md and go.mod from a stable path. The helper assumes these tests run
+// from internal/buildinfo and fails the caller immediately if the working
+// directory cannot be resolved.
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()

@@ -75,7 +75,12 @@ func TestReadSnapshotReconcilesStaleControllerWithLiveLock(t *testing.T) {
 		Phase:             "phase-0",
 		PhaseBranch:       "phase-0-platform-foundation",
 		UpdatedAt:         time.Now().Add(-time.Hour).UTC(),
-	}}
+	}, Workers: []WorkerState{{
+		ID:         "old-worker",
+		WorkItemID: "pr-342",
+		Status:     "running",
+		StartedAt:  time.Now().Add(-time.Hour).UTC(),
+	}}}
 	if err := WriteSnapshot(dir, stale); err != nil {
 		t.Fatalf("write stale snapshot: %v", err)
 	}
@@ -98,6 +103,50 @@ func TestReadSnapshotReconcilesStaleControllerWithLiveLock(t *testing.T) {
 	}
 	if loaded.Controller.Phase != "phase-0" || loaded.Controller.PhaseBranch != "phase-0-platform-foundation" {
 		t.Fatalf("expected existing phase metadata to be preserved, got %#v", loaded.Controller)
+	}
+	if len(loaded.Workers) != 0 {
+		t.Fatalf("expected old worker rows to be cleared after daemon identity override, got %#v", loaded.Workers)
+	}
+}
+
+func TestReadSnapshotDoesNotReconcileOlderLiveLockOverNewerStatus(t *testing.T) {
+	dir := t.TempDir()
+	statusTime := time.Now().UTC()
+	current := Snapshot{Controller: ControllerState{
+		DaemonID:          "current-status",
+		PID:               999999999,
+		StateDir:          dir,
+		Lifecycle:         "stopped",
+		LastStatus:        "operator_stopped",
+		ShutdownRequested: true,
+		UpdatedAt:         statusTime,
+	}, Workers: []WorkerState{{
+		ID:         "preserved-worker",
+		WorkItemID: "issue-340",
+		Status:     "stopped",
+		StartedAt:  statusTime.Add(-time.Minute),
+	}}}
+	if err := WriteSnapshot(dir, current); err != nil {
+		t.Fatalf("write current snapshot: %v", err)
+	}
+	lockPath := filepath.Join(dir, "daemon.lock")
+	if err := os.WriteFile(lockPath, []byte("older-lock\n"+strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		t.Fatalf("write live lock: %v", err)
+	}
+	older := statusTime.Add(-time.Minute)
+	if err := os.Chtimes(lockPath, older, older); err != nil {
+		t.Fatalf("age live lock: %v", err)
+	}
+
+	loaded, err := ReadSnapshot(dir)
+	if err != nil {
+		t.Fatalf("read snapshot: %v", err)
+	}
+	if loaded.Controller.DaemonID != "current-status" || loaded.Controller.Lifecycle != "stopped" {
+		t.Fatalf("expected newer status snapshot to win, got %#v", loaded.Controller)
+	}
+	if len(loaded.Workers) != 1 || loaded.Workers[0].ID != "preserved-worker" {
+		t.Fatalf("expected workers to remain with preserved status snapshot, got %#v", loaded.Workers)
 	}
 }
 

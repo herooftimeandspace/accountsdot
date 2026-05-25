@@ -166,13 +166,19 @@ func (snapshot healthSnapshot) readiness() (int, healthResponse) {
 // dependenciesReady distinguishes a clean global pause from a dependency
 // outage. not_configured is allowed only for optional unwired checks; missing
 // required checks use missing_required_check and therefore remain degraded.
+// Provider diagnostics also treat mocked as healthy because mock-backed
+// providers are intentionally initialized without live outbound access.
 func dependenciesReady(dependencies map[string]string) bool {
 	for _, state := range dependencies {
-		if state != "ok" && state != "not_configured" {
+		if !dependencyStateReady(state) {
 			return false
 		}
 	}
 	return true
+}
+
+func dependencyStateReady(state string) bool {
+	return state == "ok" || state == "not_configured" || state == "mocked"
 }
 
 // writeHealth serializes the already-evaluated health payload for the health

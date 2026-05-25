@@ -214,6 +214,9 @@ func reconcileSnapshotWithLock(dir string, snapshot Snapshot) Snapshot {
 	if snapshot.Controller.DaemonID == lock.daemonID && snapshot.Controller.PID == lock.pid {
 		return snapshot
 	}
+	if !snapshot.Controller.UpdatedAt.IsZero() && !lock.updatedAt.After(snapshot.Controller.UpdatedAt) {
+		return snapshot
+	}
 	snapshot.Controller.DaemonID = lock.daemonID
 	snapshot.Controller.PID = lock.pid
 	snapshot.Controller.StateDir = dir
@@ -222,6 +225,7 @@ func reconcileSnapshotWithLock(dir string, snapshot Snapshot) Snapshot {
 	snapshot.Controller.LastStatus = "status_snapshot_stale"
 	snapshot.Controller.Message = "live daemon lock is newer than status files; waiting for next status write"
 	snapshot.Controller.UpdatedAt = lock.updatedAt
+	snapshot.Workers = nil
 	return snapshot
 }
 

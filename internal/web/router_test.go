@@ -92,6 +92,50 @@ func TestMetricsExposePauseAndDependencyState(t *testing.T) {
 	}
 }
 
+// TestMetricsExposeProviderReadinessState verifies that provider diagnostics
+// get their own bounded Prometheus gauge. Without this signal app_ready can be
+// 0 while every legacy dependency gauge remains 1, leaving operators unable to
+// identify provider configuration as the readiness blocker.
+func TestMetricsExposeProviderReadinessState(t *testing.T) {
+	deps := readyMetricsDeps()
+	deps.ProviderReady = func(context.Context) map[string]string {
+		return map[string]string{
+			"aeries": "mocked",
+			"zoom":   "blocked: missing required provider setting ZOOM_ACCOUNT_ID",
+		}
+	}
+	handler := web.NewAppHandler(deps)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"app_ready 0",
+		`app_dependency_ready{name="db"} 1`,
+		`app_provider_ready{name="aeries"} 1`,
+		`app_provider_ready{name="zoom"} 0`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q; got %s", want, body)
+		}
+	}
+}
+
+func readyMetricsDeps() web.HealthDependencies {
+	return web.HealthDependencies{
+		DBReady:         func(context.Context) error { return nil },
+		SequenceReady:   func(context.Context) error { return nil },
+		ImportPathReady: func(context.Context) error { return nil },
+		SFTPReady:       func(context.Context) error { return nil },
+		GoogleReady:     func(context.Context) error { return nil },
+		GlobalPaused:    func(context.Context) (bool, error) { return false, nil },
+	}
+}
+
 type errMetric struct{}
 
 // Error returns a deterministic metrics dependency failure string. The metrics

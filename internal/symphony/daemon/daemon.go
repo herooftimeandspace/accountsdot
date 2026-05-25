@@ -75,7 +75,7 @@ func Run(ctx context.Context, options Options) (state.Snapshot, error) {
 		if err != nil {
 			return snapshot, err
 		}
-		defer releaseLock(lock, options.StateDir)
+		defer releaseLock(lock, options.StateDir, daemonID, os.Getpid())
 		if err := touchDaemonLock(lock); err != nil {
 			return snapshot, err
 		}
@@ -389,7 +389,38 @@ func touchDaemonLock(file *os.File) error {
 	return os.Chtimes(file.Name(), now, now)
 }
 
-func releaseLock(file *os.File, stateDir string) {
+func releaseLock(file *os.File, stateDir string, daemonID string, pid int) {
+	path := filepath.Join(stateDir, "daemon.lock")
+	owned := daemonLockOwnedBy(file, path, daemonID, pid)
 	_ = file.Close()
-	_ = os.Remove(filepath.Join(stateDir, "daemon.lock"))
+	if owned {
+		_ = os.Remove(path)
+	}
+}
+
+func daemonLockOwnedBy(file *os.File, path string, daemonID string, pid int) bool {
+	if file == nil || daemonID == "" || pid <= 0 {
+		return false
+	}
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	pathInfo, err := os.Stat(path)
+	if err != nil || !os.SameFile(fileInfo, pathInfo) {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) < 2 {
+		return false
+	}
+	lockPID, err := strconv.Atoi(strings.TrimSpace(lines[1]))
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(lines[0]) == daemonID && lockPID == pid
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -166,6 +167,10 @@ func handleMetrics(w http.ResponseWriter, r *http.Request, deps HealthDependenci
 	for _, dependency := range dependencyChecks(deps) {
 		_, _ = w.Write([]byte("app_dependency_ready{name=\"" + dependency.name + "\"} " + metricDependency(snapshot.dependencies[dependency.name]) + "\n"))
 	}
+	_, _ = w.Write([]byte("# TYPE app_provider_ready gauge\n"))
+	for _, name := range providerMetricNames(snapshot.dependencies) {
+		_, _ = w.Write([]byte("app_provider_ready{name=\"" + name + "\"} " + metricDependency(snapshot.dependencies["provider_"+name]) + "\n"))
+	}
 }
 
 // metricBool renders boolean health state in Prometheus gauge form. It keeps
@@ -183,10 +188,22 @@ func metricBool(value bool) string {
 // /health/ready; concrete callback failures are the only dependency value that
 // clears the metric.
 func metricDependency(state string) string {
-	if state == "ok" || state == "not_configured" {
+	if dependencyStateReady(state) {
 		return "1"
 	}
 	return "0"
+}
+
+func providerMetricNames(dependencies map[string]string) []string {
+	names := []string{}
+	for name := range dependencies {
+		providerName, ok := strings.CutPrefix(name, "provider_")
+		if ok {
+			names = append(names, providerName)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // handleEventStream opens the placeholder server-sent-events stream used by the

@@ -195,6 +195,24 @@ func TestHealthReadyFailsWhenPaused(t *testing.T) {
 	}
 }
 
+// TestHealthReadyReportsPausedWithMockedProviders covers the pause-only
+// readiness path when provider diagnostics are mock-backed. Mocked providers
+// are healthy by configuration, so global pause should remain the top-level
+// reason readiness returns 503.
+func TestHealthReadyReportsPausedWithMockedProviders(t *testing.T) {
+	deps := readyDeps()
+	deps.GlobalPaused = func(context.Context) (bool, error) { return true, nil }
+	deps.ProviderReady = func(context.Context) map[string]string {
+		return map[string]string{"zoom": "mocked", "aeries": "mocked"}
+	}
+	handler := web.NewHealthHandler(deps)
+
+	rec := requestHealth(t, handler, "/health/ready", http.StatusServiceUnavailable)
+	if body := rec.Body.String(); !strings.Contains(body, `"status":"paused"`) || !strings.Contains(body, `"provider_zoom":"mocked"`) {
+		t.Fatalf("ready paused mocked-provider body = %s, want paused status with mocked provider diagnostics", body)
+	}
+}
+
 // TestHealthReadyPrefersDegradedWhenPausedAndDependencyFails makes dependency
 // loss the top-level readiness status even when global pause is active. That
 // distinction keeps pause observability from hiding a separate outage.
