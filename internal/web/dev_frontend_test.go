@@ -961,7 +961,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		configureBreakglassForTest(t, "emergency-alex", "local-test-token")
 		t.Setenv("APP_ENV", "staging")
 
-		devLoginBody, err := json.Marshal(map[string]string{"persona_id": "it_admin"})
+		devLoginBody, err := json.Marshal(map[string]any{"persona_id": "it_admin", "activate_mock_session": true})
 		if err != nil {
 			t.Fatalf("marshal dev login request: %v", err)
 		}
@@ -4209,8 +4209,8 @@ func TestDevSharedMockPersonaToolingSwitchesFrontendSessionReadback(t *testing.T
 	if payload.DefaultSiteID != "clover-hs" || payload.CurrentSiteID != "clover-hs" {
 		t.Fatalf("switch response site context default=%q current=%q, want clover-hs", payload.DefaultSiteID, payload.CurrentSiteID)
 	}
-	if len(payload.VisibleSites) != 2 {
-		t.Fatalf("site_admin should keep exactly two assigned visible sites, got %#v", payload.VisibleSites)
+	if len(payload.VisibleSites) != 1 || payload.VisibleSites[0].ID != "clover-hs" {
+		t.Fatalf("site_admin should keep exactly one assigned visible site, got %#v", payload.VisibleSites)
 	}
 	if !slices.Contains(payload.AllowedRoutes, "/student-data-cleanup") {
 		t.Fatalf("switch response allowed routes missing site-scoped route: %#v", payload.AllowedRoutes)
@@ -4235,6 +4235,15 @@ func TestDevSharedMockPersonaToolingSupportsNoAccessAndAllPersonas(t *testing.T)
 	t.Cleanup(web.ResetDevSharedMockSessionForTest)
 
 	handler := web.NewAppHandler(web.HealthDependencies{})
+	expectedSiteScope := map[string][]string{
+		"it_admin":        {"clover-hs", "desert-view", "highland-es", "franklin-ms", "business-office", "district-office"},
+		"human_resources": {"district-office", "clover-hs", "desert-view", "highland-es", "franklin-ms", "business-office"},
+		"site_admin":      {"clover-hs"},
+		"site_secretary":  {"clover-hs"},
+		"device_wrangler": {"franklin-ms"},
+		"faculty_staff":   {"clover-hs", "desert-view"},
+		"no_access":       {"clover-hs"},
+	}
 
 	sessionReq := httptest.NewRequest(http.MethodGet, "/api/v1/dev/session", nil)
 	sessionRec := httptest.NewRecorder()
@@ -4255,6 +4264,17 @@ func TestDevSharedMockPersonaToolingSupportsNoAccessAndAllPersonas(t *testing.T)
 		}
 		if payload.DefaultSiteID == "" || payload.CurrentSiteID == "" {
 			t.Fatalf("activate %s did not include default/current site context: %#v", persona.ID, payload)
+		}
+		wantSiteScope, ok := expectedSiteScope[persona.ID]
+		if !ok {
+			t.Fatalf("activate %s has no documented site-scope expectation", persona.ID)
+		}
+		gotSiteScope := siteIDsFromSessionPayload(payload)
+		if !slices.Equal(gotSiteScope, wantSiteScope) {
+			t.Fatalf("activate %s visible sites = %#v, want %#v", persona.ID, gotSiteScope, wantSiteScope)
+		}
+		if payload.CurrentSiteID != wantSiteScope[0] {
+			t.Fatalf("activate %s current site = %q, want first visible site %q", persona.ID, payload.CurrentSiteID, wantSiteScope[0])
 		}
 		if persona.ID == "no_access" {
 			seenNoAccess = true
@@ -4320,6 +4340,17 @@ func TestDevSharedMockPersonaToolingDeniedOutsideDevelopment(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("shared persona tooling in production returned %d, want 404", rec.Code)
 	}
+}
+
+// siteIDsFromSessionPayload extracts the visible-site ids from a DEV session
+// response so persona tooling tests can compare site scope without depending on
+// the human-readable site names returned for frontend shell rendering.
+func siteIDsFromSessionPayload(payload devSessionResponse) []string {
+	siteIDs := make([]string, 0, len(payload.VisibleSites))
+	for _, site := range payload.VisibleSites {
+		siteIDs = append(siteIDs, site.ID)
+	}
+	return siteIDs
 }
 
 func TestDevMyProfileDirectEditMockState(t *testing.T) {

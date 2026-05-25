@@ -97,6 +97,11 @@ create table if not exists workflow_runs (
     subject_id text not null,
     trigger_type text not null,
     status text not null,
+    job_family text not null default 'unclassified',
+    scheduled_for timestamptz,
+    deferred_from_run_id bigint references workflow_runs(id) on delete set null,
+    overlap_state text not null default 'none',
+    overlap_count integer not null default 0,
     approval_state text not null default 'not_required',
     desired_snapshot jsonb not null default '{}'::jsonb,
     source_batch_id bigint references import_batches(id) on delete set null,
@@ -104,6 +109,16 @@ create table if not exists workflow_runs (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+create index if not exists workflow_runs_scheduled_family_active_idx
+    on workflow_runs (job_family, created_at)
+    where trigger_type = 'scheduled'
+      and status in ('planned', 'running', 'recovering', 'waiting_manual');
+
+create index if not exists workflow_runs_scheduled_family_overlap_idx
+    on workflow_runs (job_family, overlap_count, created_at)
+    where trigger_type = 'scheduled'
+      and overlap_state <> 'none';
 
 create table if not exists jobs (
     id bigserial primary key,
@@ -126,6 +141,14 @@ create table if not exists jobs (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+create index if not exists jobs_claimable_global_tick_idx
+    on jobs (global_tick)
+    where job_state = 'queued' and approval_required = false;
+
+create index if not exists jobs_expired_lease_global_tick_idx
+    on jobs (lease_expires_at, global_tick)
+    where job_state = 'running' and lease_expires_at is not null;
 
 create table if not exists approval_requests (
     id bigserial primary key,
@@ -162,6 +185,22 @@ create table if not exists audit_log (
     created_at timestamptz not null default now()
 );
 
+create table if not exists auth_site_scope_mappings (
+    id bigserial primary key,
+    source_type text not null check (source_type in ('group', 'attribute')),
+    source_value text not null,
+    attribute_values jsonb not null default '[]'::jsonb,
+    site_codes jsonb not null default '[]'::jsonb,
+    actor_id text not null,
+    reason text not null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (source_type, source_value)
+);
+
+create index if not exists auth_site_scope_mappings_source_idx
+    on auth_site_scope_mappings (source_type, source_value);
+
 create table if not exists record_backups (
     id bigserial primary key,
     target_table text not null,
@@ -185,6 +224,9 @@ create table if not exists external_request_log (
 
 create unique index if not exists external_request_log_idempotency_key_unique
     on external_request_log (provider, operation, idempotency_key);
+
+create index if not exists external_request_log_job_outcome_idx
+    on external_request_log (job_id, outcome);
 
 create table if not exists provider_circuit_breakers (
     provider text not null,
@@ -225,6 +267,9 @@ create table if not exists event_outbox (
     payload jsonb not null default '{}'::jsonb,
     created_at timestamptz not null default now()
 );
+
+create index if not exists event_outbox_global_tick_idx
+    on event_outbox (global_tick);
 
 create table if not exists sheet_publish_log (
     id bigserial primary key,

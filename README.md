@@ -21,10 +21,15 @@ The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard is a self-host
 - [docs/planning/implementation-plan.md](docs/planning/implementation-plan.md) is the authoritative execution plan and decision log for implementation-affecting behavior.
 - [docs/product/product-requirements.md](docs/product/product-requirements.md) captures the business-facing product requirements and scope boundaries.
 - [docs/operations/environment-data-playbook.md](docs/operations/environment-data-playbook.md) defines the safe process for creating and refreshing mock and staging environments.
+- [docs/operations/breakglass-access.md](docs/operations/breakglass-access.md) defines the local non-production emergency access setup, CIDR restrictions, audit expectations, and staging verification notes.
+- [docs/operations/health-observability.md](docs/operations/health-observability.md) defines the Phase 0 `/health/live`, `/health/ready`, `/health`, and `/metrics` semantics for dependency, missing-required-check, global-pause, and staging observability evidence.
+- [docs/operations/reference-input-snapshot-integrity.md](docs/operations/reference-input-snapshot-integrity.md) defines the Phase 0 startup guard for required repo-local reference inputs and the staging evidence expected for snapshot integrity.
+- [docs/operations/provider-readiness.md](docs/operations/provider-readiness.md) defines the Phase 0 provider readiness mock success path, failure diagnostics, staging read-only probe expectations, and credential-redaction rules for readiness evidence.
 - [docs/testing/test-matrix.md](docs/testing/test-matrix.md) tracks the named mock scenarios and verification coverage that must stay aligned with the implementation plan during phased delivery. It is a static definition artifact, not a live execution-status tracker; live test tracking and signoff belong in an external IncidentIQ testing ticket.
 - [docs/product/permissions-matrix.md](docs/product/permissions-matrix.md) documents the currently implemented DEV route/API permission matrix, field-level visibility, and known authorization gaps for review against the PRD and implementation plan.
+- [docs/api/openapi.md](docs/api/openapi.md) documents the generated OpenAPI source of truth, regeneration command, drift check, and surface labels that distinguish DEV mock routes from accepted no-op, planned DB-backed, and callable runtime APIs.
 - [docs/operations/promotion-pipeline.md](docs/operations/promotion-pipeline.md) defines the checked-in GitHub Actions branch gates, automated promotion PR behavior, local branch-gate commands, and manual repository settings required for `dev → staging → main` promotion.
-- [docs/agent-orchestration/SPEC.md](docs/agent-orchestration/SPEC.md) defines the repo-local Symphony-style Codex orchestration contract for GitHub issue driven agent work. [.agents/WORKFLOW.md](.agents/WORKFLOW.md) is the runner-readable prompt and configuration contract for that workflow. The first checked-in runner is `scripts/symphony_runner.mjs`; use `npm run symphony:report`, `npm run symphony:ui-monitor -- --dry-run`, and `npm run symphony:test` for local queue and monitor validation.
+- [docs/agent-orchestration/SPEC.md](docs/agent-orchestration/SPEC.md) defines the repo-local Symphony-style Codex orchestration contract for GitHub issue driven agent work. [.agents/WORKFLOW.md](.agents/WORKFLOW.md) is the runner-readable prompt and configuration contract for that workflow. The Go CLI at `cmd/symphony` owns `sync` work-graph planning and `test` orchestration, while `scripts/symphony_runner.mjs` remains the direct entrypoint for Node-backed `report` and `ui-monitor` paths during migration; use `npm run symphony:report`, `npm run symphony:sync -- --dry-run --json`, `npm run symphony:ui-monitor -- --dry-run`, and `npm run symphony:test` for local queue, dispatcher, and monitor validation.
 - [docs/reference-inputs/VENDORED_INVENTORY.md](docs/reference-inputs/VENDORED_INVENTORY.md) is the authoritative provenance and refresh ledger for the repo-local reference corpus under `docs/reference-inputs/`.
 - The promotion runbook/process also lives outside the repo. It must capture one implementation-signoff entry per workflow bucket, reference the external IncidentIQ testing-ticket evidence, and use the corresponding documented rollback path and rollback trigger conditions for write-capable buckets. Each bucket entry must include exact metadata for release, ticket, phase, bucket, environment, revisions, timestamps, signoff, evidence links, and rollback references as applicable. Each bucket entry must also include a final disposition plus explicit yes/no attestations for scenario cleanliness, evidence review, and write-safety checks. A bucket that was previously `rolled back` may later be updated to `ready` after a new clean pass, and `superseded` means an older attempt was replaced by a newer one in the same release; the replacement current entry must explicitly link back to the superseded one. A `no` attestation does not require a separate explanation field beyond the disposition and any required closure note. If a rollback trigger blocks a bucket in `dev`, the runbook must carry an explicit closure note with links to the replacement evidence before `staging` can begin for that bucket. The external IncidentIQ testing ticket should use one parent ticket per release with evidence organized in `phase → bucket → dev/staging → scenario` order, with `dev` listed before `staging` in every bucket.
 - This README must continue to enumerate the product goals at a high level.
@@ -83,6 +88,8 @@ Local testing is supported through either `docker compose` or the VS Code Dev Co
 - `npm run pen:lint`
 - `npm run build:web`
 - `npm run a11y:check`
+- `npm run openapi:generate`
+- `npm run openapi:check`
 - `npm run perf:routes:plan`
 - `npm run perf:routes:batch-plan -- [artifact-input-dir]`
 - `npm run perf:routes:merge -- [artifact-input-dir]`
@@ -219,6 +226,9 @@ The merged Markdown file is the human-readable summary to copy into external evi
 Required or commonly used local variables:
 
 - `APP_ENV`
+- `ENVIRONMENT_ROLE`
+- `ENVIRONMENT_DATA_MODE`
+- `ENVIRONMENT_DATA_SOURCE`
 - `APP_PORT`
 - `DATABASE_URL`
 - `SESSION_SECRET`
@@ -275,7 +285,10 @@ The checked-in deployment files are:
 - `docker-compose.deploy.yml`: reverse proxy, three app containers, and
   environment-specific Postgres services.
 - `deploy/Caddyfile`: host-based Caddy routing for dev, staging, and main.
-- `deploy/Dockerfile`: production-style Go service image for each branch.
+- `deploy/Dockerfile`: production-style Go service image for each branch. The
+  image copies `docs/reference-inputs/` into `/app/docs/reference-inputs/` and
+  sets `WIZARD_REFERENCE_INPUT_ROOT=/app` so the Phase 0 reference-input guard
+  can run from the packaged container instead of depending on a checkout.
 - `deploy/remote-redeploy.sh`: manual update helper that fetches Git branches,
   refreshes branch worktrees, then runs Docker Compose.
 - `deploy/env/*.example`: templates for uncommitted remote environment files.
@@ -352,18 +365,32 @@ Named Docker volumes keep database data across redeploys. Do not use
 databases.
 
 ### Environment Responsibilities
-- Dev runs with `APP_ENV=development`, mock providers enabled, and the
-  long-lived `postgres-dev-data` volume.
-- Staging runs with `APP_ENV=staging`, the long-lived
+- Dev runs with `ENVIRONMENT_ROLE=dev`, `APP_ENV=development`,
+  `ENVIRONMENT_DATA_MODE=mock`, mock providers enabled, and the long-lived
+  `postgres-dev-data` volume. Dev examples must not point at staging or main
+  databases and must not assume production-only data exists.
+- Staging runs with `ENVIRONMENT_ROLE=staging`, `APP_ENV=staging`,
+  `ENVIRONMENT_DATA_MODE=masked-read-only`,
+  `ENVIRONMENT_DATA_SOURCE=masked-production-derived`, the long-lived
   `postgres-staging-data` volume, and sandbox or masked/read-only provider
   configuration as defined in `docs/operations/environment-data-playbook.md`.
-- Main runs with `APP_ENV=production`, production secrets, and the main
-  database only. Production must not reuse dev or staging credentials.
+  After a documented sandbox strategy and safety approval exists, staging may
+  instead use `ENVIRONMENT_DATA_MODE=sandbox` and
+  `ENVIRONMENT_DATA_SOURCE=documented-sandbox`.
+- Main runs with `ENVIRONMENT_ROLE=main`, `APP_ENV=production`,
+  `ENVIRONMENT_DATA_MODE=production`, production secrets, and the main database
+  only. Production must not reuse dev or staging credentials.
 
 The checked-in examples default staging providers to mocks until the staging
 sandbox or masked provider strategy is configured. Flip individual
 `USE_MOCK_*` flags only after the corresponding staging credential, data, and
 write-safety plan exists.
+
+Run `npm run environment-roles:check` after editing `deploy/env/*.example`,
+`docker-compose.deploy.yml`, or environment-role documentation. The check
+parses the deployment examples and fails if dev, staging, and main stop using
+distinct roles, data modes, databases, Compose env-file wiring, or
+mock-provider safety settings.
 
 The current Go service image exposes the backend service on port `8080`. The
 React/Vite DEV UI is still a development-time frontend and is not bundled into

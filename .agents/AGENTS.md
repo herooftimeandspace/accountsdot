@@ -34,14 +34,18 @@ This file applies to the whole repository. It condenses durable repo-specific in
 ## Repo Map
 
 - `cmd/provisioner`: application entrypoint.
+- `cmd/symphony`: Symphony CLI, daemon, status, and orchestration entrypoints.
 - `internal/core`: workflow, sync, and domain types.
 - `internal/db`: schema and database retry behavior.
 - `internal/provider`: provider contracts and provider-specific serialization.
 - `internal/orchestrator`: workflow and sync planning.
+- `internal/symphony`: Symphony queueing, work graph, source corpus, GitHub, daemon, and TUI logic.
 - `internal/web`: HTTP handlers, health, DEV frontend API, and server-rendered legacy surfaces.
 - `frontend/src`: React DEV frontend.
 - `frontend/src/generated`: generated `.pen`-derived artboard files. Do not hand-edit these.
 - `docs/design/mocks/wireframes`: authoritative `.pen` wireframes and explicit review exports.
+- `docs/agent-orchestration`: Symphony service contract and runner rules.
+- `scripts/symphony_runner.mjs`: legacy Node adapter for remaining Symphony side-effect paths.
 - `scripts`: frontend design sync, accessibility checks, and mock/wireframe tooling.
 
 ## Data And Environment Safety
@@ -153,6 +157,7 @@ This file applies to the whole repository. It condenses durable repo-specific in
 - The repo-local Codex UI hardening skill lives at `.agents/skills/wizard-ui-hardening/SKILL.md`.
 - The repo-local code documentation skill lives at `.agents/skills/wizard-code-documentation/SKILL.md`.
 - Use the code documentation skill for implemented code changes under `cmd/`, `internal/`, `frontend/src/`, tests, route handlers, provider-operation planning, database behavior, and external-write surfaces.
+- Use the code documentation skill for Symphony queue invariants, workspace recovery policy, review-thread gating, OpenAPI/runtime contract work, readiness surfacing, and promotion-validator coverage checks.
 - Keep repo skill bodies lean. Point to repo docs as references instead of copying large sections into `SKILL.md`.
 - Recommended UI trigger: use the UI hardening skill for work on The WIZARD, accountsdot, district account lifecycle, `.pen`-derived dashboard pages, provider sync/orchestration, or dev/staging/main promotion safety when the task is frontend/UI/design oriented.
 - Recommended code documentation trigger: use the code documentation skill whenever implemented code changes, documentation may have gone stale, or an external-write path is introduced, renamed, removed, mocked, or made live.

@@ -69,6 +69,14 @@ type Decision struct {
 	Reason     string
 }
 
+// RouteDecision is the route-level result returned after a verified Google
+// identity has already passed or failed the production authorization evaluator.
+// API and page handlers can use Reason for a sanitized access-denied response.
+type RouteDecision struct {
+	Allowed bool
+	Reason  string
+}
+
 // DefaultPolicy returns the production authorization boundary documented for
 // Google SAML. Callers may layer group, attribute, and site mappings over these
 // defaults, but the staff-domain allowlist and explicit student denial should
@@ -80,11 +88,17 @@ func DefaultPolicy() Policy {
 	}
 }
 
-// EvaluateGoogleIdentity converts verified Google SAML identity data into the
-// application authorization decision. The domain gate runs before role mapping
-// for normal SAML users so student or unknown domains cannot receive access via
-// a broad group match. Local breakglass identities are evaluated by the future
-// breakglass implementation and therefore bypass only the domain gate here.
+// EvaluateGoogleIdentity converts one verified Google SAML assertion into the
+// application authorization decision. Future SAML middleware calls this on each
+// request with the current Google group/attribute inputs; the evaluator does
+// not cache a prior site scope, so changed group or attribute mappings replace
+// the previous decision instead of leaving stale cross-site access behind. The
+// domain gate runs before role mapping for normal SAML users so student or
+// unknown domains cannot receive access via a broad group match. The documented
+// student-domain denial is a safety floor even when deployment config adds or
+// removes other denied domains. Local breakglass identities are evaluated by the
+// breakglass route before reaching this boundary and therefore bypass only the
+// domain gate here.
 func EvaluateGoogleIdentity(policy Policy, identity GoogleIdentity) Decision {
 	email := canonicalEmail(identity.Email)
 	if email == "" {
@@ -92,7 +106,7 @@ func EvaluateGoogleIdentity(policy Policy, identity GoogleIdentity) Decision {
 	}
 
 	if !identity.BreakglassLocal {
-		if emailDomainDenied(email, policy.DeniedEmailDomains) {
+		if emailDomainDenied(email, mandatoryDeniedEmailDomains(policy.DeniedEmailDomains)) {
 			return Decision{Email: email, Reason: "denied_domain"}
 		}
 		if !emailDomainAllowed(email, policy.AllowedEmailDomains) {
@@ -115,6 +129,30 @@ func EvaluateGoogleIdentity(policy Policy, identity GoogleIdentity) Decision {
 		Roles:      roles,
 		SiteScopes: siteScopes,
 	}
+}
+
+// AuthorizeRoute checks one protected application path against an already
+// evaluated production Google identity decision. Production SAML middleware and
+// future API handlers should call this after EvaluateGoogleIdentity so users
+// who authenticate successfully but lack a matching role receive access denied
+// for the exact URL instead of a filtered or partially redacted page.
+func AuthorizeRoute(decision Decision, path string) RouteDecision {
+	if !decision.Authorized {
+		if decision.Reason == "" {
+			return RouteDecision{Reason: "not_authorized"}
+		}
+		return RouteDecision{Reason: decision.Reason}
+	}
+	normalizedPath := normalizeRoutePath(path)
+	if normalizedPath == "" {
+		return RouteDecision{Reason: "missing_route"}
+	}
+	for _, role := range decision.Roles {
+		if roleAllowsRoute(role, normalizedPath) {
+			return RouteDecision{Allowed: true}
+		}
+	}
+	return RouteDecision{Reason: "route_not_allowed"}
 }
 
 // ParseGroupRoleMappings reads the checked-in JSON contract used by
@@ -216,6 +254,11 @@ func resolveRoles(policy Policy, identity GoogleIdentity) []string {
 	return sortedKeys(roles)
 }
 
+// resolveSiteScopes derives the request-local site list from the current policy
+// and Google identity claims. It intentionally reads only the supplied group
+// membership and attribute values so future request middleware can recalculate
+// scope after Google Workspace or admin-managed mapping changes without
+// consulting stale session, database, or UI state.
 func resolveSiteScopes(policy Policy, identity GoogleIdentity) []string {
 	scopes := map[string]struct{}{}
 	groups := canonicalSet(identity.Groups)
@@ -247,6 +290,114 @@ func hasSingleSiteOperationalRole(roles []string) bool {
 	return false
 }
 
+// roleAllowsRoute looks up one stable application role against the protected
+// route inventory used by production SAML decisions and DEV route parity docs.
+func roleAllowsRoute(role string, path string) bool {
+	for _, allowedPath := range roleRoutes[canonicalMappingValue(role)] {
+		if allowedPath == path {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeRoutePath accepts a page or API caller's route string and returns
+// the canonical slash-prefixed path used by roleRoutes comparisons.
+func normalizeRoutePath(path string) string {
+	normalized := strings.TrimSpace(path)
+	if normalized == "" {
+		return ""
+	}
+	if !strings.HasPrefix(normalized, "/") {
+		normalized = "/" + normalized
+	}
+	return strings.TrimRight(normalized, "/")
+}
+
+var roleRoutes = map[string][]string{
+	RoleITAdmin: {
+		"/dashboard",
+		"/dashboard/it-admin",
+		"/dashboard/hr-lifecycle",
+		"/dashboard/site-admin",
+		"/search",
+		"/onboarding",
+		"/offboarding",
+		"/departing-seniors",
+		"/room-moves",
+		"/room-moves/bulk-draft",
+		"/phone-directory/by-person",
+		"/phone-directory/by-room",
+		"/phone-directory/by-department",
+		"/data-quality",
+		"/frequent-fliers",
+		"/student-data-cleanup",
+		"/reports",
+		"/reports/security-issues",
+		"/reports/sync-transparency",
+		"/reports/zoom-desk-phone-renames",
+		"/admin",
+		"/admin/feature-flags",
+		"/my-profile",
+	},
+	RoleHumanResources: {
+		"/dashboard",
+		"/dashboard/hr-lifecycle",
+		"/search",
+		"/phone-directory/by-person",
+		"/phone-directory/by-room",
+		"/phone-directory/by-department",
+		"/my-profile",
+		"/onboarding",
+		"/offboarding",
+	},
+	RoleSiteAdmin: {
+		"/dashboard",
+		"/dashboard/site-admin",
+		"/search",
+		"/phone-directory/by-person",
+		"/phone-directory/by-room",
+		"/phone-directory/by-department",
+		"/my-profile",
+		"/student-data-cleanup",
+		"/frequent-fliers",
+		"/onboarding",
+		"/offboarding",
+		"/room-moves",
+		"/room-moves/bulk-draft",
+	},
+	RoleSiteSecretary: {
+		"/dashboard",
+		"/search",
+		"/phone-directory/by-person",
+		"/phone-directory/by-room",
+		"/phone-directory/by-department",
+		"/my-profile",
+		"/onboarding",
+		"/student-data-cleanup",
+		"/room-moves",
+		"/room-moves/bulk-draft",
+	},
+	RoleDeviceWrangler: {
+		"/dashboard",
+		"/search",
+		"/phone-directory/by-person",
+		"/phone-directory/by-room",
+		"/phone-directory/by-department",
+		"/my-profile",
+		"/frequent-fliers",
+		"/departing-seniors",
+	},
+	RoleFacultyStaff: {
+		"/dashboard",
+		"/search",
+		"/phone-directory/by-person",
+		"/phone-directory/by-room",
+		"/phone-directory/by-department",
+		"/my-profile",
+	},
+}
+
 func emailDomainAllowed(email string, domains []string) bool {
 	domain := domainFromEmail(email)
 	return domain != "" && slices.Contains(canonicalList(domains), domain)
@@ -255,6 +406,14 @@ func emailDomainAllowed(email string, domains []string) bool {
 func emailDomainDenied(email string, domains []string) bool {
 	domain := domainFromEmail(email)
 	return domain != "" && slices.Contains(canonicalList(domains), domain)
+}
+
+// mandatoryDeniedEmailDomains keeps the student-domain block active for every
+// EvaluateGoogleIdentity call, including staging tests or deployments that add
+// custom denied domains through AUTH_DENIED_EMAIL_DOMAINS. It returns only
+// normalized domain labels and has no side effects.
+func mandatoryDeniedEmailDomains(configured []string) []string {
+	return append(ParseDomainList(DefaultDeniedEmailDomains), configured...)
 }
 
 func domainFromEmail(email string) string {

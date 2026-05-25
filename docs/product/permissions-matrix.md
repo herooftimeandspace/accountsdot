@@ -19,6 +19,7 @@ This matrix is current DEV implementation documentation. Issue #185 supplies the
 - Allowed staff domains are `@wusd.org`, `@it.wusd.org`, and `@staff.wusd.org`.
 - `@stu.wusd.org` is explicitly denied before role authorization.
 - Local breakglass accounts are the only domain-gate exception.
+- Phase 0 scenario `P0-0C-001` is covered by `TestP000C001StaffDomainAllowlistGate` and `TestP000C001DevAndStagingShareStaffDomainGate`. Those tests are intentionally narrow: the first proves the evaluator lets the three staff domains proceed to role mapping and blocks non-staff domains before role mapping can grant access; the second proves development and staging load the same default staff-domain policy before live SAML assertion handling is added.
 
 ## Production Auth Flow
 
@@ -61,6 +62,8 @@ The checked-in environment contract is:
 - `BREAKGLASS_ACCOUNTS`: comma-separated local emergency account ids.
 - `BREAKGLASS_TOKEN_SHA256_<SANITIZED_ACCOUNT_ID>`: per-account SHA-256 token hash where non-alphanumeric account-id characters are converted to underscores and uppercased.
 - `BREAKGLASS_ALLOWED_CIDRS`: optional comma-separated allowed source networks. Default: `10.23.0.0/16,10.19.100.0/24`.
+
+Deployment operators may override `AUTH_ALLOWED_EMAIL_DOMAINS` or `AUTH_DENIED_EMAIL_DOMAINS`, but doing so changes the Phase 0 staff-domain gate and must be recorded with the deployment configuration and promotion evidence. The repository default remains the baseline for both development and staging checks.
 
 Example mapping shape:
 
@@ -116,7 +119,7 @@ Example mapping shape:
 | IT Admin | All implemented routes: `/dashboard/it-admin`, `/dashboard/hr-lifecycle`, `/dashboard/site-admin`, `/search`, `/onboarding`, `/offboarding`, `/departing-seniors`, `/room-moves`, `/room-moves/bulk-draft`, phone-directory routes, `/data-quality`, `/frequent-fliers`, `/student-data-cleanup`, `/reports`, `/reports/security-issues`, `/reports/zoom-desk-phone-renames`, `/reports/sync-transparency`, `/admin`, `/admin/feature-flags`, `/my-profile` | District-wide | Implemented |
 | Human Resources | `/dashboard/hr-lifecycle`, `/search`, `/phone-directory/by-person`, `/phone-directory/by-room`, `/phone-directory/by-department`, `/my-profile`, `/onboarding`, `/offboarding` | District-wide | Implemented |
 | Site Admin | `/dashboard/site-admin`, `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/frequent-fliers`, `/onboarding`, `/offboarding`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site on site-scoped pages | Implemented |
-| Site Secretary | `/search`, phone-directory routes, `/my-profile`, `/student-data-cleanup`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site | Implemented |
+| Site Secretary | `/search`, phone-directory routes, `/my-profile`, `/onboarding`, `/student-data-cleanup`, `/room-moves`, `/room-moves/bulk-draft` | Exactly one assigned site | Implemented |
 | Device Wrangler | `/search`, phone-directory routes, `/my-profile`, `/frequent-fliers`, `/departing-seniors` | Exactly one assigned site where data is site-scoped | Implemented |
 | Faculty and Staff | `/search`, phone-directory routes, `/my-profile` | Multiple associated sites allowed; onboarding/current-assignment default site provides initial staff context | Implemented |
 | No Access | No protected route access | None | Implemented as denied session state |
@@ -126,7 +129,7 @@ Example mapping shape:
 
 | Surface | Allowed personas | Server-side behavior | Site and field notes | Status | Test coverage |
 | --- | --- | --- | --- | --- | --- |
-| `/api/v1/dev/session`, `/api/v1/dev/login`, `/api/v1/dev/logout` | DEV persona switcher users and local Codex tooling in `APP_ENV=development` | Session payload reflects the selected DEV persona and feature-filtered routes; `POST /api/v1/dev/login` with `activate_mock_session=true` also updates the shared in-process DEV mock session consumed by `/api/v1/dev/session` after Browser refresh/navigation | Normal login/logout write only the local DEV session cookie; tooling activation is development-only, supports all DEV personas including `no_access`, preserves default/current site context, and forces anonymous readback after invalid persona ids | Implemented | `TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment`, `TestDevSharedMockPersonaToolingSwitchesFrontendSessionReadback`, `TestDevSharedMockPersonaToolingInvalidPersonaFailsClosed`, `TestDevSharedMockPersonaToolingDeniedOutsideDevelopment` |
+| `/api/v1/dev/session`, `/api/v1/dev/login`, `/api/v1/dev/logout` | DEV persona switcher users and local Codex tooling in `APP_ENV=development` | Session payload reflects the selected DEV persona and feature-filtered routes; `POST /api/v1/dev/login` with `activate_mock_session=true` also updates the shared in-process DEV mock session consumed by `/api/v1/dev/session` after Browser refresh/navigation | Normal login/logout write only the local DEV session cookie; tooling activation is development-only, supports all DEV personas including `no_access`, preserves default/current site context, and forces anonymous readback after invalid persona ids | Implemented | `TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment` including staging breakglass separation subcoverage, `TestDevSharedMockPersonaToolingSwitchesFrontendSessionReadback`, `TestDevSharedMockPersonaToolingSupportsNoAccessAndAllPersonas`, `TestDevSharedMockPersonaToolingInvalidPersonaFailsClosed`, `TestDevSharedMockPersonaToolingDeniedOutsideDevelopment` |
 | `/api/v1/dev/pages/data-quality` | IT Admin | `401` signed out, `403` non-IT | IT Admin-only data-quality awareness surface | Implemented | Data Quality auth tests |
 | `/api/v1/dev/search` | Personas with `/search` | Requires authenticated persona and filters by accessible route groups | Employee IDs remain visible/searchable only for IT Admin and HR where the owning payload exposes them | Partially implemented | Global search tests |
 | `/api/v1/dev/pages/onboarding` | IT Admin, HR, Site Admin, Site Secretary | Requires `/onboarding` route | IT Admin and HR can manage manual drafts; Site Admin and Site Secretary receive active-site-scoped rows, counts, drawer details, and room options | Implemented | Onboarding page and scope tests |

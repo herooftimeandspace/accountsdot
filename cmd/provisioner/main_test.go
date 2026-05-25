@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/config"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
 )
 
 // TestMainDelegatesToRunMain exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
@@ -33,6 +36,106 @@ func TestStdServerAddress(t *testing.T) {
 	server := &stdServer{Server: &http.Server{Addr: ":9999"}}
 	if got := server.Address(); got != ":9999" {
 		t.Fatalf("expected address :9999, got %q", got)
+	}
+}
+
+// TestNewServerReportsInvalidHealthDatabaseConfig verifies startup diagnostics
+// stay available when DATABASE_URL cannot be parsed. The health response must
+// expose a sanitized readiness failure instead of echoing the raw URL.
+func TestNewServerReportsInvalidHealthDatabaseConfig(t *testing.T) {
+	t.Setenv("DATABASE_URL", "://user:secret@example.invalid/wizard")
+
+	server := newServer(config.Config{AppPort: "8080"})
+	std, ok := server.(*stdServer)
+	if !ok {
+		t.Fatalf("newServer returned %T, want *stdServer", server)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec := httptest.NewRecorder()
+	std.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"db":"unavailable"`) {
+		t.Fatalf("health body = %s, want sanitized database configuration failure", body)
+	}
+	if strings.Contains(body, "secret") {
+		t.Fatalf("health body leaked raw DATABASE_URL: %s", body)
+	}
+}
+
+// TestNewServerReportsProviderReadinessFailure verifies cmd/provisioner wires
+// config.Load provider metadata into /health/ready. A blocked live-mode
+// provider must be visible as provider_<name> diagnostics even when the process
+// itself remains reachable through /health/live.
+func TestNewServerReportsProviderReadinessFailure(t *testing.T) {
+	server := newServer(config.Config{
+		AppPort: "8080",
+		ProviderReadiness: []provider.ReadinessConfig{
+			{
+				Provider:           provider.ProviderNameZoom,
+				UseMock:            false,
+				ReadOnly:           true,
+				Endpoint:           "https://zoom.example.test/v2",
+				EndpointEnv:        "ZOOM_BASE_URL",
+				CredentialLabelEnv: "ZOOM_ACCOUNT_ID",
+			},
+		},
+	})
+	std, ok := server.(*stdServer)
+	if !ok {
+		t.Fatalf("newServer returned %T, want *stdServer", server)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec := httptest.NewRecorder()
+	std.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"provider_zoom":"blocked: missing required provider setting ZOOM_ACCOUNT_ID"`) {
+		t.Fatalf("health body = %s, want provider readiness diagnostic", body)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	rec = httptest.NewRecorder()
+	std.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "provider_zoom") {
+		t.Fatalf("live health = %d %s, want process-only ok", rec.Code, rec.Body.String())
+	}
+}
+
+// TestHealthProbeErrorsAreBounded locks down the cmd/provisioner side of the
+// health contract. Even before internal/web maps failures to public
+// "unavailable" states, probe helpers must not return raw driver or URL text
+// that could later be logged or serialized by a future caller.
+func TestHealthProbeErrorsAreBounded(t *testing.T) {
+	rawErr := errors.New("dial tcp db.internal.example:5432 password=secret")
+
+	if got := sanitizeHealthProbeError(rawErr); got == nil || strings.Contains(got.Error(), "secret") || strings.Contains(got.Error(), "db.internal") {
+		t.Fatalf("sanitizeHealthProbeError(%q) = %v, want bounded non-secret error", rawErr, got)
+	}
+	if got := sanitizeHealthProbeError(nil); got != nil {
+		t.Fatalf("sanitizeHealthProbeError(nil) = %v, want nil", got)
+	}
+
+	deps := failedHealthDependencies(rawErr)
+	for name, check := range map[string]func(context.Context) error{
+		"db":       deps.DBReady,
+		"sequence": deps.SequenceReady,
+	} {
+		err := check(context.Background())
+		if err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "db.internal") {
+			t.Fatalf("%s failed health dependency returned %v, want bounded non-secret error", name, err)
+		}
+	}
+	_, err := deps.GlobalPaused(context.Background())
+	if err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "db.internal") {
+		t.Fatalf("global pause failed health dependency returned %v, want bounded non-secret error", err)
 	}
 }
 
@@ -220,7 +323,9 @@ type fakeServer struct {
 	shutdowns    int
 }
 
-// ListenAndServe documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// ListenAndServe lets run tests decide whether startup blocks, fails, or exits
+// as http.ErrServerClosed. It records no network state and delegates to
+// listenFunc when a test needs to synchronize shutdown.
 func (f *fakeServer) ListenAndServe() error {
 	if f.listenFunc != nil {
 		return f.listenFunc()
@@ -228,7 +333,9 @@ func (f *fakeServer) ListenAndServe() error {
 	return f.listenErr
 }
 
-// Shutdown documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Shutdown records graceful-shutdown attempts made by run's signal goroutine.
+// Tests inject shutdownFunc to unblock ListenAndServe or return a controlled
+// shutdown error for log-path assertions.
 func (f *fakeServer) Shutdown(ctx context.Context) error {
 	f.shutdowns++
 	if f.shutdownFunc != nil {
@@ -237,12 +344,15 @@ func (f *fakeServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// Address documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Address returns the fake listen address used in startup log assertions. It
+// avoids constructing a real stdServer when tests only need the server contract.
 func (f *fakeServer) Address() string {
 	return f.addr
 }
 
-// overrideMainDeps documents the data flow for cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// overrideMainDeps snapshots package-level seams that main and run use for
+// configuration, server construction, signal handling, and logging. Each test
+// defers the returned restore function so overrides do not leak across cases.
 func overrideMainDeps(t *testing.T) func() {
 	t.Helper()
 

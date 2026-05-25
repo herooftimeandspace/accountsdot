@@ -7,6 +7,61 @@ import (
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/auth"
 )
 
+// TestP000C001StaffDomainAllowlistGate is the named Phase 0 dev evidence for
+// the staff-domain gate. It calls the production Google identity evaluator with
+// verified identity-shaped input so allowed staff domains can reach role
+// mapping, while non-staff domains are denied before those same role mappings
+// can grant access.
+func TestP000C001StaffDomainAllowlistGate(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{{Group: "wizard-it-admins@wusd.org", Roles: []string{auth.RoleITAdmin}}}
+
+	allowedIdentities := []string{
+		"alex@wusd.org",
+		"casey@it.wusd.org",
+		"avery@staff.wusd.org",
+		" Mixed.Case@IT.WUSD.ORG ",
+	}
+	for _, email := range allowedIdentities {
+		t.Run("allows "+email, func(t *testing.T) {
+			decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+				Email:  email,
+				Groups: []string{"wizard-it-admins@wusd.org"},
+			})
+			if !decision.Authorized {
+				t.Fatalf("decision denied %q: %#v", email, decision)
+			}
+			assertContains(t, decision.Roles, auth.RoleITAdmin)
+		})
+	}
+
+	deniedIdentities := []struct {
+		email  string
+		reason string
+	}{
+		{email: "student@stu.wusd.org", reason: "denied_domain"},
+		{email: "vendor@example.org", reason: "domain_not_allowed"},
+		{email: "contractor@external.wusd.org", reason: "domain_not_allowed"},
+	}
+	for _, tt := range deniedIdentities {
+		t.Run("denies "+tt.email, func(t *testing.T) {
+			decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+				Email:  tt.email,
+				Groups: []string{"wizard-it-admins@wusd.org"},
+			})
+			if decision.Authorized {
+				t.Fatalf("decision authorized %q before domain gate: %#v", tt.email, decision)
+			}
+			if decision.Reason != tt.reason {
+				t.Fatalf("reason = %q, want %q", decision.Reason, tt.reason)
+			}
+			if len(decision.Roles) != 0 {
+				t.Fatalf("roles = %#v, want none because domain gate runs before role mapping", decision.Roles)
+			}
+		})
+	}
+}
+
 func TestEvaluateGoogleIdentityAppliesDomainGateBeforeRoleMapping(t *testing.T) {
 	policy := auth.DefaultPolicy()
 	policy.GroupRoleMappings = []auth.GroupRoleMapping{{Group: "wizard-it-admins@wusd.org", Roles: []string{auth.RoleITAdmin}}}
@@ -33,6 +88,43 @@ func TestEvaluateGoogleIdentityAppliesDomainGateBeforeRoleMapping(t *testing.T) 
 				t.Fatalf("reason = %q, want %q", decision.Reason, tt.reason)
 			}
 		})
+	}
+}
+
+// TestP000C002StudentDomainDenyGate records the Phase 0 student-domain safety
+// scenario. It feeds the evaluator an otherwise role- and site-mapped identity
+// and intentionally misconfigures the allowed-domain list to prove
+// @stu.wusd.org remains a hard denial before role authorization.
+func TestP000C002StudentDomainDenyGate(t *testing.T) {
+	policy := auth.Policy{
+		AllowedEmailDomains: []string{"stu.wusd.org", "wusd.org"},
+		GroupRoleMappings: []auth.GroupRoleMapping{
+			{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
+		},
+		AttributeRoleMappings: []auth.AttributeRoleMapping{
+			{Attribute: "wizard_role", Values: []string{"Site Secretary"}, Roles: []string{auth.RoleSiteSecretary}},
+		},
+		SiteScopeMappings: []auth.SiteScopeMapping{
+			{SourceType: "group", Source: "wizard-clover-scope@wusd.org", Sites: []string{"clover-hs"}},
+		},
+	}
+
+	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "Student.Helper@stu.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-clover-scope@wusd.org"},
+		Attributes: map[string][]string{
+			"wizard_role": {"Site Secretary"},
+		},
+	})
+
+	if decision.Authorized {
+		t.Fatalf("student-domain identity authorized despite matching roles and site scope: %#v", decision)
+	}
+	if decision.Reason != "denied_domain" {
+		t.Fatalf("reason = %q, want denied_domain", decision.Reason)
+	}
+	if decision.Email != "student.helper@stu.wusd.org" {
+		t.Fatalf("email = %q, want canonical student address", decision.Email)
 	}
 }
 
@@ -67,6 +159,69 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 	assertContains(t, decision.SiteScopes, "clover-hs")
 	if decision.Email != "casey.teacher@staff.wusd.org" {
 		t.Fatalf("email = %q, want canonical lowercase address", decision.Email)
+	}
+}
+
+// TestP000C003GoogleGroupAndAttributeRoleMapping is the named Phase 0 dev
+// verification for the production authorization evaluator. It proves current
+// Google group and SAML attribute inputs are the source of roles and same-URL
+// route access, while a staff-domain identity with no mapping receives access
+// denied rather than partial content.
+func TestP000C003GoogleGroupAndAttributeRoleMapping(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
+	}
+	policy.AttributeRoleMappings = []auth.AttributeRoleMapping{
+		{Attribute: "wizard_role", Values: []string{"Device Wrangler"}, Roles: []string{auth.RoleDeviceWrangler}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "group", Source: "wizard-bpl-scope@wusd.org", Sites: []string{"bpl"}},
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"clover-hs"}},
+	}
+
+	secretary := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "secretary@staff.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-bpl-scope@wusd.org"},
+	})
+	if !secretary.Authorized {
+		t.Fatalf("secretary decision denied: %#v", secretary)
+	}
+	if !auth.AuthorizeRoute(secretary, "/student-data-cleanup").Allowed {
+		t.Fatalf("secretary should access student data cleanup: %#v", secretary)
+	}
+	if !auth.AuthorizeRoute(secretary, "/onboarding").Allowed {
+		t.Fatalf("secretary should access onboarding: %#v", secretary)
+	}
+	if route := auth.AuthorizeRoute(secretary, "/data-quality"); route.Allowed || route.Reason != "route_not_allowed" {
+		t.Fatalf("secretary data-quality route decision = %#v, want route_not_allowed", route)
+	}
+
+	wrangler := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email: "wrangler@wusd.org",
+		Attributes: map[string][]string{
+			"wizard_role": {"Device Wrangler"},
+			"wizard_site": {"Clover HS"},
+		},
+	})
+	if !wrangler.Authorized {
+		t.Fatalf("wrangler decision denied: %#v", wrangler)
+	}
+	if !auth.AuthorizeRoute(wrangler, "/frequent-fliers").Allowed {
+		t.Fatalf("wrangler should access frequent fliers: %#v", wrangler)
+	}
+	if route := auth.AuthorizeRoute(wrangler, "/student-data-cleanup"); route.Allowed || route.Reason != "route_not_allowed" {
+		t.Fatalf("wrangler student-data-cleanup route decision = %#v, want route_not_allowed", route)
+	}
+
+	noMapping := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email: "known.staff@it.wusd.org",
+	})
+	if noMapping.Authorized || noMapping.Reason != "no_role_mapping" {
+		t.Fatalf("known staff without mapping decision = %#v, want no_role_mapping denial", noMapping)
+	}
+	if route := auth.AuthorizeRoute(noMapping, "/student-data-cleanup"); route.Allowed || route.Reason != "no_role_mapping" {
+		t.Fatalf("known staff route decision = %#v, want inherited no_role_mapping denial", route)
 	}
 }
 
@@ -170,6 +325,68 @@ func TestEvaluateGoogleIdentityReflectsChangedAssignments(t *testing.T) {
 	}
 	if !slices.Equal(after.SiteScopes, []string{"whs"}) {
 		t.Fatalf("after scopes = %#v, want whs", after.SiteScopes)
+	}
+}
+
+func TestEvaluateGoogleIdentityRecalculatesSiteScopeFromCurrentPolicy(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-site-admins@wusd.org", Roles: []string{auth.RoleSiteAdmin}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"clover-hs"}},
+	}
+	identity := auth.GoogleIdentity{
+		Email:  "admin@staff.wusd.org",
+		Groups: []string{"wizard-site-admins@wusd.org"},
+		Attributes: map[string][]string{
+			"wizard_site": {"Clover HS"},
+		},
+	}
+
+	before := auth.EvaluateGoogleIdentity(policy, identity)
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"windsor-high"}},
+	}
+	after := auth.EvaluateGoogleIdentity(policy, identity)
+
+	if !before.Authorized || !after.Authorized {
+		t.Fatalf("expected both current-policy decisions authorized, got before=%#v after=%#v", before, after)
+	}
+	if !slices.Equal(before.SiteScopes, []string{"clover-hs"}) {
+		t.Fatalf("before scopes = %#v, want clover-hs", before.SiteScopes)
+	}
+	if !slices.Equal(after.SiteScopes, []string{"windsor-high"}) {
+		t.Fatalf("after scopes = %#v, want windsor-high", after.SiteScopes)
+	}
+}
+
+func TestEvaluateGoogleIdentityRemovesStaleSiteScopeWhenAssignmentDisappears(t *testing.T) {
+	policy := auth.DefaultPolicy()
+	policy.GroupRoleMappings = []auth.GroupRoleMapping{
+		{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
+	}
+	policy.SiteScopeMappings = []auth.SiteScopeMapping{
+		{SourceType: "group", Source: "wizard-clover-scope@wusd.org", Sites: []string{"clover-hs"}},
+	}
+
+	authorized := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "secretary@staff.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org", "wizard-clover-scope@wusd.org"},
+	})
+	changed := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
+		Email:  "secretary@staff.wusd.org",
+		Groups: []string{"wizard-site-secretaries@wusd.org"},
+	})
+
+	if !authorized.Authorized || !slices.Equal(authorized.SiteScopes, []string{"clover-hs"}) {
+		t.Fatalf("expected initial assignment authorized for clover-hs, got %#v", authorized)
+	}
+	if changed.Authorized {
+		t.Fatalf("removed site assignment left stale authorization: %#v", changed)
+	}
+	if changed.Reason != "single_site_role_scope_conflict" {
+		t.Fatalf("reason = %q, want single_site_role_scope_conflict", changed.Reason)
 	}
 }
 

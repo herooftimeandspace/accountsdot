@@ -270,15 +270,27 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - the application has safe environments, durable orchestration primitives, auth gates, provider connectivity, observability, and admin control surfaces before operational writes are trusted
 - Success gates:
   - separate `dev`, `staging`, and `main` datasets are operational with documented refresh procedures
-  - health checks, auditability, global pause, and crash/retry safety exist before automation writes are enabled
+  - deployment examples expose explicit `ENVIRONMENT_ROLE` and
+    `ENVIRONMENT_DATA_MODE` markers for `dev`, `staging`, and `main`, with
+    staging marked as masked production-derived data until a sandbox strategy is
+    documented
+  - health checks, auditability, global pause, and crash/retry safety exist before automation writes are enabled; readiness and metrics must show paused, degraded, or missing-required-check states without implying the system is ready to claim work
+  - the callable API surface is documented by a generated OpenAPI contract that
+    marks DEV mock endpoints and accepted no-op placeholders separately from
+    planned or currently callable DB-backed runtime APIs
+  - job and outbox sequencing uses a shared `global_tick` ordering signal before worker or publisher order can affect downstream workflow behavior
   - IT Admin has emergency cutoff control through global pause and cadence controls before bad data can continue propagating
+  - global pause stops new worker job claims at the durable claim boundary while leaving staff UI, health, and diagnostic surfaces online for investigation and recovery
   - new write-capable workflows are proven in `dev` with mocks before real provider integrations are attempted
   - each workflow introduced in the phase has named mock scenarios that pass in `dev`
   - non-production Aeries and other provider access can be exercised safely without production-side write risk
+  - provider readiness checks can initialize mock-backed provider clients in `dev`, and any staging provider readiness probe remains read-only with writeback disabled
+  - provider readiness diagnostics distinguish intentional mocks from blocked live-mode configuration and make missing credentials, malformed URLs, and invalid certificate files visible through `/health/ready` before any partial provider startup can be mistaken for a safe state
 - Failure gates:
   - environment separation is unsafe or undocumented
   - real provider integrations are attempted before mock validation in `dev`
   - orchestration cannot recover safely from overlap or worker failure
+  - jobs or outbox events are selected by UUID, row id, timestamp, or payload order instead of `global_tick`
 
 ### Phase 1: Read-Side Visibility and Data-Quality Surfacing
 - Outcome:
@@ -436,7 +448,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Breakglass events must be auditable, including login attempts, successful emergency access, denied access, and sign-out where the local session layer can observe it.
 - Final authorization is based on SAML identity plus Google group or attribute-based role assignment.
 - Users may hit the same URL and receive different access results based on scope and role. Unauthorized users must see access denied, not filtered partial content.
-- The checked-in production authorization contract evaluates verified Google identity data in this order: canonical email, explicit denied-domain check, allowed-domain check, Google group role mapping, Google attribute role mapping, then group/attribute site-scope mapping. A user with a valid staff-domain account but no role mapping is authenticated but not authorized.
+- The checked-in production authorization contract evaluates verified Google identity data in this order: canonical email, explicit denied-domain check, allowed-domain check, Google group role mapping, Google attribute role mapping, group/attribute site-scope mapping, then same-URL route authorization. A user with a valid staff-domain account but no role mapping is authenticated but not authorized. The `@stu.wusd.org` denial is a non-removable safety floor even when deployment-specific domain configuration is customized.
+- Site-scope mappings that cannot be fully represented by Google groups or SAML attributes must be persisted in the application database through the `auth_site_scope_mappings` schema contract so they can be audited and promoted with the environment rather than hidden in frontend state.
+- Site scope must be recalculated from the current verified Google group membership, current SAML attributes, and current admin-approved mapping configuration whenever authorization is evaluated. A stale prior session, UI-selected site, database row, or earlier mapping result must not preserve cross-site access after the Google group/site assignment changes.
 - DEV persona switching remains mock/demo tooling only. It must not be treated as production authorization, and production SAML middleware must not trust the DEV persona cookie or the development-only shared mock session used by terminal tooling.
 - Production SAML runtime wiring still requires environment-managed Google Workspace metadata, assertion validation, and admin-approved role/site mapping values. Those settings must stay out of committed fixtures and should be supplied through deployment configuration or managed secret files.
 
@@ -464,6 +478,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Staging should determine the current school year from Aeries School Info and default `DatabaseYear` to `current school year - 1`.
 - Example: if Aeries School Info reports current school year `2025-2026`, staging should default to `DatabaseYear=2024`.
 - If Aeries School Info disagrees across schools, use the earliest start date and latest end date across all schools to define the district school year.
+- Staging evidence should record the resolved previous-year `DatabaseYear` request
+  parameter from sanitized School Info metadata and must not expose Aeries
+  credential material, auth headers, certificates, or raw student/staff records.
 - Teacher data must be queried from the distinct teacher-related API paths and converged with staff and scheduling data into one internal dashboard entity.
 - The join key between Aeries staff and teacher-related records is `StaffID`.
 - When Aeries `staff`, `teacher`, and `scheduling` disagree on a teacher's school or room before local overrides apply, the `staff` record wins.
@@ -502,6 +519,19 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Escape remains a batch-ingested source through SFTP rather than a live interactive data source.
 - Aeries remains a read-only API source whose data is converged into local projections for runtime use rather than queried live for every operator interaction.
 - Active Directory / LDAP should use a hybrid approach: retain only the minimal local identity and account facts needed for joins and workflow planning, while using live reads for collision-sensitive and write-sensitive operations.
+- Provider access modes for the current product are:
+
+  | Provider | Product access mode | Freshness expectation | Operator-facing implication |
+  | --- | --- | --- | --- |
+  | `Escape / SFTP` | `batch-only source` | `24h` import cadence | Employment and assignment state appears through local projections after import, with no live Escape lookup in operator pages. |
+  | `Aeries` | `projection-backed list/search` from read-only API sync | `1h` delta and `24h` full reconciliation | Student, staff, school, teacher, scheduling, and room-context facts are converged into local views instead of queried live for normal navigation. |
+  | `Active Directory / LDAP` | `projection-backed list/search` plus `live write-path verification` | `15m` delta where feasible and `24h` full reconciliation | Directory/account lists can use projections, while collision-sensitive and write-sensitive workflows must check live account state. |
+  | `Google` | `projection-backed list/search`, `live detail read`, and `live write-path verification` | `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Lists use projections; selected details and account, alias, group, license, or destructive actions verify current Google state. |
+  | `Zoom` | `projection-backed list/search`, `live detail read`, and `live write-path verification` | event acceleration where proven, `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Phone, extension, license, SLG, CAP, cleanup, and transfer surfaces use projections for lists and live reads for selected details or action paths. |
+  | `IncidentIQ` | `projection-backed list/search`, `live detail read`, and ticket-action `live write-path verification` | event acceleration where proven, `15m` delta, `24h` full reconciliation, and immediate post-write refresh for app-created ticket actions | Ticket and asset queues avoid live fan-out, while selected tickets and app-created ticket updates verify current provider state. |
+  | `InformedK12` | `projection-backed list/search` for trigger/event facts only | event acceleration where proven, `15m` delta, and `24h` full reconciliation | Form events may trigger workflow preparation, but broad operator search duplication of the form system is out of scope. |
+  | `Google Sheets` | `batch-only source` for migration inputs and compatibility exports, not runtime truth | no routine runtime freshness target; generated exports are versioned when published | Sheets do not drive normal dashboard behavior; future compatibility exports must verify staging tabs and sentinels before pointer application. |
+  | `Verkada` | `projection-backed list/search` only if a future approved workflow needs reference facts | deferred until a direct integration is approved | Current product treats Verkada follow-up as IncidentIQ ticket/configuration work rather than direct account provisioning. |
 - Operational site-alias mapping that affects phone and permission scope currently includes:
   - `MOT` → site code `1`
   - `WELL` → site code `1`
@@ -1127,6 +1157,7 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - Event-driven updates accelerate freshness but do not replace scheduled delta syncs and daily full reconciliations. For API-backed projection surfaces, the preferred refresh target is `15m` deltas where provider limits and environment safety allow.
 - Long-running sync jobs must be allowed to finish even if the next cadence window arrives while they are still running.
 - The system must not start conflicting overlapping runs for the same provider or sync job family, and must defer duplicate work cleanly so race conditions and clobbering do not occur.
+- Deferred duplicate starts must be represented as durable workflow state, not as transient log-only evidence. The deferred record must preserve the job family, scheduled cadence time, blocking active run, and overlap count while leaving the active run and provider work untouched.
 - If schedule overlap happens 5 times within 7 days for the same job family, the app must generate or update an operational ticket recommending cadence adjustment.
 - Create that cadence-adjustment ticket on behalf of the affected service account.
 - Do not reset the overlap counter on ticket creation; keep counting and keep updating the open ticket until a material cadence change is made.

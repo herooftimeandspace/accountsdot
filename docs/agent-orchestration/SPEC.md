@@ -70,6 +70,8 @@ The runner loads repo-local skill guidance from `.agents/skills/*/SKILL.md` befo
 
 If an expected skill is missing or unreadable, the run should stop with `agent-blocked` and name the missing path. Prompt rendering should include only applicable skill summaries and file paths, not every skill body.
 
+For Symphony work, the code-documentation skill is also the durable guardrail for recurring orchestration failures. It should force the prompt and handoff to cover queue-state invariants, workspace-recovery safety, review-thread lifecycle handling, handler-derived contract accuracy, and exhaustive validation coverage when those surfaces are touched.
+
 ### 5.2 GitHub Tracker Client
 
 The tracker client reads GitHub issue data through the GitHub app or authenticated `gh` CLI. It normalizes each issue into the domain model in section 6.
@@ -132,33 +134,81 @@ The workspace manager must not delete workspaces automatically on success. Reten
 
 The orchestrator owns the poll loop, runtime state, dispatch queue, retry queue, and reconciliation logic.
 
-The first checked-in implementation is `scripts/symphony_runner.mjs`. It is intentionally narrower than the full service described here: it can produce a dry-run issue/PR queue report, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, inspect thread-aware Codex Review feedback, resolve outdated Codex Review threads that were left unresolved after the reviewed line became obsolete, emit Browser evaluation requests, and record Browser results. It does not manually merge PRs, close issues, launch unattended issue workers, resolve current actionable review threads without an in-scope fix, or bypass human review.
+The public checked-in sync implementation is the Go CLI in `cmd/symphony`, with `scripts/symphony_runner.mjs` retained for direct Node-backed `report` and `ui-monitor` commands plus legacy adapter behavior while GitHub mutation paths are ported. The Go sync entrypoint owns Markdown source-corpus scanning, work-graph construction, capacity accounting, and top-level status decisions; the legacy adapter may still produce the underlying issue/PR queue report, dispatch eligible GitHub issues into deterministic workspaces and issue branches, render issue-specific Codex prompts, run the lock-protected `ui-improvements` monitor, discover repo-local skills, safely rebase known agent-owned PR branches, inspect thread-aware Codex Review feedback, resolve outdated Codex Review threads that were left unresolved after the reviewed line became obsolete, evaluate Phase 0 pull request merge readiness, emit Browser evaluation requests, and record Browser results. It does not run production/provider writeback, resolve current actionable review threads without an in-scope fix, or bypass documented review gates.
+
+Queue accounting must be outcome-driven. Work that finishes the tick as blocked, failed, or still waiting on external review must not be represented as runnable capacity, and actionable blockers must outrank passive waits in top-level status. The orchestrator should never report `idle` when only blocked-actionable work remains.
 
 The package scripts are:
 
-- `npm run symphony:report`: read-only queue and eligibility report.
-- `npm run symphony:ui-monitor`: lock-protected monitor for `origin/ui-improvements`.
-- `npm run symphony:test`: parser, lock, queue, skill-routing, Browser-result, and status-output self-tests.
+- `npm run symphony:report`: direct Node read-only queue and eligibility report while report remains Node-backed.
+- `npm run symphony:sync`: Go-backed repo-owned issue dispatcher and work-graph planner for `agent-ready` GitHub issues.
+- `npm run symphony:ui-monitor`: direct Node lock-protected monitor for `origin/ui-improvements` while monitor remains Node-backed.
+- `npm run symphony:test`: Go entrypoint that runs both the legacy Node self-test and Go Symphony tests.
 
-Dry-run mode must remain non-mutating. `npm run symphony:ui-monitor -- --dry-run` may read GitHub, inspect local worktrees, check health endpoints, and report which PR branches would be eligible for safe rebase, but it must not acquire the production monitor lock, update branches, write runner state, restart dev servers, change issues or PRs, or invoke Browser.
+Go-backed Symphony package scripts must run through the repo-local wrapper that forces repo-local `GOCACHE`, repo-local `GOMODCACHE`, and `GOFLAGS=-modcacherw`, then normalizes the local module cache back to user-writable permissions after the Go command exits. The wrapper must ignore inherited cache paths so daemon, test, TUI, status, and control commands never mutate host-global Go state, while the post-run permission normalization prevents generated-cache teardown and self-healing workspace cleanup from repeatedly failing on read-only module-cache directories.
+
+The Go runner must scan repo-authored `*.md` files before phase planning or dispatch. It prioritizes `README.md`, repo-level `AGENTS.md`, `.agents/**/*.md`, and `docs/**/*.md`; extracts headings, phase references, issue references, acceptance criteria, target branch mentions, safety rules, and verification commands; and exposes the result as `source_corpus` in JSON. Vendored, generated, dependency, cache, build, and evidence-output paths are excluded unless a checked-in document explicitly marks them authoritative.
+
+Dry-run mode must remain non-mutating. `npm run symphony:sync -- --dry-run --json` may read GitHub issues and PRs, rank eligible issues, route repo-local skills, and report which workspaces and branches would be prepared. It must not create worktrees, branches, prompts, state files, issue comments, labels, or PRs. `npm run symphony:ui-monitor -- --dry-run` may read GitHub, inspect local worktrees, check health endpoints, and report which PR branches would be eligible for safe rebase, but it must not acquire the production monitor lock, update branches, write runner state, restart dev servers, change issues or PRs, or invoke Browser.
+
+The dispatcher now prepares work for Codex and launches the configured repo-owned agent command. A non-dry-run `sync` tick first evaluates the Phase 0 pull request queue, then creates or reuses one workspace per selected issue under the configured `dispatch.workspace_root`, creates a branch from the issue's target branch using `branching.branch_template`, writes `prompt.md`, invokes `dispatch.agent_runner_command` from the prepared worktree, writes agent stdout/stderr into the issue `logs/` directory, writes per-issue `state.json`, and updates the dispatcher status file. The approved runner command is `codex --ask-for-approval never exec --json --sandbox workspace-write --cd {repo} -`, which reads the rendered prompt from stdin and executes with workspace-scoped write access. The dispatcher must launch that command with a per-workspace writable `CODEX_HOME` rooted at `dispatch.agent_runner_codex_home_root`; that home may symlink existing operator auth/config/plugin files but must keep mutable Codex state databases and app-server files inside the Symphony workspace so automation workers do not write to, lock, or fail against the desktop app's `~/.codex` state.
+
+Issue prompts must include full issue-comment context, not just issue bodies. The dispatcher should paginate candidate issue discovery and then hydrate every candidate's open comment thread before rendering prompts or deciding that an older `agent-ready` issue has no actionable context. Hydrated issue comments are also the newest branch-directive authority: when multiple valid `Target branch:` lines exist, the newest valid comment directive overrides older comments and the issue body; invalid newer comment text is ignored so it cannot erase the last valid target branch. If no valid comment directive exists, the dispatcher falls back to the issue body and then the configured default integration branch.
 
 The `ui-improvements` branch reconciliation pass is deliberately conservative. It may rebase and push a non-draft PR branch only when the branch name matches the configured safe prefixes, the branch has a remote ref, the selected worktree is clean, and the local branch still matches `origin/<branch>` before rebase. Successful branch updates must use `git push --force-with-lease`. Dirty worktrees, divergent local branches, missing remote refs, and rebase conflicts are recorded as blocked reconciliation results for a later human or issue-worker pass.
 
-Codex Review reconciliation is also conservative. The monitor must read `reviewThreads` so it can distinguish active, resolved, and outdated inline feedback. It may automatically resolve only outdated unresolved threads authored by configured Codex Review accounts, because those comments no longer point at the current diff. Active Codex Review threads remain blocking review-remediation work until an agent applies an in-scope code or documentation fix, runs relevant verification, and records the evidence needed to resolve the thread.
+Codex Review reconciliation is also conservative. The Phase 0 synchronizer must read `reviewThreads` plus the implemented PR comment/reaction signal path so it can distinguish active, resolved, outdated, and pending review states. The `ui-monitor` path currently reads review threads only; teaching it to read top-level comment state is tracked by issue #326. They may automatically resolve only outdated unresolved threads authored by configured Codex Review accounts, because those comments no longer point at the current diff. When the synchronizer resolves any outdated thread, it must fetch review-thread state again before evaluating merge readiness so an obsolete conversation does not continue blocking a clean PR. Active Codex Review threads remain blocking review-remediation work until an agent applies an in-scope code or documentation fix, runs relevant verification, pushes the branch, and records the evidence needed to resolve or reply to the exact thread.
+
+Phase 0 clean PR merging is an orchestrator responsibility, not a heartbeat-prompt responsibility. For open PRs targeting `phase-0-platform-foundation`, `symphony:sync` should inspect merge state, checks, blocked labels, thread-aware Codex Review state, requested-changes reviews, fetched thread replies, and implemented PR conversation reactions before selecting more issue work. A PR may be merged automatically only when it is non-draft, cleanly mergeable, targeted to `phase-0-platform-foundation`, unblocked by labels, not missing required runtime evidence, and free of unresolved current Codex Review feedback in the fetched review-thread window. Codex Review is not complete merely because an `EYES` reaction disappeared. An eyes reaction means review is running in the background, and removal of that reaction is not approval. Implemented clean signals are a later thumbs-up reaction from `chatgpt-codex-connector[bot]` or a later top-level PR comment from a configured Codex Review author containing one of the configured `codex_review_success_comments` phrases, such as "all PR issues have been addressed", "merge is clean", or "no actionable feedback". A missing reaction, removed eyes reaction, or pending request means `waiting_for_codex_review`, not merge-ready. A newer `@codex` comment with a bot eyes reaction or with no later implemented clean signal is a pending review request when it appears in the fetched PR conversation window, even when older Codex Review comments exist. Full-history newest-request guarantees require paginated PR comment and review-thread retrieval before they may be treated as complete.
+
+Current unresolved Codex Review feedback is not a terminal orchestration blocker. It is a higher-priority remediation work item. The orchestrator should convert each blocked PR with actionable Codex Review threads into a review-remediation agent run in that PR's existing workspace. The linked issue may already be closed by the time review feedback arrives, so the remediation lane must still proceed when the PR workspace is available and the open-issue list no longer contains the source issue. The remediation prompt must include the PR URL, branch, target branch, linked issue when available, thread identifiers, thread URLs, file paths, line numbers, and comment excerpts. The orchestrator should resolve issue context only from explicit references such as `#123` or `issue-123`, reuse stable issue-number workspaces when title-derived slugs drift, preserve the actual PR target branch, and verify that the prepared repo is on the PR head branch before launching the agent. The agent owns inspecting the feedback, implementing the fix, running verification, committing and pushing the PR branch, and replying to or resolving the thread only after the pushed change makes the comment fixed or obsolete. If the workspace is missing, on the wrong branch, or ambiguous, the orchestrator records that exact remediation blocker without consuming a worker slot, then fills any remaining capacity with unrelated eligible issues. Dry-run output should perform the same prerequisite inspection and report the live-run blocker instead of optimistically claiming remediation would run.
+
+If Codex Review leaves actionable feedback after the PR has already merged, the orchestrator must not treat the merged branch as a live remediation target. Until issue #325 implements automated merged-PR intake, a human or watchdog should create one deduplicated `agent-ready` GitHub issue for each actionable thread. Once implemented, the intake should preserve the source PR, review thread id, thread URL, file path, line, severity, acceptance criteria, implementation notes, and verification expectations. These follow-up issues enter normal Symphony prioritization and should be dispatched ahead of ordinary phase work when they unblock orchestration reliability.
+
+Refreshing remediation workspaces must distinguish safe reuse from destructive recovery. The orchestrator may preserve local edits and refresh stale branches when the workspace is clearly tied to the PR head branch, but it must not discard local-only commits, depend on unstable stash reflog slots, or treat every merge failure as a content-conflict remediation case. Non-conflict merge failures, ambiguous branch state, and missing remote evidence remain blockers that require explicit reporting.
+
+Review waiting must be non-blocking. The orchestrator records the review request or pending signal, keeps that PR out of the merge lane, and continues selecting unrelated eligible issue work for any open worker slots instead of sleeping for several minutes. If issue work is dispatched while a PR remains `waiting_for_codex_review`, the top-level status should report the issue dispatch result; `waiting_for_codex_review` is the top-level status only when no higher-priority merge, remediation, or issue-dispatch result occurred. The next scheduled tick re-evaluates state. This prevents a single long wait from causing missed quarter-hour automation windows.
 
 On each tick, it should:
 
 1. Load and validate `.agents/WORKFLOW.md`.
-2. Read open candidate issues.
-3. Reconcile active runs with current issue state, branch state, and process state.
-4. Stop runs whose issues became ineligible.
-5. Select new eligible issues up to the concurrency limit.
-6. Prepare or reuse each issue workspace.
-7. Render the issue-specific prompt.
-8. Start the Codex runner.
-9. Record state and structured logs.
+2. Read open pull requests for the configured target branch and evaluate merge readiness.
+3. Merge clean approved PRs when the configured gates pass.
+4. Launch remediation agents for conflicted PRs or actionable Codex Review feedback before new issue work.
+5. Read open candidate issues.
+6. Reconcile active runs with current issue state, branch state, and process state.
+7. Stop runs whose issues became ineligible.
+8. Select new eligible issues up to the remaining concurrency limit after merge-ready PRs and runnable PR-remediation work are handled. Waiting-for-review PRs and blocked remediation prerequisites must not consume those issue slots.
+9. Prepare or reuse each issue workspace.
+10. Render the issue-specific prompt.
+11. Start the Codex runner.
+12. Record state and structured logs.
 
 The orchestrator should keep a single authoritative local state file. A database is not required for the first version.
+
+### 5.5.1 Local Daemon, Control Plane, And TUI
+
+Continuous Symphony operation is owned by the Go CLI, not by a long-running Codex automation prompt. `symphony daemon` runs a local tick loop, enforces a singleton lock under `/private/tmp/accountsdot-symphony`, persists `controller.json`, `status.json`, `status.md`, `runs.jsonl`, and worker state, and applies local operator controls between ticks.
+
+The daemon lock file includes daemon identity, PID, and filesystem mtime as the local heartbeat. Startup must keep a fresh lock when PID probing returns success or `EPERM`, because a fresh `EPERM` can mean another user owns the live daemon process. Startup may recover an old lock after the heartbeat age exceeds the daemon lock maximum even when PID probing returns `EPERM`; on shared hosts a crashed daemon PID can be reused by another user's process, and that must not block Symphony forever. PID probes that prove the process is inactive remain immediately recoverable.
+
+The daemon must publish an initial `controller.json`/`status.json` snapshot immediately after acquiring the singleton lock, before the first sync tick begins. Status readers must also reconcile stale status files against a newer, fresh live `daemon.lock`: if the lock heartbeat is within the daemon lock maximum, the lock PID is alive, and its daemon identity differs from the last controller snapshot, `symphony status` and the TUI report the lock identity as a running daemon with a stale/pending status message instead of showing the prior daemon's stopped, draining, or failed lifecycle. Old lock heartbeats are not live status evidence even when the recorded PID exists, because PID reuse by an unrelated process must not make a dead daemon appear healthy. The fresh lock is the stronger liveness signal; the status files remain the richer diagnostic surface once the daemon writes its next tick.
+
+The daemon supports pause, resume, drain, stop, cancel-worker, cancel as a backwards-compatible alias, and set-concurrency commands. Pause keeps observing local state but does not dispatch new workers. Drain stops new dispatch and exits after active work can be handed off safely. Stop requests graceful shutdown. Cancel records the worker cancellation and leaves the workspace inspectable for recovery.
+
+`symphony status --watch` and `symphony tui` are read/control clients over daemon state. The TUI may display lifecycle, worker capacity, runnable work, review waits, blocked actionable items, PR/review lanes, and recent logs, but it must not contain separate scheduling, issue-ranking, review-thread, merge, or self-healing policy. The TUI is also the local diagnostic surface for active workers: each visible worker row should include the worker identifier, issue or PR reference, current lane/status, elapsed runtime, retry count, latest event, branch, workspace, log pointer, and best-effort CPU percentage when the daemon has a local process ID for that worker. If no worker PID is available, CPU must be shown as unavailable instead of guessed.
+
+Codex automations are optional watchdog/backstop jobs. A watchdog checks whether the daemon status is fresh and exits when the daemon is healthy. If the daemon is inactive or stale and the workflow config allows fallback, the watchdog may run one `symphony sync` tick. It must never start a second daemon or duplicate orchestration policy in prompt text.
+
+### 5.5.2 Escalation Surfaces
+
+GitHub issues are Symphony's durable escalation surface. When Symphony discovers a concrete automation defect or workspace failure, it should create or update one deduplicated issue keyed by a stable fingerprint. The issue body or latest comment should include the exact blocker, affected workspace, related issue or PR numbers, dry-run evidence, acceptance criteria, safety constraints, and the next safe action.
+
+Automatable self-healing issues keep the configured self-healing labels, including `agent-ready`, and run ahead of ordinary phase work. They should not require operator attention unless they repeat, exhaust retry budget, or become non-automatable.
+
+Human decisions use the workflow's `human-review`, `agent-blocked`, and `symphony` labels. If cleanup could destroy source edits, the branch or workspace state is ambiguous, a destructive action is required, secrets or production writes are involved, or retries are exhausted, the runner must mark the work `blocked_human`, add a concise GitHub issue comment explaining the decision needed, and keep it out of runnable capacity.
+
+The daemon status files and TUI are the live awareness surface for these escalations. `status.json`, `status.md`, `runs.jsonl`, `symphony status --watch`, and `symphony tui` should make `blocked_human` items visible with issue links and the required operator decision. Codex chat is only an optional watchdog summary channel; it must link back to GitHub and daemon status rather than becoming the source of truth.
 
 ### 5.6 Agent Runner
 
@@ -471,7 +521,7 @@ The first runnable implementation should stay small:
 7. Require a human to push branches or open PRs until the review packet is trusted.
 8. Provide a maintenance mode for the existing `ui-improvements` monitor that is lock-protected, emits Browser evaluation requests, and stops on dirty latest-code worktrees instead of discarding local edits.
 
-This keeps the service useful while avoiding a premature always-on daemon.
+This keeps the service useful while avoiding premature hidden background behavior. Continuous operation should now be introduced through the explicit local daemon and TUI control surface described above, with Codex automation limited to watchdog/backstop duties.
 
 ## 18. Acceptance Criteria For This Contract
 

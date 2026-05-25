@@ -4,9 +4,22 @@
 This document defines the required process for creating and refreshing safe development and staging environments from production-derived data. The goal is to replace the current high-risk production-first workflow with a repeatable, testable environment strategy.
 
 ## Environment Roles
-- `dev`: freely breakable developer environment, mock-heavy by default.
-- `staging`: long-lived test environment for realistic end-to-end validation before promotion.
-- `main`: production.
+- `dev`: freely breakable developer environment, mock-heavy by default. Remote
+  deployment examples identify this role with `ENVIRONMENT_ROLE=dev`,
+  `APP_ENV=development`, `ENVIRONMENT_DATA_MODE=mock`, all `USE_MOCK_*` flags
+  set to `true`, and a `postgres-dev` database URL.
+- `staging`: long-lived test environment for realistic end-to-end validation
+  before promotion. Remote deployment examples identify this role with
+  `ENVIRONMENT_ROLE=staging`, `APP_ENV=staging`,
+  `ENVIRONMENT_DATA_MODE=masked-read-only`,
+  `ENVIRONMENT_DATA_SOURCE=masked-production-derived`, and a `postgres-staging`
+  database URL. After a provider sandbox strategy and write-safety approval are
+  documented, staging may use `ENVIRONMENT_DATA_MODE=sandbox` and
+  `ENVIRONMENT_DATA_SOURCE=documented-sandbox` instead.
+- `main`: production. Remote deployment examples identify this role with
+  `ENVIRONMENT_ROLE=main`, `APP_ENV=production`,
+  `ENVIRONMENT_DATA_MODE=production`, all `USE_MOCK_*` flags set to `false`,
+  and a `postgres-main` database URL.
 - Aeries exception: because no sandbox/staging tenant exists, realistic Aeries integration in non-production uses masked production-backed read-only data, ideally from previous school years.
 - Aeries staging should determine the current school year from Aeries School Info and default to `current school year - 1`.
 - Example: if Aeries School Info reports `2025-2026`, staging should default to `DatabaseYear=2024`.
@@ -29,6 +42,7 @@ This document defines the required process for creating and refreshing safe deve
 
 ## Required Output Documents and Assets
 - updated `docs/reference-inputs/VENDORED_INVENTORY.md` when a refresh changes vendored code or other reference inputs
+- passing `P0-0A-001` reference-input startup guard evidence when a refresh or deployment depends on repo-local reference snapshots
 - documented masking rules per source system
 - repeatable export scripts or jobs
 - repeatable masking transform scripts
@@ -92,6 +106,27 @@ This document defines the required process for creating and refreshing safe deve
   - determine current school year from Aeries School Info, then default staging to `current school year - 1`
   - if schools disagree, use the earliest start and latest end dates across schools to define the school year
   - preserve masking and omission rules before any non-production persistence
+  - the checked-in staging example disables only the Aeries mock provider and
+    keeps `AERIES_READ_ONLY=true`,
+    `AERIES_DATABASE_YEAR_MODE=previous_school_year`, and
+    `AERIES_MASKED_PREVIOUS_YEAR_ONLY=true`; this is a read-only connectivity
+    profile, not permission to write to Aeries
+  - startup/config evidence should pass sanitized School Info records into
+    `internal/provider.ResolveAeriesPreviousYearStagingConfig`, then record the
+    resolved `DatabaseYear` value and the `DatabaseYear=YYYY` query parameter
+    in the external IncidentIQ testing ticket or promotion runbook without
+    copying credentials, certificates, auth headers, or raw student/staff data
+- Provider readiness rule:
+  - the app's `/health/ready` provider diagnostics must show either `mocked`
+    for intentionally mocked providers or `ok` for live-mode providers whose
+    configuration labels pass the local readiness gate
+  - live-mode readiness failures must return `503` with a `provider_<name>`
+    dependency that names the missing or malformed environment label
+  - readiness failure drills must use staging-safe mock, sandbox, or masked
+    read-only configuration only; do not reuse production credentials to prove
+    a non-production failure path
+  - the detailed provider label list and `P0-0D-002` verification commands live
+    in `docs/operations/provider-readiness.md`
 
 ### Step 6. Validate the Staging Refresh
 - Validate record counts and key relationship counts.
@@ -152,6 +187,7 @@ This document defines the required process for creating and refreshing safe deve
 
 ### Every Refresh Must Record
 - vendored inventory manifest update when repo-local reference inputs changed
+- reference input snapshot integrity evidence from `go test ./internal/referenceinputs ./internal/config ./cmd/provisioner`
 - who ran it
 - when it ran
 - source snapshot used
@@ -170,10 +206,38 @@ This document defines the required process for creating and refreshing safe deve
   - ticket fallback behavior is verified where automation cannot complete
   - projection freshness and live action-path verification behavior are both understood for the affected provider
 
+### Environment Role Static Validation
+- `npm run environment-roles:check` is the Phase 0 static gate for scenario
+  `P0-0A-002` Environment Role Separation.
+- The check parses `deploy/env/dev.app.env.example`,
+  `deploy/env/staging.app.env.example`, `deploy/env/main.app.env.example`, the
+  matching database env examples, and `docker-compose.deploy.yml`.
+- The check fails when dev, staging, and main do not declare distinct
+  `ENVIRONMENT_ROLE`, `APP_ENV`, `ENVIRONMENT_DATA_MODE`, database names,
+  database users, database service URLs, or provider mock flags.
+- Dev verification is intentionally strict: the dev app example must stay
+  mock-backed and must keep every `USE_MOCK_*` provider flag enabled so a local
+  or remote dev run cannot depend on production-only data.
+- Staging verification accepts the current
+  `ENVIRONMENT_DATA_MODE=masked-read-only` plus
+  `ENVIRONMENT_DATA_SOURCE=masked-production-derived` pair, or the future
+  `ENVIRONMENT_DATA_MODE=sandbox` plus
+  `ENVIRONMENT_DATA_SOURCE=documented-sandbox` pair after a provider has a
+  documented sandbox strategy and safety approval. Staging provider mock flags
+  must remain explicit booleans so individual `USE_MOCK_*` settings can be
+  disabled only when the corresponding sandbox or masked/read-only provider
+  plan exists.
+- Compose verification checks that every `app-*` and `postgres-*` service loads
+  the matching role-specific env file, so a staging service cannot silently load
+  dev or main configuration while still passing service-name checks.
+- `scripts/run_local_ci.py` includes this check in every branch target so the
+  static role contract stays aligned with the checked-in branch gates.
+
 ### GitHub Branch Gates
 - Checked-in CI/CD branch-gate behavior is defined in `docs/operations/promotion-pipeline.md`.
 - `dev` validation is intentionally mock-heavy and local-first. It proves that repository tests, design sync checks, lint checks, and frontend build behavior are clean before work is proposed for `staging`.
 - `staging` validation includes the `dev` checks plus security and frontend accessibility checks. Staging remains the required proving ground for representative data, sandbox providers, masked production-derived data, and write-path safety evidence before production promotion.
+- `P0-0A-001` staging validation must prove the deployment uses only the checked-out `docs/reference-inputs/` corpus for required references. Workstation paths, cloud-drive paths, missing future snapshots, and links that escape the repository are blockers until the sanitized snapshot and `docs/reference-inputs/VENDORED_INVENTORY.md` entry are added.
 - `main` validation includes the `staging` checks plus release-prep static validation. Main promotion PRs must identify the external promotion runbook, the external IncidentIQ testing ticket, and release/deployment metadata before merge.
 - Automated promotion PRs require the `PROMOTION_PR_TOKEN` repository or organization secret. The token must be separate from `github.token` so GitHub creates ordinary `pull_request` checks for promotion PRs.
 - Workflow secrets and GitHub environments must keep staging and production credentials separate. If a required staging or production credential, environment, release label, deployment manifest, or product decision is missing, document that blocker in the issue or PR rather than guessing or reusing production credentials in staging.
@@ -190,6 +254,7 @@ This document defines the required process for creating and refreshing safe deve
   - that the local projection can tolerate ordinary provider or API lag without corrupting operator workflows
   - that targeted live verification can still protect action paths when the projection is stale
 - Staging validation should confirm that projection freshness targets and live verification expectations are appropriate for each provider before write-capable behavior is promoted.
+- Staging readiness review for `P0-0D-004` must reuse the provider capability classification matrix in `docs/planning/implementation-plan.md`. The reviewer should not create a separate staging-only classification; any provider mode or freshness change found during staging must be reflected back into the implementation plan, product requirements, and test matrix before promotion evidence is accepted.
 
 ## Provider-Specific Expectations
 - Zoom: test assignment, SLG changes, CAP handling, and limited-license reclamation without relying on production users or production devices.

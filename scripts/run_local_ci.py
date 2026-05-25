@@ -29,6 +29,7 @@ def _commands_for_target(target: str) -> list[tuple[str, list[str]]]:
     commands: list[tuple[str, list[str]]] = [
         ("npm-install", ["npm", "ci"]),
         ("pipeline-static-validation", [sys.executable, "scripts/check_ci_promotion.py"]),
+        ("environment-role-static-validation", ["npm", "run", "environment-roles:check"]),
         ("go-repo-tests", ["make", "test"]),
         ("pen-drift-check", ["npm", "run", "pen:check"]),
         ("pen-lint", ["npm", "run", "pen:lint"]),

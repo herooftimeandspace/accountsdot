@@ -22,8 +22,13 @@
 - External plans and legacy implementations may inform architecture, migration strategy, and edge-case handling, but do not override this document.
 - Any non-repo reference input relied on by this plan must be copied into `docs/reference-inputs/` so the spec is not brittle or tied to one workstation.
 - `docs/reference-inputs/VENDORED_INVENTORY.md` is the authoritative provenance and refresh ledger for the repo-local reference corpus and must be updated in the same pass as any vendored snapshot refresh.
-- Required vendored reference inputs currently called out for implementation:
+- Required vendored reference inputs enforced at service startup for the current Phase 0 baseline:
   - `docs/reference-inputs/VENDORED_INVENTORY.md`
+  - `docs/reference-inputs/README.md`
+  - `docs/reference-inputs/branding/Firefly.png`
+  - `docs/reference-inputs/branding/google-g.png`
+  - `docs/reference-inputs/branding/Wordmarks/Gold W black outline.png`
+- Additional reference inputs called out by later provider, migration, data-seeding, and design work must be vendored before that implementation relies on them:
   - `docs/reference-inputs/pipeline/CODEX_GIST_DEV_STAGING_MAIN_PIPELINE.md`
   - `docs/reference-inputs/vendor-code/aeries_ad_sync/Students/`
   - `docs/reference-inputs/vendor-code/aeries-sis-sdk-golang/`
@@ -48,6 +53,7 @@
   - `docs/reference-inputs/zoom/zoomus_ca_template_2026-04-20.csv`
   - `docs/reference-inputs/zoom/zoomus_user_template_2026-04-20.csv`
   - `docs/reference-inputs/branding/WUSD21 Mascot Style Guide.pdf`
+- The startup guard for `P0-0A-001` validates the current mandatory baseline and local links inside the reference-input docs. Future files in the additional list above must not be read from workstation paths; add sanitized repo-local snapshots and inventory entries before using them in code, tests, staging configuration, or promotion evidence.
 - Official branding assets for dashboard use should come from:
   - `docs/reference-inputs/branding/`
   - note: the shared folder snapshot is organized largely by site, and `CLA` is currently not present there
@@ -57,6 +63,7 @@
 - `docs/planning/implementation-plan.md` is the authoritative execution spec and decision log for behavior that affects implementation.
 - `docs/product/product-requirements.md` must capture the business-facing WHAT of the product, including goals, users, workflows, inputs, outputs, visibility rules, and out-of-scope items for technical and non-technical review.
 - `docs/operations/environment-data-playbook.md` must document the exact steps required to derive and refresh mock and staging environments from production-safe source data.
+- `docs/operations/reference-input-snapshot-integrity.md` must document the current startup-required reference input baseline, the clear missing-snapshot failure mode, and the dev/staging evidence expected for `P0-0A-001`.
 - `docs/agent-orchestration/SPEC.md` is the authoritative local contract for Symphony-style Codex agent orchestration against GitHub Issues, including issue eligibility, workspace isolation, branch naming, retries, reconciliation, observability, handoff, and safety boundaries. `.agents/WORKFLOW.md` is the runner-readable prompt/config contract that future orchestration tooling should load before dispatching any issue work.
 - `docs/reference-inputs/VENDORED_INVENTORY.md` must record the current repo-local reference corpus, including vendored source provenance, branch/ref selection, refresh date, and any intentional scope narrowing such as subtree-only snapshots.
 - `docs/testing/test-matrix.md` must track the named mock scenarios, verification coverage, and phase/workflow test expectations used for promotion decisions.
@@ -288,42 +295,19 @@
   - explicit `Refresh` actions may perform targeted live reads rather than full-table provider fan-out
   - all write-capable workflows must do live read-before-write and live read-after-write
   - if live provider truth disagrees with the projection during an action path, the live provider result wins for that action and the local projection must be refreshed
-- Provider recommendations for the current product:
-  - `Escape / SFTP`
-    - authoritative mode: `batch-only source`
-    - local use: normalized employment and assignment facts plus import metadata
-    - live UI dependency: none
-    - preferred cadence: `24h`
-  - `Aeries`
-    - authoritative mode: `projection-backed list/search`
-    - local use: minimal read-only student, staff, school, scheduling, and room-context facts needed for joins and workflows
-    - live UI dependency: no normal live list UI dependency
-    - preferred cadence: `1h` delta and `24h` full reconciliation
-  - `Active Directory / LDAP`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live write-path verification`
-    - local use: minimal identity and account facts required for joins, orphan detection, naming, and workflow planning
-    - live reads required for: username collision checks, rename verification, deprovision verification, and other write-sensitive operations
-  - `Google`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
-    - local use: minimal identity, alias, login-activity, and group-membership facts needed for workflows and audit
-    - preferred cadence: `15m` delta, `24h` full reconciliation, and immediate post-write refresh
-  - `Zoom`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read` and `live write-path verification`
-    - local use: minimal user, phone, extension, license, SLG, CAP, and queue facts needed for directory, transfer, and cleanup behavior
-    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
-  - `IncidentIQ`
-    - authoritative mode: hybrid `projection-backed list/search` plus `live detail read`
-    - local use: minimal user linkage, ticket linkage, and ticket status facts needed for workflow visibility and operator queues
-    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
-  - `InformedK12`
-    - authoritative mode: normalized trigger and event facts only
-    - local use: workflow-triggering and preparatory facts, not broad operator-search duplication
-    - preferred cadence: event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation
-  - `Google Sheets`
-    - authoritative mode: compatibility export only
-    - local use: none as a runtime source of truth
-    - live UI dependency: none
-    - preferred cadence: export on demand or through compatibility workflows only
+- Provider capability classification matrix for the current product:
+
+  | Provider | Authoritative source mode | Projection freshness target | Live detail read | Live write-path verification | Events/webhooks | Local persistence and implementation boundary |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | `Escape / SFTP` | `batch-only source` | `24h` import cadence | No | No | No | Persist normalized employment and assignment facts plus import metadata. Do not design interactive Escape lookups or a full Escape mirror. |
+  | `Aeries` | `projection-backed list/search` from read-only API sync | `1h` delta and `24h` full reconciliation | No for routine list/detail navigation | No; Aeries is read-only in the planned product | Not assumed | Persist minimal student, staff, school, scheduling, and room-context facts needed for joins and workflows. Staging uses masked previous-year reads when no sandbox exists. |
+  | `Active Directory / LDAP` | Hybrid `projection-backed list/search` plus `live write-path verification` | `15m` delta where feasible and `24h` full reconciliation | Only when a selected workflow step needs current account state | Yes for collision checks, rename verification, deprovision verification, and other write-sensitive operations | Not assumed | Persist minimal identity and account facts required for joins, orphan detection, naming, and workflow planning. Live provider truth wins on action paths. |
+  | `Google` | Hybrid `projection-backed list/search`, `live detail read`, and `live write-path verification` | `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Yes for selected user/group/detail refresh | Yes for every write-capable account, alias, group, license, or destructive action path | Not assumed for v1 | Persist minimal identity, alias, login-activity, and group-membership facts needed for workflows and audit. |
+  | `Zoom` | Hybrid `projection-backed list/search`, `live detail read`, and `live write-path verification` | Event-driven acceleration where supported, `15m` delta, `24h` full reconciliation, and immediate post-write refresh | Yes for selected user, phone, extension, license, SLG, CAP, and queue detail refresh | Yes for every write-capable phone, license, account, entitlement, cleanup, or transfer action path | Yes, where tenant support is proven | Persist minimal user, phone, extension, license, SLG, CAP, and queue facts needed for directory, transfer, and cleanup behavior. Scheduled reconciliation remains the backstop for missed events. |
+  | `IncidentIQ` | Hybrid `projection-backed list/search`, `live detail read`, and ticket-action `live write-path verification` | Event-driven acceleration where supported, `15m` delta, `24h` full reconciliation, and immediate post-write refresh for app-created ticket actions | Yes for selected ticket, asset, requester, or action-sensitive status refresh | Yes for app-created ticket, subtask, status, owner, and close/update actions | Not assumed until proven in tenant | Persist minimal user linkage, asset linkage, ticket linkage, and ticket status facts needed for workflow visibility and operator queues. |
+  | `InformedK12` | `projection-backed list/search` for workflow trigger/event facts only | Event-driven acceleration where supported, `15m` delta, and `24h` full reconciliation | No normal operator live-detail dependency | No planned provider write path in the current product | Where supported, as an accelerator only | Persist workflow-triggering and preparatory event facts only. Do not create broad operator-search duplication or a full form-system mirror. |
+  | `Google Sheets` | `batch-only source` for migration inputs and compatibility exports; not a runtime source of truth | No routine runtime freshness target; publish outputs are versioned when generated | No | Yes only for future compatibility-export publish paths, with staging-tab sentinel validation and pointer-swap verification | No | Do not use Sheets as a runtime source of truth. Future export writes must validate staging tabs, sentinels, checksums, and pointer application before replacing a visible sheet. |
+  | `Verkada` | `projection-backed list/search` only when future workflows need local reference facts | Deferred until a direct integration is approved | No current live-detail dependency | No direct provider write path in the current product; create or update IncidentIQ follow-up tickets instead | Not assumed | Treat account or door-access follow-up as external IncidentIQ configuration/ticket work unless a later phase explicitly approves a direct Verkada integration. |
 
 ### Pre-Phase 0: Frontend Design and DEV UI Iteration
 - Purpose:
@@ -479,19 +463,35 @@
   - PostgreSQL schema and migrations
   - durable workflow/job engine, leases, recovery loop, outbox, health endpoints, metrics, global pause
   - staff-only access gate, role-aware authorization skeleton, breakglass support
+  - production authorization evaluator for verified Google SAML identity inputs, including group/attribute role mapping, site-scope mapping, and same-URL route denial
+  - persistent `auth_site_scope_mappings` schema for manual site-scope mappings when Google groups or SAML attributes do not fully express scope
   - provider credential/config plumbing and read-only connectivity checks
+  - generated OpenAPI contract for the current callable API surface, including
+    explicit labels for DEV mock endpoints, accepted no-op placeholders, planned
+    DB-backed runtime APIs, and currently callable DB-backed or conditional
+    runtime APIs
   - IT Admin settings for timezone and sync cadence
   - IT Admin emergency cutoff controls, including immediate global pause before downstream writes can continue
   - masked staging and environment-refresh playbook
   - repo-local reference inputs and authoritative docs
 - Success gates:
   - `dev`, `staging`, and `main` are treated as separate datasets with documented refresh procedures
-  - `/health/live` and `/health/ready` validate required dependencies without manual DB repair
+  - `/health/live` and `/health/ready` validate required dependencies without manual DB repair, and `/health/ready` fails closed when required DB, sequence, import-staging storage, or Google service-account readiness checks are missing or failing
   - job overlap protection, recovery, and audit trails exist before automation writes are enabled
   - staff-only domain gate and breakglass logic are working in non-production
   - IT Admin can stop the system quickly through global pause/cadence controls before bad data propagates to downstream systems
   - new write-capable workflows are proven in `dev` with mocks before any real provider integration is attempted
   - Aeries masked previous-year staging access is proven without touching live production writes
+  - `docs/api/openapi-source.json` remains the editable API-contract source,
+    `docs/api/openapi.json` and `internal/web/openapi_spec_gen.go` are
+    regenerated from it, and `npm run openapi:check` fails when registered
+    `/api/v1` routes, operation coverage, or generated outputs drift
+  - checked-in deploy examples for `dev`, `staging`, and `main` declare distinct
+    `ENVIRONMENT_ROLE`, `APP_ENV`, `ENVIRONMENT_DATA_MODE`, database targets,
+    provider mock settings, and Compose env-file wiring. `npm run
+    environment-roles:check` fails if those role boundaries drift, while still
+    allowing staging to move from masked read-only data to a documented sandbox
+    profile after sandbox strategy and write-safety approval exist.
 - Failure gates:
   - any write path depends on unmasked production-only testing
   - real provider integrations are attempted before mock validation in `dev`
@@ -508,17 +508,22 @@
     - overlap-prevention evidence for duplicate job-family suppression
   - `0C` auth gate, breakglass, global pause, and IT Admin emergency controls
     - allow/deny auth-gate evidence for staff and student domains
+    - Google group and SAML attribute mapping evidence showing staff users receive only currently mapped roles and unmapped staff users receive access denied for the same URL
     - breakglass access evidence for configured named local accounts, denied source addresses, unknown accounts, and sanitized audit records
     - global-pause runtime evidence showing new claims stop without bringing down diagnostics
   - `0D` provider configuration, read-only connectivity, and dev mock scaffolding
     - provider readiness success evidence against mocks
-    - provider readiness failure evidence for missing or bad credentials/config
+    - provider readiness failure evidence for missing or bad credentials/config; current configuration coverage feeds `/health/ready` with sanitized `provider_<name>` diagnostics and fails closed for blocked live-mode provider setup without opening live network connections
     - safe Aeries previous-year staging configuration evidence
-    - evidence that each provider is documented with the intended batch, projection-backed, live-detail, and live-write-verification behavior before implementation begins
+    - evidence that the provider capability classification matrix above documents each provider with the intended `batch-only source`, `projection-backed list/search`, `live detail read`, and `live write-path verification` behavior before implementation begins
+    - staging readiness evidence must use the same provider capability classification matrix and freshness expectations rather than a separate staging-only interpretation
   - `0E` health checks, metrics, readiness gates, and promotion plumbing
     - `/health/live` and `/health/ready` evidence under healthy and degraded conditions
     - observability evidence for pause/dependency state
     - promotion-gate evidence showing required scenario checks are enforced
+    - OpenAPI generation evidence showing DEV-only, accepted no-op, planned
+      DB-backed, and callable runtime surfaces stay distinguishable for
+      frontend/runtime clients
 - Named workflow scenarios to sync with `docs/testing/test-matrix.md`:
   - `0A` repo-local safety artifacts and environment playbooks
     - `P0-0A-001` Reference Input Snapshot Integrity
@@ -541,8 +546,11 @@
     - `P0-0D-004` Provider Access Modes Classified Before Implementation
   - `0E` health checks, metrics, and promotion plumbing
     - `P0-0E-001` Readiness Fails Closed on Missing Dependency
+      - focused dev verification: `go test ./internal/web -run 'TestHealth(ReadyFailsClosedOnMissingRequiredDependency|ReadyFailsDependency|ReadyAllowsMissingOptionalSFTPCheck|Routes)$'`
+      - `/health/ready` must return `503 Service Unavailable` for missing required DB, sequence, import-staging storage, or Google service-account checks while `/health/live` continues to return a process-level `200 OK`
     - `P0-0E-002` Health Endpoints Reflect Pause and Dependency State
     - `P0-0E-003` Promotion Gate Requires Named Scenario Passes
+    - `P0-0E-004` OpenAPI Contract Distinguishes Callable And DEV Surfaces
 
 - Rollback triggers for this phase:
   - `0A`: trigger rollback if required repo-local reference inputs are missing, linked docs resolve outside the repo, or environment-role separation is incorrect.
@@ -2153,8 +2161,10 @@
 - Until Google-group authorization is fully built, site scope is maintained through manual mapping managed by IT Admin.
 - Initial production-auth implementation boundary:
   - `internal/auth` owns the checked-in Google identity evaluation contract for verified SAML identities.
-  - Startup config parses `AUTH_ALLOWED_EMAIL_DOMAINS`, `AUTH_DENIED_EMAIL_DOMAINS`, `GOOGLE_SAML_*`, `GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON`, `GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON`, and `GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON`.
-  - The evaluator applies domain checks before any role or site-scope mapping, explicitly denies `@stu.wusd.org`, authorizes only identities with at least one mapped role, and recalculates site scope from current group/attribute inputs each request.
+  - Startup config parses `AUTH_ALLOWED_EMAIL_DOMAINS`, `AUTH_DENIED_EMAIL_DOMAINS`, `GOOGLE_SAML_*`, `GOOGLE_AUTH_GROUP_ROLE_MAPPINGS_JSON`, `GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON`, and `GOOGLE_AUTH_SITE_SCOPE_MAPPINGS_JSON`. `AUTH_DENIED_EMAIL_DOMAINS` can add deployment-specific blocked domains, but it cannot remove the `@stu.wusd.org` safety floor from the checked-in startup policy.
+  - The evaluator applies domain checks before any role or site-scope mapping, explicitly denies `@stu.wusd.org`, authorizes only identities with at least one mapped role, and recalculates site scope from current group/attribute inputs each request. The student-domain denial remains active even if a deployment-specific allowed-domain override accidentally includes the student domain.
+  - Site-scope recalculation is deliberately stateless in this Phase 0 boundary. The evaluator uses only the current policy mapping plus the current verified Google group and SAML attribute values supplied for that request. It does not reuse a previous session, database, UI, or cached site list, so a changed Google group, changed SAML site attribute, removed site assignment, or updated mapping JSON replaces the previous scope on the next evaluation.
+  - `P0-0C-001` verification uses `go test ./internal/auth ./internal/config -run 'TestP000C001'` as the narrow dev and staging parity check until live SAML assertion handling exists. `TestP000C001StaffDomainAllowlistGate` proves the three staff domains can reach role mapping while non-staff domains are denied before role mapping; `TestP000C001DevAndStagingShareStaffDomainGate` proves the repository default staff-domain policy is identical for development and staging configuration loading.
   - Group and attribute mappings are case-insensitive for matching. Role ids and site ids should use the same stable application ids documented in the permissions matrix and route behavior.
   - DEV persona switching remains isolated to development endpoints and must not become a production authorization source.
   - This boundary does not yet validate SAML assertions, create a production session cookie, persist manual site-scope mappings in the database, or implement the local breakglass runtime. Those are follow-up implementation steps after Google Workspace SAML metadata, group names, attribute names, and manual site-scope administration decisions are approved.
@@ -2174,7 +2184,7 @@
 - Current local breakglass implementation:
   - `POST /api/v1/breakglass/login` is enabled only when `APP_ENV` is `development` or `staging`; production must continue to use the documented SAML/Google authorization model. In staging, normal DEV persona login remains disabled, and only a valid breakglass cookie can consume the local DEV session/page routes needed for emergency IT Admin access.
   - The route is separate from `/api/v1/dev/login`, so DEV persona switching cannot act as a breakglass flow.
-  - `BREAKGLASS_ACCOUNTS` lists named local emergency account ids. Each account requires a per-account SHA-256 token hash environment variable named `BREAKGLASS_TOKEN_SHA256_<SANITIZED_ACCOUNT_ID>`. Account ids that would collide after env-name sanitization are rejected so separate named accounts cannot share one credential by accident. Raw breakglass tokens must not be committed, logged, copied into tickets, or stored in docs.
+  - `BREAKGLASS_ACCOUNTS` lists named local emergency account ids. Each account requires a per-account SHA-256 token hash environment variable named `BREAKGLASS_TOKEN_SHA256_<SANITIZED_ACCOUNT_ID>`. Missing or malformed token hashes make the whole breakglass configuration invalid instead of silently dropping the named account. Account ids that would collide after env-name sanitization are rejected so separate named accounts cannot share one credential by accident. Raw breakglass tokens must not be committed, logged, copied into tickets, or stored in docs.
   - Every configured breakglass account maps to the local IT Admin persona for this non-production slice. Editable role/permission mapping remains out of scope for this issue and belongs with the permissions-model work.
   - `BREAKGLASS_ALLOWED_CIDRS` can override the default `10.23.0.0/16,10.19.100.0/24` source restriction. Direct requests use `RemoteAddr` for CIDR checks. `X-Forwarded-For` is trusted only when the immediate peer address matches `BREAKGLASS_TRUSTED_PROXY_CIDRS`, so staging reverse proxies must be explicitly configured before forwarded client addresses affect access decisions.
   - Breakglass session cookies are marked `Secure` for staging and for HTTPS requests.
@@ -2321,6 +2331,14 @@
   - query the provider first
   - if the intended effect already exists and matches the job intent, mark the step succeeded
   - only perform a write if reconciliation proves it is still needed
+- Phase 0 job-lease recovery starts with local database evidence before live provider writes exist:
+  - `internal/db.ClaimNextJob` claims the oldest eligible queued job by `global_tick`, moves it to `running`, and records `lease_owner`, `lease_expires_at`, and `lease_heartbeat_at`
+  - `internal/db.RecoverExpiredJobLeases` finds expired `running` leases with `FOR UPDATE SKIP LOCKED`, moves them to `recovering`, clears claim ownership, returns the previous owner and nullable heartbeat details for runtime evidence, and also returns already-`recovering` rows so an interrupted recovery loop can reconcile them on the next pass
+  - `internal/db.ReconcileRecoveredJob` checks `external_request_log` before requeueing; an existing `outcome = 'succeeded'` row marks the job `succeeded` without another execution, while no success row moves the job back to `queued` and increments `attempt_count`
+  - worker and recovery-loop callers must run these primitives inside `internal/db.WithRetry` so recovery preserves the repository's `SERIALIZABLE` transaction rule
+  - `internal/db.ListOutboxEvents` reads `event_outbox` rows in `global_tick` order for Phase 0 ordering evidence and future publisher loops; it is read-only and does not acknowledge, delete, publish, or write provider state
+  - staging evidence for `P0-0B-001` should run the same claim, expired-lease recovery, and external-request-log reconciliation flow against staging infrastructure without manual database repair
+  - staging evidence for `P0-0B-002` should insert concurrent jobs and outbox events in staging-safe configuration, then show selected rows follow `global_tick` order even when row ids, UUID-backed subjects, or timestamps do not provide the same ordering guarantee
 - Starting with Phase 2, live writeback also requires a what-if validation pass before provider mutation and a pilot allowlist check immediately before the write call. The only approved live-write targets are `bsisko@wusd.org` and `test-lcampbell-stu@stu.wusd.org` until a later project-owner-approved PR explicitly changes the merged allowlist. Provider workers must treat any non-allowlisted, ambiguous, missing, or unmerged-approval target as a hard pre-write denial, not as a warning or manual override.
 
 ## Zoom Rules
@@ -2559,6 +2577,10 @@
   - if schools disagree, use the earliest start date and latest end date across all schools to define the district school year
   - staging default should be `current school year - 1`
   - example: if Aeries School Info says current school year is `2025-2026`, staging default `DatabaseYear=2024`
+  - Phase 0 code-level evidence uses
+    `internal/provider.ResolveAeriesPreviousYearStagingConfig` to fail closed
+    unless staging is masked production-derived, read-only, previous-year-only,
+    and using `AERIES_DATABASE_YEAR_MODE=previous_school_year`
 
 ## Google Sheets Publishing
 - Google Sheets publishing is not the authoritative runtime source for the dashboard.
@@ -2607,6 +2629,9 @@
   - `/health/ready`
   - `/health`
 - `/health/ready` must validate DB connectivity, sequence access, local import-staging path read/write access, configured SFTP reachability in integration mode, and Google service-account token acquisition.
+- Missing required DB, sequence, import-staging path, or Google service-account readiness checks must be treated as degraded readiness rather than skipped checks. Unwired SFTP remains `not_configured` until integration-mode configuration provides a check, but a configured SFTP failure must also degrade readiness.
+- `/health/live` stays online during `system_controls.global_pause` and does not execute DB-backed dependency or control checks, so diagnostics remain reachable even when the database is slow or unavailable. `/health/ready` and `/health` must return `503` with `status:"paused"` when global pause is active and dependencies are otherwise healthy. If global pause and a dependency failure are both present, readiness must return `status:"degraded"` so the pause signal does not hide the outage.
+- `/metrics` must expose bounded, non-secret gauges for process liveness, readiness, global pause, and named dependency readiness. The checked-in health-observability runbook is `docs/operations/health-observability.md`.
 
 ## Provider Protection
 - Circuit breakers use exponential backoff `1s → 2s → 4s`, then pause only the affected queue for 15 minutes before a half-open probe.
@@ -2618,7 +2643,7 @@
   - workers execute jobs, recovery reconciles expired leases, and janitor loops clean residual state
 - Core orchestration types:
   - `WorkflowType`: `person_onboard`, `person_update`, `person_same_site_transfer`, `person_site_transfer`, `person_leave`, `person_terminate`, `room_coverage`, `directory_publish`, `context_refresh`
-  - `WorkflowRunState`: `planned`, `running`, `waiting_manual`, `blocked`, `recovering`, `succeeded`, `failed`, `canceled`
+  - `WorkflowRunState`: `planned`, `deferred`, `running`, `waiting_manual`, `blocked`, `recovering`, `succeeded`, `failed`, `canceled`
   - `ApprovalState`: `not_required`, `pending`, `approved`, `rejected`, `expired`
   - `ProviderKind`: `hr_sftp`, `aeries`, `zoom`, `google_sheets`, `internal`
 - Planner rules:
@@ -2647,6 +2672,9 @@
   - `Google Sheets`: optional compatibility exports only, not the authoritative dashboard data plane
 - Scheduler overlap protection:
   - if a scheduled sync family is still running when its next cadence window arrives, do not start a conflicting second run for that same provider/job family
+  - Phase 0 stores the scheduled family key on `workflow_runs.job_family`, the cadence window on `workflow_runs.scheduled_for`, the blocking run on `workflow_runs.deferred_from_run_id`, and overlap evidence on `workflow_runs.overlap_state` plus `workflow_runs.overlap_count`
+  - schedule-start code must serialize decisions for the same `job_family` with a transaction-scoped PostgreSQL advisory lock before it reads or inserts `workflow_runs`
+  - a duplicate scheduled start records a new `deferred` workflow run with `overlap_state = deferred_due_to_active_run`; it must not change the still-running workflow row, job leases, or provider state
   - allow the in-flight run to continue until complete, then carry any deferred work into the next eligible cycle without duplicate writes
   - track overlap/overrun frequency per scheduled job family
   - after 5 overlaps within 7 days for the same job family, raise or update an operational IncidentIQ ticket recommending cadence adjustment

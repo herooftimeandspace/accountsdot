@@ -35,6 +35,7 @@ type WorkflowRunState string
 
 const (
 	WorkflowRunStatePlanned       WorkflowRunState = "planned"
+	WorkflowRunStateDeferred      WorkflowRunState = "deferred"
 	WorkflowRunStateRunning       WorkflowRunState = "running"
 	WorkflowRunStateWaitingManual WorkflowRunState = "waiting_manual"
 	WorkflowRunStateBlocked       WorkflowRunState = "blocked"
@@ -82,7 +83,10 @@ type WorkflowJob struct {
 	ApprovalRequired bool
 }
 
-// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Valid reports whether a workflow type is one of the planner-supported
+// lifecycle, directory, or sync workflows. Planner tests and route handlers use
+// this guard before accepting operator intent, so adding a workflow type must
+// update this switch before jobs can be planned or persisted.
 func (v WorkflowType) Valid() bool {
 	switch v {
 	case WorkflowTypePersonOnboard,
@@ -104,7 +108,10 @@ func (v WorkflowType) Valid() bool {
 	}
 }
 
-// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Valid reports whether a change reason can be stored with a planned workflow
+// or DEV mock action. These values explain why a workflow exists, so invalid
+// strings are rejected before they can hide assignment, transfer, reactivation,
+// or contractor-collision decisions from tests and operator diagnostics.
 func (v WorkflowChangeReason) Valid() bool {
 	switch v {
 	case WorkflowChangeReasonAssignmentAdd,
@@ -121,10 +128,14 @@ func (v WorkflowChangeReason) Valid() bool {
 	}
 }
 
-// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Valid reports whether a workflow run status can be persisted or returned from
+// database orchestration helpers. Scheduled-run overlap protection depends on
+// `deferred` being valid so a cadence tick can record work that must wait
+// without mutating the still-running family owner.
 func (v WorkflowRunState) Valid() bool {
 	switch v {
 	case WorkflowRunStatePlanned,
+		WorkflowRunStateDeferred,
 		WorkflowRunStateRunning,
 		WorkflowRunStateWaitingManual,
 		WorkflowRunStateBlocked,
@@ -138,7 +149,10 @@ func (v WorkflowRunState) Valid() bool {
 	}
 }
 
-// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Valid reports whether an approval state belongs to the workflow approval
+// contract used by planner output, approval routes, and database rows. Rejected
+// values keep tests and handlers from treating unknown approval text as an
+// executable workflow decision.
 func (v ApprovalState) Valid() bool {
 	switch v {
 	case ApprovalStateNotRequired,
@@ -152,7 +166,10 @@ func (v ApprovalState) Valid() bool {
 	}
 }
 
-// Valid documents the data flow for internal/core/workflow.go. Domain logic, orchestrator code, and tests reach this function; debug it by checking enum validity, projection inputs, and expected workflow state outputs. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
+// Valid reports whether a provider key is part of the current planner and job
+// execution contract. The scheduler, planner tests, and external-write
+// inventory use this list to separate internal work from provider-specific
+// planned operations before any live SDK write exists.
 func (v ProviderKind) Valid() bool {
 	switch v {
 	case ProviderKindHRSFTP,

@@ -24,6 +24,7 @@ This directory holds all repository documentation except the root `README.md` an
 ## Developer Guides
 
 - [Code documentation guide](developer/code-documentation-guide.md): code-comment and write-path documentation expectations.
+- [Phase 0 database schema review guide](developer/phase-0-database-schema.md): table, field, index, constraint, lifecycle, retry, lease, outbox, sensitive-field, and direct SQL review guidance for Phase 0 database inspection.
 - [Code path walkthroughs](developer/code-paths/): high-risk workflow walkthroughs for onboarding, room moves, shared help, and sync overrides.
 
 ## Design And Reference Material
