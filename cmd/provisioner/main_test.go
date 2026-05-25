@@ -11,6 +11,7 @@ import (
 
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/config"
 	"github.com/herooftimeandspace/go-employee-provisioner/internal/provider"
+	"github.com/herooftimeandspace/go-employee-provisioner/internal/web"
 )
 
 // TestMainDelegatesToRunMain exercises and documents cmd/provisioner/main_test.go. Repo tests call this function to lock down the behavior described here; use failing assertions and breakpoints in this test path to debug regressions. It accepts the parameters in its signature, returns the declared result values, and the expected output is the behavior asserted by nearby tests or consumed by direct callers.
@@ -106,6 +107,38 @@ func TestNewServerReportsProviderReadinessFailure(t *testing.T) {
 	std.Handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "provider_zoom") {
 		t.Fatalf("live health = %d %s, want process-only ok", rec.Code, rec.Body.String())
+	}
+}
+
+// TestBaseHealthDependenciesPopulatesRequiredStartupChecks proves the
+// cmd/provisioner readiness wiring can become healthy when DB probes pass.
+// Import-path and Google callbacks must be present before the handler starts,
+// otherwise internal/web reports missing_required_check for required checks.
+func TestBaseHealthDependenciesPopulatesRequiredStartupChecks(t *testing.T) {
+	deps := baseHealthDependencies(config.Config{
+		ProviderReadiness: []provider.ReadinessConfig{
+			{Provider: provider.ProviderNameGoogle, UseMock: true},
+		},
+	})
+	deps.DBReady = func(context.Context) error { return nil }
+	deps.SequenceReady = func(context.Context) error { return nil }
+	deps.GlobalPaused = func(context.Context) (bool, error) { return false, nil }
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec := httptest.NewRecorder()
+	web.NewHealthHandler(deps).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`"import_path":"ok"`, `"google":"ok"`, `"provider_google":"mocked"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("health body = %s, want %s", body, want)
+		}
+	}
+	if strings.Contains(body, "missing_required_check") {
+		t.Fatalf("health body = %s, want all required startup checks populated", body)
 	}
 }
 

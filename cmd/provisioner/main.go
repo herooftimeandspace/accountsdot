@@ -119,50 +119,82 @@ func run(baseCtx context.Context) error {
 // must never receive raw driver text that could include hostnames, SQL,
 // usernames, or credential fragments.
 func newHealthDependenciesFromEnv(cfg config.Config) (web.HealthDependencies, func()) {
+	deps := baseHealthDependencies(cfg)
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		return web.HealthDependencies{ProviderReady: providerDiagnostics(cfg)}, nil
+		return deps, nil
 	}
 
 	pool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
-		deps := failedHealthDependencies(errHealthDatabaseConfigInvalid)
-		deps.ProviderReady = providerDiagnostics(cfg)
+		deps = withFailedDatabaseHealthDependencies(deps, errHealthDatabaseConfigInvalid)
 		return deps, nil
 	}
 
-	deps := web.HealthDependencies{
-		DBReady: func(parent context.Context) error {
-			ctx, cancel := context.WithTimeout(parent, 2*time.Second)
-			defer cancel()
-			return sanitizeHealthProbeError(pool.Ping(ctx))
-		},
-		SequenceReady: func(parent context.Context) error {
-			ctx, cancel := context.WithTimeout(parent, 2*time.Second)
-			defer cancel()
-			var allowed bool
-			if err := pool.QueryRow(ctx, `select has_sequence_privilege('global_tick_seq', 'USAGE')`).Scan(&allowed); err != nil {
-				return sanitizeHealthProbeError(err)
-			}
-			if !allowed {
-				return errHealthDependencyUnavailable
-			}
-			return nil
-		},
-		GlobalPaused: func(parent context.Context) (bool, error) {
-			ctx, cancel := context.WithTimeout(parent, 2*time.Second)
-			defer cancel()
-			var paused bool
-			err := pool.QueryRow(ctx, `select enabled from system_controls where control_name = 'global_pause'`).Scan(&paused)
-			if errors.Is(err, pgx.ErrNoRows) {
-				return false, nil
-			}
-			return paused, sanitizeHealthProbeError(err)
-		},
-		ProviderReady: providerDiagnostics(cfg),
+	deps.DBReady = func(parent context.Context) error {
+		ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+		defer cancel()
+		return sanitizeHealthProbeError(pool.Ping(ctx))
+	}
+	deps.SequenceReady = func(parent context.Context) error {
+		ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+		defer cancel()
+		var allowed bool
+		if err := pool.QueryRow(ctx, `select has_sequence_privilege('global_tick_seq', 'USAGE')`).Scan(&allowed); err != nil {
+			return sanitizeHealthProbeError(err)
+		}
+		if !allowed {
+			return errHealthDependencyUnavailable
+		}
+		return nil
+	}
+	deps.GlobalPaused = func(parent context.Context) (bool, error) {
+		ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+		defer cancel()
+		var paused bool
+		err := pool.QueryRow(ctx, `select enabled from system_controls where control_name = 'global_pause'`).Scan(&paused)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return paused, sanitizeHealthProbeError(err)
 	}
 
 	return deps, pool.Close
+}
+
+// baseHealthDependencies wires readiness checks that are available before the
+// optional database pool exists. Config loading has already validated the
+// repo-local reference input baseline; the import_path callback marks that
+// required startup guard as present, while Google readiness reuses sanitized
+// provider metadata so live-mode configuration still fails closed.
+func baseHealthDependencies(cfg config.Config) web.HealthDependencies {
+	return web.HealthDependencies{
+		ImportPathReady: func(context.Context) error {
+			return nil
+		},
+		GoogleReady: func(context.Context) error {
+			status := provider.ConfigurationDiagnostics(cfg.ProviderReadiness)[provider.ProviderNameGoogle]
+			if provider.ConfigurationStatusReady(status) {
+				return nil
+			}
+			return errHealthDependencyUnavailable
+		},
+		ProviderReady: providerDiagnostics(cfg),
+	}
+}
+
+func withFailedDatabaseHealthDependencies(deps web.HealthDependencies, err error) web.HealthDependencies {
+	sanitizedErr := sanitizeHealthProbeError(err)
+	deps.DBReady = func(context.Context) error {
+		return sanitizedErr
+	}
+	deps.SequenceReady = func(context.Context) error {
+		return sanitizedErr
+	}
+	deps.GlobalPaused = func(context.Context) (bool, error) {
+		return false, sanitizedErr
+	}
+	return deps
 }
 
 // providerDiagnostics adapts sanitized config metadata into the health callback
