@@ -41,36 +41,6 @@
         },
         {
           "type": "frame",
-          "id": "f91",
-          "name": "Rect",
-          "x": 1546,
-          "y": 90,
-          "width": 106,
-          "height": 38,
-          "fill": "#CEB770",
-          "cornerRadius": 8,
-          "layout": "none",
-          "stroke": {
-            "thickness": 1,
-            "fill": "#CEB770",
-            "align": "inside"
-          }
-        },
-        {
-          "type": "text",
-          "id": "t92",
-          "content": "Refresh",
-          "x": 1574,
-          "y": 101,
-          "fontFamily": "Arial",
-          "fontSize": 13,
-          "fontWeight": "700",
-          "fill": "#01161E",
-          "width": 50,
-          "textGrowth": "auto"
-        },
-        {
-          "type": "frame",
           "id": "f93",
           "name": "Rect",
           "x": 288,

@@ -1787,36 +1787,6 @@
     },
     {
       "type": "frame",
-      "id": "student-data-cleanup__f74",
-      "name": "Rect",
-      "x": 1546,
-      "y": 90,
-      "width": 106,
-      "height": 38,
-      "fill": "#CEB770",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#CEB770",
-        "align": "inside"
-      }
-    },
-    {
-      "type": "text",
-      "id": "student-data-cleanup__t75",
-      "content": "Refresh",
-      "x": 1574,
-      "y": 101,
-      "fontFamily": "Arial",
-      "fontSize": 13,
-      "fontWeight": "700",
-      "fill": "#01161E",
-      "width": 50,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "frame",
       "id": "student-data-cleanup__f76",
       "name": "Rect",
       "x": 288,
@@ -2031,62 +2001,6 @@
       "fontWeight": "400",
       "fill": "#01161E",
       "width": 201,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "text",
-      "id": "student-data-cleanup__t88",
-      "content": "Last sync:  May 2, 2025 9:05 AM PT",
-      "x": 842,
-      "y": 266,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "400",
-      "fill": "#01161E",
-      "width": 221,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "text",
-      "id": "student-data-cleanup__t89",
-      "content": "Next sync: ~ in 55 minutes",
-      "x": 842,
-      "y": 288,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "400",
-      "fill": "#01161E",
-      "width": 169,
-      "textGrowth": "auto"
-    },
-    {
-      "type": "frame",
-      "id": "student-data-cleanup__f90",
-      "name": "Rect",
-      "x": 1140,
-      "y": 262,
-      "width": 90,
-      "height": 30,
-      "fill": "#FFFFFF",
-      "cornerRadius": 8,
-      "layout": "none",
-      "stroke": {
-        "thickness": 1,
-        "fill": "#DDE2E3",
-        "align": "inside"
-      }
-    },
-    {
-      "type": "text",
-      "id": "student-data-cleanup__t91",
-      "content": "Sync now",
-      "x": 1159,
-      "y": 270,
-      "fontFamily": "Arial",
-      "fontSize": 12,
-      "fontWeight": "700",
-      "fill": "#01161E",
-      "width": 52,
       "textGrowth": "auto"
     },
     {

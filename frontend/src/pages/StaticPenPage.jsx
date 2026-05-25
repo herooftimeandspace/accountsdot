@@ -10,7 +10,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ROOM_MOVES_COMPLETED_ENDPOINT = "/api/v1/dev/room-moves/completed";
@@ -297,7 +296,10 @@ const STATIC_DRAWER_CONFIGS = {
 };
 
 /**
- * StaticDrawerOverlay renders the UI surface for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * StaticDrawerOverlay adds row hotspots and the shared RuntimeDrawer to static
+ * generated report artboards. StaticPenPage owns the selected row state, and
+ * this component converts the configured label/value tuples into drawer detail
+ * rows without fetching data or mutating DEV mock state.
  */
 function StaticDrawerOverlay({ config, selectedRow, onSelectRow, onClose }) {
   return (
@@ -333,7 +335,10 @@ function StaticDrawerOverlay({ config, selectedRow, onSelectRow, onClose }) {
 }
 
 /**
- * readJSON loads or decodes data for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * readJSON normalizes DEV Admin room-move reversal responses for this static
+ * page overlay. It returns decoded JSON on 2xx responses and throws an Error
+ * carrying the HTTP status plus decoded error payload so callers can surface
+ * backend validation messages without logging raw response bodies elsewhere.
  */
 async function readJSON(response) {
   const payload = await response.json().catch(() => ({}));
@@ -347,7 +352,10 @@ async function readJSON(response) {
 }
 
 /**
- * AdminRoomMoveRevertOverlay renders the UI surface for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/planning/external-write-inventory.md when it triggers mutations.
+ * AdminRoomMoveRevertOverlay is the IT Admin-only runtime layer above the
+ * static Admin artboard. It reads completed DEV room-move jobs, lets an IT
+ * Admin schedule a full reversal through the DEV mock API, and keeps those
+ * mock-only writes visible through local status messages and row updates.
  */
 function AdminRoomMoveRevertOverlay({ session, onNavigate }) {
   const isItAdmin = session?.current_persona?.id === "it_admin";
@@ -363,7 +371,10 @@ function AdminRoomMoveRevertOverlay({ session, onNavigate }) {
     }
     const controller = new AbortController();
     /**
-     * loadCompletedJobs loads or decodes data for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+     * loadCompletedJobs populates the reversal table from the DEV room-move
+     * completed-jobs endpoint. The abort controller prevents a stale response
+     * from updating React state after the user leaves the Admin page or switches
+     * away from the IT Admin persona.
      */
     async function loadCompletedJobs() {
       setState("loading");
@@ -390,7 +401,10 @@ function AdminRoomMoveRevertOverlay({ session, onNavigate }) {
   }, [isItAdmin]);
 
   /**
-   * revertJob documents runtime data flow for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller. Pay special attention to side effects: this path may update React state, browser storage, cookies, or DEV mock APIs and should stay aligned with docs/planning/external-write-inventory.md when it triggers mutations.
+   * revertJob posts an IT Admin-confirmed full reversal request for one
+   * completed room-move job to the DEV mock API. A successful response marks
+   * that row with the created reversal draft id; failures remain local UI
+   * messages and do not hide backend validation details from the operator.
    */
   async function revertJob(job) {
     const confirmed = window.confirm(
@@ -470,7 +484,10 @@ function AdminRoomMoveRevertOverlay({ session, onNavigate }) {
 }
 
 /**
- * StaticPenPage renders the UI surface for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+ * StaticPenPage renders generated `.pen` artboards for implemented pages whose
+ * visible content is still mostly static. It adds only shared-shell overlays,
+ * optional row-detail drawers, and the Admin room-move reversal runtime layer;
+ * it no longer injects the retired shared refresh primitive into static pages.
  */
 export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, searchQuery = "" }) {
   const [selectedStaticDrawerRow, setSelectedStaticDrawerRow] = useState(null);
@@ -496,10 +513,12 @@ export function StaticPenPage({ artboardKey, session, onNavigate, onSearch, sear
     searchQuery,
     activeNavKey: meta?.activeNav ?? null,
     activeRoutePath: STATIC_PAGE_ACTIVE_ROUTE_PATHS[artboardKey] ?? null,
-    refreshMetadata: staticRefreshMetadataForArtboard(artboardKey),
   });
   /**
-   * renderOverlay documents runtime data flow for frontend/src/pages/StaticPenPage.jsx. The React router renders this page/helper after route resolution in frontend/src/app.jsx; debug it by following props, fetch calls, overlay state, and matching /api/v1/dev backend handlers. Inputs are the parameters or props in the signature; output is the returned value, rendered JSX, or state transition consumed by the caller.
+   * renderOverlay combines the shared shell overlays with page-local runtime
+   * affordances for the current generated artboard. Static report drawers use
+   * local selected-row state, while the Admin page adds the DEV-only reversal
+   * controls; no overlay path creates a default header refresh control.
    */
   const renderOverlay = (overlayProps) => (
     <>

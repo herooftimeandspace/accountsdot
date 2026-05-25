@@ -18,7 +18,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 
 const ARTBOARD_KEY = "student-data-cleanup";
@@ -142,7 +141,7 @@ function StudentDataDrawer({ row, onClose }) {
 }
 
 /**
- * StudentDataOverlay owns the live Student Data Cleanup table over the generated .pen shell. StudentDataCleanupPage supplies DEV mock rows, filter state, row-selection handlers, and sync button state; this component returns the searchable/sortable runtime table and keeps all displayed current-name values faithful to the Aeries source strings.
+ * StudentDataOverlay owns the live Student Data Cleanup table over the generated .pen shell. StudentDataCleanupPage supplies DEV mock rows, filter state, and row-selection handlers; this component returns the searchable/sortable runtime table, visible sync freshness context, and source-faithful current-name values from Aeries.
  */
 function StudentDataOverlay({
   rows,
@@ -274,17 +273,15 @@ function StudentDataOverlay({
 
 /**
  * StudentDataCleanupPage is the /student-data-cleanup route rendered by frontend/src/app.jsx after route authorization.
- * It loads the generated artboard shell, hides the obsolete static pane, renders runtime-owned filters/table/drawer
- * behavior, and passes the source reconciliation affordance through the shared page sync primitive. The sync callback
- * only simulates DEV freshness state for the button; no student record, Aeries value, provider API, or mock store is
- * mutated from this informational page.
+ * It loads the generated artboard shell, hides the obsolete static pane, and renders runtime-owned filters/table/drawer
+ * behavior plus read-only sync freshness metadata. This informational page does not mutate student records, Aeries
+ * values, provider APIs, or the DEV mock store.
  */
 export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQuery }) {
   const { artboard, status: artboardStatus } = useGeneratedArtboard(ARTBOARD_KEY);
   const meta = generatedArtboardMeta[ARTBOARD_KEY];
   const [filters, setFilters] = useState({ issueType: "all", grade: "all" });
   const [selectedRow, setSelectedRow] = useState(null);
-  const [syncState, setSyncState] = useState("idle");
   const locationSearch = typeof window === "undefined" ? "" : window.location.search;
   const rows = useMemo(
     () => studentDataCleanupRowsForSession(STUDENT_DATA_CLEANUP_ROWS, session),
@@ -300,10 +297,6 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
   });
   hiddenNodeIds.push(...paneNodeIds);
   const imageNodeOverrides = buildSharedShellImageOverrides(session);
-  const handleSync = useCallback(() => {
-    setSyncState("syncing");
-    window.setTimeout(() => setSyncState("idle"), 1400);
-  }, []);
   const sharedShellRenderOverlay = createSharedShellRenderOverlay({
     session,
     onNavigate,
@@ -311,15 +304,6 @@ export function StudentDataCleanupPage({ session, onNavigate, onSearch, searchQu
     searchQuery,
     activeNavKey: meta?.activeNav ?? "studentDataCleanup",
     activeRoutePath: "/student-data-cleanup",
-    pageSyncControl: {
-      label: "Sync now",
-      loadingLabel: "Syncing",
-      lastRefreshed: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
-      nextSyncText: "Next sync in 55 minutes",
-      loading: syncState === "syncing",
-      disabled: syncState === "syncing",
-      onAction: handleSync,
-    },
   });
   const semanticSummary = {
     title: "Student Data Cleanup",

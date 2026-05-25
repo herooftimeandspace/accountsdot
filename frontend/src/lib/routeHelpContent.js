@@ -434,7 +434,7 @@ const HELP_CONTENT_BY_ROUTE = {
       {
         heading: "Controls, filters, and table",
         paragraphs: [
-          "Use table search, issue type filters, grade filters, and sortable columns to find a student. The Sync now control rechecks the queue after upstream corrections have had time to sync.",
+          "Use table search, issue type filters, grade filters, and sortable columns to find a student. Corrections made upstream appear after the normal source-system sync cycle.",
           "Select a row to open the right drawer. The drawer compares current Aeries name values with suggested cleaned values only when the suggestion differs from the displayed current value.",
         ],
       },

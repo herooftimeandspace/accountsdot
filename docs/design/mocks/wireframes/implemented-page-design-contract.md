@@ -24,8 +24,8 @@ This contract makes the implemented-page UI rules from `docs/planning/implementa
 
 ## Shared Primitives
 
-- `Refresh`: the standard header refresh action is a Vegas Gold primary action with black text, `8px` radius, and the canonical header location declared in the generated implemented-page design manifest. Pages that expose header refresh must use this primitive.
-- `Page Sync/Refresh`: pages with last-refreshed metadata, next-sync metadata, manual refresh, or manual sync behavior use the shared runtime primitive aligned to the header refresh bounds. Use `Refresh` for targeted page rereads and `Sync now` for source reconciliation or DEV mock source-sync simulation. The primitive owns disabled/loading copy and accessible button names; page-local refresh buttons should only remain when a product requirement explicitly places an action outside the shared header. The primitive must not push page content to the right, widen the page canvas, or create blank vertical overflow beside the main content.
+- `Refresh`: the old inherited top-right shared header refresh button is retired for the current implemented-page slice. Authoritative `.pen` sources and generated artboards must not reserve the former header refresh slot unless a future page-specific requirement reintroduces a dedicated action.
+- `Page Sync/Refresh`: the old shared page sync/refresh runtime primitive is retired. Pages must not inherit `Refresh`, `Sync now`, `Last refreshed`, `Last synced`, or `Next sync` header clusters by default; any future page-specific freshness action must be documented in the PRD and implementation plan before implementation.
 - `Header Scope Dropdown`: implemented pages use one shared runtime dropdown primitive for the header scope field. The primitive owns the visible white control and focus ring so static `.pen` scope text cannot show behind it; pages with documented scope behavior, such as Phone Directory directory focus, provide their own options and change handler while preserving the shared style.
 - `Table`: tables use a shared top baseline across row cells. Multi-line cells grow the row downward; sparse cells and badges remain top-aligned.
 - `Table Controls`: runtime tables expose a shared table search field plus three-way sortable headers. Header sort cycles `None → Ascending → Descending → None`; each page defines its own default sort column. The search field filters against data available in that table and must not include values hidden from users who lack permission.
@@ -39,43 +39,31 @@ This contract makes the implemented-page UI rules from `docs/planning/implementa
 - `Action Link`: links that lead to external systems must be defined by product behavior, not created solely because a mock contains link-like text.
 - `Varsity Display Text`: any UI text rendered with the Varsity font must be authored in all lowercase. The product name remains `The WIZARD` in prose, metadata, and non-Varsity UI, but Varsity-rendered display text uses lowercase source copy rather than CSS-only transformation.
 
-### Page Sync/Refresh Primitive Contract
+### Retired Page Sync/Refresh Contract
 
-The shared page sync/refresh primitive is the only allowed implementation for implemented pages that show any combination of:
-
-- freshness metadata (`Last refreshed`, `Last synced`, or a page-specific equivalent)
-- optional next-sync timing
-- a manual `Refresh` action
-- a manual `Sync now` action
-
-This contract is intentionally narrow: it standardizes layout, copy, and accessibility to prevent page-local drift while still allowing pages to supply their own action handlers and timestamp values.
+The shared page sync/refresh primitive is retired for the current implemented-page slice. The default logged-in page contract is now no inherited header refresh action and no reserved freshness/action whitespace.
 
 #### Layout rules
 
-- When a page exposes a header-level action button (`Refresh` or `Sync now`), the freshness metadata cluster renders immediately to the left of the button with a visible `5px` gap.
-- The freshness metadata cluster may wrap to at most two lines when needed to avoid collisions, but it must not exceed the action button height.
-- The primitive must not:
-  - widen the page canvas
-  - introduce horizontal overflow
-  - create a tall blank vertical strip beside the main content
-  - detach the action button from its freshness metadata by pinning one of them to the viewport edge
+- Authoritative `.pen` files must remove the old top-right refresh button, adjacent freshness metadata, and any right-side whitespace reserved only for that retired primitive.
+- Generated manifests must not declare `refresh` as a default standard primitive for logged-in pages.
+- Runtime shared-shell overlays must not synthesize a page sync/refresh cluster from static artboard freshness metadata.
 
 #### Copy and semantics
 
-- `Refresh` means a targeted reread for the current surface (page, queue, report, or selected record context) without requesting a source-system reconciliation cycle.
-- `Sync now` means a source reconciliation request, or a DEV mock simulation of that reconciliation, that may update projections beyond the currently visible surface.
-- A page must choose one intentional action label (`Refresh` or `Sync now`). If a page genuinely needs both actions, that must be documented in `docs/product/product-requirements.md` as product behavior and implemented as an intentional two-action pattern (not ad hoc page-local buttons).
+- `Refresh` means a targeted reread for the current surface only when a page-specific requirement explicitly defines that action.
+- `Sync now` means a source reconciliation request only when a page-specific requirement explicitly defines that action.
+- A page-specific freshness action must document purpose, placement, freshness metadata, accessible name, disabled/loading state, and verification evidence before implementation.
 
 #### Accessibility and runtime behavior
 
-- The action control must have a stable accessible name matching the visible action label (`Refresh` or `Sync now`).
-- Disabled/loading state must preserve that accessible name and must not cause layout shift that moves neighboring header controls.
-- After the action completes successfully, the page should update the displayed freshness metadata to reflect the new read model state without requiring a full reload.
+- Retiring the shared primitive must not remove other shared-shell affordances such as search, scope selection, help, account menu, or role-filtered navigation.
+- A retained page-specific action must have a stable accessible name, keyboard focus state, and disabled/loading behavior that does not reintroduce layout shift.
 
 #### Where this lives
 
-- `.pen` sources own the canonical header/action geometry and spacing.
-- React owns the primitive implementation, timestamp formatting, disabled/loading state, and the page-specific callback behavior.
+- `.pen` sources own removal of the retired static header/action geometry and reserved whitespace.
+- React owns any documented page-specific behavior that remains after the retired shared primitive is removed.
 
 ## Status Badge And Button Color Inventory
 
@@ -100,7 +88,7 @@ Known cleanup target: migrate status rendering to a shared badge primitive so ru
 | Feedback touches | Primitive | Default layer | Durable guard |
 | --- | --- | --- | --- |
 | Header, sidebar, profile, search, scope, nav, support, notification, help, platform status | `shared shell` | `.pen layout` or `runtime behavior` | Shared shell manifest, lint rule, runtime access/navigation test, or docs update |
-| Header refresh, sync, freshness metadata, or repeated action placement/style | `refresh` or `action link` | `.pen layout` or `runtime behavior` | Standard primitive manifest, shared page sync/refresh primitive, lint rule, runtime interaction test, or docs update |
+| Header refresh, sync, freshness metadata, or repeated action placement/style | `refresh` or `action link` | `.pen layout` or `runtime behavior` | Retired shared primitive removal, page-specific docs, runtime interaction test, or docs update |
 | Row spacing, row baseline, dividers, table overflow | `table` | `.pen layout` | `npm run pen:lint` table diagnostics or promoted failure rule |
 | Summary boxes, stat cards, or metric tiles that should be actionable | `summary info box` | `docs/new behavior`, `.pen layout`, or `runtime behavior` | Shared primitive rule, `.pen` primitive, metric-to-action mapping docs, browser verification, or docs update |
 | Card, rail, notice, panel, bordered control spacing | `wrapper/card/rail` | `.pen layout` | Spacing lint diagnostic, shared primitive rule, or accepted shared-border exception |
@@ -118,7 +106,7 @@ Known cleanup target: migrate status rendering to a shared badge primitive so ru
 - Logged-in page frames stay left-aligned to the viewport-fixed shared shell. Do not center a generated logged-in artboard separately from fixed sidebar/header nodes.
 - Text must wrap or truncate inside its container rather than overflowing into adjacent content or off canvas.
 - One logical paragraph should not be split into multiple stacked text boxes. Split text only when the pieces have distinct semantics, independent runtime slots, or intentionally different styling.
-- Fields such as `Last refreshed` may wrap across multiple lines when needed to avoid collisions with adjacent controls.
+- Fields such as `Last refreshed` may appear only for documented page-specific freshness behavior and must not be inherited from the retired shared primitive.
 
 ## Annotation Ledger Workflow
 

@@ -400,12 +400,10 @@
   - logged-in implemented pages should keep the generated page pane flush with the fixed shared sidebar edge; the renderer/CSS must not independently center the page artboard while sidebar/header nodes are viewport-fixed
   - row-level detail and context surfaces should use the shared right-hand runtime drawer primitive rather than fixed right-side static panels; the drawer is closed by default, opens after a row selection, updates when another row is selected, and closes from the drawer `X`
   - the shared help icon should use that same right-hand runtime drawer primitive for page-specific end-user help wherever the help icon is visible; page help is non-technical operator documentation and must be refreshed whenever PRD or implementation behavior changes the page
-  - fields such as `Last refreshed` may stack onto multiple lines when that avoids collisions with neighboring controls while preserving clear label/date/time grouping
-  - when a page exposes the shared-header `Refresh` control, the `Last refreshed` cluster should sit immediately to the left of the button, preserve a `5px` blank gap, and stay no taller than the button by collapsing to two lines when needed
-  - the `Data Quality` refresh control should remain a real re-fetch action, render as a Vegas Gold primary action, and re-collect the current queue payload rather than applying a cosmetic-only reload
-  - the top-right shared-header `Refresh` control should use the same Vegas Gold primary-action treatment with readable black text across every implemented page that carries that shared shell pattern, even when a static page is not yet wired to page-specific runtime refresh behavior
-  - shared-header `Refresh` styling drift should be corrected in the authoritative `.pen` sources for the repeated header pattern rather than through page-specific CSS or runtime overrides
-  - the shared page sync/refresh primitive must keep the refresh button and any freshness metadata inside the intended header/action bounds; it must not push the page canvas to the right, create horizontal overflow, or leave a tall blank vertical strip beside the main content
+  - the inherited top-right shared-header `Refresh` control and shared page sync/refresh cluster are retired for the current implemented-page slice
+  - authoritative `.pen` sources should remove the old `Refresh`, `Sync now`, `Last refreshed`, `Last synced`, and `Next sync` header/action cluster plus any whitespace reserved only for that retired primitive
+  - runtime shared-shell overlays should not synthesize a page sync/refresh cluster from static artboard metadata; future refresh or sync actions must be documented page by page before implementation
+  - the `Data Quality` refresh behavior remains page-specific only through its documented queue re-fetch path; it should not inherit the retired shared top-right header primitive
   - shared right-drawer footer actions should be implemented as one drawer action-row primitive that uses the available drawer content width intentionally, keeps labels readable, and avoids left-clustered buttons with a large unused footer region
   - shared summary/info boxes should become one documented primitive across implemented pages. The primitive must center text, render numeric values prominently, color-code those values on a documented good-to-bad scale, and lead to a concrete action, filter, navigation target, drawer, or operator decision; boxes that cannot satisfy that actionability rule should be removed or redesigned instead of preserved as passive decoration
   - `Next Action` cells in the `Data Quality` queue should deep link to an in-app corrective page when one exists, otherwise render as `{Action} in {system}` with a top-level external system link only when that destination is defined
@@ -2535,15 +2533,10 @@
   - `InformedK12`: immediate refresh after local writes, delta reconciliation every `15m`, full reconciliation every `24h` with a `1 week` lookback
 - Projection-backed list and queue surfaces should show `Last synced` or equivalent freshness context.
 - Explicit UI refresh actions should prefer targeted live provider reads for the selected surface instead of indiscriminately rebuilding every projection.
-- Implemented React pages that expose manual freshness actions should pass page-level metadata and action handlers through the shared shell page sync/refresh primitive. `Refresh` means a targeted reread for the current page surface; `Sync now` means source reconciliation or a DEV mock simulation of that reconciliation. Pages with no intentional manual action may continue to show passive freshness metadata without adding a new callback.
-- The shared page sync/refresh primitive is a shared runtime component (not a page-local CSS fragment). It owns the visual grouping of freshness metadata plus the action button so pages cannot drift in label text, spacing, loading state, or accessible action naming (tracked by GitHub issue #59).
-- When a page exposes a header-level action button (`Refresh` or `Sync now`), the freshness metadata cluster renders immediately to the left of the button with a visible `5px` gap and must not exceed the button height; wrap to at most two lines when needed to avoid collisions.
-- The primitive must support:
-  - last-refreshed (or last-synced) timestamp display with stable label + date/time grouping
-  - optional next-sync text
-  - disabled/loading state for the action button without layout shift
-  - a stable accessible name that matches the visible action label (`Refresh` or `Sync now`)
-- Pages that currently expose page-level freshness or source reconciliation actions should migrate to the shared primitive intentionally as a shared-shell change, not as page-by-page button restyling.
+- The inherited shared page sync/refresh primitive is retired for implemented pages. Pages should not inherit default header-level `Refresh`, `Sync now`, `Last refreshed`, `Last synced`, or `Next sync` controls from the shared shell.
+- `Refresh` means a targeted reread for the current page surface only when a page-specific requirement documents that action. `Sync now` means source reconciliation or a DEV mock simulation only when a page-specific requirement documents that action.
+- Any future page-specific freshness action must define purpose, placement, freshness metadata, accessible action name, disabled/loading state, and Browser verification before implementation.
+- Data Quality keeps its documented queue re-fetch behavior as page-specific runtime behavior, but it must not retain the retired inherited top-right header refresh primitive.
 - AD is managed directly by this application where applicable; downstream AD → Entra propagation is externally managed and should be treated as complete within `1h` maximum for workflow timing.
 - Entra propagation is considered complete for app workflow gating when the user exists in Entra and `userPrincipalName`, `displayName`, `givenName`, `surname`, and `accountEnabled` match expected state.
 - If Entra convergence has not occurred after `1h`, continue the workflow with warning rather than blocking the entire run.

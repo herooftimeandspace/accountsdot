@@ -448,9 +448,8 @@ export function DepartingSeniorsPage({ session, onNavigate, onSearch, searchQuer
         searchQuery,
         activeNavKey: "departingSeniors",
         activeRoutePath: "/departing-seniors",
-        refreshMetadata: payload?.page?.last_refreshed,
       }),
-    [onNavigate, onSearch, payload?.page?.last_refreshed, searchQuery, session]
+    [onNavigate, onSearch, searchQuery, session]
   );
 
   const renderOverlay = useCallback(({ nodeIndex, textOverrides: overlayTextOverrides }) => (

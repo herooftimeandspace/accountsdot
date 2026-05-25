@@ -11,7 +11,6 @@ import {
   buildSharedShellImageOverrides,
   buildSharedShellTextOverrides,
   createSharedShellRenderOverlay,
-  staticRefreshMetadataForArtboard,
 } from "../lib/sharedShellPresentation";
 import {
   DEFAULT_FREQUENT_FLIERS_FILTERS,
@@ -305,7 +304,6 @@ export function FrequentFliersPage({ session, onNavigate, onSearch, searchQuery 
     searchQuery,
     activeNavKey: meta?.activeNav ?? "frequentFliers",
     activeRoutePath: "/frequent-fliers",
-    refreshMetadata: staticRefreshMetadataForArtboard(ARTBOARD_KEY),
   });
   const semanticSummary = {
     title: "Frequent Fliers",

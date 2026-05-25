@@ -261,9 +261,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
   - all HTTP error pages should include a recovery button; authenticated users should return through `/dashboard` so the app resolves their role-based default landing page, while signed-out users should return to `/login`
   - DEV-only mock auth, session, and page routes should be available only when `APP_ENV` is explicitly `development`; missing `APP_ENV` should fail closed and behave as non-development
   - Codex and local evidence tooling should be able to switch the active DEV mock persona without Browser clicks, using a development-only backend-supported command/API that updates the same frontend session after refresh or navigation and returns structured confirmation of persona, display name, site context, allowed routes, and authenticated/authorized state
-  - the shared-header `Refresh` control should render as a Vegas Gold primary action with readable black text everywhere that implemented pages expose that shared shell control
-  - shared-header `Refresh` regressions should be fixed in the authoritative shared `.pen` sources rather than through page-specific runtime styling overrides
-  - the shared-header `Refresh` primitive must not expand the page canvas, push content to the right, or create blank vertical overflow regions; when a page exposes refresh, the button and any freshness metadata must stay inside the documented header/action bounds
+  - the inherited shared-header `Refresh` control is retired for the current implemented-page slice because it expanded page canvases, pushed content right, and created blank vertical overflow regions
+  - authoritative `.pen` sources must not keep the old shared-header `Refresh` button, adjacent freshness metadata, or reserved whitespace unless a page-specific requirement explicitly reintroduces a dedicated action
+  - page-specific refresh or sync controls must define their purpose, placement, freshness metadata, accessible name, disabled/loading state, and verification evidence before implementation
 
 ### Phase 0: Platform Foundation and Safety Rails
 - Outcome:
@@ -825,11 +825,9 @@ The product is The WIZARD: Windsor Identity Zync, Access, & Retirement Dashboard
 - When persona-based route filtering removes sidebar rows, the remaining allowed rows must reflow upward in canonical order with no blank gaps left behind by hidden items.
 - In the shared sidebar, the active-row label and icon must render above the selected highlight so the current destination remains readable while selected.
 - When a card or rail is conveying one logical paragraph of helper text, it should render as one wrapping text block rather than several stacked fragment boxes.
-- Fields such as `Last refreshed` may stack onto multiple lines when needed to avoid collisions with adjacent controls while preserving readable grouping of label, date, and time.
-- When a page exposes the shared-header `Refresh` control, the `Last refreshed` cluster must render immediately to the left of the button, separated by `5px` of blank space, and the cluster must not exceed the button height; use at most two lines if needed to preserve that height.
-- Implemented pages that expose page-level freshness or source reconciliation actions must use the shared page sync/refresh primitive instead of page-local button variants.
-- Use `Refresh` when the action rereads the current dashboard surface, queue, report, or detail context without requesting source-system reconciliation. Use `Sync now` when the action requests or simulates a provider/source-system reconciliation cycle that can update projections beyond the currently visible surface. The primitive must support last-refreshed metadata, optional next-sync text, disabled/loading state, and a stable accessible action name.
-- The shared page sync/refresh primitive should present one intentional action label (`Refresh` or `Sync now`) plus the adjacent freshness metadata cluster. If a page needs both actions, that must be explicitly documented as product behavior instead of implemented as ad hoc page-local buttons.
+- The inherited shared page sync/refresh primitive is retired. Implemented pages must not receive a default top-right `Refresh`, `Sync now`, `Last refreshed`, `Last synced`, or `Next sync` cluster from the shared shell.
+- Use `Refresh` only when a page-specific requirement defines a targeted reread for the current dashboard surface, queue, report, or detail context without requesting source-system reconciliation. Use `Sync now` only when a page-specific requirement defines a provider/source-system reconciliation cycle that can update projections beyond the currently visible surface.
+- Any retained page-level freshness or source reconciliation action must be documented page by page, including purpose, placement, freshness metadata, accessible action name, disabled/loading state, and verification evidence.
 - Disabled/loading state must preserve the visible action label and accessible name without causing the surrounding header controls to shift position.
 - Shared right-drawer footer actions should align to the drawer content width and avoid unused blank footer regions that make actions look detached from the drawer.
 - Shared summary/info boxes are allowed only when they lead to an operator action or decision. They should use centered text, a large numeric value, and a documented good-to-bad color scale rather than page-local card variants.
