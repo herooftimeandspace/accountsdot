@@ -20,6 +20,7 @@ const (
 	onboardingManualDraftStatusReady                       = "Ready to Provision"
 	onboardingManualDraftStatusInvalid                     = "Invalid"
 	onboardingManualDraftTTL                               = 30 * 24 * time.Hour
+	onboardingGeneratedContractorEmailDomain               = "@ext.wusd.org"
 	onboardingValidityStateValid                           = "valid"
 	onboardingValidityStateInvalid                         = "invalid"
 	onboardingInvalidReasonActiveEscapeContractorCollision = "active_escape_contractor_collision"
@@ -153,6 +154,10 @@ type onboardingManualDraftRequest struct {
 	ReplacingEmployeeID   string `json:"replacing_employee_id"`
 	RoomID                string `json:"room_id"`
 	Notes                 string `json:"notes"`
+	GeneratedEmail        string `json:"generated_email"`
+	DistrictEmail         string `json:"district_email"`
+	AssignedEmail         string `json:"assigned_email"`
+	WorkEmail             string `json:"work_email"`
 }
 
 type onboardingRoomUpdateRequest struct {
@@ -950,19 +955,14 @@ func (s *devOnboardingStoreState) purgeExpiredLocked(now time.Time) {
 }
 
 func (s *devOnboardingStoreState) generatedEmailLocked(draft *onboardingManualDraft) string {
-	existing := map[string]bool{
-		"jordan.miles@wusd.org": true,
-		"nia.brooks@wusd.org":   true,
-		"evan.ruiz@wusd.org":    true,
-		"mika.ito@wusd.org":     true,
-	}
+	existing := map[string]bool{}
 	for _, record := range devEscapeEmploymentRecords {
-		if strings.HasSuffix(record.AssignedEmail, "@wusd.org") {
+		if strings.HasSuffix(record.AssignedEmail, onboardingGeneratedContractorEmailDomain) {
 			existing[strings.ToLower(record.AssignedEmail)] = true
 		}
 	}
 	for _, entry := range devPhoneDirectoryEntries {
-		if strings.HasSuffix(entry.Email, "@wusd.org") {
+		if strings.HasSuffix(entry.Email, onboardingGeneratedContractorEmailDomain) {
 			existing[strings.ToLower(entry.Email)] = true
 		}
 	}
@@ -978,9 +978,9 @@ func (s *devOnboardingStoreState) generatedEmailLocked(draft *onboardingManualDr
 		return ""
 	}
 	candidates := []string{
-		first[:1] + last + "@wusd.org",
-		first + "." + last + "@wusd.org",
-		first[:1] + "." + last + "@wusd.org",
+		first[:1] + last + onboardingGeneratedContractorEmailDomain,
+		first + "." + last + onboardingGeneratedContractorEmailDomain,
+		first[:1] + "." + last + onboardingGeneratedContractorEmailDomain,
 	}
 	for _, candidate := range candidates {
 		if !existing[candidate] {
@@ -988,7 +988,7 @@ func (s *devOnboardingStoreState) generatedEmailLocked(draft *onboardingManualDr
 		}
 	}
 	for i := 1; ; i++ {
-		candidate := first[:1] + last + leftPadInt(i, 2) + "@wusd.org"
+		candidate := first[:1] + last + leftPadInt(i, 2) + onboardingGeneratedContractorEmailDomain
 		if !existing[candidate] {
 			return candidate
 		}
@@ -1078,6 +1078,17 @@ func sanitizeManualDraftRequest(request onboardingManualDraftRequest, config dev
 	validateOption(errors, "requested_aeries_access", clean.RequestedAeriesAccess, options.RequestedAeriesAccess)
 	validateReplacingEmployee(errors, clean.ReplacingEmployeeID, options.ReplacingEmployees)
 	validateRoom(errors, clean.RoomID, options.Rooms)
+	emailOverrides := map[string]string{
+		"generated_email": request.GeneratedEmail,
+		"district_email":  request.DistrictEmail,
+		"assigned_email":  request.AssignedEmail,
+		"work_email":      request.WorkEmail,
+	}
+	for field, value := range emailOverrides {
+		if strings.TrimSpace(value) != "" {
+			errors[field] = "District email overrides are not supported for manual Non-Escape drafts; generated contractor addresses use @ext.wusd.org."
+		}
+	}
 	return clean, errors
 }
 

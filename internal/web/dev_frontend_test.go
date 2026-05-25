@@ -1826,6 +1826,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			if row.Status == "Security risk" || row.ID == "orphan-riley-park" {
 				t.Fatalf("offboarding returned security issue row %#v", row)
 			}
+			if row.ID == "contractor-sam-ortega" && row.Email != "sam.ortega@wusd.org" {
+				t.Fatalf("existing contractor offboarding email = %q, want preserved @wusd.org address", row.Email)
+			}
 			if row.Kind == "orphan" && row.Warning != "" && len(row.Actions) > 0 {
 				foundOrphanAction = true
 			}
@@ -2090,6 +2093,9 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			}
 			if candidate.EmployeeID == "" {
 				t.Fatalf("contractor candidate omitted employee id %#v", candidate)
+			}
+			if candidate.ID == "contractor-sam-ortega" && candidate.Email != "sam.ortega@wusd.org" {
+				t.Fatalf("contractor candidate email = %q, want preserved existing address", candidate.Email)
 			}
 		}
 
@@ -2634,6 +2640,33 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatalf("malformed phone draft update returned %d, want 400", malformedPhoneRec.Code)
 		}
 
+		emailOverrideBody, err := json.Marshal(map[string]string{
+			"start_date":              "2026-05-10",
+			"ssn_last4":               "1234",
+			"employee_type":           "Contractor",
+			"classification":          "Certificated",
+			"first_name":              "Quincy",
+			"last_name":               "Zephyr",
+			"job_title":               "Counselor",
+			"site_id":                 "district-office",
+			"personal_email":          "quincy.zephyr@example.com",
+			"personal_phone":          "7075550134",
+			"preferred_device":        "Mac",
+			"requested_aeries_access": "Teacher",
+			"generated_email":         "qzephyr@wusd.org",
+		})
+		if err != nil {
+			t.Fatalf("marshal generated email override draft: %v", err)
+		}
+		emailOverrideReq := httptest.NewRequest(http.MethodPut, "/api/v1/dev/onboarding/manual-drafts/"+created.Draft.ID, bytes.NewReader(emailOverrideBody))
+		emailOverrideReq.Header.Set("Content-Type", "application/json")
+		emailOverrideReq.AddCookie(cookie)
+		emailOverrideRec := httptest.NewRecorder()
+		handler.ServeHTTP(emailOverrideRec, emailOverrideReq)
+		if emailOverrideRec.Code != http.StatusBadRequest {
+			t.Fatalf("generated email override update returned %d, want 400", emailOverrideRec.Code)
+		}
+
 		validBody, err := json.Marshal(map[string]string{
 			"start_date":              "2026-05-10",
 			"ssn_last4":               "1234",
@@ -2673,8 +2706,8 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		if len(updated.Draft.MissingFields) != 0 {
 			t.Fatalf("missing fields = %#v, want none", updated.Draft.MissingFields)
 		}
-		if updated.Draft.GeneratedEmail != "qzephyr@wusd.org" {
-			t.Fatalf("generated email = %q, want qzephyr@wusd.org", updated.Draft.GeneratedEmail)
+		if updated.Draft.GeneratedEmail != "qzephyr@ext.wusd.org" {
+			t.Fatalf("generated email = %q, want qzephyr@ext.wusd.org", updated.Draft.GeneratedEmail)
 		}
 		if updated.Draft.ValidityState != "valid" {
 			t.Fatalf("validity state = %q, want valid", updated.Draft.ValidityState)
@@ -2698,6 +2731,7 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			t.Fatal("expected finalized response rows")
 		}
 		var manualRowFound bool
+		var generatedManualRowFound bool
 		for _, row := range finalized.Rows {
 			if row.Kind != "manual" {
 				continue
@@ -2709,9 +2743,15 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 			if len(row.WorkflowSteps) == 0 {
 				t.Fatalf("manual row workflow steps = %#v, want at least one step", row.WorkflowSteps)
 			}
+			if row.AssignedEmail == "qzephyr@ext.wusd.org" {
+				generatedManualRowFound = true
+			}
 		}
 		if !manualRowFound {
 			t.Fatal("expected finalized response to include manual row")
+		}
+		if !generatedManualRowFound {
+			t.Fatal("expected finalized response to display generated contractor email in a manual row")
 		}
 	})
 
@@ -2977,11 +3017,11 @@ func TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment(t *testing.T) {
 		cookie := loginAsPersona(t, handler, "it_admin")
 		firstEmail := createAndFinalizeManualOnboarding(t, handler, cookie, "Maren", "Lumen")
 		secondEmail := createAndFinalizeManualOnboarding(t, handler, cookie, "Maren", "Lumen")
-		if firstEmail != "mlumen@wusd.org" {
-			t.Fatalf("first generated email = %q, want mlumen@wusd.org", firstEmail)
+		if firstEmail != "mlumen@ext.wusd.org" {
+			t.Fatalf("first generated email = %q, want mlumen@ext.wusd.org", firstEmail)
 		}
-		if secondEmail != "maren.lumen@wusd.org" {
-			t.Fatalf("second generated email = %q, want maren.lumen@wusd.org", secondEmail)
+		if secondEmail != "maren.lumen@ext.wusd.org" {
+			t.Fatalf("second generated email = %q, want maren.lumen@ext.wusd.org", secondEmail)
 		}
 	})
 

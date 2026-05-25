@@ -757,7 +757,8 @@
   - incomplete DEV drafts appear in the onboarding table as `Incomplete Data`, autosave every 60 seconds while dirty, and reopen in the drawer for continued editing
   - complete DEV saves generate a mock employee number, generated district email, and mock onboarding workflow state without triggering real provider provisioning
   - DEV drafts older than 30 days are removed from the in-memory mock store; the production DB-backed implementation must preserve this retention rule
-  - generated district email collision fallback order is `[f][lastname]@wusd.org`, `[firstname].[lastname]@wusd.org`, `[f].[lastname]@wusd.org`, then `[f][lastname][nn]@wusd.org` with a zero-padded numeric suffix until unique
+  - generated district email collision fallback order for new manual Non-Escape contractor accounts is `[f][lastname]@ext.wusd.org`, `[firstname].[lastname]@ext.wusd.org`, `[f].[lastname]@ext.wusd.org`, then `[f][lastname][nn]@ext.wusd.org` with a zero-padded numeric suffix until unique; existing active contractor addresses using `@wusd.org` are preserved unless a separate approved migration/remediation workflow changes them
+  - the DEV manual onboarding API rejects direct district-email override payload values such as `generated_email`, `district_email`, `assigned_email`, and `work_email` because operators do not have a supported district-email override field
   - start dates within 3 calendar days of the current date show the exact warning tooltip: `The start date is ≤ 3 days from the current date. Access to some systems may be delayed beyond the start date.`
 - Success gates:
   - the system can onboard a new staff member or sideloaded contractor end-to-end on the common path with auditable state transitions
@@ -1548,6 +1549,8 @@
 - Manual identifier rule:
   - sideloaded people need a non-colliding generated identifier
   - contractor IDs currently use prefix `66` plus a zero-padded five-digit number
+  - new manually generated Non-Escape contractor email addresses use the approved external contractor domain `@ext.wusd.org`
+  - existing active contractor addresses that still use `@wusd.org` are preserved unless a separate approved migration/remediation workflow changes them
 - Requested Aeries access should be captured as workflow data in the application. Any resulting IncidentIQ ticket creation is an external `IncidentIQ` configuration TODO rather than an app-owned workflow step in this phase, but the dashboard should poll IncidentIQ by email at most once per hour and link the resulting earliest created matching ticket status once the user exists there. Matching is defined by requestor email plus ticket category, specifically `Aeries (Asset Tag: AERIES) → User Rights → Add User`.
 - If a sideloaded contractor later appears in Escape:
   - the Escape record becomes the active replacement record
@@ -2100,7 +2103,17 @@
   - IT must have visibility into the workflow because manual intervention may be required when automation fails
   - the workflow must rename the AD object, the AD username, and the primary district email address to match the district's current username scheme for the new legal name
   - the workflow must detect and prevent collisions with existing unrelated accounts before committing the rename
-  - collision fallback order for new primary email should be:
+- Contractor generated-email rule:
+  - new manual Non-Escape contractor accounts use the approved generated email domain `@ext.wusd.org`
+  - manual onboarding operators cannot override the generated district email in the DEV drawer or API payload; attempts to submit `generated_email`, `district_email`, `assigned_email`, or `work_email` are rejected instead of being silently ignored
+  - collision fallback order for new contractor email should be:
+    - `[f][lastname]@ext.wusd.org`
+    - `[firstname].[lastname]@ext.wusd.org`
+    - `[f].[lastname]@ext.wusd.org`
+    - `[f][lastname][nn]@ext.wusd.org` where `[nn]` is a zero-padded incremental number
+    - if all prior candidates collide, continue incrementing `[nn]` until a unique address is found
+- District account rename rule:
+  - collision fallback order for new primary employee/student email should be:
     - `[f][lastname]@wusd.org`
     - `[firstname].[lastname]@wusd.org`
     - `[f].[lastname]@wusd.org`

@@ -98,7 +98,7 @@ Draft create/finalize/delete responses use `onboardingManualDraftResponse`:
 }
 ```
 
-`PUT` accepts `onboardingManualDraftRequest` fields: `start_date`, `ssn_last4`, `employee_type`, `classification`, `first_name`, `last_name`, `job_title`, `site_id`, `personal_email`, `personal_phone`, `preferred_device`, `requested_aeries_access`, `replacing_employee_id`, `room_id`, and `notes`. Personal phone is required for manual Non-Escape drafts, accepted only as canonical `10` digits or the drawer-submitted `(NNN) NNN-NNNN` display format, canonicalized to a `10`-digit United States number, and used only by planned Aeries upload serialization for `manual_non_escape` source rows.
+`PUT` accepts `onboardingManualDraftRequest` fields: `start_date`, `ssn_last4`, `employee_type`, `classification`, `first_name`, `last_name`, `job_title`, `site_id`, `personal_email`, `personal_phone`, `preferred_device`, `requested_aeries_access`, `replacing_employee_id`, `room_id`, and `notes`. Personal phone is required for manual Non-Escape drafts, accepted only as canonical `10` digits or the drawer-submitted `(NNN) NNN-NNNN` display format, canonicalized to a `10`-digit United States number, and used only by planned Aeries upload serialization for `manual_non_escape` source rows. District email override fields such as `generated_email`, `district_email`, `assigned_email`, and `work_email` are intentionally unsupported; if a direct API caller submits one, the update is rejected so unauthorized `@wusd.org` contractor patterns cannot be silently accepted or ignored.
 
 ## Authorization And Persona Behavior
 
@@ -110,7 +110,7 @@ Site Admin and Site Secretary receive onboarding rows, drawer details, global-se
 
 ## Mutation Boundary
 
-The mutation boundary is the in-memory `devOnboardingStore` in `internal/web/dev_onboarding.go`. Store methods lock `devOnboardingStoreState.mu`, mutate `drafts` or DEV-only `roomOverrides`, purge expired non-finalized drafts, and return cloned payloads. There are no live provider writes and no database writes in this path.
+The mutation boundary is the in-memory `devOnboardingStore` in `internal/web/dev_onboarding.go`. Store methods lock `devOnboardingStoreState.mu`, mutate `drafts` or DEV-only `roomOverrides`, purge expired non-finalized drafts, and return cloned payloads. New manual Non-Escape contractor draft generation uses the approved external contractor email domain `@ext.wusd.org`; inactive Escape identity reuse preserves the existing assigned email on the linked identity. There are no live provider writes and no database writes in this path.
 
 Keep this aligned with `docs/planning/external-write-inventory.md`: manual draft create, update, finalize, soft-delete, and room override are DEV mock mutations only. The personal phone value is sensitive workflow data; tests may use deterministic reserved `555-01xx` values, but diagnostics, audit summaries, and generated artifacts should redact or omit raw values. Future production onboarding writes must add provider-specific idempotency keys, request logging, staging validation, sanitized diagnostics, and rollback expectations before merging.
 
@@ -121,6 +121,8 @@ Relevant tests live in `internal/web/dev_frontend_test.go`:
 - `onboarding page exposes manual intake options only to hr and it`
 - `onboarding scopes site persona rows search and room-only drawer updates`
 - `manual onboarding draft validates sanitizes and finalizes into mock row`
+- `inactive escape contractor reactivation reuses existing identity`
+- `active escape contractor collision saves invalid draft and allows soft delete`
 - `past-dated manual entry shows warning fields and schedules next cycle`
 - `escape-backed past-date row preserves source date and exposes next-cycle schedule`
 - `manual onboarding generated email falls through collision order`
@@ -129,7 +131,7 @@ Relevant tests live in `internal/web/dev_frontend_test.go`:
 Run targeted tests with:
 
 ```bash
-go test ./internal/web -run 'TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment/(onboarding page exposes manual intake options only to hr and it|onboarding scopes site persona rows search and room-only drawer updates|manual onboarding draft validates sanitizes and finalizes into mock row|past-dated manual entry shows warning fields and schedules next cycle|escape-backed past-date row preserves source date and exposes next-cycle schedule|manual onboarding generated email falls through collision order)'
+go test ./internal/web -run 'TestDevSessionLoginLogoutAndDataQualityRoutesInDevelopment/(onboarding page exposes manual intake options only to hr and it|onboarding scopes site persona rows search and room-only drawer updates|manual onboarding draft validates sanitizes and finalizes into mock row|inactive escape contractor reactivation reuses existing identity|active escape contractor collision saves invalid draft and allows soft delete|past-dated manual entry shows warning fields and schedules next cycle|escape-backed past-date row preserves source date and exposes next-cycle schedule|manual onboarding generated email falls through collision order)'
 ```
 
 If the local Go toolchain is unavailable, use the repo container test path described in `README.md`.
