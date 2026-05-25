@@ -16,6 +16,8 @@ const (
 	StatusFilename     = "status.json"
 	StatusMarkdown     = "status.md"
 	RunsFilename       = "runs.jsonl"
+
+	liveLockMaxAge = 30 * time.Minute
 )
 
 // ControllerState is the daemon's durable local control-plane snapshot. It is
@@ -91,10 +93,13 @@ func WriteSnapshot(dir string, snapshot Snapshot) error {
 	return writeFileAtomic(filepath.Join(dir, StatusMarkdown), []byte(renderMarkdown(snapshot)), 0o644)
 }
 
-// ReadSnapshot loads the daemon status file and reconciles it with the daemon
-// lock when a live process is holding the singleton. Status and TUI callers use
-// this read path while the daemon may be between startup and its first full
-// tick, so a newer live lock must outrank an older stopped controller snapshot.
+// ReadSnapshot loads the daemon status file and reconciles it with a fresh
+// daemon lock when a live process is holding the singleton. Status and TUI
+// callers use this read path while the daemon may be between startup and its
+// first full tick, so a newer live lock must outrank an older stopped
+// controller snapshot. Old lock heartbeats are rejected even when the recorded
+// PID exists because PID reuse by an unrelated process must not project a dead
+// daemon as running forever.
 func ReadSnapshot(dir string) (Snapshot, error) {
 	var snapshot Snapshot
 	data, err := os.ReadFile(filepath.Join(dir, StatusFilename))
@@ -264,6 +269,9 @@ func readLiveLock(dir string) (liveLock, bool) {
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) < 2 {
+		return liveLock{}, false
+	}
+	if time.Since(info.ModTime()) > liveLockMaxAge {
 		return liveLock{}, false
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(lines[1]))
