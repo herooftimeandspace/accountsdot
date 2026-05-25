@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
 import { RuntimeCombobox } from "../components/RuntimeDropdown";
+import { SummaryInfoBox, SummaryInfoBoxGrid } from "../components/SummaryInfoBox";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -24,6 +25,45 @@ const ROOM_MOVES_ENDPOINT = "/api/v1/dev/pages/room-moves";
 const ROOM_MOVES_BULK_ENDPOINT = "/api/v1/dev/pages/room-moves/bulk-draft";
 const ROOM_MOVES_DRAFTS_ENDPOINT = "/api/v1/dev/room-moves/drafts";
 const ROOM_MOVES_HEADING_ID = "room-moves-heading";
+const ROOM_MOVE_TYPE_SINGLE = "mid_year_targeted_move";
+const ROOM_MOVES_SUMMARY_FILTERS = {
+  all: "all",
+  warnings: "warnings",
+  immediate: "immediate",
+  batch: "batch",
+};
+const ROOM_MOVES_SUMMARY_CARD_IDS = [
+  "f76", "t77", "t78", "t79",
+  "f80", "t81", "t82", "t83",
+  "f84", "t85", "t86", "t87",
+  "f88", "t89", "t90", "t91",
+];
+const ROOM_MOVES_SUMMARY_CARD_CONFIG = {
+  "Draft Moves": {
+    filter: ROOM_MOVES_SUMMARY_FILTERS.all,
+    helper: "Show all drafts",
+    tone: "info",
+    actionLabel: "Show every draft in the Move Set Review table.",
+  },
+  Warnings: {
+    filter: ROOM_MOVES_SUMMARY_FILTERS.warnings,
+    helper: "Filter warnings",
+    toneForCount: (count) => (count > 0 ? "bad" : "good"),
+    actionLabel: "Filter the Move Set Review table to drafts with warnings.",
+  },
+  Immediate: {
+    filter: ROOM_MOVES_SUMMARY_FILTERS.immediate,
+    helper: "Filter immediate",
+    tone: "good",
+    actionLabel: "Filter the Move Set Review table to one-person immediate moves.",
+  },
+  "Batch Cutovers": {
+    filter: ROOM_MOVES_SUMMARY_FILTERS.batch,
+    helper: "Filter cutovers",
+    tone: "waiting",
+    actionLabel: "Filter the Move Set Review table to scheduled or batch cutovers.",
+  },
+};
 const ROOM_MOVES_TABLE_COLUMNS = [
   { key: "person", label: "Name", value: (row) => row.person },
   { key: "current_room", label: "Current", value: (row) => row.current_room },
@@ -46,6 +86,7 @@ const BULK_COLUMNS = [
   { key: "action", label: "Action", value: (row) => row.action },
 ];
 const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
+  ...ROOM_MOVES_SUMMARY_CARD_IDS,
   "f74", "t75",
   "f92", "t93", "t94", "t95", "t96", "t97",
   "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
@@ -71,6 +112,83 @@ function hiddenRoomMovesNodeIds(artboardKey, isBulk) {
     ? [...HIDDEN_ROOM_MOVES_NODE_SUFFIXES, ...HIDDEN_BULK_DRAFT_NODE_SUFFIXES]
     : HIDDEN_ROOM_MOVES_NODE_SUFFIXES;
   return suffixes.map((suffix) => nodeIdForSuffix(artboardKey, suffix));
+}
+
+function summaryCardCount(card) {
+  const parsed = Number.parseInt(card?.count ?? "0", 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roomMovesSummaryCards(page) {
+  const sourceCards = Array.isArray(page?.summary_cards) ? page.summary_cards : [];
+  return sourceCards
+    .filter((card) => ROOM_MOVES_SUMMARY_CARD_CONFIG[card.title])
+    .map((card) => {
+      const config = ROOM_MOVES_SUMMARY_CARD_CONFIG[card.title];
+      const count = summaryCardCount(card);
+      return {
+        ...card,
+        filter: config.filter,
+        helper: config.helper,
+        actionLabel: config.actionLabel,
+        tone: config.toneForCount ? config.toneForCount(count) : config.tone,
+      };
+    });
+}
+
+/**
+ * filterRowsForSummaryCard implements the Room Moves metric action contract:
+ * selecting a summary card immediately narrows the review table to the rows
+ * that explain that number, while Draft Moves clears the filter.
+ */
+function filterRowsForSummaryCard(rows, filter) {
+  switch (filter) {
+    case ROOM_MOVES_SUMMARY_FILTERS.warnings:
+      return rows.filter((row) => row.warning || row.warning_level || row.attention_reason);
+    case ROOM_MOVES_SUMMARY_FILTERS.immediate:
+      return rows.filter((row) => row.move_type === ROOM_MOVE_TYPE_SINGLE);
+    case ROOM_MOVES_SUMMARY_FILTERS.batch:
+      return rows.filter((row) => row.move_type !== ROOM_MOVE_TYPE_SINGLE);
+    default:
+      return rows;
+  }
+}
+
+function RoomMovesSummaryInfoBoxes({ artboardKey, nodeIndex, page, activeFilter, onFilter }) {
+  const frameIds = ["f76", "f80", "f84", "f88"];
+  const cards = roomMovesSummaryCards(page);
+  if (!cards.length) {
+    return null;
+  }
+  return (
+    <SummaryInfoBoxGrid className="room-moves-runtime__summary" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {cards.map((card, index) => {
+        const fallback = { left: 288 + index * 236, top: 182, width: 220, height: 148 };
+        const bounds = nodeBox(nodeIndex.get(nodeIdForSuffix(artboardKey, frameIds[index])), fallback);
+        return (
+          <SummaryInfoBox
+            key={card.title}
+            label={card.title}
+            value={card.count}
+            helper={card.helper}
+            tone={card.tone}
+            active={activeFilter === card.filter}
+            actionLabel={card.actionLabel}
+            onAction={() => onFilter(card.filter)}
+            className="room-moves-runtime__summary-card"
+            style={{
+              position: "absolute",
+              left: bounds.left,
+              top: bounds.top,
+              width: bounds.width,
+              height: bounds.height,
+              pointerEvents: "auto",
+            }}
+          />
+        );
+      })}
+    </SummaryInfoBoxGrid>
+  );
 }
 
 async function readJSON(response) {
@@ -774,6 +892,7 @@ export function RoomMovesPage({
   const [reloadKey, setReloadKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [cancelingDraftId, setCancelingDraftId] = useState("");
+  const [summaryFilter, setSummaryFilter] = useState(ROOM_MOVES_SUMMARY_FILTERS.all);
 
   const isBulk = routeKind === "room-moves-bulk-draft";
   const { artboard, status: artboardStatus } = useGeneratedArtboard(artboardKey);
@@ -839,6 +958,10 @@ export function RoomMovesPage({
   const imageNodeOverrides = useMemo(() => buildSharedShellImageOverrides(session), [session]);
 
   const refresh = useCallback(() => setReloadKey((value) => value + 1), []);
+  const reviewRows = useMemo(
+    () => filterRowsForSummaryCard(payload?.page?.rows ?? [], summaryFilter),
+    [payload, summaryFilter]
+  );
 
   async function createDraft(mode) {
     setBusy(true);
@@ -951,15 +1074,25 @@ export function RoomMovesPage({
             nodeIndex.get("room-moves__f100"),
             { left: 288, top: 348, width: 1268, height: 480 }
           );
-      const batchBounds = nodeBox(nodeIndex.get("room-moves__f88"), { left: 996, top: 182, width: 220, height: 148 });
+      const actionAnchor = nodeBox(nodeIndex.get("room-moves__f300"), { left: 1224, top: 226, width: 170, height: 140 });
 
       return (
         <>
           {shellOverlay}
           {!isBulk ? (
             <>
+              <RoomMovesSummaryInfoBoxes
+                artboardKey={artboardKey}
+                nodeIndex={nodeIndex}
+                page={page}
+                activeFilter={summaryFilter}
+                onFilter={(filter) => {
+                  setSummaryFilter(filter);
+                  setSelectedRow(null);
+                }}
+              />
               <RoomMovesActions
-                bounds={batchBounds}
+                bounds={actionAnchor}
                 busy={busy}
                 onMovePerson={() => setShowCreateDrawer(true)}
                 onBatchMove={() => createDraft("manual_move_list")}
@@ -967,7 +1100,7 @@ export function RoomMovesPage({
               />
               <RoomMovesTable
                 bounds={tableBounds}
-                rows={page.rows}
+                rows={reviewRows}
                 selectedRowId={selectedRow?.id}
                 cancelingDraftId={cancelingDraftId}
                 onCancelRow={cancelMove}
@@ -997,7 +1130,7 @@ export function RoomMovesPage({
         </>
       );
     },
-    [busy, cancelMove, cancelingDraftId, createDraft, deleteBulkDraft, isBulk, onNavigate, pageState, payload, renderOverlay, saveBulkDraft, selectedRow, transitionBulkDraft]
+    [artboardKey, busy, cancelMove, cancelingDraftId, createDraft, deleteBulkDraft, isBulk, onNavigate, pageState, payload, renderOverlay, reviewRows, saveBulkDraft, selectedRow, summaryFilter, transitionBulkDraft]
   );
 
   if (artboardStatus === "loading") {

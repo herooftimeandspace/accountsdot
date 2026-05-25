@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RuntimeDetailList, RuntimeDrawer } from "../components/RuntimeDrawer";
 import { nextRuntimeDrawerSelectionForId } from "../components/runtimeDrawerController.mjs";
+import { SummaryInfoBox } from "../components/SummaryInfoBox";
 import { RuntimeSortableHeader, RuntimeTableSearch, useRuntimeTableData } from "../components/RuntimeTableControls";
 import { generatedArtboardMeta } from "../generated/artboards.generated.js";
 import { useGeneratedArtboard } from "../lib/generatedArtboards";
@@ -182,18 +183,29 @@ function StudentDataOverlay({
           <p>Review active student-name field issues that must be corrected in Aeries.</p>
         </div>
       </header>
-      <section className="student-data-runtime__summary" aria-label="Student data cleanup summary">
-        <div>
-          <strong>{totalCount} active issues</strong>
-          <span>All must be corrected in Aeries.</span>
-        </div>
-        <div>
-          <strong>Last sync</strong>
-          <span>May 2, 2025 9:05 AM PT</span>
-        </div>
-        <div>
-          <strong>Next sync</strong>
-          <span>in 55 minutes</span>
+      <section className="student-data-runtime__summary" aria-label="Student data cleanup summary and freshness">
+        <SummaryInfoBox
+          label="Active Issues"
+          value={totalCount}
+          helper="Clear filters"
+          tone={totalCount > 0 ? "bad" : "good"}
+          active={filters.issueType === "all" && filters.grade === "all" && !table.searchQuery}
+          actionLabel="Clear filters and show every active student data cleanup issue."
+          onAction={() => {
+            table.setSearchQuery("");
+            onClearFilters();
+          }}
+          className="student-data-runtime__summary-card"
+        />
+        <div className="student-data-runtime__freshness" aria-label="Student data cleanup sync freshness">
+          <div>
+            <strong>Last sync</strong>
+            <span>May 2, 2025 9:05 AM PT</span>
+          </div>
+          <div>
+            <strong>Next sync</strong>
+            <span>in 55 minutes</span>
+          </div>
         </div>
       </section>
       <div className="student-data-runtime__table-card">
