@@ -163,6 +163,7 @@
   - `main` is production and must pass the `main gate`, which includes the `staging gate` checks plus release-prep static validation and the PR-level `release-prep-check`
   - promotion PRs must be created or refreshed with the dedicated `PROMOTION_PR_TOKEN` secret rather than `github.token` so required `pull_request` checks are created normally
   - `staging` to `main` promotion uses the disposable `promote/staging-to-main` branch so production branch protection does not require direct bot pushes to `main`
+  - when the application is not stable enough for production promotion, the safe proof for the `main` promotion path is local/static: run `python3 scripts/check_ci_promotion.py --release-prep` and the staging/main `scripts/run_local_ci.py --dry-run` targets, then keep any placeholder-bearing `promote/staging-to-main` PR unmerged
   - this repository does not yet define package version files, semver labels, release notes, or deployment manifests for The WIZARD; until those product decisions are documented, promotion PR release metadata is captured in the PR body and checked for external runbook, IncidentIQ testing-ticket, and release/deployment references before merge
   - branch protection, required reviews, required status checks, GitHub environments, deployment secrets, badge publishing, and the `PROMOTION_PR_TOKEN` secret are manual repository-administration prerequisites documented in `docs/operations/promotion-pipeline.md`
 - Pre-phase rule:

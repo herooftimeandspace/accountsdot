@@ -118,8 +118,21 @@ def _validate_go_toolchain() -> None:
 
 def _validate_release_prep() -> None:
     release_prep = _read(".github/workflows/release-prep-check.yml")
-    if "REQUIRED BEFORE MERGE" not in _read(".github/workflows/promotion.yml"):
+    promotion = _read(".github/workflows/promotion.yml")
+    if "REQUIRED BEFORE MERGE" not in promotion:
         raise AssertionError("promotion.yml must create main PRs with explicit release-readiness placeholders")
+    if "pull_request:" not in release_prep or "branches:" not in release_prep or "- main" not in release_prep:
+        raise AssertionError("release-prep-check.yml must run on pull requests targeting main")
+    if "workflow_run:" in release_prep or "push:" in release_prep:
+        raise AssertionError("release-prep-check.yml must not run from push or workflow_run events")
+    if "github.event.pull_request.head.repo.full_name == github.repository" not in release_prep:
+        raise AssertionError("release-prep-check.yml must only evaluate same-repository promotion PRs")
+    if '"${GH_HEAD_REF}" != "promote/staging-to-main"' not in release_prep:
+        raise AssertionError("release-prep-check.yml must reject main PRs outside promote/staging-to-main")
+    if "git fetch origin staging" not in release_prep or "git merge-base --is-ancestor origin/staging HEAD" not in release_prep:
+        raise AssertionError("release-prep-check.yml must require the main candidate to contain the latest staging tip")
+    if "git ls-files frontend/dist" not in release_prep:
+        raise AssertionError("release-prep-check.yml must reject committed frontend/dist release evidence")
     if "grep -Eiq 'REQUIRED BEFORE MERGE|TBD|TODO|missing'" not in release_prep:
         raise AssertionError("release-prep-check.yml must fail unresolved release-readiness placeholders")
 
