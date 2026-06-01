@@ -109,8 +109,6 @@ func loadProviderReadinessConfig() []provider.ReadinessConfig {
 			ReadOnly:                  getEnvBool("AERIES_READ_ONLY", true),
 			Endpoint:                  getEnv("AERIES_BASE_URL", ""),
 			EndpointEnv:               "AERIES_BASE_URL",
-			CredentialLabel:           getEnv("AERIES_CLIENT_ID", ""),
-			CredentialLabelEnv:        "AERIES_CLIENT_ID",
 			DatabaseYearMode:          getEnv("AERIES_DATABASE_YEAR_MODE", ""),
 			MaskedPreviousYearOnly:    getEnvBool("AERIES_MASKED_PREVIOUS_YEAR_ONLY", false),
 			CertificateFileConfigured: getEnv("AERIES_CERT_FILE", "") != "",

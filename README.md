@@ -258,8 +258,7 @@ Required or commonly used local variables:
 - `ZOOM_BASE_URL`
 - `ZOOM_OAUTH_URL`
 - `AERIES_BASE_URL`
-- `AERIES_CLIENT_ID`
-- `AERIES_CLIENT_SECRET`
+- `AERIES_CERT_FILE`
 - `SFTP_HOST`
 - `SFTP_PORT`
 - `SFTP_USERNAME`
