@@ -41,6 +41,7 @@ export const APP_ROUTES = [
     artboardKey: "reports-sync-transparency",
   },
   { path: "/admin", kind: "static", artboardKey: "admin" },
+  { path: "/admin/auth-settings", kind: "auth-settings", artboardKey: "admin-feature-flags" },
   { path: "/admin/feature-flags", kind: "feature-flags", artboardKey: "admin-feature-flags" },
   { path: "/my-profile", kind: "static", artboardKey: "my-profile" },
 ];
@@ -69,6 +70,7 @@ const NAV_CHILD_ROUTE_GROUPS = {
     { path: "/reports/sync-transparency", label: "Sync Transparency" },
   ],
   admin: [
+    { path: "/admin/auth-settings", label: "Auth Settings" },
     { path: "/admin/feature-flags", label: "Feature Flags" },
   ],
 };
@@ -127,7 +129,7 @@ export function navDestinationForKey(navKey, session) {
     case "reports":
       return "/reports";
     case "admin":
-      return allowedRoutes.includes("/admin") ? "/admin" : "/admin/feature-flags";
+      return allowedRoutes.includes("/admin") ? "/admin" : "/admin/auth-settings";
     default:
       return null;
   }
@@ -183,7 +185,7 @@ export function navGroupVisible(navKey, session) {
     case "studentDataCleanup":
       return allowedRoutes.includes("/student-data-cleanup");
     case "admin":
-      return allowedRoutes.includes("/admin") || allowedRoutes.includes("/admin/feature-flags");
+      return allowedRoutes.includes("/admin") || allowedRoutes.includes("/admin/auth-settings") || allowedRoutes.includes("/admin/feature-flags");
     default:
       return false;
   }

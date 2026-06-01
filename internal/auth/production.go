@@ -32,6 +32,11 @@ type GroupRoleMapping struct {
 	Roles []string `json:"roles"`
 }
 
+type OURoleMapping struct {
+	OU    string   `json:"ou"`
+	Roles []string `json:"roles"`
+}
+
 type AttributeRoleMapping struct {
 	Attribute string   `json:"attribute"`
 	Values    []string `json:"values"`
@@ -49,6 +54,7 @@ type Policy struct {
 	AllowedEmailDomains   []string
 	DeniedEmailDomains    []string
 	GroupRoleMappings     []GroupRoleMapping
+	OURoleMappings        []OURoleMapping
 	AttributeRoleMappings []AttributeRoleMapping
 	SiteScopeMappings     []SiteScopeMapping
 	SAML                  SAMLConfig
@@ -57,6 +63,7 @@ type Policy struct {
 type GoogleIdentity struct {
 	Email           string
 	Groups          []string
+	OUs             []string
 	Attributes      map[string][]string
 	BreakglassLocal bool
 }
@@ -177,6 +184,28 @@ func ParseGroupRoleMappings(raw string) ([]GroupRoleMapping, error) {
 	return mappings, nil
 }
 
+// ParseOURoleMappings reads the DB-backed Auth Settings preview contract for
+// organizational-unit role mappings. Production startup does not read this
+// parser yet; admin preview handlers use it to evaluate operator-entered OU
+// samples without enabling live Google SAML login from database state.
+func ParseOURoleMappings(raw string) ([]OURoleMapping, error) {
+	var mappings []OURoleMapping
+	if strings.TrimSpace(raw) == "" {
+		return mappings, nil
+	}
+	if err := json.Unmarshal([]byte(raw), &mappings); err != nil {
+		return nil, fmt.Errorf("parse ou role mappings: %w", err)
+	}
+	for index, mapping := range mappings {
+		mappings[index].OU = canonicalMappingValue(mapping.OU)
+		mappings[index].Roles = canonicalList(mapping.Roles)
+		if mappings[index].OU == "" || len(mappings[index].Roles) == 0 {
+			return nil, fmt.Errorf("ou role mapping %d must include ou and roles", index)
+		}
+	}
+	return mappings, nil
+}
+
 // ParseAttributeRoleMappings reads GOOGLE_AUTH_ATTRIBUTE_ROLE_MAPPINGS_JSON.
 // Values are case-insensitive because Google SAML claim formatting can vary by
 // admin-entered attribute data, while role ids remain stable application ids.
@@ -215,8 +244,8 @@ func ParseSiteScopeMappings(raw string) ([]SiteScopeMapping, error) {
 		mappings[index].Source = canonicalMappingValue(mapping.Source)
 		mappings[index].Values = canonicalList(mapping.Values)
 		mappings[index].Sites = canonicalList(mapping.Sites)
-		if mappings[index].SourceType != "group" && mappings[index].SourceType != "attribute" {
-			return nil, fmt.Errorf("site scope mapping %d must use source_type group or attribute", index)
+		if mappings[index].SourceType != "group" && mappings[index].SourceType != "ou" && mappings[index].SourceType != "attribute" {
+			return nil, fmt.Errorf("site scope mapping %d must use source_type group, ou, or attribute", index)
 		}
 		if mappings[index].Source == "" || len(mappings[index].Sites) == 0 {
 			return nil, fmt.Errorf("site scope mapping %d must include source and sites", index)
@@ -238,10 +267,16 @@ func ParseDomainList(raw string) []string {
 func resolveRoles(policy Policy, identity GoogleIdentity) []string {
 	roles := map[string]struct{}{}
 	groups := canonicalSet(identity.Groups)
+	ous := canonicalSet(identity.OUs)
 	attributes := canonicalAttributeSet(identity.Attributes)
 
 	for _, mapping := range policy.GroupRoleMappings {
 		if _, ok := groups[canonicalMappingValue(mapping.Group)]; ok {
+			addValues(roles, mapping.Roles)
+		}
+	}
+	for _, mapping := range policy.OURoleMappings {
+		if _, ok := ous[canonicalMappingValue(mapping.OU)]; ok {
 			addValues(roles, mapping.Roles)
 		}
 	}
@@ -262,12 +297,17 @@ func resolveRoles(policy Policy, identity GoogleIdentity) []string {
 func resolveSiteScopes(policy Policy, identity GoogleIdentity) []string {
 	scopes := map[string]struct{}{}
 	groups := canonicalSet(identity.Groups)
+	ous := canonicalSet(identity.OUs)
 	attributes := canonicalAttributeSet(identity.Attributes)
 
 	for _, mapping := range policy.SiteScopeMappings {
 		switch canonicalMappingValue(mapping.SourceType) {
 		case "group":
 			if _, ok := groups[canonicalMappingValue(mapping.Source)]; ok {
+				addValues(scopes, mapping.Sites)
+			}
+		case "ou":
+			if _, ok := ous[canonicalMappingValue(mapping.Source)]; ok {
 				addValues(scopes, mapping.Sites)
 			}
 		case "attribute":
@@ -337,6 +377,7 @@ var roleRoutes = map[string][]string{
 		"/reports/sync-transparency",
 		"/reports/zoom-desk-phone-renames",
 		"/admin",
+		"/admin/auth-settings",
 		"/admin/feature-flags",
 		"/my-profile",
 	},

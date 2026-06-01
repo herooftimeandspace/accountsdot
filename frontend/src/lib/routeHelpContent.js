@@ -21,6 +21,7 @@ const ROUTE_SOURCE_NOTES = {
   "/reports/sync-transparency": "Product requirements sync visibility goals; implementation plan sync transparency report and manual-action state guidance.",
   "/reports/ticketing-human-work": "Product requirements IncidentIQ human-work fallback; implementation plan ticketing report and manual owner contracts.",
   "/admin": "Product requirements IT Admin control scope; implementation plan Admin sync, exception, reversal, and emergency-control behavior.",
+  "/admin/auth-settings": "Product requirements production-auth mapping scope; implementation plan Phase 0 Auth Settings preview and provider credential controls.",
   "/admin/feature-flags": "Product requirements staged rollout and staff-only controls; implementation plan DEV feature flag control surface.",
   "/my-profile": "Product requirements account menu and staff profile scope; implementation plan shared shell profile affordance.",
 };
@@ -627,6 +628,32 @@ const HELP_CONTENT_BY_ROUTE = {
         paragraphs: [
           "Emergency controls such as Global Pause are for stopping unsafe provisioning or sync behavior while the underlying warning is investigated. They are not ordinary workflow shortcuts.",
           "IT can only fully revert a room move. To partially revert a room move, create a new Room Move draft for the affected employees.",
+        ],
+      },
+    ],
+  },
+  "/admin/auth-settings": {
+    title: "Auth Settings help",
+    sections: [
+      {
+        heading: "What this page controls",
+        paragraphs: [
+          "Auth Settings lets IT Admin configure non-secret group, OU, and attribute mappings to roles and site scopes, then preview how a candidate identity would resolve before any production login behavior is enabled.",
+          "The page also stores configured provider credential fields as encrypted database values and shows only metadata such as labels, fingerprints, key ids, timestamps, and test status.",
+        ],
+      },
+      {
+        heading: "Controls and validation",
+        paragraphs: [
+          "Use the mapping forms to save role and site-scope mappings with a required change reason. Use Validation preview to enter a test email, groups, OUs, and attributes and inspect the resolved roles, site scopes, and validation failures.",
+          "Use each external source row to save encrypted credential fields, leave sync controls off by default, and run an explicit read-only Test action when you need to confirm saved credentials can be retrieved and validated.",
+        ],
+      },
+      {
+        heading: "Safety boundaries",
+        paragraphs: [
+          "These settings do not enable production SAML, Google login, session issuance, provider imports, scheduled syncs, or provider writes. Toggle changes update only local configuration and audit history in this slice.",
+          "Do not paste plaintext credential values into tickets, docs, screenshots, audit notes, or generated artifacts. After save, the UI should show only stored status, labels, fingerprints, and sanitized test results.",
         ],
       },
     ],

@@ -55,6 +55,7 @@ var (
 		"/reports/zoom-desk-phone-renames",
 		"/reports/sync-transparency",
 		"/admin",
+		"/admin/auth-settings",
 		"/admin/feature-flags",
 	}
 )

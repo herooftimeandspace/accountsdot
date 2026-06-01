@@ -104,9 +104,14 @@ Implemented Phase 0 job-lease write primitives:
 - `internal/db.ReconcileRecoveredJob` reads `external_request_log` for a `succeeded` row tied to the crashed job. If that evidence exists, it updates `jobs.job_state` to `succeeded` without increasing `attempt_count`; otherwise it updates the job back to `queued`, clears lease fields, and increments `attempt_count` so the normal idempotent worker path can retry.
 - These primitives do not call providers. Future provider workers must still perform provider read-before-write reconciliation before any live write and must keep `external_request_log` idempotency behavior documented here.
 
-Implemented Phase 0 production-authorization schema:
+Implemented Phase 0 production-authorization schema and Auth Settings controls:
 
-- `auth_site_scope_mappings` persists manual site-scope mappings for Google group or SAML attribute sources when those identity inputs do not fully express the site boundary needed by the application. The current checkout defines the table and migration only; no route writes to it yet. Future admin UI or deployment tooling that inserts, updates, or deletes these rows must run through `internal/db.WithRetry`, write an `audit_log` row naming the actor and reason, and re-run the `P0-0C-003` and `P0-0C-004` authorization checks so stale site assignments do not grant cross-site access.
+- `auth_role_mappings` persists IT Admin-managed Google group, Google OU, and SAML/Google attribute-to-role mappings as non-secret authorization configuration. `POST /api/v1/admin/auth-settings/role-mappings` inserts or updates rows, and `DELETE /api/v1/admin/auth-settings/role-mappings/{id}` removes rows. Both routes require IT Admin, a change reason, and a sanitized `audit_log` row. Production SAML/session issuance remains env-driven in this slice; these rows feed the Auth Settings preview API only.
+- `auth_site_scope_mappings` persists manual site-scope mappings for Google group, Google OU, or SAML/Google attribute sources when those identity inputs do not fully express the site boundary needed by the application. `POST /api/v1/admin/auth-settings/site-scope-mappings` inserts or updates rows, and `DELETE /api/v1/admin/auth-settings/site-scope-mappings/{id}` removes rows. Both routes require IT Admin, a change reason, and a sanitized `audit_log` row.
+- The Auth Settings preview endpoint reads the mapping rows and runs the production auth evaluator against an operator-supplied candidate identity. It does not write the database, create sessions, issue cookies, enable production login, call identity providers, or store the preview identity.
+- `external_provider_credentials` stores configured Phase 0 provider credential fields encrypted at rest through `PUT /api/v1/admin/external-sources/{provider}/credentials`. Plaintext values are accepted only in the request body long enough to encrypt them; API responses and audit diffs expose only field names, labels, key id, one-way fingerprints, timestamps, actor, and reason.
+- `external_data_sources` stores one default-off row per configured Phase 0 provider. `PATCH /api/v1/admin/external-sources/{provider}` changes `sync_enabled` and writes `audit_log`, but it must not enqueue work, start imports, call providers, or run schedulers. Sync runners and schedulers must check this DB toggle before provider work in any later implementation.
+- `POST /api/v1/admin/external-sources/{provider}/test` decrypts saved credentials and performs the current first-slice read-only credential/configuration probe. It records sanitized status on `external_data_sources` and a sanitized `audit_log` row. It must not mutate remote systems, store provider payloads, log secrets, start syncs, or enable production login.
 
 ## HTTP Route Inventory
 
@@ -157,8 +162,17 @@ Mutation routes include:
 - `POST /api/v1/dev/login`
 - `POST /api/v1/dev/logout`
 - `PUT /api/v1/dev/feature-flags/{key}`
+- `POST /api/v1/admin/auth-settings/role-mappings`
+- `DELETE /api/v1/admin/auth-settings/role-mappings/{id}`
+- `POST /api/v1/admin/auth-settings/site-scope-mappings`
+- `DELETE /api/v1/admin/auth-settings/site-scope-mappings/{id}`
+- `PUT /api/v1/admin/external-sources/{provider}/credentials`
+- `PATCH /api/v1/admin/external-sources/{provider}`
+- `POST /api/v1/admin/external-sources/{provider}/test`
 
 Login and logout write or clear the local DEV session cookie for normal persona sessions; tooling activation additionally writes the in-memory shared DEV mock session override described above. Breakglass login accepts a named account id plus token, rejects account ids that collide after token env-name sanitization, rejects any listed named account with a missing or malformed SHA-256 token hash, verifies the configured token hash and source CIDR, writes a breakglass-scoped local session cookie, and records login/access/denial audit events in memory for database-free DEV or in `audit_log` when `DATABASE_URL` is configured. Direct breakglass clients are checked by `RemoteAddr`; `X-Forwarded-For` is used only when the immediate peer is listed in `BREAKGLASS_TRUSTED_PROXY_CIDRS`. Breakglass login and breakglass sign-out fail closed if audit storage cannot initialize or write the required event. DEV logout also records a sanitized `sign_out` audit event when the current cookie is breakglass-scoped. The feature flag route persists IT Admin-only DEV feature flag target state for persona and site visibility. These routes are documented so session-affecting and feature-flag mock behavior does not disappear from the route inventory when the route drift check runs.
+
+Auth Settings writes are IT Admin-only. They use in-memory DEV state without `DATABASE_URL`; with `DATABASE_URL`, they use `internal/db.WithRetry`, mutate only local configuration tables, and write sanitized `audit_log` rows. Credential values, certificates, tokens, passwords, raw service-account JSON, private keys, provider payloads, and SAML assertions must not appear in responses, audit diffs, logs, fixtures, docs, or generated artifacts.
 
 ### My Profile
 

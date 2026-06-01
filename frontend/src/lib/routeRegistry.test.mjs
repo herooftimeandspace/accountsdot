@@ -84,9 +84,12 @@ test("visibleNavChildrenForKey returns only documented nested routes allowed for
   );
   assert.deepEqual(
     visibleNavChildrenForKey("admin", {
-      allowed_routes: ["/admin/feature-flags"],
+      allowed_routes: ["/admin/auth-settings", "/admin/feature-flags"],
     }),
-    [{ path: "/admin/feature-flags", label: "Feature Flags" }]
+    [
+      { path: "/admin/auth-settings", label: "Auth Settings" },
+      { path: "/admin/feature-flags", label: "Feature Flags" },
+    ]
   );
   assert.deepEqual(
     visibleNavChildrenForKey("reports", {
@@ -148,6 +151,10 @@ test("route help content keeps child routes distinct from their parent sections"
   assert.match(
     helpContentForRoute("/reports/zoom-desk-phone-renames", "reports").title,
     /Zoom Desk Phone Renames/
+  );
+  assert.match(
+    helpContentForRoute("/admin/auth-settings", "admin").title,
+    /Auth Settings/
   );
   assert.match(
     helpContentForRoute("/admin/feature-flags", "admin").title,

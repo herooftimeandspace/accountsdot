@@ -34,6 +34,24 @@ Each client runs in `mock` mode, returns `status: ok`, reports `writeback: disab
 
 The configuration contains provider names, mock/read-only flags, endpoint labels, non-secret credential labels for providers that use them, and certificate file paths used only for local shape validation. Aeries uses the certificate-file method through `AERIES_CERT_FILE`; do not configure Aeries client ID/client secret credentials. The configuration must not contain tokens, client secrets, private keys, auth headers, raw service-account JSON, passwords, or certificate material. Health diagnostics must never echo the configured endpoint value, credential label value, certificate path, or file contents.
 
+The IT Admin Auth Settings first slice adds database-backed provider credential
+metadata and encrypted credential values for configured Phase 0 providers. That
+surface is an operator configuration and validation preview, not live provider
+readiness and not a sync scheduler. `external_data_sources.sync_enabled`
+defaults to `false`; toggling it only changes local database state and audit
+history. Read-only Test buttons decrypt saved credential fields and validate the
+minimum configured field set for the provider, then write sanitized test status
+metadata. They must not call a write-capable provider method, store provider
+payloads, start imports, enqueue workflow jobs, or enable production login.
+
+Plaintext credential values may be present only in the HTTPS request body for
+the save operation and only long enough to encrypt them. API responses,
+frontend state after save, audit diffs, logs, docs, fixtures, and generated
+artifacts must expose only field names, labels, key ids, one-way fingerprints,
+timestamps, actor ids, reasons, and sanitized test status. Aeries credential
+configuration should continue to use the certificate-reference method rather
+than client id/client secret credentials.
+
 Live-mode configuration diagnostics are exposed under `/health/ready` and `/health` as `dependencies.provider_<name>` entries. Ready states are:
 
 - `mocked`: the provider is intentionally mock-backed.

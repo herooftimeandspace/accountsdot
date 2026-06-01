@@ -60,6 +60,9 @@ uses a small set of explicit schema patterns:
 - `external_request_log` enforces provider idempotency with a unique index on
   `(provider, operation, idempotency_key)`
 - `feature_flag_targets.target_type` is constrained to `persona` or `site`
+- auth mapping source types are constrained to `group`, `ou`, or `attribute`
+- external provider credential tables store encrypted values and expose only
+  metadata such as key id, label, fingerprint, timestamps, actor, and reason
 - operational timestamps default to `now()` when they record row creation or
   last update; reviewers should compare `updated_at`, lease timestamps, and
   outbox timestamps with `global_tick` rather than replacing tick ordering with
@@ -88,7 +91,8 @@ uses a small set of explicit schema patterns:
 | `room_mapping_overrides` | `id`, `school_year`, `source_room`, `normalized_room`, `incident_iq_room_id`, `incident_iq_room_name`, `actor_id`, `created_at`, `updated_at` | Primary key on `id`; unique `school_year`, `source_room` | Operator-approved room mapping override. Actor and room identifiers are internal operational data. |
 | `manual_overrides` | `id`, `people_uuid`, `target_user_type`, `target_user_id`, `school_year`, `actor_id`, `reason`, `diff`, `created_at` | Primary key on `id`; nullable foreign key to `people` | Durable operator override record. `diff` must not include raw secrets, personal phone numbers, private notes beyond the required reason, or unredacted provider payloads. |
 | `audit_log` | `id`, `actor_id`, `actor_type`, `request_id`, `target_entity`, `target_id`, `reason`, `diff`, `created_at` | Primary key on `id` | Audit trail. `diff` should be sanitized and limited to fields needed to understand the change. Breakglass audit rows use sanitized account, source, and outcome metadata only. |
-| `auth_site_scope_mappings` | `id`, `source_type`, `source_value`, `attribute_values`, `site_codes`, `actor_id`, `reason`, `created_at`, `updated_at` | Primary key on `id`; unique `source_type`, `source_value`; check constraint limiting `source_type` to `group` or `attribute`; index `auth_site_scope_mappings_source_idx` on `source_type`, `source_value` | Audited production-auth site-scope mapping table for Google group or SAML attribute signals that cannot fully express site scope by themselves. `source_value`, `attribute_values`, and `site_codes` are authorization inputs; do not copy unredacted identity-provider group names, attribute values, or site-scope details into public tickets. |
+| `auth_site_scope_mappings` | `id`, `source_type`, `source_value`, `attribute_values`, `site_codes`, `actor_id`, `reason`, `created_at`, `updated_at` | Primary key on `id`; unique `source_type`, `source_value`; check constraint limiting `source_type` to `group`, `ou`, or `attribute`; index `auth_site_scope_mappings_source_idx` on `source_type`, `source_value` | Audited production-auth site-scope mapping table for Google group, Google OU, or SAML/Google attribute signals that cannot fully express site scope by themselves. `source_value`, `attribute_values`, and `site_codes` are authorization inputs; do not copy unredacted identity-provider group names, attribute values, or site-scope details into public tickets. |
+| `auth_role_mappings` | `id`, `source_type`, `source_value`, `attribute_values`, `role_keys`, `actor_id`, `reason`, `created_at`, `updated_at` | Primary key on `id`; unique `source_type`, `source_value`; check constraint limiting `source_type` to `group`, `ou`, or `attribute`; index `auth_role_mappings_source_idx` on `source_type`, `source_value` | IT Admin-managed authorization role mapping rows. These rows are non-secret configuration only and are consumed by the Auth Settings preview API in this slice; production SAML/session issuance remains env-driven until a later production-login issue wires DB mappings into live auth. |
 | `record_backups` | `id`, `target_table`, `target_id`, `snapshot`, `created_at` | Primary key on `id` | Recovery snapshot store. `snapshot` must follow the same masking and omission rules as source payloads and audit diffs. |
 
 ### Workflow Runs, Jobs, Approvals, And Outbox
@@ -113,6 +117,8 @@ uses a small set of explicit schema patterns:
 | `system_controls` | `control_name`, `enabled`, `reason`, `actor_id`, `updated_at` | Primary key on `control_name` | Global controls such as pause/cutoff state. Reasons should be concise and free of secrets. |
 | `feature_flags` | `flag_key`, `label`, `description`, `feature_route`, `default_enabled`, `actor_id`, `created_at`, `updated_at` | Primary key on `flag_key` | DEV/admin feature metadata. |
 | `feature_flag_targets` | `flag_key`, `target_type`, `target_id`, `enabled`, `actor_id`, `updated_at` | Composite primary key on `flag_key`, `target_type`, `target_id`; foreign key to `feature_flags`; check constraint limiting `target_type` to `persona` or `site` | Per-persona or per-site flag target state. |
+| `external_data_sources` | `provider_key`, `provider_label`, `sync_enabled`, `last_test_status`, `last_test_summary`, `last_test_at`, `actor_id`, `reason`, `created_at`, `updated_at` | Primary key on `provider_key` | One row per configured Phase 0 provider. `sync_enabled` defaults to `false`; toggle updates are configuration/audit writes only and must not enqueue or run sync work. Read-only Test actions update sanitized status fields and must not persist provider payloads. |
+| `external_provider_credentials` | `id`, `provider_key`, `field_key`, `encrypted_value`, `key_id`, `fingerprint`, `label`, `actor_id`, `reason`, `created_at`, `updated_at` | Primary key on `id`; foreign key to `external_data_sources`; unique `provider_key`, `field_key`; index `external_provider_credentials_provider_idx` on `provider_key` | Encrypted credential field storage for configured Phase 0 providers. `encrypted_value` is opaque ciphertext. API responses and audit diffs expose only field names, key id, fingerprint, labels, and timestamps; plaintext secrets must not appear in docs, logs, fixtures, audit rows, or generated artifacts. |
 
 ## Lifecycle, Audit, And Retry Fields
 
@@ -156,10 +162,23 @@ uses a small set of explicit schema patterns:
   - `workflow_runs.overlap_state`
   - `workflow_runs.overlap_count`
 - Authorization mapping fields:
+  - `auth_role_mappings.source_type`
+  - `auth_role_mappings.source_value`
+  - `auth_role_mappings.attribute_values`
+  - `auth_role_mappings.role_keys`
   - `auth_site_scope_mappings.source_type`
   - `auth_site_scope_mappings.source_value`
   - `auth_site_scope_mappings.attribute_values`
   - `auth_site_scope_mappings.site_codes`
+- Provider credential/control fields:
+  - `external_data_sources.provider_key`
+  - `external_data_sources.sync_enabled`
+  - `external_data_sources.last_test_status`
+  - `external_provider_credentials.field_key`
+  - `external_provider_credentials.key_id`
+  - `external_provider_credentials.fingerprint`
+  - `external_provider_credentials.label`
+  - `external_provider_credentials.encrypted_value`
 
 ## Direct SQL Review Queries
 
@@ -179,10 +198,11 @@ where table_schema = 'public'
     'source_records', 'known_identifiers', 'user_sync_status',
     'room_mapping_overrides', 'import_batches', 'workflow_runs',
     'jobs', 'approval_requests', 'manual_overrides', 'audit_log',
-    'auth_site_scope_mappings', 'record_backups', 'external_request_log',
+    'auth_site_scope_mappings', 'auth_role_mappings', 'record_backups', 'external_request_log',
     'provider_circuit_breakers', 'resource_registry',
     'extension_inventory', 'event_outbox', 'sheet_publish_log',
-    'system_controls', 'feature_flags', 'feature_flag_targets'
+    'system_controls', 'feature_flags', 'feature_flag_targets',
+    'external_data_sources', 'external_provider_credentials'
   )
 order by table_name;
 ```
@@ -228,7 +248,8 @@ where table_schema = 'public'
   and table_name in (
     'workflow_runs', 'jobs', 'event_outbox', 'external_request_log',
     'system_controls', 'feature_flags', 'feature_flag_targets',
-    'auth_site_scope_mappings'
+    'auth_site_scope_mappings', 'auth_role_mappings',
+    'external_data_sources', 'external_provider_credentials'
   )
   and (
     column_name like '%state%'
@@ -237,8 +258,9 @@ where table_schema = 'public'
       'lease_owner', 'lease_expires_at', 'lease_heartbeat_at',
       'job_family', 'scheduled_for', 'deferred_from_run_id',
       'overlap_count', 'payload', 'desired_snapshot', 'response_summary',
-      'enabled', 'default_enabled', 'source_type', 'source_value',
-      'attribute_values', 'site_codes'
+      'enabled', 'default_enabled', 'sync_enabled', 'last_test_status',
+      'source_type', 'source_value', 'attribute_values', 'site_codes',
+      'role_keys', 'field_key', 'key_id', 'fingerprint', 'label'
     )
   )
 order by table_name, column_name;
@@ -257,6 +279,8 @@ where schemaname = 'public'
   and indexname in (
     'known_identifiers_source_unique',
     'auth_site_scope_mappings_source_idx',
+    'auth_role_mappings_source_idx',
+    'external_provider_credentials_provider_idx',
     'workflow_runs_scheduled_family_active_idx',
     'workflow_runs_scheduled_family_overlap_idx',
     'jobs_claimable_global_tick_idx',

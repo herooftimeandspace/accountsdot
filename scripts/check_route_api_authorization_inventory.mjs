@@ -69,6 +69,7 @@ const routeInventory = [
   { route: "/reports/zoom-desk-phone-renames", apiPaths: ["/api/v1/dev/pages/reports/zoom-desk-phone-renames"] },
   { route: "/reports/sync-transparency", apiPaths: [] },
   { route: "/admin", apiPaths: [] },
+  { route: "/admin/auth-settings", apiPaths: [] },
   { route: "/admin/feature-flags", apiPaths: ["/api/v1/dev/feature-flags", "/api/v1/dev/feature-flags/"] },
   { route: "/my-profile", apiPaths: ["/api/v1/dev/my-profile"] },
 ];
