@@ -125,8 +125,10 @@ def _validate_release_prep() -> None:
         raise AssertionError("release-prep-check.yml must run on pull requests targeting main")
     if "workflow_run:" in release_prep or "push:" in release_prep:
         raise AssertionError("release-prep-check.yml must not run from push or workflow_run events")
-    if "github.event.pull_request.head.repo.full_name == github.repository" not in release_prep:
-        raise AssertionError("release-prep-check.yml must only evaluate same-repository promotion PRs")
+    if "github.event.pull_request.head.repo.full_name == github.repository" in release_prep:
+        raise AssertionError("release-prep-check.yml must fail cross-repository PRs inside a step, not skip the job")
+    if '"${GH_HEAD_REPO}" != "${GH_REPO}"' not in release_prep:
+        raise AssertionError("release-prep-check.yml must explicitly reject cross-repository promotion PRs")
     if '"${GH_HEAD_REF}" != "promote/staging-to-main"' not in release_prep:
         raise AssertionError("release-prep-check.yml must reject main PRs outside promote/staging-to-main")
     if "git fetch origin staging" not in release_prep or "git merge-base --is-ancestor origin/staging HEAD" not in release_prep:
