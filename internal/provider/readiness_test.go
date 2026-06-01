@@ -161,8 +161,6 @@ func TestP000D002ProviderReadinessFailureSurfacing(t *testing.T) {
 				ReadOnly:            true,
 				Endpoint:            "https://aeries.example.test",
 				EndpointEnv:         "AERIES_BASE_URL",
-				CredentialLabel:     "aeries-staging-label",
-				CredentialLabelEnv:  "AERIES_CLIENT_ID",
 				CertificateFileEnv:  "AERIES_CERT_FILE",
 				CertificateFilePath: writeTempFile(t, "not a certificate"),
 			},
@@ -179,7 +177,7 @@ func TestP000D002ProviderReadinessFailureSurfacing(t *testing.T) {
 			if !strings.Contains(got, tc.wantContains) {
 				t.Fatalf("diagnostic %q does not contain %q", got, tc.wantContains)
 			}
-			for _, forbidden := range []string{"zoom-staging-label", "aeries-staging-label", "not a certificate"} {
+			for _, forbidden := range []string{"zoom-staging-label", "not a certificate"} {
 				if strings.Contains(got, forbidden) {
 					t.Fatalf("diagnostic leaked configured value %q: %q", forbidden, got)
 				}
@@ -201,8 +199,6 @@ func TestProviderConfigurationDiagnosticsAcceptsMockAndValidLiveConfig(t *testin
 			ReadOnly:            true,
 			Endpoint:            "https://aeries.example.test",
 			EndpointEnv:         "AERIES_BASE_URL",
-			CredentialLabel:     "aeries-staging-label",
-			CredentialLabelEnv:  "AERIES_CLIENT_ID",
 			CertificateFileEnv:  "AERIES_CERT_FILE",
 			CertificateFilePath: writeValidCertificate(t),
 		},

@@ -118,7 +118,6 @@ func TestP000D002ProviderReadinessConfigFailureSurfacing(t *testing.T) {
 				"USE_MOCK_AERIES":  "false",
 				"AERIES_READ_ONLY": "true",
 				"AERIES_BASE_URL":  "https://aeries.example.test/api",
-				"AERIES_CLIENT_ID": "aeries-staging-label",
 				"AERIES_CERT_FILE": writeConfigTempFile(t, "not a certificate"),
 			},
 			providerName: provider.ProviderNameAeries,
@@ -213,7 +212,6 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	t.Setenv("AERIES_DATABASE_YEAR_MODE", provider.AeriesDatabaseYearModePreviousSchoolYear)
 	t.Setenv("AERIES_MASKED_PREVIOUS_YEAR_ONLY", "true")
 	t.Setenv("AERIES_BASE_URL", "https://aeries.example.invalid/api")
-	t.Setenv("AERIES_CLIENT_ID", "aeries-staging-label")
 	t.Setenv("AERIES_CERT_FILE", "/run/secrets/aeries-client-cert.pem")
 
 	cfg, err := config.Load()
@@ -264,7 +262,7 @@ func TestLoadOverridesFromEnvironment(t *testing.T) {
 	if aeriesReadiness.Provider != provider.ProviderNameAeries || aeriesReadiness.UseMock || !aeriesReadiness.ReadOnly {
 		t.Fatalf("aeries readiness = %#v, want read-only non-mock config", aeriesReadiness)
 	}
-	if aeriesReadiness.Endpoint != "https://aeries.example.invalid/api" || aeriesReadiness.CredentialLabel != "aeries-staging-label" {
+	if aeriesReadiness.Endpoint != "https://aeries.example.invalid/api" || aeriesReadiness.CredentialLabel != "" || aeriesReadiness.CredentialLabelEnv != "" {
 		t.Fatalf("aeries readiness metadata = %#v", aeriesReadiness)
 	}
 	if aeriesReadiness.DatabaseYearMode != provider.AeriesDatabaseYearModePreviousSchoolYear || !aeriesReadiness.MaskedPreviousYearOnly || !aeriesReadiness.CertificateFileConfigured {
@@ -368,7 +366,6 @@ func clearProviderReadinessEnv(t *testing.T) {
 		"ZOOM_BASE_URL",
 		"GOOGLE_REDIRECT_URL",
 		"AERIES_BASE_URL",
-		"AERIES_CLIENT_ID",
 		"AERIES_READ_ONLY",
 		"AERIES_DATABASE_YEAR_MODE",
 		"AERIES_MASKED_PREVIOUS_YEAR_ONLY",

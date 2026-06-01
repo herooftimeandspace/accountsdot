@@ -32,7 +32,7 @@ Each client runs in `mock` mode, returns `status: ok`, reports `writeback: disab
 - `USE_MOCK_AERIES=true`
 - `USE_MOCK_SFTP=true`
 
-The configuration contains provider names, mock/read-only flags, endpoint labels, non-secret credential labels, and certificate file paths used only for local shape validation. It must not contain tokens, client secrets, private keys, auth headers, raw service-account JSON, passwords, or certificate material. Health diagnostics must never echo the configured endpoint value, credential label value, certificate path, or file contents.
+The configuration contains provider names, mock/read-only flags, endpoint labels, non-secret credential labels for providers that use them, and certificate file paths used only for local shape validation. Aeries uses the certificate-file method through `AERIES_CERT_FILE`; do not configure Aeries client ID/client secret credentials. The configuration must not contain tokens, client secrets, private keys, auth headers, raw service-account JSON, passwords, or certificate material. Health diagnostics must never echo the configured endpoint value, credential label value, certificate path, or file contents.
 
 Live-mode configuration diagnostics are exposed under `/health/ready` and `/health` as `dependencies.provider_<name>` entries. Ready states are:
 
