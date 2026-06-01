@@ -51,6 +51,33 @@ toolchain rollback from reaching `make security` and reopening a staging
 govulncheck failure. It does not replace GitHub branch protection, environment
 protection, external IncidentIQ evidence, or the external promotion runbook.
 
+### Smallest Safe Main-Promotion Proof
+
+When the application is not stable enough to promote to production, prove the
+main-promotion pipeline without merging anything to `main` and without starting
+production deployment work. The safe proof is repository-local and PR-shape
+focused:
+
+```bash
+python3 scripts/check_ci_promotion.py --release-prep
+python3 scripts/run_local_ci.py --target staging --dry-run
+python3 scripts/run_local_ci.py --target main --dry-run
+```
+
+This proof confirms the checked-in workflows and local branch-gate mapping,
+including the `main` gate command set, without running a hosted `main` workflow
+or merging a promotion PR. The release-prep validator also checks that the
+main-promotion PR guard is a `pull_request` check for `main`, rejects branches
+other than `promote/staging-to-main`, requires the candidate to contain the
+latest `staging` tip, rejects committed `frontend/dist` output, and blocks while
+the external promotion runbook, IncidentIQ testing ticket, or release/deployment
+metadata placeholders remain unresolved.
+
+Do not merge the generated `promote/staging-to-main` PR until maintainers are
+ready for production promotion and the required external evidence exists. A
+blocked or placeholder-bearing main promotion PR is useful evidence that the
+gate is wired correctly; it is not approval to deploy.
+
 ## GitHub Workflows
 
 `.github/workflows/quality.yml` runs the branch gates on pull requests, pushes to `dev`, `staging`, and `main`, manual dispatches, and the weekly schedule. Pull requests created by promotion automation still run normal `pull_request` checks because promotion PRs are authored with `PROMOTION_PR_TOKEN`, not `github.token`.

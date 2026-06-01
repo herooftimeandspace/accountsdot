@@ -18,12 +18,12 @@ jobs:
   release-prep-check:
     name: release-prep-check
     runs-on: ubuntu-latest
-    if: github.event.pull_request.head.repo.full_name == github.repository
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       GH_PR_NUMBER: ${{ github.event.pull_request.number }}
       GH_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      GH_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
     steps:
       - name: Check out promotion candidate
         uses: actions/checkout@v4
@@ -34,6 +34,11 @@ jobs:
       - name: Verify main promotion readiness
         run: |
           set -euo pipefail
+
+          if [ "${GH_HEAD_REPO}" != "${GH_REPO}" ]; then
+            echo "main promotion PRs must come from the same repository so release-prep blockers run."
+            exit 1
+          fi
 
           if [ "${GH_HEAD_REF}" != "promote/staging-to-main" ]; then
             echo "main accepts normal promotion through promote/staging-to-main only."
