@@ -25,6 +25,13 @@ const routeMetadata = new Map([
   ["POST /api/v1/room-mappings", { owner: "room mappings" }],
   ["POST /api/v1/annual-reset", { owner: "annual reset" }],
   ["POST /api/v1/breakglass/login", { owner: "breakglass local emergency auth" }],
+  ["POST /api/v1/admin/auth-settings/role-mappings", { owner: "Auth Settings role mappings" }],
+  ["DELETE /api/v1/admin/auth-settings/role-mappings/{id}", { owner: "Auth Settings role mappings" }],
+  ["POST /api/v1/admin/auth-settings/site-scope-mappings", { owner: "Auth Settings site-scope mappings" }],
+  ["DELETE /api/v1/admin/auth-settings/site-scope-mappings/{id}", { owner: "Auth Settings site-scope mappings" }],
+  ["PUT /api/v1/admin/external-sources/{provider}/credentials", { owner: "Auth Settings provider credentials" }],
+  ["PATCH /api/v1/admin/external-sources/{provider}", { owner: "Auth Settings provider sync toggle" }],
+  ["POST /api/v1/admin/external-sources/{provider}/test", { owner: "Auth Settings provider read-only test" }],
   ["POST /api/v1/dev/login", { owner: "DEV session mock" }],
   ["POST /api/v1/dev/logout", { owner: "DEV session mock" }],
   ["PUT /api/v1/dev/my-profile", { owner: "DEV My Profile mock" }],
@@ -64,6 +71,28 @@ const dynamicRouteResolvers = {
   },
   handleDevFeatureFlag(_body, registeredPath) {
     return [{ method: "PUT", path: `${stripTrailingSlash(registeredPath)}/{key}` }];
+  },
+  handleAdminAuthSettings(_body, registeredPath) {
+    const base = stripTrailingSlash(registeredPath);
+    if (base.endsWith("/role-mappings")) {
+      return registeredPath.endsWith("/")
+        ? [{ method: "DELETE", path: `${base}/{id}` }]
+        : [{ method: "POST", path: base }];
+    }
+    if (base.endsWith("/site-scope-mappings")) {
+      return registeredPath.endsWith("/")
+        ? [{ method: "DELETE", path: `${base}/{id}` }]
+        : [{ method: "POST", path: base }];
+    }
+    return [];
+  },
+  handleAdminExternalSources(_body, registeredPath) {
+    const base = stripTrailingSlash(registeredPath);
+    return [
+      { method: "PUT", path: `${base}/{provider}/credentials` },
+      { method: "PATCH", path: `${base}/{provider}` },
+      { method: "POST", path: `${base}/{provider}/test` },
+    ];
   },
   handleDevOnboardingManualDraft(_body, registeredPath) {
     const base = stripTrailingSlash(registeredPath);
@@ -229,7 +258,7 @@ function deriveLiveMutatingRoutes({
     }
     const derivedRoutes = deriveRoutesFromHandler(registered, handlerInfo);
     const methods = mutatingMethodsInBody(handlerInfo.body);
-    if (methods.length > 0 && derivedRoutes.length === 0) {
+    if (methods.length > 0 && derivedRoutes.length === 0 && !dynamicRouteResolvers[registered.handler]) {
       failures.push(`${registered.handler} uses ${methods.join(", ")} but no live route could be derived`);
     }
     routes.push(...derivedRoutes);

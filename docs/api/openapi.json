@@ -1007,6 +1007,551 @@
         "x-wizard-idempotency": "repeating an unchanged feature-flag target update must not create duplicate audit rows"
       }
     },
+    "/api/v1/admin/auth-settings": {
+      "get": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "getAdminAuthSettings",
+        "summary": "List Auth Settings mappings, external source metadata, and sanitized audit history without enabling production login.",
+        "description": "List Auth Settings mappings, external source metadata, and sanitized audit history without enabling production login.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "conditional-local-db-read",
+        "x-wizard-transaction-retry": "configured local-database path may refresh feature-flag state before returning; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
+      }
+    },
+    "/api/v1/admin/auth-settings/role-mappings": {
+      "post": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "saveAdminAuthRoleMapping",
+        "summary": "Create or update a non-secret role mapping row and sanitized audit entry.",
+        "description": "Create or update a non-secret role mapping row and sanitized audit entry.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthMappingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthMappingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "dev-memory-or-local-db-write",
+        "x-wizard-db-access": "conditional-local-db-write",
+        "x-wizard-transaction-retry": "configured local-database path uses internal/db.WithRetry for feature-flag target and audit updates; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "repeating an unchanged feature-flag target update must not create duplicate audit rows"
+      }
+    },
+    "/api/v1/admin/auth-settings/role-mappings/{id}": {
+      "delete": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "deleteAdminAuthRoleMapping",
+        "summary": "Delete a role mapping row and sanitized audit entry.",
+        "description": "Delete a role mapping row and sanitized audit entry.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "dev-memory-or-local-db-write",
+        "x-wizard-db-access": "conditional-local-db-write",
+        "x-wizard-transaction-retry": "configured local-database path uses internal/db.WithRetry for feature-flag target and audit updates; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "repeating an unchanged feature-flag target update must not create duplicate audit rows"
+      }
+    },
+    "/api/v1/admin/auth-settings/site-scope-mappings": {
+      "post": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "saveAdminAuthSiteScopeMapping",
+        "summary": "Create or update a non-secret site-scope mapping row and sanitized audit entry.",
+        "description": "Create or update a non-secret site-scope mapping row and sanitized audit entry.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthMappingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthMappingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "dev-memory-or-local-db-write",
+        "x-wizard-db-access": "conditional-local-db-write",
+        "x-wizard-transaction-retry": "configured local-database path uses internal/db.WithRetry for feature-flag target and audit updates; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "repeating an unchanged feature-flag target update must not create duplicate audit rows"
+      }
+    },
+    "/api/v1/admin/auth-settings/site-scope-mappings/{id}": {
+      "delete": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "deleteAdminAuthSiteScopeMapping",
+        "summary": "Delete a site-scope mapping row and sanitized audit entry.",
+        "description": "Delete a site-scope mapping row and sanitized audit entry.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "dev-memory-or-local-db-write",
+        "x-wizard-db-access": "conditional-local-db-write",
+        "x-wizard-transaction-retry": "configured local-database path uses internal/db.WithRetry for feature-flag target and audit updates; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "repeating an unchanged feature-flag target update must not create duplicate audit rows"
+      }
+    },
+    "/api/v1/admin/auth-settings/preview": {
+      "post": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "previewAdminAuthSettings",
+        "summary": "Resolve a candidate identity against saved mappings without creating sessions or enabling live login.",
+        "description": "Resolve a candidate identity against saved mappings without creating sessions or enabling live login.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAuthPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthPreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "read-only",
+        "x-wizard-db-access": "conditional-local-db-read",
+        "x-wizard-transaction-retry": "configured local-database path may refresh feature-flag state before returning; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
+      }
+    },
+    "/api/v1/admin/external-sources/{provider}/credentials": {
+      "put": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "saveAdminExternalSourceCredentials",
+        "summary": "Save encrypted provider credential fields while returning only metadata and sanitized audit diffs.",
+        "description": "Save encrypted provider credential fields while returning only metadata and sanitized audit diffs.",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminProviderCredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminExternalSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "encrypted-local-db-write",
+        "x-wizard-db-access": "conditional-local-db-read",
+        "x-wizard-transaction-retry": "configured local-database path may refresh feature-flag state before returning; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
+      }
+    },
+    "/api/v1/admin/external-sources/{provider}": {
+      "patch": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "toggleAdminExternalSource",
+        "summary": "Toggle default-off sync configuration without enqueueing or running sync work.",
+        "description": "Toggle default-off sync configuration without enqueueing or running sync work.",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminExternalSourceToggleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminExternalSourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "dev-memory-or-local-db-write",
+        "x-wizard-db-access": "conditional-local-db-write",
+        "x-wizard-transaction-retry": "configured local-database path uses internal/db.WithRetry for feature-flag target and audit updates; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "repeating an unchanged feature-flag target update must not create duplicate audit rows"
+      }
+    },
+    "/api/v1/admin/external-sources/{provider}/test": {
+      "post": {
+        "tags": [
+          "Admin Auth Settings"
+        ],
+        "operationId": "testAdminExternalSource",
+        "summary": "Run an explicit read-only saved-credential validation probe and record sanitized status without provider writes.",
+        "description": "Run an explicit read-only saved-credential validation probe and record sanitized status without provider writes.",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminExternalSourceTestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "x-wizard-surface": "dev-mock-or-local-db",
+        "x-wizard-phase": "phase-0",
+        "x-wizard-auth": "it-admin-required",
+        "x-wizard-write-boundary": "read-only-test-status-write",
+        "x-wizard-db-access": "conditional-local-db-read",
+        "x-wizard-transaction-retry": "configured local-database path may refresh feature-flag state before returning; memory-only DEV path has no transaction retry",
+        "x-wizard-idempotency": "read-only operation; idempotency key not required"
+      }
+    },
     "/api/v1/dev/search": {
       "get": {
         "tags": [

@@ -12,6 +12,7 @@ function lazyNamed(importer, exportName) {
 }
 
 const ErrorPage = lazyNamed(() => import("./pages/ErrorPage"), "ErrorPage");
+const AuthSettingsPage = lazyNamed(() => import("./pages/AuthSettingsPage"), "AuthSettingsPage");
 const FeatureFlagsPage = lazyNamed(() => import("./pages/FeatureFlagsPage"), "FeatureFlagsPage");
 const DataQualityPage = lazyNamed(() => import("./pages/DataQualityPage"), "DataQualityPage");
 const DepartingSeniorsPage = lazyNamed(() => import("./pages/DepartingSeniorsPage"), "DepartingSeniorsPage");
@@ -55,6 +56,7 @@ const STATIC_ROUTE_TITLES = {
   reports: "Reports",
   "reports-sync-transparency": "Sync Transparency",
   admin: "Admin",
+  "admin-auth-settings": "Auth Settings",
   "admin-feature-flags": "Feature Flags",
   "my-profile": "My Profile",
 };
@@ -98,6 +100,8 @@ function pageTitleForRoute(route, currentPath) {
       return "Zoom Desk Phone Renames";
     case "feature-flags":
       return "Feature Flags";
+    case "auth-settings":
+      return "Auth Settings";
     case "room-moves":
     case "room-moves-bulk-draft":
       return "Room Moves";
@@ -623,6 +627,17 @@ export function App() {
   } else if (currentRoute?.kind === "feature-flags") {
     page = (
       <FeatureFlagsPage
+        session={session}
+        onNavigate={navigate}
+        onSearch={handleSharedSearch}
+        searchQuery={currentSearchQuery}
+        onUnauthorized={handleUnauthorized}
+        onForbidden={handleForbidden}
+      />
+    );
+  } else if (currentRoute?.kind === "auth-settings") {
+    page = (
+      <AuthSettingsPage
         session={session}
         onNavigate={navigate}
         onSearch={handleSharedSearch}

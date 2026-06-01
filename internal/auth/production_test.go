@@ -134,17 +134,22 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 		{Group: "wizard-it-admins@wusd.org", Roles: []string{auth.RoleITAdmin}},
 		{Group: "wizard-site-secretaries@wusd.org", Roles: []string{auth.RoleSiteSecretary}},
 	}
+	policy.OURoleMappings = []auth.OURoleMapping{
+		{OU: "/Staff/Clover", Roles: []string{auth.RoleITAdmin}},
+	}
 	policy.AttributeRoleMappings = []auth.AttributeRoleMapping{
 		{Attribute: "wizard_role", Values: []string{"Faculty"}, Roles: []string{auth.RoleFacultyStaff}},
 	}
 	policy.SiteScopeMappings = []auth.SiteScopeMapping{
 		{SourceType: "group", Source: "wizard-bpl-scope@wusd.org", Sites: []string{"bpl"}},
+		{SourceType: "ou", Source: "/Staff/Clover", Sites: []string{"clover-devices"}},
 		{SourceType: "attribute", Source: "wizard_site", Values: []string{"Clover HS"}, Sites: []string{"clover-hs"}},
 	}
 
 	decision := auth.EvaluateGoogleIdentity(policy, auth.GoogleIdentity{
 		Email:  "Casey.Teacher@staff.wusd.org",
 		Groups: []string{"wizard-bpl-scope@wusd.org"},
+		OUs:    []string{"/Staff/Clover"},
 		Attributes: map[string][]string{
 			"wizard_role": {"Faculty"},
 			"wizard_site": {"Clover HS"},
@@ -155,7 +160,9 @@ func TestEvaluateGoogleIdentityMapsGroupsAttributesAndSites(t *testing.T) {
 		t.Fatalf("decision denied: %#v", decision)
 	}
 	assertContains(t, decision.Roles, auth.RoleFacultyStaff)
+	assertContains(t, decision.Roles, auth.RoleITAdmin)
 	assertContains(t, decision.SiteScopes, "bpl")
+	assertContains(t, decision.SiteScopes, "clover-devices")
 	assertContains(t, decision.SiteScopes, "clover-hs")
 	if decision.Email != "casey.teacher@staff.wusd.org" {
 		t.Fatalf("email = %q, want canonical lowercase address", decision.Email)
