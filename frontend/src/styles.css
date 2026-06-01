@@ -131,7 +131,7 @@ button.summary-info-box {
 }
 
 .summary-info-box--waiting {
-  --summary-info-value: var(--color-highlight);
+  --summary-info-value: var(--color-accent-brown);
 }
 
 .summary-info-box--info {

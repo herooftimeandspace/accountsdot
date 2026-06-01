@@ -86,7 +86,6 @@ const BULK_COLUMNS = [
   { key: "action", label: "Action", value: (row) => row.action },
 ];
 const HIDDEN_ROOM_MOVES_NODE_SUFFIXES = [
-  ...ROOM_MOVES_SUMMARY_CARD_IDS,
   "f74", "t75",
   "f92", "t93", "t94", "t95", "t96", "t97",
   "f100", "t101", "t102", "t103", "t104", "t105", "t106", "t107", "l108",
@@ -110,7 +109,7 @@ function nodeIdForSuffix(artboardKey, suffix) {
 function hiddenRoomMovesNodeIds(artboardKey, isBulk) {
   const suffixes = isBulk
     ? [...HIDDEN_ROOM_MOVES_NODE_SUFFIXES, ...HIDDEN_BULK_DRAFT_NODE_SUFFIXES]
-    : HIDDEN_ROOM_MOVES_NODE_SUFFIXES;
+    : [...ROOM_MOVES_SUMMARY_CARD_IDS, ...HIDDEN_ROOM_MOVES_NODE_SUFFIXES];
   return suffixes.map((suffix) => nodeIdForSuffix(artboardKey, suffix));
 }
 
